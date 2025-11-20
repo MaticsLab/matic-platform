@@ -26,38 +26,38 @@ func (b *BaseModel) BeforeCreate(tx *gorm.DB) error {
 // Organization model
 type Organization struct {
 	BaseModel
-	Name        string                 `gorm:"not null" json:"name"`
-	Slug        string                 `gorm:"uniqueIndex;not null" json:"slug"`
-	Description string                 `json:"description"`
-	Settings    map[string]interface{} `gorm:"type:jsonb;default:'{}'" json:"settings"`
-	Members     []OrganizationMember   `gorm:"foreignKey:OrganizationID" json:"members,omitempty"`
-	Workspaces  []Workspace            `gorm:"foreignKey:OrganizationID" json:"workspaces,omitempty"`
+	Name        string             `gorm:"not null" json:"name"`
+	Slug        string             `gorm:"uniqueIndex;not null" json:"slug"`
+	Description string             `json:"description"`
+	Settings    datatypes.JSON     `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	Members     []OrganizationMember `gorm:"foreignKey:OrganizationID" json:"members,omitempty"`
+	Workspaces  []Workspace        `gorm:"foreignKey:OrganizationID" json:"workspaces,omitempty"`
 }
 
 type OrganizationMember struct {
 	BaseModel
-	OrganizationID uuid.UUID              `gorm:"type:uuid;not null;index" json:"organization_id"`
-	UserID         uuid.UUID              `gorm:"type:uuid;not null;index" json:"user_id"`
-	Role           string                 `gorm:"type:varchar(50);default:'member'" json:"role"`
-	Permissions    map[string]interface{} `gorm:"type:jsonb;default:'{}'" json:"permissions"`
+	OrganizationID uuid.UUID      `gorm:"type:uuid;not null;index" json:"organization_id"`
+	UserID         uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"`
+	Role           string         `gorm:"type:varchar(50);default:'member'" json:"role"`
+	Permissions    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"permissions"`
 }
 
 // Workspace model
 type Workspace struct {
 	BaseModel
-	OrganizationID uuid.UUID              `gorm:"type:uuid;not null;index" json:"organization_id"`
-	Name           string                 `gorm:"not null" json:"name"`
-	Slug           string                 `gorm:"not null;index" json:"slug"`
-	Description    string                 `json:"description"`
-	Color          string                 `gorm:"default:'#3B82F6'" json:"color"`
-	Icon           string                 `gorm:"default:'folder'" json:"icon"`
-	Settings       map[string]interface{} `gorm:"type:jsonb;default:'{}'" json:"settings"`
-	IsArchived     bool                   `gorm:"default:false" json:"is_archived"`
-	CreatedBy      uuid.UUID              `gorm:"type:uuid;not null" json:"created_by"`
-	Members        []WorkspaceMember      `gorm:"foreignKey:WorkspaceID" json:"members,omitempty"`
-	DataTables     []DataTable            `gorm:"foreignKey:WorkspaceID" json:"data_tables,omitempty"`
-	Forms          []Form                 `gorm:"foreignKey:WorkspaceID" json:"forms,omitempty"`
-	ActivitiesHubs []ActivitiesHub        `gorm:"foreignKey:WorkspaceID" json:"activities_hubs,omitempty"`
+	OrganizationID uuid.UUID      `gorm:"type:uuid;not null;index" json:"organization_id"`
+	Name           string         `gorm:"not null" json:"name"`
+	Slug           string         `gorm:"not null;index" json:"slug"`
+	Description    string         `json:"description"`
+	Color          string         `gorm:"default:'#3B82F6'" json:"color"`
+	Icon           string         `gorm:"default:'folder'" json:"icon"`
+	Settings       datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	IsArchived     bool           `gorm:"default:false" json:"is_archived"`
+	CreatedBy      uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`
+	Members        []WorkspaceMember `gorm:"foreignKey:WorkspaceID" json:"members,omitempty"`
+	DataTables     []DataTable    `gorm:"foreignKey:WorkspaceID" json:"data_tables,omitempty"`
+	Forms          []Form         `gorm:"foreignKey:WorkspaceID" json:"forms,omitempty"`
+	ActivitiesHubs []ActivitiesHub `gorm:"foreignKey:WorkspaceID" json:"activities_hubs,omitempty"`
 }
 
 type WorkspaceMember struct {
@@ -136,55 +136,55 @@ type TableRow struct {
 
 type TableView struct {
 	BaseModel
-	TableID     uuid.UUID              `gorm:"type:uuid;not null;index" json:"table_id"`
-	Name        string                 `gorm:"not null" json:"name"`
-	Type        string                 `gorm:"not null" json:"type"` // grid, kanban, calendar, etc.
-	IsDefault   bool                   `gorm:"default:false" json:"is_default"`
-	Filters     map[string]interface{} `gorm:"type:jsonb;default:'{}'" json:"filters"`
-	Sorts       map[string]interface{} `gorm:"type:jsonb;default:'{}'" json:"sorts"`
-	VisibleCols []string               `gorm:"type:text[]" json:"visible_columns"`
+	TableID     uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
+	Name        string         `gorm:"not null" json:"name"`
+	Type        string         `gorm:"not null" json:"type"` // grid, kanban, calendar, etc.
+	IsDefault   bool           `gorm:"default:false" json:"is_default"`
+	Filters     datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"filters"`
+	Sorts       datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"sorts"`
+	VisibleCols []string       `gorm:"type:text[]" json:"visible_columns"`
 }
 
 // TableLink - Defines relationships between tables (schema-level)
 type TableLink struct {
 	BaseModel
-	SourceTableID uuid.UUID              `gorm:"type:uuid;not null;index" json:"source_table_id"`
-	TargetTableID uuid.UUID              `gorm:"type:uuid;not null;index" json:"target_table_id"`
-	LinkType      string                 `gorm:"column:link_type;not null" json:"link_type"` // one_to_many, many_to_many
-	Settings      map[string]interface{} `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	SourceTableID uuid.UUID      `gorm:"type:uuid;not null;index" json:"source_table_id"`
+	TargetTableID uuid.UUID      `gorm:"type:uuid;not null;index" json:"target_table_id"`
+	LinkType      string         `gorm:"column:link_type;not null" json:"link_type"` // one_to_many, many_to_many
+	Settings      datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
 }
 
 // TableRowLink - Links specific rows together (data-level)
 type TableRowLink struct {
 	BaseModel
-	LinkID      uuid.UUID              `gorm:"type:uuid;not null;index" json:"link_id"` // References TableLink.ID
-	SourceRowID uuid.UUID              `gorm:"type:uuid;not null;index" json:"source_row_id"`
-	TargetRowID uuid.UUID              `gorm:"type:uuid;not null;index" json:"target_row_id"`
-	LinkData    map[string]interface{} `gorm:"type:jsonb;default:'{}'" json:"link_data"` // Metadata like enrollment_date, status, notes
+	LinkID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"link_id"` // References TableLink.ID
+	SourceRowID uuid.UUID      `gorm:"type:uuid;not null;index" json:"source_row_id"`
+	TargetRowID uuid.UUID      `gorm:"type:uuid;not null;index" json:"target_row_id"`
+	LinkData    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"link_data"` // Metadata like enrollment_date, status, notes
 }
 
 // Form model
 type Form struct {
 	BaseModel
-	WorkspaceID uuid.UUID              `gorm:"type:uuid;not null;index" json:"workspace_id"`
-	Name        string                 `gorm:"not null" json:"name"`
-	Description string                 `json:"description"`
-	Settings    map[string]interface{} `gorm:"type:jsonb;default:'{}'" json:"settings"`
-	IsPublished bool                   `gorm:"default:false" json:"is_published"`
-	Fields      []FormField            `gorm:"foreignKey:FormID" json:"fields,omitempty"`
-	Submissions []FormSubmission       `gorm:"foreignKey:FormID" json:"submissions,omitempty"`
+	WorkspaceID uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
+	Name        string         `gorm:"not null" json:"name"`
+	Description string         `json:"description"`
+	Settings    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	IsPublished bool           `gorm:"default:false" json:"is_published"`
+	Fields      []FormField    `gorm:"foreignKey:FormID" json:"fields,omitempty"`
+	Submissions []FormSubmission `gorm:"foreignKey:FormID" json:"submissions,omitempty"`
 }
 
 type FormField struct {
 	BaseModel
-	FormID      uuid.UUID              `gorm:"type:uuid;not null;index" json:"form_id"`
-	Label       string                 `gorm:"not null" json:"label"`
-	Type        string                 `gorm:"not null" json:"type"`
-	Position    int                    `gorm:"default:0" json:"position"`
-	IsRequired  bool                   `gorm:"default:false" json:"is_required"`
-	Placeholder string                 `json:"placeholder"`
-	Options     map[string]interface{} `gorm:"type:jsonb;default:'{}'" json:"options"`
-	Validation  map[string]interface{} `gorm:"type:jsonb;default:'{}'" json:"validation"`
+	FormID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"form_id"`
+	Label       string         `gorm:"not null" json:"label"`
+	Type        string         `gorm:"not null" json:"type"`
+	Position    int            `gorm:"default:0" json:"position"`
+	IsRequired  bool           `gorm:"default:false" json:"is_required"`
+	Placeholder string         `json:"placeholder"`
+	Options     datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"options"`
+	Validation  datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"validation"`
 }
 
 type FormSubmission struct {

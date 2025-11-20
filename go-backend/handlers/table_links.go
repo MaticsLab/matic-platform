@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/Jsanchez767/matic-platform/database"
@@ -86,7 +87,7 @@ func CreateTableLink(c *gin.Context) {
 		SourceTableID: input.SourceTableID,
 		TargetTableID: input.TargetTableID,
 		LinkType:      input.LinkType,
-		Settings:      input.Settings,
+		Settings:      mapToJSON(input.Settings),
 	}
 
 	if err := database.DB.Create(&link).Error; err != nil {
@@ -127,7 +128,7 @@ func UpdateTableLink(c *gin.Context) {
 	}
 
 	if input.Settings != nil {
-		link.Settings = *input.Settings
+		link.Settings = mapToJSON(*input.Settings)
 	}
 
 	if err := database.DB.Save(&link).Error; err != nil {
@@ -205,9 +206,15 @@ func GetLinkedRows(c *gin.Context) {
 
 	response := make([]LinkedRowResponse, 0)
 	for i, row := range rows {
+		// Parse LinkData from JSON
+		var linkData map[string]interface{}
+		if err := json.Unmarshal([]byte(rowLinks[i].LinkData), &linkData); err != nil {
+			linkData = make(map[string]interface{})
+		}
+		
 		response = append(response, LinkedRowResponse{
 			Row:      row,
-			LinkData: rowLinks[i].LinkData,
+			LinkData: linkData,
 			LinkID:   rowLinks[i].ID,
 		})
 	}
@@ -260,7 +267,7 @@ func CreateTableRowLink(c *gin.Context) {
 		LinkID:      input.LinkID,
 		SourceRowID: input.SourceRowID,
 		TargetRowID: input.TargetRowID,
-		LinkData:    input.LinkData,
+		LinkData:    mapToJSON(input.LinkData),
 	}
 
 	if err := database.DB.Create(&rowLink).Error; err != nil {
@@ -292,7 +299,7 @@ func UpdateTableRowLink(c *gin.Context) {
 	}
 
 	if input.LinkData != nil {
-		rowLink.LinkData = *input.LinkData
+		rowLink.LinkData = mapToJSON(*input.LinkData)
 	}
 
 	if err := database.DB.Save(&rowLink).Error; err != nil {

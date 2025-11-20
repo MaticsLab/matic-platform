@@ -1,24 +1,14 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/Jsanchez767/matic-platform/database"
+	"github.com/Jsanchez767/matic-platform/middleware"
 	"github.com/Jsanchez767/matic-platform/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"gorm.io/datatypes"
 )
-
-// Helper function to convert map to datatypes.JSON
-func mapToJSON(m map[string]interface{}) datatypes.JSON {
-	if m == nil {
-		return datatypes.JSON("{}")
-	}
-	jsonBytes, _ := json.Marshal(m)
-	return datatypes.JSON(jsonBytes)
-}
 
 // Data Table Handlers
 
@@ -185,16 +175,23 @@ func CreateTableRow(c *gin.Context) {
 		return
 	}
 
-	// Parse user ID from query parameter (REQUIRED for database constraint)
-	userIDStr := c.Query("user_id")
-	if userIDStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id query parameter is required"})
+	// Verify table exists
+	var table models.DataTable
+	if err := database.DB.Where("id = ?", parsedTableID).First(&table).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Table not found"})
 		return
 	}
 
-	parsedUserID, err := uuid.Parse(userIDStr)
+	// Get authenticated user ID from JWT token
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: user ID not found"})
+		return
+	}
+
+	parsedUserID, err := uuid.Parse(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user_id: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
 		return
 	}
 

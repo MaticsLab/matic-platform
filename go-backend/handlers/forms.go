@@ -1,24 +1,14 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/Jsanchez767/matic-platform/database"
+	"github.com/Jsanchez767/matic-platform/middleware"
 	"github.com/Jsanchez767/matic-platform/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"gorm.io/datatypes"
 )
-
-// Helper function to convert map to datatypes.JSON (for forms)
-func mapToJSONForm(m map[string]interface{}) datatypes.JSON {
-	if m == nil {
-		return datatypes.JSON("{}")
-	}
-	jsonBytes, _ := json.Marshal(m)
-	return datatypes.JSON(jsonBytes)
-}
 
 // Form Handlers
 
@@ -71,7 +61,7 @@ func CreateForm(c *gin.Context) {
 		WorkspaceID: input.WorkspaceID,
 		Name:        input.Name,
 		Description: input.Description,
-		Settings:    input.Settings,
+		Settings:    mapToJSON(input.Settings),
 		IsPublished: input.IsPublished,
 	}
 
@@ -112,7 +102,7 @@ func UpdateForm(c *gin.Context) {
 		form.Description = *input.Description
 	}
 	if input.Settings != nil {
-		form.Settings = *input.Settings
+		form.Settings = mapToJSON(*input.Settings)
 	}
 	if input.IsPublished != nil {
 		form.IsPublished = *input.IsPublished
@@ -184,14 +174,16 @@ func SubmitForm(c *gin.Context) {
 
 	submission := models.FormSubmission{
 		FormID:    uuid.MustParse(formID),
-		Data:      mapToJSONForm(input.Data),
+		Data:      mapToJSON(input.Data),
 		IPAddress: c.ClientIP(),
 		UserAgent: c.Request.UserAgent(),
 	}
 
-	// Add user ID if authenticated
-	if userID := c.Query("user_id"); userID != "" {
-		submission.SubmittedBy = uuid.MustParse(userID)
+	// Add user ID if authenticated (optional for forms)
+	if userID, exists := middleware.GetUserID(c); exists {
+		if parsedUserID, err := uuid.Parse(userID); err == nil {
+			submission.SubmittedBy = parsedUserID
+		}
 	}
 
 	if err := database.DB.Create(&submission).Error; err != nil {

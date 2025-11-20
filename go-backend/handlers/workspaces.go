@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/Jsanchez767/matic-platform/database"
+	"github.com/Jsanchez767/matic-platform/middleware"
 	"github.com/Jsanchez767/matic-platform/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -67,6 +68,19 @@ func CreateWorkspace(c *gin.Context) {
 		return
 	}
 
+	// Get authenticated user ID from JWT token
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: user ID not found"})
+		return
+	}
+
+	parsedUserID, err := uuid.Parse(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
 	// Check for duplicate slug within organization
 	var existing models.Workspace
 	if err := database.DB.Where("organization_id = ? AND slug = ?", input.OrganizationID, input.Slug).First(&existing).Error; err == nil {
@@ -91,8 +105,8 @@ func CreateWorkspace(c *gin.Context) {
 		Description:    input.Description,
 		Color:          color,
 		Icon:           icon,
-		Settings:       input.Settings,
-		CreatedBy:      uuid.MustParse(c.Query("user_id")),
+		Settings:       mapToJSON(input.Settings),
+		CreatedBy:      parsedUserID,
 	}
 
 	if err := database.DB.Create(&workspace).Error; err != nil {
@@ -154,7 +168,7 @@ func UpdateWorkspace(c *gin.Context) {
 		workspace.Icon = *input.Icon
 	}
 	if input.Settings != nil {
-		workspace.Settings = *input.Settings
+		workspace.Settings = mapToJSON(*input.Settings)
 	}
 	if input.IsArchived != nil {
 		workspace.IsArchived = *input.IsArchived
