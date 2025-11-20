@@ -5,6 +5,7 @@ import (
 
 	"github.com/Jsanchez767/matic-platform/config"
 	"github.com/Jsanchez767/matic-platform/handlers"
+	"github.com/Jsanchez767/matic-platform/middleware"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
@@ -119,7 +120,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			})
 		})
 
-		// API Documentation
+		// API Documentation - public
 		api.GET("/docs", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"api_version": "v1",
@@ -181,109 +182,112 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			})
 		})
 
-		// Workspaces
-		workspaces := api.Group("/workspaces")
+		// Protected routes - require authentication
+		protected := api.Group("")
+		protected.Use(middleware.AuthMiddleware(cfg))
 		{
-			workspaces.GET("", handlers.ListWorkspaces)
-			workspaces.POST("", handlers.CreateWorkspace)
-			workspaces.GET("/:id", handlers.GetWorkspace)
-			workspaces.PATCH("/:id", handlers.UpdateWorkspace)
-			workspaces.DELETE("/:id", handlers.DeleteWorkspace)
+			// Workspaces
+			workspaces := protected.Group("/workspaces")
+			{
+				workspaces.GET("", handlers.ListWorkspaces)
+				workspaces.POST("", handlers.CreateWorkspace)
+				workspaces.GET("/:id", handlers.GetWorkspace)
+				workspaces.PATCH("/:id", handlers.UpdateWorkspace)
+				workspaces.DELETE("/:id", handlers.DeleteWorkspace)
+			}
+
+			// Activities Hubs (separate base path to avoid conflicts with /workspaces/:id)
+			activitiesHubs := protected.Group("/activities-hubs")
+			{
+				activitiesHubs.GET("", handlers.ListActivitiesHubs)                   // ?workspace_id=xxx
+				activitiesHubs.POST("", handlers.CreateActivitiesHub)                 // workspace_id in body
+				activitiesHubs.GET("/by-slug/:slug", handlers.GetActivitiesHubBySlug) // ?workspace_id=xxx
+				activitiesHubs.GET("/:hub_id", handlers.GetActivitiesHub)
+				activitiesHubs.PATCH("/:hub_id", handlers.UpdateActivitiesHub)
+				activitiesHubs.DELETE("/:hub_id", handlers.DeleteActivitiesHub)
+
+				// Activities Hub Tabs
+				activitiesHubs.GET("/:hub_id/tabs", handlers.ListActivitiesHubTabs)
+				activitiesHubs.POST("/:hub_id/tabs", handlers.CreateActivitiesHubTab)
+				activitiesHubs.PATCH("/:hub_id/tabs/:tab_id", handlers.UpdateActivitiesHubTab)
+				activitiesHubs.DELETE("/:hub_id/tabs/:tab_id", handlers.DeleteActivitiesHubTab)
+				activitiesHubs.POST("/:hub_id/tabs/reorder", handlers.ReorderActivitiesHubTabs)
+			}
+
+			// Data Tables
+			tables := protected.Group("/tables")
+			{
+				tables.GET("", handlers.ListDataTables)
+				tables.POST("", handlers.CreateDataTable)
+				tables.GET("/:id", handlers.GetDataTable)
+				tables.PATCH("/:id", handlers.UpdateDataTable)
+				tables.DELETE("/:id", handlers.DeleteDataTable)
+
+				// Table rows
+				tables.GET("/:id/rows", handlers.ListTableRows)
+				tables.POST("/:id/rows", handlers.CreateTableRow)
+				tables.PATCH("/:id/rows/:row_id", handlers.UpdateTableRow)
+				tables.DELETE("/:id/rows/:row_id", handlers.DeleteTableRow)
+
+				// Table columns
+				tables.POST("/:id/columns", handlers.CreateTableColumn)
+				tables.PATCH("/:id/columns/:column_id", handlers.UpdateTableColumn)
+				tables.DELETE("/:id/columns/:column_id", handlers.DeleteTableColumn)
+
+				// Table search
+				tables.GET("/:id/search", handlers.SearchTableRows)
+			}
+
+			// Table Links - for managing table relationships
+			tableLinks := protected.Group("/table-links")
+			{
+				tableLinks.GET("", handlers.ListTableLinks) // ?table_id=xxx
+				tableLinks.POST("", handlers.CreateTableLink)
+				tableLinks.GET("/:id", handlers.GetTableLink)
+				tableLinks.PATCH("/:id", handlers.UpdateTableLink)
+				tableLinks.DELETE("/:id", handlers.DeleteTableLink)
+			}
+
+			// Table Row Links - for managing row-to-row connections
+			rowLinks := protected.Group("/row-links")
+			{
+				rowLinks.GET("/rows/:row_id/linked", handlers.GetLinkedRows) // ?link_id=xxx
+				rowLinks.POST("", handlers.CreateTableRowLink)
+				rowLinks.PATCH("/:id", handlers.UpdateTableRowLink)
+				rowLinks.DELETE("/:id", handlers.DeleteTableRowLink)
+			}
+
+			// Forms
+			forms := protected.Group("/forms")
+			{
+				forms.GET("", handlers.ListForms)
+				forms.POST("", handlers.CreateForm)
+				forms.GET("/:id", handlers.GetForm)
+				forms.PATCH("/:id", handlers.UpdateForm)
+				forms.DELETE("/:id", handlers.DeleteForm)
+
+				// Form submissions
+				forms.GET("/:id/submissions", handlers.ListFormSubmissions)
+				forms.POST("/:id/submit", handlers.SubmitForm)
+
+				// Form search
+				forms.GET("/:id/search", handlers.SearchFormSubmissions)
+			}
+
+			// Search
+			search := protected.Group("/search")
+			{
+				// Universal workspace search
+				search.GET("", handlers.SearchWorkspace)
+
+				// Search utilities
+				search.GET("/suggestions", handlers.GetSearchSuggestions)
+				search.GET("/recent", handlers.GetRecentSearches)
+				search.POST("/history", handlers.SaveSearchHistory)
+				search.GET("/popular", handlers.GetPopularSearches)
+				search.DELETE("/history/:workspace_id", handlers.ClearSearchHistory)
+			}
 		}
-
-		// Activities Hubs (separate base path to avoid conflicts with /workspaces/:id)
-		activitiesHubs := api.Group("/activities-hubs")
-		{
-			activitiesHubs.GET("", handlers.ListActivitiesHubs)                   // ?workspace_id=xxx
-			activitiesHubs.POST("", handlers.CreateActivitiesHub)                 // workspace_id in body
-			activitiesHubs.GET("/by-slug/:slug", handlers.GetActivitiesHubBySlug) // ?workspace_id=xxx
-			activitiesHubs.GET("/:hub_id", handlers.GetActivitiesHub)
-			activitiesHubs.PATCH("/:hub_id", handlers.UpdateActivitiesHub)
-			activitiesHubs.DELETE("/:hub_id", handlers.DeleteActivitiesHub)
-
-			// Activities Hub Tabs
-			activitiesHubs.GET("/:hub_id/tabs", handlers.ListActivitiesHubTabs)
-			activitiesHubs.POST("/:hub_id/tabs", handlers.CreateActivitiesHubTab)
-			activitiesHubs.PATCH("/:hub_id/tabs/:tab_id", handlers.UpdateActivitiesHubTab)
-			activitiesHubs.DELETE("/:hub_id/tabs/:tab_id", handlers.DeleteActivitiesHubTab)
-			activitiesHubs.POST("/:hub_id/tabs/reorder", handlers.ReorderActivitiesHubTabs)
-		}
-
-		// Data Tables
-		tables := api.Group("/tables")
-		{
-			tables.GET("", handlers.ListDataTables)
-			tables.POST("", handlers.CreateDataTable)
-			tables.GET("/:id", handlers.GetDataTable)
-			tables.PATCH("/:id", handlers.UpdateDataTable)
-			tables.DELETE("/:id", handlers.DeleteDataTable)
-
-			// Table rows
-			tables.GET("/:id/rows", handlers.ListTableRows)
-			tables.POST("/:id/rows", handlers.CreateTableRow)
-			tables.PATCH("/:id/rows/:row_id", handlers.UpdateTableRow)
-			tables.DELETE("/:id/rows/:row_id", handlers.DeleteTableRow)
-
-			// Table columns
-			tables.POST("/:id/columns", handlers.CreateTableColumn)
-			tables.PATCH("/:id/columns/:column_id", handlers.UpdateTableColumn)
-			tables.DELETE("/:id/columns/:column_id", handlers.DeleteTableColumn)
-
-			// Table search
-			tables.GET("/:id/search", handlers.SearchTableRows)
-		}
-
-		// Table Links - for managing table relationships
-		tableLinks := api.Group("/table-links")
-		{
-			tableLinks.GET("", handlers.ListTableLinks) // ?table_id=xxx
-			tableLinks.POST("", handlers.CreateTableLink)
-			tableLinks.GET("/:id", handlers.GetTableLink)
-			tableLinks.PATCH("/:id", handlers.UpdateTableLink)
-			tableLinks.DELETE("/:id", handlers.DeleteTableLink)
-		}
-
-		// Table Row Links - for managing row-to-row connections
-		rowLinks := api.Group("/row-links")
-		{
-			rowLinks.GET("/rows/:row_id/linked", handlers.GetLinkedRows) // ?link_id=xxx
-			rowLinks.POST("", handlers.CreateTableRowLink)
-			rowLinks.PATCH("/:id", handlers.UpdateTableRowLink)
-			rowLinks.DELETE("/:id", handlers.DeleteTableRowLink)
-		}
-
-		// Forms
-		forms := api.Group("/forms")
-		{
-			forms.GET("", handlers.ListForms)
-			forms.POST("", handlers.CreateForm)
-			forms.GET("/:id", handlers.GetForm)
-			forms.PATCH("/:id", handlers.UpdateForm)
-			forms.DELETE("/:id", handlers.DeleteForm)
-
-			// Form submissions
-			forms.GET("/:id/submissions", handlers.ListFormSubmissions)
-			forms.POST("/:id/submit", handlers.SubmitForm)
-
-			// Form search
-			forms.GET("/:id/search", handlers.SearchFormSubmissions)
-		}
-
-		// Search
-		search := api.Group("/search")
-		{
-			// Universal workspace search
-			search.GET("", handlers.SearchWorkspace)
-
-			// Search utilities
-			search.GET("/suggestions", handlers.GetSearchSuggestions)
-			search.GET("/recent", handlers.GetRecentSearches)
-			search.POST("/history", handlers.SaveSearchHistory)
-			search.GET("/popular", handlers.GetPopularSearches)
-			search.DELETE("/history/:workspace_id", handlers.ClearSearchHistory)
-		}
-
-		// Add table search to tables group (need to modify tables section)
 	}
 
 	return r
