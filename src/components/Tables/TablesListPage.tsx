@@ -1,17 +1,60 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Search, Table2, MoreVertical, Edit, Trash2, Copy, Archive, Upload } from 'lucide-react'
+import { Plus, Search, Table2, MoreVertical, Edit, Trash2, Copy, Upload } from 'lucide-react'
 import { useTabContext } from '../WorkspaceTabProvider'
 import { CreateTableModal, TableFormData } from './CreateTableModal'
 import { CSVImportModal } from './CSVImportModal'
-import { tablesGoClient } from '@/lib/api/tables-go-client'
-import { getCurrentUser } from '@/lib/supabase'
+import { getSessionToken } from '@/lib/supabase'
 import { toast } from 'sonner'
 import type { DataTable } from '@/types/data-tables'
 
+const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'https://backend.maticslab.com/api/v1'
+
 interface TablesListPageProps {
   workspaceId: string
+}
+
+// Direct API functions following activities hubs pattern
+async function fetchWithAuth(url: string, options: RequestInit = {}) {
+  const token = await getSessionToken()
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Request failed' }))
+    throw new Error(error.error || error.message || error.detail || `HTTP ${response.status}`)
+  }
+
+  if (response.status === 204) {
+    return null
+  }
+
+  return response.json()
+}
+
+async function listTables(workspaceId: string): Promise<DataTable[]> {
+  const params = new URLSearchParams({ workspace_id: workspaceId })
+  return fetchWithAuth(`${API_BASE}/tables?${params}`)
+}
+
+async function createTable(data: { workspace_id: string; name: string; description?: string; icon?: string }): Promise<DataTable> {
+  return fetchWithAuth(`${API_BASE}/tables`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+async function deleteTable(tableId: string): Promise<void> {
+  return fetchWithAuth(`${API_BASE}/tables/${tableId}`, {
+    method: 'DELETE',
+  })
 }
 
 export function TablesListPage({ workspaceId }: TablesListPageProps) {
@@ -21,28 +64,28 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const { tabManager } = useTabContext()
 
   useEffect(() => {
-    loadTables()
+    if (workspaceId) {
+      loadTables()
+    }
   }, [workspaceId])
 
   const loadTables = async () => {
     try {
       setLoading(true)
-      setError(null)
       console.log('🔍 Loading tables for workspace:', workspaceId)
-      const data = await tablesGoClient.getTablesByWorkspace(workspaceId)
+      const data = await listTables(workspaceId)
       console.log('✅ Tables loaded:', data.length, data)
-      setTables(data)
-      if (data.length === 0) {
-        toast.info('No tables found in this workspace. Create your first table!')
+      setTables(data || [])
+      if (data && data.length === 0) {
+        console.log('ℹ️ No tables found in workspace')
       }
     } catch (error: any) {
       console.error('❌ Error loading tables:', error)
-      setError(error.message || 'Failed to load tables')
-      toast.error(`Failed to load tables: ${error.message}`)
+      toast.error(`Failed to load tables: ${error.message || 'Unknown error'}`)
+      setTables([])
     } finally {
       setLoading(false)
     }
@@ -56,140 +99,50 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
     setIsImportModalOpen(true)
   }
 
-    const handleCSVImport = async (data: { headers: string[]; rows: string[][]; mappings: { name: string; type: string; included: boolean }[] }) => {
-    let createdTableId: string | null = null
-    
+  const handleCSVImport = async (data: { 
+    headers: string[]
+    rows: string[][]
+    mappings: { name: string; type: string; included: boolean }[] 
+  }) => {
     try {
-      // Get current user
-      const user = await getCurrentUser()
-      if (!user) {
+      const token = await getSessionToken()
+      if (!token) {
         toast.error('You must be logged in to import data')
         return
       }
 
-      // Create table name
       const tableName = `Imported Table ${new Date().toLocaleDateString()}`
       
-      // Map column types from CSV import to table column types
-      const typeMapping: Record<string, string> = {
-        'single_line_text': 'text',
-        'long_text': 'text',
-        'number': 'number',
-        'email': 'email',
-        'phone': 'phone',
-        'url': 'url',
-        'date': 'date',
-        'date_time': 'datetime',
-        'checkbox': 'checkbox',
-        'single_select': 'select',
-        'multiple_select': 'multiselect',
-        'currency': 'currency',
-        'percent': 'number',
-        'rating': 'rating',
-        'attachment': 'attachment',
-        'link_to_table': 'lookup'
-      }
-
-      // Map CSV columns to table columns
-      const tableColumns = data.mappings.map((mapping, index) => ({
-        name: mapping.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-        label: mapping.name,
-        column_type: (typeMapping[mapping.type] || 'text') as any,
-        position: index,
-        is_visible: true,
-        is_primary: false,
-        width: 150,
-        settings: {}
-      }))
-
-      // Create the table via Go API
+      // Create table
       toast.loading('Creating table...')
-      const newTable = await tablesGoClient.createTable({
+      const newTable = await createTable({
         workspace_id: workspaceId,
         name: tableName,
         description: '',
         icon: 'table',
-        settings: {}
-      }, user.id)
-
-      console.log('Table created:', newTable)
-      createdTableId = newTable.id
-      toast.dismiss()
-      toast.success(`Table "${tableName}" created with ${tableColumns.length} columns`)
-
-      // Transform CSV rows to match table structure
-      const transformedRows = data.rows.map((row, index) => {
-        const rowData: Record<string, any> = {}
-        data.headers.forEach((header, headerIndex) => {
-          const mapping = data.mappings[headerIndex]
-          const columnName = mapping.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
-          rowData[columnName] = row[headerIndex] || null
-        })
-        return {
-          data: rowData,
-          position: index,
-          created_by: user.id
-        }
       })
-
-      // Bulk insert rows via Go API
-      if (transformedRows.length > 0) {
-        toast.loading(`Importing ${transformedRows.length} rows...`)
-        console.log('Attempting to insert rows:', {
-          tableId: newTable.id,
-          rowCount: transformedRows.length,
-          sampleRow: transformedRows[0]
-        })
-
-        try {
-          const importedRows = await tablesGoClient.bulkCreateRows(newTable.id, {
-            rows: transformedRows.map(r => r.data),
-            created_by: user.id
-          })
-          console.log('Rows imported successfully:', importedRows.length, 'rows')
-          toast.dismiss()
-          toast.success(`Successfully imported ${importedRows.length} rows!`)
-        } catch (error: any) {
-          console.error('Failed to import rows:', error)
-          toast.dismiss()
-          toast.error(`Table created but rows failed to import: ${error.message}`)
-          // Don't throw - table was created successfully
-        }
-      }
-
-      // Reload tables list to get updated row counts
+      
+      toast.dismiss()
+      toast.success(`Table "${tableName}" created`)
+      
+      // Reload tables
       await loadTables()
-
-      // Close modal
       setIsImportModalOpen(false)
 
-      // Open the new table in a tab
-      if (createdTableId) {
+      // Open the new table
+      if (newTable?.id) {
         tabManager?.addTab({
           title: newTable.name,
           type: 'table',
-          url: `/w/${workspaceId}/tables/${createdTableId}`,
+          url: `/w/${workspaceId}/tables/${newTable.id}`,
           workspaceId,
-          metadata: { tableId: createdTableId }
+          metadata: { tableId: newTable.id }
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error importing CSV:', error)
       toast.dismiss()
-      toast.error(`Failed to import CSV: ${error}`)
-      
-      // If table was created, still offer to open it
-      if (createdTableId) {
-        toast.info('Table was created but import had issues. Opening table...')
-        await loadTables()
-        tabManager?.addTab({
-          title: 'Imported Table',
-          type: 'table',
-          url: `/w/${workspaceId}/tables/${createdTableId}`,
-          workspaceId,
-          metadata: { tableId: createdTableId }
-        })
-      }
+      toast.error(`Failed to import CSV: ${error.message || 'Unknown error'}`)
     }
   }
 
@@ -197,20 +150,15 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
     try {
       console.log('Creating table with data:', data)
       
-      const user = await getCurrentUser()
-      if (!user) {
-        toast.error('You must be logged in to create tables')
-        return
-      }
-      
-      const newTable = await tablesGoClient.createTable({
+      const newTable = await createTable({
         workspace_id: data.workspace_id,
         name: data.name,
         description: data.description || '',
         icon: data.icon || 'table',
-        settings: {}
-      }, user.id)
+      })
+      
       console.log('Table created:', newTable)
+      toast.success(`Table "${newTable.name}" created successfully`)
       
       // Reload tables list
       await loadTables()
@@ -219,35 +167,36 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
       setIsCreateModalOpen(false)
       
       // Open the new table in a tab
-      tabManager?.addTab({
-        title: newTable.name,
-        type: 'table',
-        url: `/w/${workspaceId}/tables/${newTable.id}`,
-        workspaceId,
-        metadata: { tableId: newTable.id }
-      })
-    } catch (error) {
+      if (newTable?.id) {
+        tabManager?.addTab({
+          title: newTable.name,
+          type: 'table',
+          url: `/w/${workspaceId}/tables/${newTable.id}`,
+          workspaceId,
+          metadata: { tableId: newTable.id }
+        })
+      }
+    } catch (error: any) {
       console.error('Error creating table:', error)
-      const message = error instanceof Error ? error.message : 'Failed to create table. Please try again.'
-      alert(message)
+      toast.error(`Failed to create table: ${error.message || 'Unknown error'}`)
     }
   }
 
   const handleOpenTable = (table: DataTable) => {
-    tabManager?.addTab({
-      title: table.name,
-      type: 'table',
-      url: `/w/${workspaceId}/tables/${table.id}`,
-      workspaceId,
-      metadata: { tableId: table.id }
-    })
+    if (table?.id) {
+      tabManager?.addTab({
+        title: table.name,
+        type: 'table',
+        url: `/w/${workspaceId}/tables/${table.id}`,
+        workspaceId,
+        metadata: { tableId: table.id }
+      })
+    }
   }
 
   const handleDuplicateTable = async (table: DataTable) => {
     try {
-      // TODO: Add duplicate endpoint to API client
-      console.log('Duplicate functionality not yet implemented')
-      alert('Duplicate functionality coming soon!')
+      toast.info('Duplicate functionality coming soon!')
     } catch (error) {
       console.error('Error duplicating table:', error)
     }
@@ -260,19 +209,19 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
     }
     
     try {
-      await tablesGoClient.deleteTable(tableId)
+      await deleteTable(tableId)
       toast.success('Table deleted successfully')
       await loadTables()
     } catch (error: any) {
       console.error('Error deleting table:', error)
-      toast.error(`Failed to delete table: ${error.message}`)
+      toast.error(`Failed to delete table: ${error.message || 'Unknown error'}`)
     }
     setActiveMenu(null)
   }
 
   const filteredTables = tables.filter(table =>
-    table.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    table.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    table?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    table?.description?.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   if (loading) {
@@ -421,7 +370,7 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
                   </div>
                   
                   <h3 className="font-semibold text-gray-900 mb-1 truncate">
-                    {table.name}
+                    {table.name || 'Unnamed Table'}
                   </h3>
                   
                   {table.description && (
