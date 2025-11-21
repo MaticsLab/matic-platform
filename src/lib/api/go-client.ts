@@ -39,6 +39,11 @@ async function goFetch<T>(
   // Get auth token
   const { getSessionToken } = await import('@/lib/supabase')
   const token = await getSessionToken()
+  
+  // Debug: log if token is missing
+  if (!token) {
+    console.warn('⚠️ No auth token available for request:', endpoint)
+  }
 
   // Make request
   const response = await fetch(url, {

@@ -141,7 +141,7 @@ export function TabNavigation({ workspaceId, onTabChange, tabManager: externalTa
               (tab.type === 'custom' && tab.icon === 'home')
             
             return (
-              <button
+              <div
                 key={tab.id}
                 onClick={() => handleTabClick(tab.id)}
                 className={cn(
@@ -164,7 +164,7 @@ export function TabNavigation({ workspaceId, onTabChange, tabManager: externalTa
                     <X size={14} />
                   </button>
                 )}
-              </button>
+              </div>
             )
           })}
           

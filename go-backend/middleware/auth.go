@@ -50,13 +50,17 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 		token, err := jwt.ParseWithClaims(tokenString, &SupabaseClaims{}, func(token *jwt.Token) (interface{}, error) {
 			// Verify signing method
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				fmt.Printf("❌ Unexpected signing method: %v\n", token.Header["alg"])
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
 			// Return the JWT secret from Supabase
+			fmt.Printf("🔑 Using JWT secret (first 10 chars): %s...\n", cfg.JWTSecret[:10])
 			return []byte(cfg.JWTSecret), nil
 		})
 
 		if err != nil {
+			fmt.Printf("❌ Token parsing error: %v\n", err)
+			fmt.Printf("📝 Token (first 50 chars): %s...\n", tokenString[:min(50, len(tokenString))])
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token", "details": err.Error()})
 			c.Abort()
 			return

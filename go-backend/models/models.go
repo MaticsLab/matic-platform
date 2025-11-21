@@ -26,12 +26,12 @@ func (b *BaseModel) BeforeCreate(tx *gorm.DB) error {
 // Organization model
 type Organization struct {
 	BaseModel
-	Name        string             `gorm:"not null" json:"name"`
-	Slug        string             `gorm:"uniqueIndex;not null" json:"slug"`
-	Description string             `json:"description"`
-	Settings    datatypes.JSON     `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	Name        string               `gorm:"not null" json:"name"`
+	Slug        string               `gorm:"uniqueIndex;not null" json:"slug"`
+	Description string               `json:"description"`
+	Settings    datatypes.JSON       `gorm:"type:jsonb;default:'{}'" json:"settings"`
 	Members     []OrganizationMember `gorm:"foreignKey:OrganizationID" json:"members,omitempty"`
-	Workspaces  []Workspace        `gorm:"foreignKey:OrganizationID" json:"workspaces,omitempty"`
+	Workspaces  []Workspace          `gorm:"foreignKey:OrganizationID" json:"workspaces,omitempty"`
 }
 
 type OrganizationMember struct {
@@ -45,19 +45,19 @@ type OrganizationMember struct {
 // Workspace model
 type Workspace struct {
 	BaseModel
-	OrganizationID uuid.UUID      `gorm:"type:uuid;not null;index" json:"organization_id"`
-	Name           string         `gorm:"not null" json:"name"`
-	Slug           string         `gorm:"not null;index" json:"slug"`
-	Description    string         `json:"description"`
-	Color          string         `gorm:"default:'#3B82F6'" json:"color"`
-	Icon           string         `gorm:"default:'folder'" json:"icon"`
-	Settings       datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
-	IsArchived     bool           `gorm:"default:false" json:"is_archived"`
-	CreatedBy      uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`
+	OrganizationID uuid.UUID         `gorm:"type:uuid;not null;index" json:"organization_id"`
+	Name           string            `gorm:"not null" json:"name"`
+	Slug           string            `gorm:"not null;index" json:"slug"`
+	Description    string            `json:"description"`
+	Color          string            `gorm:"default:'#3B82F6'" json:"color"`
+	Icon           string            `gorm:"default:'folder'" json:"icon"`
+	Settings       datatypes.JSON    `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	IsArchived     bool              `gorm:"default:false" json:"is_archived"`
+	CreatedBy      uuid.UUID         `gorm:"type:uuid;not null" json:"created_by"`
 	Members        []WorkspaceMember `gorm:"foreignKey:WorkspaceID" json:"members,omitempty"`
-	DataTables     []DataTable    `gorm:"foreignKey:WorkspaceID" json:"data_tables,omitempty"`
-	Forms          []Form         `gorm:"foreignKey:WorkspaceID" json:"forms,omitempty"`
-	ActivitiesHubs []ActivitiesHub `gorm:"foreignKey:WorkspaceID" json:"activities_hubs,omitempty"`
+	DataTables     []DataTable       `gorm:"foreignKey:WorkspaceID" json:"data_tables,omitempty"`
+	Forms          []Form            `gorm:"foreignKey:WorkspaceID" json:"forms,omitempty"`
+	ActivitiesHubs []ActivitiesHub   `gorm:"foreignKey:WorkspaceID" json:"activities_hubs,omitempty"`
 }
 
 type WorkspaceMember struct {
@@ -166,12 +166,12 @@ type TableRowLink struct {
 // Form model
 type Form struct {
 	BaseModel
-	WorkspaceID uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
-	Name        string         `gorm:"not null" json:"name"`
-	Description string         `json:"description"`
-	Settings    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
-	IsPublished bool           `gorm:"default:false" json:"is_published"`
-	Fields      []FormField    `gorm:"foreignKey:FormID" json:"fields,omitempty"`
+	WorkspaceID uuid.UUID        `gorm:"type:uuid;not null;index" json:"workspace_id"`
+	Name        string           `gorm:"not null" json:"name"`
+	Description string           `json:"description"`
+	Settings    datatypes.JSON   `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	IsPublished bool             `gorm:"default:false" json:"is_published"`
+	Fields      []FormField      `gorm:"foreignKey:FormID" json:"fields,omitempty"`
 	Submissions []FormSubmission `gorm:"foreignKey:FormID" json:"submissions,omitempty"`
 }
 

@@ -211,7 +211,7 @@ func GetLinkedRows(c *gin.Context) {
 		if err := json.Unmarshal([]byte(rowLinks[i].LinkData), &linkData); err != nil {
 			linkData = make(map[string]interface{})
 		}
-		
+
 		response = append(response, LinkedRowResponse{
 			Row:      row,
 			LinkData: linkData,
