@@ -104,9 +104,13 @@ type DataTable struct {
 	BaseModel
 	WorkspaceID uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
 	Name        string         `gorm:"not null" json:"name"`
+	Slug        string         `gorm:"not null;index" json:"slug"`
 	Description string         `json:"description"`
 	Icon        string         `gorm:"default:'table'" json:"icon"`
+	Color       string         `gorm:"default:'#10B981'" json:"color"`
 	Settings    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	RowCount    int            `gorm:"default:0" json:"row_count"`
+	CreatedBy   uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`
 	Columns     []TableColumn  `gorm:"foreignKey:TableID" json:"columns,omitempty"`
 	Rows        []TableRow     `gorm:"foreignKey:TableID" json:"rows,omitempty"`
 	Views       []TableView    `gorm:"foreignKey:TableID" json:"views,omitempty"`
@@ -116,12 +120,12 @@ type TableColumn struct {
 	BaseModel
 	TableID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
 	Name         string         `gorm:"not null" json:"name"`
-	Type         string         `gorm:"not null" json:"type"` // text, number, select, etc.
+	Type         string         `gorm:"column:column_type;not null" json:"column_type"` // text, number, select, etc.
 	Position     int            `gorm:"default:0" json:"position"`
 	Width        int            `gorm:"default:200" json:"width"`
 	IsRequired   bool           `gorm:"default:false" json:"is_required"`
-	IsPrimaryKey bool           `gorm:"default:false" json:"is_primary_key"`
-	Options      datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"options"`
+	IsPrimaryKey bool           `gorm:"column:is_primary_key;default:false" json:"is_primary"`
+	Options      datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
 	Validation   datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"validation"`
 }
 

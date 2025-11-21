@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/Jsanchez767/matic-platform/database"
@@ -27,6 +28,15 @@ func ListDataTables(c *gin.Context) {
 		return
 	}
 
+	// Calculate row_count for each table if not already set
+	for i := range tables {
+		if tables[i].RowCount == 0 {
+			var count int64
+			database.DB.Model(&models.TableRow{}).Where("table_id = ?", tables[i].ID).Count(&count)
+			tables[i].RowCount = int(count)
+		}
+	}
+
 	c.JSON(http.StatusOK, tables)
 }
 
@@ -39,6 +49,13 @@ func GetDataTable(c *gin.Context) {
 		First(&table, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data table not found"})
 		return
+	}
+
+	// Calculate row_count if not already set
+	if table.RowCount == 0 {
+		var count int64
+		database.DB.Model(&models.TableRow{}).Where("table_id = ?", table.ID).Count(&count)
+		table.RowCount = int(count)
 	}
 
 	c.JSON(http.StatusOK, table)
@@ -59,17 +76,57 @@ func CreateDataTable(c *gin.Context) {
 		return
 	}
 
+	// Get authenticated user ID from JWT token
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: user ID not found"})
+		return
+	}
+
+	parsedUserID, err := uuid.Parse(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
 	icon := input.Icon
 	if icon == "" {
 		icon = "table"
 	}
 
+	// Generate slug from name
+	slug := generateSlug(input.Name)
+	
+	// Check for duplicate slug in workspace
+	var existing models.DataTable
+	if err := database.DB.Where("workspace_id = ? AND slug = ?", input.WorkspaceID, slug).First(&existing).Error; err == nil {
+		// Slug exists, append a number
+		counter := 1
+		for {
+			newSlug := slug + "-" + fmt.Sprintf("%d", counter)
+			if err := database.DB.Where("workspace_id = ? AND slug = ?", input.WorkspaceID, newSlug).First(&existing).Error; err != nil {
+				slug = newSlug
+				break
+			}
+			counter++
+			if counter > 100 {
+				// Fallback to UUID-based slug
+				slug = slug + "-" + uuid.New().String()[:8]
+				break
+			}
+		}
+	}
+
 	table := models.DataTable{
 		WorkspaceID: input.WorkspaceID,
 		Name:        input.Name,
+		Slug:        slug,
 		Description: input.Description,
 		Icon:        icon,
+		Color:       "#10B981", // Default green color
 		Settings:    mapToJSON(input.Settings),
+		RowCount:    0,
+		CreatedBy:   parsedUserID,
 	}
 
 	if err := database.DB.Create(&table).Error; err != nil {
