@@ -68,8 +68,14 @@ export function ActivitiesHubPage({ workspaceId, hubSlug }: ActivitiesHubPagePro
     );
   }
 
-  const handleUpdated = (updatedActivity: ActivitiesHubWithTabs) => {
-    setHub(updatedActivity);
+  const handleUpdated = (updatedActivity: ActivitiesHubWithTabs | ActivitiesHub) => {
+    // Only update if it's ActivitiesHubWithTabs (has tabs property)
+    if ('tabs' in updatedActivity) {
+      setHub(updatedActivity as ActivitiesHubWithTabs);
+    } else {
+      // If it's just ActivitiesHub, reload the hub to get full data
+      loadHub();
+    }
   };
 
   return (
