@@ -364,8 +364,8 @@ export function ActivityDetailPanel({
 
       const updateData: UpdateActivityInput = {
         name: editedActivity.name,
-        description: editedActivity.description || null,
-        category: editedActivity.category || null,
+        description: editedActivity.description || undefined,
+        category: editedActivity.category || undefined,
         status: editedActivity.status,
         begin_date: formatDateForAPI(editedActivity.begin_date),
         end_date: formatDateForAPI(editedActivity.end_date),
