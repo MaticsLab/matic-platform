@@ -97,13 +97,17 @@ export const tableLinksGoClient = {
    */
   async createTableLink(
     sourceTableId: string,
+    sourceColumnId: string,
     targetTableId: string,
     linkType: 'one_to_many' | 'many_to_many',
-    settings?: Record<string, any>
+    settings?: Record<string, any>,
+    targetColumnId?: string
   ): Promise<TableLink> {
     return goClient.post<TableLink>('/table-links', {
       source_table_id: sourceTableId,
+      source_column_id: sourceColumnId,
       target_table_id: targetTableId,
+      target_column_id: targetColumnId || null,
       link_type: linkType,
       settings: settings || {},
     })

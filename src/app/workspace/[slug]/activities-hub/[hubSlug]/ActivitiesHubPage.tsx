@@ -68,12 +68,17 @@ export function ActivitiesHubPage({ workspaceId, hubSlug }: ActivitiesHubPagePro
     );
   }
 
+  const handleUpdated = (updatedActivity: ActivitiesHubWithTabs) => {
+    setHub(updatedActivity);
+  };
+
   return (
     <div className="h-full">
       <ActivityDetailPanel
         activity={hub}
         onClose={handleClose}
         onDeleted={handleDeleted}
+        onUpdated={handleUpdated}
       />
     </div>
   );

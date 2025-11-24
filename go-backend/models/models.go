@@ -118,15 +118,19 @@ type DataTable struct {
 
 type TableColumn struct {
 	BaseModel
-	TableID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
-	Name         string         `gorm:"not null" json:"name"`
-	Type         string         `gorm:"column:column_type;not null" json:"column_type"` // text, number, select, etc.
-	Position     int            `gorm:"default:0" json:"position"`
-	Width        int            `gorm:"default:200" json:"width"`
-	IsRequired   bool           `gorm:"default:false" json:"is_required"`
-	IsPrimaryKey bool           `gorm:"column:is_primary_key;default:false" json:"is_primary"`
-	Options      datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
-	Validation   datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"validation"`
+	TableID       uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
+	Name          string         `gorm:"not null" json:"name"`
+	Label         string         `gorm:"not null" json:"label"`                          // Display label
+	Type          string         `gorm:"column:column_type;not null" json:"column_type"` // text, number, select, etc.
+	Position      int            `gorm:"default:0" json:"position"`
+	Width         int            `gorm:"default:200" json:"width"`
+	IsVisible     bool           `gorm:"column:is_visible;default:true" json:"is_visible"`
+	IsPrimary     bool           `gorm:"column:is_primary;default:false" json:"is_primary"`
+	LinkedTableID *uuid.UUID     `gorm:"type:uuid;index" json:"linked_table_id,omitempty"` // For link columns
+	Options       datatypes.JSON `gorm:"column:settings;type:jsonb;default:'{}'" json:"settings"`
+	Validation    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"validation"`
+	// Note: is_required should be stored in Validation JSONB as {"required": true}
+	// Note: is_primary_key is stored as is_primary in the database
 }
 
 type TableRow struct {
@@ -150,21 +154,59 @@ type TableView struct {
 }
 
 // TableLink - Defines relationships between tables (schema-level)
+// Note: This table doesn't have updated_at column, so we don't use BaseModel
 type TableLink struct {
-	BaseModel
-	SourceTableID uuid.UUID      `gorm:"type:uuid;not null;index" json:"source_table_id"`
-	TargetTableID uuid.UUID      `gorm:"type:uuid;not null;index" json:"target_table_id"`
-	LinkType      string         `gorm:"column:link_type;not null" json:"link_type"` // one_to_many, many_to_many
-	Settings      datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	ID             uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	CreatedAt      time.Time      `gorm:"column:created_at" json:"created_at"`
+	SourceTableID  uuid.UUID      `gorm:"type:uuid;not null;index" json:"source_table_id"`
+	SourceColumnID uuid.UUID      `gorm:"type:uuid;not null;index" json:"source_column_id"`
+	TargetTableID  uuid.UUID      `gorm:"type:uuid;not null;index" json:"target_table_id"`
+	TargetColumnID *uuid.UUID     `gorm:"type:uuid;index" json:"target_column_id,omitempty"`
+	LinkType       string         `gorm:"column:link_type;not null" json:"link_type"` // one_to_many, many_to_many
+	Settings       datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
+}
+
+// TableName specifies the table name for TableLink
+func (TableLink) TableName() string {
+	return "table_links"
+}
+
+// BeforeCreate hook to generate UUID and set CreatedAt
+func (t *TableLink) BeforeCreate(tx *gorm.DB) error {
+	if t.ID == uuid.Nil {
+		t.ID = uuid.New()
+	}
+	if t.CreatedAt.IsZero() {
+		t.CreatedAt = time.Now()
+	}
+	return nil
 }
 
 // TableRowLink - Links specific rows together (data-level)
+// Note: This table doesn't have updated_at column, so we don't use BaseModel
 type TableRowLink struct {
-	BaseModel
+	ID          uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	CreatedAt   time.Time      `gorm:"column:created_at" json:"created_at"`
 	LinkID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"link_id"` // References TableLink.ID
 	SourceRowID uuid.UUID      `gorm:"type:uuid;not null;index" json:"source_row_id"`
 	TargetRowID uuid.UUID      `gorm:"type:uuid;not null;index" json:"target_row_id"`
-	LinkData    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"link_data"` // Metadata like enrollment_date, status, notes
+	LinkData    datatypes.JSON `gorm:"column:metadata;type:jsonb;default:'{}'" json:"link_data"` // Metadata like enrollment_date, status, notes
+}
+
+// TableName specifies the table name for TableRowLink
+func (TableRowLink) TableName() string {
+	return "table_row_links"
+}
+
+// BeforeCreate hook to generate UUID and set CreatedAt
+func (t *TableRowLink) BeforeCreate(tx *gorm.DB) error {
+	if t.ID == uuid.Nil {
+		t.ID = uuid.New()
+	}
+	if t.CreatedAt.IsZero() {
+		t.CreatedAt = time.Now()
+	}
+	return nil
 }
 
 // Form model

@@ -31,7 +31,7 @@ export async function participantsTableExists(workspaceId: string): Promise<stri
  */
 export async function createParticipantsTable(workspaceId: string, userId: string) {
   try {
-    // Create the table
+    // Create the table (following same pattern as activities table)
     const table = await tablesSupabase.createTable({
       workspace_id: workspaceId,
       name: PARTICIPANTS_TABLE_NAME,
@@ -48,13 +48,31 @@ export async function createParticipantsTable(workspaceId: string, userId: strin
       created_by: userId
     })
 
-    // Create all columns
+    // Get or create activities table first (needed for link column)
+    const { getOrCreateActivitiesTable } = await import('./activities-table-setup')
+    const activitiesTable = await getOrCreateActivitiesTable(workspaceId, userId)
+
+    // Create all columns (following same pattern as activities table)
     const columns = getParticipantsColumns()
     for (const column of columns) {
-      await tablesSupabase.createColumn({
+      const columnData: any = {
         table_id: table.id,
         ...column
-      })
+      }
+      
+      // If this is the enrolled_programs link column, set the linked_table_id
+      // This ensures the column shows which table it's connected to (Activities)
+      if (column.name === 'enrolled_programs' && column.column_type === 'link' && activitiesTable?.id) {
+        columnData.linked_table_id = activitiesTable.id
+        // Add linked table name to settings for display purposes
+        if (!columnData.settings) {
+          columnData.settings = {}
+        }
+        columnData.settings.linkedTableName = activitiesTable.name || 'Activities'
+        columnData.settings.linkedTableSlug = activitiesTable.slug || 'activities'
+      }
+      
+      await tablesSupabase.createColumn(columnData)
     }
 
     // Create default view
@@ -69,11 +87,8 @@ export async function createParticipantsTable(workspaceId: string, userId: strin
       created_by: userId
     })
 
-    // Set up link to activities table
-    const { getOrCreateActivitiesTable } = await import('./activities-table-setup')
+    // Set up table link relationship (for table_row_links)
     const { createParticipantsActivitiesLink } = await import('./participants-activities-link')
-    
-    const activitiesTable = await getOrCreateActivitiesTable(workspaceId, userId)
     await createParticipantsActivitiesLink(table.id, activitiesTable.id)
 
     return table
@@ -84,13 +99,88 @@ export async function createParticipantsTable(workspaceId: string, userId: strin
 }
 
 /**
+ * Ensure enrolled_programs column has linked_table_id set
+ * Also updates settings to show which table is connected
+ */
+export async function ensureEnrolledProgramsLinkColumn(
+  participantsTableId: string,
+  activitiesTableId: string
+) {
+  try {
+    const columns = await tablesSupabase.getTableColumns(participantsTableId)
+    const enrolledProgramsColumn = columns?.find(col => col.name === 'enrolled_programs')
+    
+    if (enrolledProgramsColumn && enrolledProgramsColumn.column_type === 'link') {
+      // Get activities table info for display
+      const { getOrCreateActivitiesTable } = await import('./activities-table-setup')
+      const { supabase } = await import('@/lib/supabase')
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      let activitiesTable = null
+      if (user) {
+        const workspaceId = (await tablesSupabase.getTableById(participantsTableId))?.workspace_id
+        if (workspaceId) {
+          activitiesTable = await getOrCreateActivitiesTable(workspaceId, user.id)
+        }
+      }
+      
+      // Check if linked_table_id is already set correctly
+      const needsUpdate = enrolledProgramsColumn.linked_table_id !== activitiesTableId
+      const currentSettings = enrolledProgramsColumn.settings || {}
+      const needsSettingsUpdate = !currentSettings.linkedTableName || !currentSettings.linkedTableSlug
+      
+      if (needsUpdate || needsSettingsUpdate) {
+        const updateData: any = {}
+        
+        if (needsUpdate) {
+          updateData.linked_table_id = activitiesTableId
+        }
+        
+        if (needsSettingsUpdate && activitiesTable) {
+          const updatedSettings = {
+            ...currentSettings,
+            linkedTableName: activitiesTable.name || 'Activities',
+            linkedTableSlug: activitiesTable.slug || 'activities'
+          }
+          updateData.settings = updatedSettings
+        }
+        
+        const { error } = await supabase
+          .from('table_columns')
+          .update(updateData)
+          .eq('id', enrolledProgramsColumn.id)
+        
+        if (error) {
+          console.error('Error updating enrolled_programs column:', error)
+          throw error
+        }
+        
+        console.log('✅ Updated enrolled_programs column with linked_table_id and settings')
+      }
+    }
+  } catch (error) {
+    console.error('Error ensuring enrolled_programs link column:', error)
+    // Don't throw - this is a best-effort update
+  }
+}
+
+/**
  * Get or create participants table for a workspace
  */
 export async function getOrCreateParticipantsTable(workspaceId: string, userId: string) {
   const existingTableId = await participantsTableExists(workspaceId)
   
   if (existingTableId) {
-    return await tablesSupabase.getTableById(existingTableId)
+    const table = await tablesSupabase.getTableById(existingTableId)
+    
+    // Ensure enrolled_programs column has linked_table_id set
+    const { getOrCreateActivitiesTable } = await import('./activities-table-setup')
+    const activitiesTable = await getOrCreateActivitiesTable(workspaceId, userId)
+    if (activitiesTable?.id) {
+      await ensureEnrolledProgramsLinkColumn(existingTableId, activitiesTable.id)
+    }
+    
+    return table
   }
   
   return await createParticipantsTable(workspaceId, userId)

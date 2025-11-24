@@ -108,6 +108,18 @@ function getActivitiesColumns(): any[] {
       width: 100,
       settings: {},
       validation: {}
+    },
+    {
+      name: 'enrolled_participants',
+      label: 'Enrolled Participants',
+      column_type: 'link',
+      is_visible: true,
+      position: 7,
+      width: 250,
+      settings: {
+        allowMultiple: true
+      },
+      validation: {}
     }
   ]
 }
@@ -135,11 +147,23 @@ export async function createActivitiesTable(workspaceId: string, userId: string)
 
     // Create all columns
     const columns = getActivitiesColumns()
+    
+    // Get participants table ID for the link column
+    const { participantsTableExists } = await import('./participants-setup')
+    const participantsTableId = await participantsTableExists(workspaceId)
+    
     for (const column of columns) {
-      await tablesSupabase.createColumn({
+      const columnData: any = {
         table_id: table.id,
         ...column
-      })
+      }
+      
+      // Set linked_table_id for the enrolled_participants link column
+      if (column.name === 'enrolled_participants' && column.column_type === 'link' && participantsTableId) {
+        columnData.linked_table_id = participantsTableId
+      }
+      
+      await tablesSupabase.createColumn(columnData)
     }
 
     // Create default view
@@ -153,10 +177,37 @@ export async function createActivitiesTable(workspaceId: string, userId: string)
       created_by: userId
     })
 
+    // Ensure link to participants table exists (if participants table exists)
+    await ensureActivitiesParticipantsLink(table.id, workspaceId, userId)
+
     return table
   } catch (error) {
     console.error('Error creating activities table:', error)
     throw error
+  }
+}
+
+/**
+ * Ensure link exists between activities and participants tables
+ */
+export async function ensureActivitiesParticipantsLink(
+  activitiesTableId: string,
+  workspaceId: string,
+  userId: string
+) {
+  try {
+    // Check if participants table exists
+    const { participantsTableExists } = await import('./participants-setup')
+    const participantsTableId = await participantsTableExists(workspaceId)
+    
+    if (participantsTableId) {
+      // Create the link if it doesn't exist
+      const { createParticipantsActivitiesLink } = await import('./participants-activities-link')
+      await createParticipantsActivitiesLink(participantsTableId, activitiesTableId)
+    }
+  } catch (error) {
+    // Don't throw - link creation is optional
+    console.warn('Could not create activities-participants link:', error)
   }
 }
 
@@ -166,11 +217,19 @@ export async function createActivitiesTable(workspaceId: string, userId: string)
 export async function getOrCreateActivitiesTable(workspaceId: string, userId: string) {
   const existingTableId = await activitiesTableExists(workspaceId)
   
+  let table
   if (existingTableId) {
-    return await tablesSupabase.getTableById(existingTableId)
+    table = await tablesSupabase.getTableById(existingTableId)
+  } else {
+    table = await createActivitiesTable(workspaceId, userId)
   }
   
-  return await createActivitiesTable(workspaceId, userId)
+  // Ensure link to participants table exists
+  if (table?.id) {
+    await ensureActivitiesParticipantsLink(table.id, workspaceId, userId)
+  }
+  
+  return table
 }
 
 /**

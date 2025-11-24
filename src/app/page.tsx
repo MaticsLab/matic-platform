@@ -3,6 +3,9 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getCurrentUser } from '@/lib/supabase'
+import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
+import { getLastWorkspace } from '@/lib/utils'
 
 export default function Home() {
   const router = useRouter()
@@ -16,8 +19,26 @@ export default function Home() {
     const { data: { session } } = await supabase.auth.getSession()
     
     if (session) {
-      // User is logged in - redirect to workspaces
-      router.push('/workspaces')
+      // User is logged in - redirect to activities hub
+      const lastWorkspace = getLastWorkspace()
+      
+      if (lastWorkspace) {
+        router.push(`/workspace/${lastWorkspace}/activities-hubs`)
+      } else {
+        // Get first workspace and redirect to its activities hub
+        const user = await getCurrentUser()
+        if (user) {
+          const workspaces = await workspacesSupabase.getWorkspacesForUser(user.id)
+          if (workspaces && workspaces.length > 0) {
+            router.push(`/workspace/${workspaces[0].slug}/activities-hubs`)
+          } else {
+            // No workspaces - redirect to Webflow homepage
+            window.location.href = 'https://www.maticslab.com'
+          }
+        } else {
+          window.location.href = 'https://www.maticslab.com'
+        }
+      }
     } else {
       // User is not logged in - redirect to Webflow homepage
       window.location.href = 'https://www.maticslab.com'

@@ -21,8 +21,21 @@ export async function createParticipantsActivitiesLink(
     )
     
     if (!enrolledProgramsColumn) {
+      console.error('enrolled_programs column not found. Available columns:', participantsColumns?.map(c => c.name))
       throw new Error('enrolled_programs column not found')
     }
+
+    if (!enrolledProgramsColumn.id) {
+      console.error('enrolled_programs column has no id:', enrolledProgramsColumn)
+      throw new Error('enrolled_programs column has no id')
+    }
+
+    console.log('Creating link with:', {
+      participantsTableId,
+      sourceColumnId: enrolledProgramsColumn.id,
+      activitiesTableId,
+      linkType: 'many_to_many'
+    })
 
     // Check if link already exists via Go API
     const { tableLinksGoClient } = await import('./participants-go-client')
@@ -33,12 +46,14 @@ export async function createParticipantsActivitiesLink(
     )
 
     if (existingLink) {
+      // Link already exists, return it silently
       return existingLink
     }
 
-    // Create the link via Go API
+    // Create the link via Go API (passing source_column_id)
     const link = await tableLinksGoClient.createTableLink(
       participantsTableId,
+      enrolledProgramsColumn.id,
       activitiesTableId,
       'many_to_many',
       {
@@ -47,10 +62,53 @@ export async function createParticipantsActivitiesLink(
       }
     )
 
+    console.log('Link created successfully:', link)
     return link
   } catch (error) {
     console.error('Error creating participants-activities link:', error)
     throw error
+  }
+}
+
+/**
+ * Ensure link exists between participants and activities tables
+ * This function will create the link if both tables exist and the link doesn't exist yet
+ */
+export async function ensureParticipantsActivitiesLink(
+  workspaceId: string,
+  userId: string
+): Promise<string | null> {
+  try {
+    // Check if both tables exist
+    const { participantsTableExists } = await import('./participants-setup')
+    const { activitiesTableExists } = await import('./activities-table-setup')
+    
+    const participantsTableId = await participantsTableExists(workspaceId)
+    const activitiesTableId = await activitiesTableExists(workspaceId)
+    
+    if (!participantsTableId || !activitiesTableId) {
+      // One or both tables don't exist yet - can't create link
+      return null
+    }
+
+    // Check if link already exists
+    const { tableLinksGoClient } = await import('./participants-go-client')
+    const existingLinks = await tableLinksGoClient.getTableLinks(participantsTableId)
+    const existingLink = existingLinks.find(l => 
+      l.target_table_id === activitiesTableId && 
+      l.link_type === 'many_to_many'
+    )
+
+    if (existingLink) {
+      return existingLink.id
+    }
+
+    // Create the link
+    const link = await createParticipantsActivitiesLink(participantsTableId, activitiesTableId)
+    return link?.id || null
+  } catch (error) {
+    console.warn('Could not ensure participants-activities link:', error)
+    return null
   }
 }
 

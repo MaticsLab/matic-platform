@@ -68,7 +68,7 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
 
   useEffect(() => {
     if (workspaceId) {
-      loadTables()
+    loadTables()
     }
   }, [workspaceId])
 
@@ -121,10 +121,10 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
         description: '',
         icon: 'table',
       })
-      
-      toast.dismiss()
+
+          toast.dismiss()
       toast.success(`Table "${tableName}" created`)
-      
+
       // Reload tables
       await loadTables()
       setIsImportModalOpen(false)
@@ -168,13 +168,13 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
       
       // Open the new table in a tab
       if (newTable?.id) {
-        tabManager?.addTab({
-          title: newTable.name,
-          type: 'table',
-          url: `/w/${workspaceId}/tables/${newTable.id}`,
-          workspaceId,
-          metadata: { tableId: newTable.id }
-        })
+      tabManager?.addTab({
+        title: newTable.name,
+        type: 'table',
+        url: `/w/${workspaceId}/tables/${newTable.id}`,
+        workspaceId,
+        metadata: { tableId: newTable.id }
+      })
       }
     } catch (error: any) {
       console.error('Error creating table:', error)
@@ -184,13 +184,13 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
 
   const handleOpenTable = (table: DataTable) => {
     if (table?.id) {
-      tabManager?.addTab({
-        title: table.name,
-        type: 'table',
-        url: `/w/${workspaceId}/tables/${table.id}`,
-        workspaceId,
-        metadata: { tableId: table.id }
-      })
+    tabManager?.addTab({
+      title: table.name,
+      type: 'table',
+      url: `/w/${workspaceId}/tables/${table.id}`,
+      workspaceId,
+      metadata: { tableId: table.id }
+    })
     }
   }
 

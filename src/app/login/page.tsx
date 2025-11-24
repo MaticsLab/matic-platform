@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getLastWorkspace } from '@/lib/utils'
+import { getCurrentUser } from '@/lib/supabase'
+import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { Loader2 } from 'lucide-react'
 
 export default function LoginPage() {
@@ -34,11 +36,22 @@ export default function LoginPage() {
       const lastWorkspace = getLastWorkspace()
       
       if (lastWorkspace) {
-        // Redirect to last visited workspace
-        router.push(`/workspace/${lastWorkspace}`)
+        // Redirect to activities hub of last visited workspace
+        router.push(`/workspace/${lastWorkspace}/activities-hubs`)
       } else {
-        // Redirect to workspaces page if no last workspace
-        router.push('/workspaces')
+        // Get first workspace and redirect to its activities hub
+        const user = await getCurrentUser()
+        if (user) {
+          const workspaces = await workspacesSupabase.getWorkspacesForUser(user.id)
+          if (workspaces && workspaces.length > 0) {
+            router.push(`/workspace/${workspaces[0].slug}/activities-hubs`)
+          } else {
+            // No workspaces - this shouldn't happen, but redirect to home
+            router.push('/')
+          }
+        } else {
+          router.push('/')
+        }
       }
     } catch (err: any) {
       console.error('Login error:', err)

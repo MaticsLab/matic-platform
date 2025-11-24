@@ -37,23 +37,23 @@ export function WorkspaceTabProvider({ children, workspaceId }: WorkspaceTabProv
       const currentTabs = manager.getTabs()
       const currentActiveTab = manager.getActiveTab()
       
-      // Remove duplicate Overview tabs if they exist
-      const overviewUrl = `/workspace/${workspaceId}`
-      const overviewTabs = currentTabs.filter(tab => tab.url === overviewUrl && tab.type === 'custom')
-      if (overviewTabs.length > 1) {
+      // Remove duplicate Activities Hub tabs if they exist
+      const activitiesHubUrl = `/workspace/${workspaceId}/activities-hubs`
+      const activitiesHubTabs = currentTabs.filter(tab => tab.url === activitiesHubUrl && tab.type === 'custom')
+      if (activitiesHubTabs.length > 1) {
         // Keep the first one, remove the rest
-        for (let i = 1; i < overviewTabs.length; i++) {
-          manager.closeTab(overviewTabs[i].id)
+        for (let i = 1; i < activitiesHubTabs.length; i++) {
+          manager.closeTab(activitiesHubTabs[i].id)
         }
         return // Subscription will fire again with updated tabs
       }
       
-      // Auto-create Overview tab if all tabs are closed
+      // Auto-create Activities Hub tab if all tabs are closed
       if (currentTabs.length === 0) {
         manager.addTab({
-          title: 'Overview',
+          title: 'Activities Hub',
           type: 'custom',
-          url: overviewUrl,
+          url: `/workspace/${workspaceId}/activities-hubs`,
           workspaceId
         })
         return // The subscription will fire again with the new tab
@@ -67,17 +67,17 @@ export function WorkspaceTabProvider({ children, workspaceId }: WorkspaceTabProv
     const initialTabs = manager.getTabs()
     const initialActiveTab = manager.getActiveTab()
     
-    // Create default tab if no tabs exist and no Overview tab exists
+    // Create default tab if no tabs exist - use Activities Hub instead of Overview
     if (initialTabs.length === 0) {
-      // Check if Overview tab already exists
-      const overviewUrl = `/workspace/${workspaceId}`
-      const existingOverview = initialTabs.find(tab => tab.url === overviewUrl && tab.type === 'custom')
+      // Check if Activities Hub tab already exists
+      const activitiesHubUrl = `/workspace/${workspaceId}/activities-hubs`
+      const existingActivitiesHub = initialTabs.find(tab => tab.url === activitiesHubUrl && tab.type === 'custom')
       
-      if (!existingOverview) {
+      if (!existingActivitiesHub) {
         manager.addTab({
-          title: 'Overview',
+          title: 'Activities Hub',
           type: 'custom',
-          url: overviewUrl,
+          url: activitiesHubUrl,
           workspaceId
         })
       }

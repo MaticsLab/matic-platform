@@ -1,12 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Plus, 
   Calendar, 
   Users, 
   Activity as ActivityIcon,
-  Database
+  Database,
+  Search,
+  Filter,
+  Grid3x3,
+  List as ListIcon
 } from 'lucide-react';
 import { Button } from '@/ui-components/button';
 import { Badge } from '@/ui-components/badge';
@@ -30,6 +34,256 @@ const formatDate = (dateStr: string | null | undefined): string => {
   }
 };
 
+// Activity Card Component
+function ActivityCard({ activity, isSelected, onClick, workspaceId }: { 
+  activity: Activity; 
+  isSelected: boolean; 
+  onClick: () => void;
+  workspaceId: string;
+}) {
+  const [enrollmentCount, setEnrollmentCount] = useState<number | null>(null);
+  const [loadingCount, setLoadingCount] = useState(false);
+
+  useEffect(() => {
+    loadEnrollmentCount();
+  }, [activity.id, workspaceId]);
+
+  const loadEnrollmentCount = async () => {
+    try {
+      setLoadingCount(true);
+      const { getOrCreateActivitiesTable } = await import('@/lib/api/activities-table-setup');
+      const { getOrCreateParticipantsTable } = await import('@/lib/api/participants-setup');
+      const { supabase } = await import('@/lib/supabase');
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) return;
+      
+      const activitiesTable = await getOrCreateActivitiesTable(workspaceId, user.id);
+      const participantsTable = await getOrCreateParticipantsTable(workspaceId, user.id);
+      
+      const { tableLinksGoClient, rowLinksGoClient } = await import('@/lib/api/participants-go-client');
+      
+      let links = await tableLinksGoClient.getTableLinks(participantsTable.id);
+      let link = links.find((l: any) => 
+        l.source_table_id === participantsTable.id && 
+        l.target_table_id === activitiesTable.id &&
+        l.link_type === 'many_to_many'
+      );
+      
+      if (!link) {
+        links = await tableLinksGoClient.getTableLinks(activitiesTable.id);
+        link = links.find((l: any) => 
+          ((l.source_table_id === participantsTable.id && l.target_table_id === activitiesTable.id) ||
+           (l.source_table_id === activitiesTable.id && l.target_table_id === participantsTable.id)) &&
+          l.link_type === 'many_to_many'
+        );
+      }
+      
+      if (!link) {
+        setEnrollmentCount(0);
+        return;
+      }
+      
+      const { tablesGoClient } = await import('@/lib/api/tables-go-client');
+      const activityRows = await tablesGoClient.getRowsByTable(activitiesTable.id);
+      
+      let activityRow = activityRows.find((row: any) => row.id === activity.id);
+      if (!activityRow) {
+        activityRow = activityRows.find((row: any) => 
+          row.data?.legacy_activity_id === activity.id ||
+          row.data?.name === activity.name
+        );
+      }
+      
+      if (!activityRow?.id) {
+        setEnrollmentCount(0);
+        return;
+      }
+      
+      const linkedRows = await rowLinksGoClient.getLinkedRows(activityRow.id, link.id);
+      const count = linkedRows.filter((lr: any) => lr.row && lr.row.id !== activityRow.id).length;
+      setEnrollmentCount(count);
+    } catch (error) {
+      console.error('Error loading enrollment count:', error);
+      setEnrollmentCount(null);
+    } finally {
+      setLoadingCount(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-xl p-6 border-2 transition-all cursor-pointer hover:shadow-lg ${
+        isSelected
+          ? 'border-violet-600 shadow-md'
+          : 'border-gray-200 hover:border-gray-300'
+      }`}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900 flex-1 line-clamp-2 pr-3">
+          {activity.name}
+        </h3>
+        <Badge 
+          className={`
+            text-xs px-2.5 py-1 border-0 flex-shrink-0
+            ${activity.status === 'active' ? 'bg-emerald-100 text-emerald-700' : ''}
+            ${activity.status === 'upcoming' ? 'bg-blue-100 text-blue-700' : ''}
+            ${activity.status === 'completed' ? 'bg-gray-100 text-gray-700' : ''}
+          `}
+        >
+          {activity.status}
+        </Badge>
+      </div>
+      
+      {activity.category && (
+        <div className="text-sm text-gray-500 mb-4">{activity.category}</div>
+      )}
+      
+      <div className="space-y-3 mb-4">
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
+          <span>{formatDate(activity.begin_date)} → {formatDate(activity.end_date)}</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Users className="h-4 w-4 text-gray-400 flex-shrink-0" />
+          <span>
+            {loadingCount ? '...' : (enrollmentCount !== null ? enrollmentCount : activity.participants)} enrolled
+          </span>
+        </div>
+      </div>
+      
+      {activity.description && (
+        <p className="text-sm text-gray-500 line-clamp-2">{activity.description}</p>
+      )}
+    </div>
+  );
+}
+
+// Activity List Item Component
+function ActivityListItem({ activity, isSelected, onClick, workspaceId }: { 
+  activity: Activity; 
+  isSelected: boolean; 
+  onClick: () => void;
+  workspaceId: string;
+}) {
+  const [enrollmentCount, setEnrollmentCount] = useState<number | null>(null);
+  const [loadingCount, setLoadingCount] = useState(false);
+
+  useEffect(() => {
+    loadEnrollmentCount();
+  }, [activity.id, workspaceId]);
+
+  const loadEnrollmentCount = async () => {
+    try {
+      setLoadingCount(true);
+      const { getOrCreateActivitiesTable } = await import('@/lib/api/activities-table-setup');
+      const { getOrCreateParticipantsTable } = await import('@/lib/api/participants-setup');
+      const { supabase } = await import('@/lib/supabase');
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) return;
+      
+      const activitiesTable = await getOrCreateActivitiesTable(workspaceId, user.id);
+      const participantsTable = await getOrCreateParticipantsTable(workspaceId, user.id);
+      
+      const { tableLinksGoClient, rowLinksGoClient } = await import('@/lib/api/participants-go-client');
+      
+      let links = await tableLinksGoClient.getTableLinks(participantsTable.id);
+      let link = links.find((l: any) => 
+        l.source_table_id === participantsTable.id && 
+        l.target_table_id === activitiesTable.id &&
+        l.link_type === 'many_to_many'
+      );
+      
+      if (!link) {
+        links = await tableLinksGoClient.getTableLinks(activitiesTable.id);
+        link = links.find((l: any) => 
+          ((l.source_table_id === participantsTable.id && l.target_table_id === activitiesTable.id) ||
+           (l.source_table_id === activitiesTable.id && l.target_table_id === participantsTable.id)) &&
+          l.link_type === 'many_to_many'
+        );
+      }
+      
+      if (!link) {
+        setEnrollmentCount(0);
+        return;
+      }
+      
+      const { tablesGoClient } = await import('@/lib/api/tables-go-client');
+      const activityRows = await tablesGoClient.getRowsByTable(activitiesTable.id);
+      
+      let activityRow = activityRows.find((row: any) => row.id === activity.id);
+      if (!activityRow) {
+        activityRow = activityRows.find((row: any) => 
+          row.data?.legacy_activity_id === activity.id ||
+          row.data?.name === activity.name
+        );
+      }
+      
+      if (!activityRow?.id) {
+        setEnrollmentCount(0);
+        return;
+      }
+      
+      const linkedRows = await rowLinksGoClient.getLinkedRows(activityRow.id, link.id);
+      const count = linkedRows.filter((lr: any) => lr.row && lr.row.id !== activityRow.id).length;
+      setEnrollmentCount(count);
+    } catch (error) {
+      console.error('Error loading enrollment count:', error);
+      setEnrollmentCount(null);
+    } finally {
+      setLoadingCount(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-lg p-5 border-2 transition-all cursor-pointer hover:shadow-md ${
+        isSelected
+          ? 'border-violet-600 shadow-sm'
+          : 'border-gray-200 hover:border-gray-300'
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 mb-3">
+            <h3 className="text-base font-semibold text-gray-900 truncate">
+              {activity.name}
+            </h3>
+            <Badge 
+              className={`
+                text-xs px-2.5 py-1 border-0
+                ${activity.status === 'active' ? 'bg-emerald-100 text-emerald-700' : ''}
+                ${activity.status === 'upcoming' ? 'bg-blue-100 text-blue-700' : ''}
+                ${activity.status === 'completed' ? 'bg-gray-100 text-gray-700' : ''}
+              `}
+            >
+              {activity.status}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-6 text-sm text-gray-600">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-3.5 w-3.5 text-gray-400" />
+              <span>{formatDate(activity.begin_date)} → {formatDate(activity.end_date)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Users className="h-3.5 w-3.5 text-gray-400" />
+              <span>
+                {loadingCount ? '...' : (enrollmentCount !== null ? enrollmentCount : activity.participants)} enrolled
+              </span>
+            </div>
+            {activity.category && (
+              <span className="text-gray-500">• {activity.category}</span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface ActivitiesHubListPageProps {
   workspaceId: string;
   onSelectActivity?: (activity: Activity) => void;
@@ -40,9 +294,8 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<ActivityStatus | 'all'>('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [connectTableDialogOpen, setConnectTableDialogOpen] = useState(false);
-  const [selectedDataTable, setSelectedDataTable] = useState('');
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
   
@@ -60,9 +313,29 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
     loadActivities();
   }, [workspaceId]);
 
+  // Track if we've already ensured the link for this workspace
+  const linkEnsuredRef = useRef<Set<string>>(new Set());
+
   const loadActivities = async () => {
     try {
       setLoading(true);
+      
+      // Ensure link exists between activities and participants tables (only once per workspace)
+      if (!linkEnsuredRef.current.has(workspaceId)) {
+        try {
+          const { supabase } = await import('@/lib/supabase');
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { ensureParticipantsActivitiesLink } = await import('@/lib/api/participants-activities-link');
+            await ensureParticipantsActivitiesLink(workspaceId, user.id);
+            linkEnsuredRef.current.add(workspaceId);
+          }
+        } catch (linkError) {
+          // Non-critical - just log warning
+          console.warn('Could not ensure activities-participants link:', linkError);
+        }
+      }
+      
       const data = await activitiesSupabase.listActivities(workspaceId);
       setActivities(data);
     } catch (error) {
@@ -73,17 +346,24 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
     }
   };
 
-  // Filter activities
-  const filteredActivities = activities.filter(activity => {
-    const matchesSearch = activity.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         (activity.category?.toLowerCase() || '').includes(searchQuery.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || activity.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
+  // Filter and search activities
+  const filteredActivities = useMemo(() => {
+    return activities.filter(activity => {
+      const matchesSearch = 
+        activity.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        (activity.category?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+        (activity.description?.toLowerCase() || '').includes(searchQuery.toLowerCase());
+      const matchesStatus = filterStatus === 'all' || activity.status === filterStatus;
+      return matchesSearch && matchesStatus;
+    });
+  }, [activities, searchQuery, filterStatus]);
 
-  const activeCount = activities.filter(a => a.status === 'active').length;
-  const completedCount = activities.filter(a => a.status === 'completed').length;
-  const upcomingCount = activities.filter(a => a.status === 'upcoming').length;
+  const stats = useMemo(() => ({
+    total: activities.length,
+    active: activities.filter(a => a.status === 'active').length,
+    upcoming: activities.filter(a => a.status === 'upcoming').length,
+    completed: activities.filter(a => a.status === 'completed').length,
+  }), [activities]);
 
   const handleAddActivity = async () => {
     if (!newActivity.name || !newActivity.begin_date || !newActivity.end_date) {
@@ -134,157 +414,191 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gray-500">Loading activities...</div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto mb-4"></div>
+          <div className="text-gray-500">Loading activities...</div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="h-full bg-gray-50 flex flex-col">
+      {/* Header Section */}
+      <div className="bg-white border-b border-gray-200 px-6 md:px-8 py-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Activities Hub</h1>
+            <p className="text-sm text-gray-600">Manage and track all your activities and programs</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="outline"
+              onClick={() => router.push(`/workspace/${workspaceId}/tables`)}
+              className="hidden sm:flex items-center gap-2"
+            >
+              <Database className="h-4 w-4" />
+              Tables
+            </Button>
+            <Button 
+              onClick={() => setAddDialogOpen(true)}
+              className="bg-violet-600 hover:bg-violet-700 text-white flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Activity
+            </Button>
+          </div>
+        </div>
+
+        {/* Search and Filters */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Search activities by name, category, or description..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-11"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded transition-colors ${
+                  viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'
+                }`}
+              >
+                <Grid3x3 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded transition-colors ${
+                  viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'
+                }`}
+              >
+                <ListIcon className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Activities List */}
         <div className={`transition-all duration-300 overflow-auto ${
           selectedActivity && !isFullScreen ? 'md:w-2/3 w-full' : 'w-full'
         }`}>
-          <div className="p-3 md:p-6 pb-32 md:pb-6">
-            {/* Header with Action Buttons */}
-            <div className="flex items-center justify-between mb-4 md:mb-6">
-              <div className="flex-1" />
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline"
-                  onClick={() => setConnectTableDialogOpen(true)}
-                  className="flex items-center gap-2 text-xs md:text-sm"
-                >
-                  <Database className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                  <span className="hidden sm:inline">Connect Table</span>
-                  <span className="sm:inline md:hidden">Table</span>
-                </Button>
-                <Button 
-                  onClick={() => setAddDialogOpen(true)}
-                  className="bg-violet-600 hover:bg-violet-700 text-white flex items-center gap-2 text-xs md:text-sm"
-                >
-                  <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                  <span className="hidden sm:inline">Add Activity</span>
-                  <span className="sm:inline md:hidden">Add</span>
-                </Button>
-              </div>
-            </div>
-
+          <div className="p-6 md:p-8">
             {/* Filter Tabs */}
-            <div className="flex items-center gap-2 mb-4 md:mb-6 overflow-x-auto scrollbar-hide">
+            <div className="flex items-center gap-3 mb-8 overflow-x-auto scrollbar-hide pb-2">
               <button
                 onClick={() => setFilterStatus('all')}
-                className={`px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm transition-all whitespace-nowrap ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                   filterStatus === 'all'
-                    ? 'bg-gray-900 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-100'
+                    ? 'bg-violet-600 text-white shadow-sm'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
                 }`}
               >
-                All {activities.length}
+                All ({stats.total})
               </button>
               <button
                 onClick={() => setFilterStatus('active')}
-                className={`px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm transition-all whitespace-nowrap ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                   filterStatus === 'active'
-                    ? 'bg-gray-900 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-100'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
                 }`}
               >
-                Active {activeCount}
+                Active ({stats.active})
               </button>
               <button
                 onClick={() => setFilterStatus('upcoming')}
-                className={`px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm transition-all whitespace-nowrap ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                   filterStatus === 'upcoming'
-                    ? 'bg-gray-900 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-100'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
                 }`}
               >
-                Upcoming {upcomingCount}
+                Upcoming ({stats.upcoming})
               </button>
               <button
                 onClick={() => setFilterStatus('completed')}
-                className={`px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm transition-all whitespace-nowrap ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                   filterStatus === 'completed'
-                    ? 'bg-gray-900 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-100'
+                    ? 'bg-gray-600 text-white shadow-sm'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
                 }`}
               >
-                Completed {completedCount}
+                Completed ({stats.completed})
               </button>
             </div>
 
-            {/* Activities */}
-            <div className="space-y-2 md:space-y-3">
-              {filteredActivities.length === 0 ? (
-                <div className="text-center py-12">
-                  <ActivityIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No activities found</h3>
-                  <p className="text-gray-500 mb-4">
-                    {searchQuery ? 'Try adjusting your search' : 'Get started by creating your first activity'}
-                  </p>
-                  {!searchQuery && (
-                    <Button onClick={() => setAddDialogOpen(true)} className="bg-violet-600 hover:bg-violet-700">
+            {/* Activities Grid/List */}
+            {filteredActivities.length === 0 ? (
+              <div className="text-center py-16">
+                <ActivityIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {searchQuery ? 'No activities found' : 'No activities yet'}
+                </h3>
+                <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                  {searchQuery 
+                    ? 'Try adjusting your search terms or filters'
+                    : 'Get started by creating your first activity or connecting an existing data table'
+                  }
+                </p>
+                {!searchQuery && (
+                  <div className="flex items-center justify-center gap-3">
+                    <Button 
+                      onClick={() => setAddDialogOpen(true)} 
+                      className="bg-violet-600 hover:bg-violet-700"
+                    >
                       <Plus className="h-4 w-4 mr-2" />
-                      Add Activity
+                      Create Activity
                     </Button>
-                  )}
-                </div>
-              ) : (
-                filteredActivities.map((activity) => (
-                  <div
-                    key={activity.id}
-                    onClick={() => setSelectedActivity(activity)}
-                    className={`bg-white rounded-lg md:rounded-xl p-3 md:p-4 border transition-all cursor-pointer active:scale-[0.98] ${
-                      selectedActivity?.id === activity.id
-                        ? 'border-violet-600 shadow-sm'
-                        : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start gap-2 mb-1.5 md:mb-2">
-                          <h3 className="text-xs md:text-sm text-gray-900 flex-1 line-clamp-2">
-                            {activity.name}
-                          </h3>
-                          <Badge 
-                            className={`
-                              text-xs px-1.5 md:px-2 py-0.5 border-0 flex-shrink-0
-                              ${activity.status === 'active' ? 'bg-emerald-50 text-emerald-700' : ''}
-                              ${activity.status === 'upcoming' ? 'bg-blue-50 text-blue-700' : ''}
-                              ${activity.status === 'completed' ? 'bg-gray-50 text-gray-700' : ''}
-                            `}
-                          >
-                            {activity.status}
-                          </Badge>
-                        </div>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs text-gray-500">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate">{formatDate(activity.begin_date)}</span>
-                            <span>→</span>
-                            <span className="truncate">{formatDate(activity.end_date)}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Users className="h-3 w-3 flex-shrink-0" />
-                            <span>{activity.participants} enrolled</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <Button 
+                      variant="outline"
+                      onClick={() => router.push(`/workspace/${workspaceId}/tables`)}
+                    >
+                      <Database className="h-4 w-4 mr-2" />
+                      Tables
+                    </Button>
                   </div>
-                ))
-              )}
-            </div>
+                )}
+              </div>
+            ) : viewMode === 'grid' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredActivities.map((activity) => (
+                  <ActivityCard
+                    key={activity.id}
+                    activity={activity}
+                    isSelected={selectedActivity?.id === activity.id}
+                    onClick={() => handleSelectActivity(activity)}
+                    workspaceId={workspaceId}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredActivities.map((activity) => (
+                  <ActivityListItem
+                    key={activity.id}
+                    activity={activity}
+                    isSelected={selectedActivity?.id === activity.id}
+                    onClick={() => handleSelectActivity(activity)}
+                    workspaceId={workspaceId}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Detail Panel - Desktop: Side Panel, Mobile: Bottom Sheet */}
+        {/* Detail Panel */}
         {selectedActivity && (
           <>
-            {/* Mobile Overlay */}
             <div 
               className="fixed inset-0 bg-black/50 z-40 md:hidden"
               onClick={() => {
@@ -293,7 +607,6 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
               }}
             />
             
-            {/* Panel */}
             <div className={`
               transition-all duration-300 bg-white z-50
               md:relative md:border-l md:border-gray-200
@@ -301,7 +614,6 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
               max-h-[85vh] md:max-h-none
               ${isFullScreen ? 'md:w-full' : 'md:w-1/3'}
             `}>
-              {/* Mobile Handle */}
               <div className="md:hidden flex justify-center pt-3 pb-2">
                 <div className="w-12 h-1 bg-gray-300 rounded-full" />
               </div>
@@ -318,109 +630,16 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
                   loadActivities();
                   setSelectedActivity(null);
                 }}
+                onUpdated={(updatedActivity) => {
+                  loadActivities();
+                  setSelectedActivity(updatedActivity);
+                }}
               />
             </div>
           </>
         )}
       </div>
 
-
-      {/* Connect Data Table Dialog */}
-      <Dialog open={connectTableDialogOpen} onOpenChange={setConnectTableDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Connect to Data Table</DialogTitle>
-            <DialogDescription>
-              Select a data table to sync activities from your existing database or external sources.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            {/* Table Selection */}
-            <div className="grid gap-2">
-              <Label htmlFor="dataTable">Select Data Table</Label>
-              <Select
-                value={selectedDataTable}
-                onValueChange={setSelectedDataTable}
-              >
-                <SelectTrigger id="dataTable">
-                  <SelectValue placeholder="Choose a data source..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="activities_2024">Activities Table (2024)</SelectItem>
-                  <SelectItem value="programs_master">Programs Master List</SelectItem>
-                  <SelectItem value="events_calendar">Events Calendar</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Preview of selected table */}
-            {selectedDataTable && (
-              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                <div className="flex items-center gap-2 mb-3">
-                  <Database className="h-4 w-4 text-violet-600" />
-                  <span className="text-sm">Preview - {selectedDataTable}</span>
-                </div>
-                <div className="space-y-2 text-xs text-gray-600">
-                  <div className="flex items-center justify-between">
-                    <span>Total Records:</span>
-                    <span className="">142 activities</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Last Updated:</span>
-                    <span className="">Nov 15, 2025</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Columns Matched:</span>
-                    <span className="text-emerald-600">6/6</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Sync Options */}
-            <div className="grid gap-2">
-              <Label>Sync Options</Label>
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" className="rounded" defaultChecked />
-                  <span>Auto-sync new activities</span>
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" className="rounded" defaultChecked />
-                  <span>Update existing activities</span>
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" className="rounded" />
-                  <span>Two-way sync (update table from hub)</span>
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setConnectTableDialogOpen(false);
-              setSelectedDataTable('');
-            }}>
-              Cancel
-            </Button>
-            <Button 
-              className="bg-violet-600 hover:bg-violet-700"
-              disabled={!selectedDataTable}
-              onClick={() => {
-                // Here you would implement the table connection logic
-                setConnectTableDialogOpen(false);
-                setSelectedDataTable('');
-                toast.success('Table connected successfully');
-              }}
-            >
-              <Database className="h-4 w-4 mr-2" />
-              Connect Table
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Add Activity Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
@@ -531,3 +750,4 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
     </div>
   );
 }
+

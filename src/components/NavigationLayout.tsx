@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { ChevronDown, Settings, LogOut, Search, Plus } from 'lucide-react'
+import { ChevronDown, Settings, LogOut, Search, Building2, Bell, User } from 'lucide-react'
 import { supabase, getCurrentUser } from '@/lib/supabase'
 import { clearLastWorkspace } from '@/lib/utils'
 import { useWorkspaceDiscovery } from '@/hooks/useWorkspaceDiscovery'
@@ -13,6 +13,15 @@ import { toast } from 'sonner'
 import type { Workspace } from '@/types/workspaces'
 import { OmniSearch } from './OmniSearch'
 import { useOmniSearch } from '@/hooks/useOmniSearch'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui-components/dropdown-menu'
+import { Input } from '@/ui-components/input'
 
 interface NavigationLayoutProps {
   children: React.ReactNode
@@ -24,8 +33,6 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
   const pathname = usePathname()
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [showUserMenu, setShowUserMenu] = useState(false)
-  const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [fullWorkspace, setFullWorkspace] = useState<Workspace | null>(null)
   
@@ -52,7 +59,6 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
       await supabase.auth.signOut()
       // Clear any cached data
       setUser(null)
-      setShowUserMenu(false)
       clearLastWorkspace()
       // Redirect to login
       window.location.href = '/login'
@@ -69,7 +75,6 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
       const workspace = await workspacesSupabase.getWorkspaceById(currentWorkspace.id)
       setFullWorkspace(workspace)
       setShowSettingsModal(true)
-      setShowUserMenu(false)
     } catch (error) {
       console.error('Error fetching workspace:', error)
       toast.error('Failed to load workspace settings')
@@ -83,153 +88,153 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
   }
 
   const handleWorkspaceSwitch = (slug: string) => {
-    router.push(`/workspace/${slug}`)
-    setShowWorkspaceMenu(false)
+    router.push(`/workspace/${slug}/activities-hubs`)
   }
 
-  const getWorkspaceInitial = (name: string) => {
-    return name?.charAt(0)?.toUpperCase() || 'W'
+  const getWorkspaceColor = (workspace: Workspace | null) => {
+    if (!workspace) return 'bg-violet-600'
+    // If color is a hex value, return it for inline style, otherwise use Tailwind class
+    const color = workspace.color || '#7C3AED' // Default violet-600
+    return color.startsWith('#') ? color : `bg-${color}`
+  }
+
+  const getWorkspaceColorStyle = (workspace: Workspace | null) => {
+    const color = getWorkspaceColor(workspace)
+    return color.startsWith('#') ? { backgroundColor: color } : {}
+  }
+
+  const getWorkspaceColorClass = (workspace: Workspace | null) => {
+    const color = getWorkspaceColor(workspace)
+    return color.startsWith('#') ? '' : color
+  }
+
+
+  const getUserName = (email: string | undefined) => {
+    if (!email) return 'User'
+    const name = email.split('@')[0]
+    return name.charAt(0).toUpperCase() + name.slice(1)
   }
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Top Navigation Bar */}
       <nav className="bg-white border-b border-gray-200">
-        <div className="flex items-center justify-between px-4 py-2">
-          {/* Left: Workspace Dropdown */}
-          <div className="flex items-center space-x-4">
+        <div className="flex items-center justify-between gap-4 px-4 md:px-6 h-16">
+          {/* Left: Workspace Selector */}
+          <div className="flex items-center gap-3 flex-shrink-0">
             {currentWorkspace && (
-              <div className="relative">
-                <button 
-                  onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)} 
-                  className="flex items-center space-x-2 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-semibold">
-                    {getWorkspaceInitial(currentWorkspace.name)}
+              <DropdownMenu>
+                <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                  <div 
+                    className={`w-8 h-8 ${getWorkspaceColorClass(currentWorkspace)} rounded-lg flex items-center justify-center flex-shrink-0`}
+                    style={getWorkspaceColorStyle(currentWorkspace)}
+                  >
+                    <Building2 className="h-4 w-4 text-white" />
                   </div>
-                  <span className="text-sm font-medium text-gray-900">{currentWorkspace.name}</span>
-                  <ChevronDown className="w-4 h-4 text-gray-500" />
-                </button>
-                
-                {showWorkspaceMenu && (
-                  <div className="absolute top-full left-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                    {/* Current Workspace Section */}
-                    <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Current Workspace
-                    </div>
-                    <div className="px-3 py-2 mb-2">
-                      <div className="flex items-center space-x-3 p-2 rounded-lg bg-gray-50">
-                        <div className="w-8 h-8 rounded bg-blue-500 text-white flex items-center justify-center text-sm font-semibold">
-                          {getWorkspaceInitial(currentWorkspace.name)}
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-gray-900">{currentWorkspace.name}</div>
-                          <div className="text-xs text-gray-500">Free</div>
-                        </div>
-                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                      </div>
-                    </div>
-
-                    {/* Switch Workspace Section */}
-                    {workspaces.length > 1 && (
-                      <>
-                        <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                          Switch Workspace
-                        </div>
-                        <div className="max-h-48 overflow-y-auto">
-                          {workspaces.filter(ws => ws.id !== currentWorkspace.id).map((ws) => (
-                            <button
-                              key={ws.id}
-                              onClick={() => handleWorkspaceSwitch(ws.slug)}
-                              className="w-full flex items-center space-x-3 px-5 py-2 hover:bg-gray-50 transition-colors"
-                            >
-                              <div className="w-6 h-6 rounded bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-semibold">
-                                {getWorkspaceInitial(ws.name)}
-                              </div>
-                              <div className="flex-1 text-left">
-                                <div className="text-sm text-gray-900">{ws.name}</div>
-                                <div className="text-xs text-gray-500">Free</div>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </>
-                    )}
-
-                    {/* Create Workspace */}
-                    <div className="border-t border-gray-200 mt-2 pt-2">
-                      <button className="w-full flex items-center space-x-2 px-5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                        <Plus className="w-4 h-4" />
-                        <span>Create workspace</span>
-                      </button>
-                    </div>
+                  <div className="hidden md:flex items-center gap-2">
+                    <span className="text-sm text-gray-900">{currentWorkspace.name}</span>
+                    <ChevronDown className="h-4 w-4 text-gray-500" />
                   </div>
-                )}
-              </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-64 bg-white">
+                  <DropdownMenuLabel>Switch Workspace</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {workspaces.map((ws) => {
+                    const isCurrent = ws.id === currentWorkspace?.id
+                    const workspaceColor = ws.color || '#7C3AED'
+                    const colorClass = workspaceColor.startsWith('#') ? '' : `bg-${workspaceColor}`
+                    const colorStyle = workspaceColor.startsWith('#') ? { backgroundColor: workspaceColor } : {}
+                    return (
+                      <DropdownMenuItem 
+                        key={ws.id}
+                        onClick={() => !isCurrent && handleWorkspaceSwitch(ws.slug)}
+                        className={isCurrent ? 'bg-gray-50' : ''}
+                      >
+                        <div className="flex items-center gap-3 w-full">
+                          <div 
+                            className={`w-8 h-8 ${colorClass} rounded-lg flex items-center justify-center flex-shrink-0`}
+                            style={colorStyle}
+                          >
+                            <Building2 className="h-4 w-4 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm">{ws.name}</div>
+                            <div className="text-xs text-gray-500">
+                              {isCurrent ? 'Current workspace' : 'Switch to this workspace'}
+                            </div>
+                          </div>
+                        </div>
+                      </DropdownMenuItem>
+                    )
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
 
-          {/* Center: Search Bar */}
-          <div className="flex-1 max-w-xl mx-8">
+          {/* Center: Global Search */}
+          <div className="flex-1 max-w-xl">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              <input
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
                 type="text"
-                placeholder="Search for anything..."
+                placeholder="Search activities, requests, staff..."
                 onClick={open}
                 readOnly
-                className="w-full pl-10 pr-4 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer hover:bg-gray-50 transition-colors"
+                className="pl-10 h-10 bg-gray-50 border-gray-200 focus:bg-white cursor-pointer"
               />
-              <kbd className="absolute right-3 top-1/2 transform -translate-y-1/2 px-2 py-0.5 text-xs text-gray-500 bg-gray-100 border border-gray-200 rounded pointer-events-none">
-                ⌘K
-              </kbd>
             </div>
           </div>
 
-          {/* Right: User Avatar Only */}
-          <div className="flex items-center space-x-2">
+          {/* Right: Notifications & Account */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Notifications */}
+            <button className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
+              <Bell className="h-5 w-5 text-gray-600" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+            </button>
+
+            {/* Account Dropdown */}
             {user && (
-              <div className="relative">
-                <button 
-                  onClick={() => setShowUserMenu(!showUserMenu)} 
-                  className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
-                >
-                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium border-2 border-white shadow-sm">
-                    {user.email?.[0]?.toUpperCase() || 'U'}
+              <DropdownMenu>
+                <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                  <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <User className="h-4 w-4 text-white" />
                   </div>
-                </button>
-                
-                {showUserMenu && (
-                  <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                    <div className="px-4 py-3 border-b border-gray-100">
-                      <div className="font-medium text-sm text-gray-900">
-                        {user.email?.split('@')[0] || 'User'}
+                  <div className="hidden md:block text-left">
+                    <div className="text-sm text-gray-900">{getUserName(user.email)}</div>
+                    <div className="text-xs text-gray-500">Administrator</div>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-gray-500 hidden md:block" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-white">
+                  <DropdownMenuLabel>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                        <User className="h-5 w-5 text-white" />
                       </div>
-                      <div className="text-xs text-gray-500 mt-0.5">{user.email}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm">{getUserName(user.email)}</div>
+                        <div className="text-xs text-gray-500 font-normal">{user.email}</div>
+                      </div>
                     </div>
-                    <button className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                      <Settings className="w-4 h-4" />
-                      <span>Profile</span>
-                    </button>
-                    <button 
-                      onClick={handleOpenSettings}
-                      className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      <Settings className="w-4 h-4" />
-                      <span>Settings</span>
-                    </button>
-                    <div className="border-t border-gray-100 mt-1 pt-1">
-                      <button 
-                        onClick={handleSignOut}
-                        className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        <span>Sign out</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <User className="h-4 w-4 mr-2" />
+                    My Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleOpenSettings}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} variant="destructive">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         </div>
@@ -263,16 +268,6 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
         />
       )}
       
-      {/* Backdrop */}
-      {(showUserMenu || showWorkspaceMenu) && (
-        <div 
-          className="fixed inset-0 z-40" 
-          onClick={() => { 
-            setShowUserMenu(false)
-            setShowWorkspaceMenu(false)
-          }} 
-        />
-      )}
     </div>
   )
 }

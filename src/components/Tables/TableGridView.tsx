@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Plus, ChevronDown, Trash2, Copy, Settings, EyeOff, Grid3x3, Kanban, Calendar as CalendarIcon, Image as ImageIcon, List, Search, BarChart3, Filter, Download, MoreHorizontal } from 'lucide-react'
 import { ColumnEditorModal } from './ColumnEditorModal'
-import { RealTimeLinkField } from './RealTimeLinkField'
+import { LinkField } from './LinkField'
 import { EnablePulseButton } from '@/components/Pulse/EnablePulseButton'
 import { pulseSupabase } from '@/lib/api/pulse-supabase'
 import type { PulseEnabledTable } from '@/lib/api/pulse-client'
@@ -128,6 +128,94 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
     loadPulseConfig()
   }, [tableId])
 
+  // Set up real-time subscription for table_row_links changes
+  useEffect(() => {
+    if (!tableId || columns.length === 0) return
+
+    // Find all link columns
+    const linkColumns = columns.filter(col => col.column_type === 'link' && col.linked_table_id)
+    if (linkColumns.length === 0) return
+
+    let channels: any[] = []
+    
+    const setupSubscriptions = async () => {
+      const { supabase } = await import('@/lib/supabase')
+      const { tableLinksGoClient } = await import('@/lib/api/participants-go-client')
+      
+      // For each link column, set up a subscription
+      for (const column of linkColumns) {
+        try {
+          // Find the table_link for this column
+          let tableLinks = await tableLinksGoClient.getTableLinks(tableId)
+          let tableLink = tableLinks.find((l: any) => 
+            l.source_table_id === tableId && 
+            l.target_table_id === column.linked_table_id &&
+            l.source_column_id === column.id
+          )
+          
+          if (!tableLink) {
+            tableLinks = await tableLinksGoClient.getTableLinks(column.linked_table_id)
+            tableLink = tableLinks.find((l: any) => 
+              (l.source_table_id === tableId && l.target_table_id === column.linked_table_id) ||
+              (l.source_table_id === column.linked_table_id && l.target_table_id === tableId)
+            )
+          }
+          
+          if (tableLink?.id) {
+            const channel = supabase
+              .channel(`table-row-links-${tableId}-${column.id}`)
+              .on(
+                'postgres_changes',
+                {
+                  event: '*', // INSERT, UPDATE, DELETE
+                  schema: 'public',
+                  table: 'table_row_links',
+                  filter: `link_id=eq.${tableLink.id}`
+                },
+                (payload: any) => {
+                  console.log('🔄 Table row link changed:', payload)
+                  // Reload table data to refresh link columns
+                  setTimeout(() => {
+                    loadTableData()
+                  }, 300)
+                }
+              )
+              .subscribe()
+            
+            channels.push(channel)
+            console.log(`📡 Subscribed to table_row_links changes for column ${column.name} (link ${tableLink.id})`)
+          }
+        } catch (error) {
+          console.error(`Error setting up subscription for column ${column.name}:`, error)
+        }
+      }
+    }
+
+    setupSubscriptions()
+
+    return () => {
+      if (channels.length > 0) {
+        const { supabase } = require('@/lib/supabase')
+        channels.forEach(channel => {
+          supabase.removeChannel(channel)
+        })
+      }
+    }
+  }, [tableId, columns])
+
+  // Close column menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (activeColumnMenu) {
+        setActiveColumnMenu(null)
+      }
+    }
+    if (activeColumnMenu) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [activeColumnMenu])
+
   // Load Pulse configuration
   const loadPulseConfig = async () => {
     try {
@@ -193,22 +281,149 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
       const tableData = await tablesGoClient.getTableById(tableId)
       setTableName(tableData.name)
       
-      // Populate linked_table_id on columns from table_links
+      // Map columns to frontend format - ensure label exists (use name if label missing)
       const columnsWithLinks = (tableData.columns || []).map((col: any) => {
-        if (col.column_type === 'link' && tableData.links) {
-          // Find the table_link for this column
-          const link = tableData.links.find((l: any) => l.source_column_id === col.id)
-          if (link) {
-            return { ...col, linked_table_id: link.target_table_id }
+        const mappedCol = {
+          ...col,
+          label: col.label || col.name || '', // Use label if exists, otherwise use name
+          is_visible: col.is_visible !== undefined ? col.is_visible : true,
+          width: col.width || 200,
+          position: col.position || 0,
+          settings: col.settings || col.options || {}, // Map options to settings
+        }
+        
+        // For link columns, use linked_table_id from column if available
+        // Otherwise try to find it from table_links
+        if (col.column_type === 'link') {
+          if (col.linked_table_id) {
+            // Column already has linked_table_id set
+            mappedCol.linked_table_id = col.linked_table_id
+          } else if (tableData.links) {
+            // Try to find table_link by matching source_table_id and target_table_id
+            // Find any link where this table is the source
+            const link = tableData.links.find((l: any) => 
+              l.source_table_id === tableId && 
+              (l.source_column_id === col.id || !l.source_column_id)
+            )
+            if (link) {
+              mappedCol.linked_table_id = link.target_table_id
+            }
           }
         }
-        return col
+        
+        return mappedCol
       })
       
+      console.log('📊 Loaded columns:', columnsWithLinks.length, columnsWithLinks)
       setColumns(columnsWithLinks as any)
       
       const rowsData = await tablesGoClient.getRowsByTable(tableId)
-      setRows(rowsData as any)
+      console.log('📊 Loaded rows:', rowsData.length, rowsData)
+      
+      // Populate link column values from table_row_links
+      const rowsWithLinks = await Promise.all(
+        rowsData.map(async (row: any) => {
+          const rowData = { ...row.data }
+          
+          // Find link columns and populate their values from table_row_links
+          for (const col of columnsWithLinks) {
+            if (col.column_type === 'link' && col.linked_table_id) {
+              try {
+                // Find the table_link by matching source and target tables (check both directions)
+                const { tableLinksGoClient, rowLinksGoClient } = await import('@/lib/api/participants-go-client')
+                
+                // First try: current table as source, linked table as target
+                let tableLinks = await tableLinksGoClient.getTableLinks(tableId)
+                let tableLink = tableLinks.find((l: any) => 
+                  l.source_table_id === tableId && 
+                  l.target_table_id === col.linked_table_id
+                )
+                
+                // Second try: linked table as source, current table as target (reverse direction)
+                if (!tableLink) {
+                  tableLinks = await tableLinksGoClient.getTableLinks(col.linked_table_id)
+                  tableLink = tableLinks.find((l: any) => 
+                    l.source_table_id === col.linked_table_id && 
+                    l.target_table_id === tableId
+                  )
+                }
+                
+                if (tableLink?.id && row.id) {
+                  // Determine if we're the source or target
+                  const isSource = tableLink.source_table_id === tableId
+                  
+                  console.log(`🔍 Loading links for column ${col.name} in row ${row.id}:`, {
+                    tableId,
+                    linkedTableId: col.linked_table_id,
+                    linkId: tableLink.id,
+                    isSource,
+                    sourceTableId: tableLink.source_table_id,
+                    targetTableId: tableLink.target_table_id
+                  })
+                  
+                  if (isSource) {
+                    // Current table is source - get linked rows where this row is the source
+                    const linkedRows = await rowLinksGoClient.getLinkedRows(row.id, tableLink.id)
+                    console.log(`📊 Got ${linkedRows.length} linked rows from API for row ${row.id} with link ${tableLink.id}`)
+                    
+                    // Extract the linked record IDs (target rows)
+                    // The API returns rows where this row is either source or target
+                    // We need to filter to only get target rows (where this row is the source)
+                    const linkedIds = linkedRows
+                      .filter((lr: any) => {
+                        // Only include rows that are NOT the current row (they are the target)
+                        return lr.row && lr.row.id !== row.id
+                      })
+                      .map((lr: any) => lr.row.id)
+                    
+                    rowData[col.name] = linkedIds
+                    console.log(`✅ Loaded ${linkedIds.length} linked records for ${col.name} in row ${row.id} (source direction):`, linkedIds)
+                  } else {
+                    // Current table is target - need to find rows where this row is the target
+                    // The GetLinkedRows API should return rows where this row is either source or target
+                    // When we're the target, we need to find which source rows link to us
+                    const linkedRows = await rowLinksGoClient.getLinkedRows(row.id, tableLink.id)
+                    console.log(`📊 Got ${linkedRows.length} linked rows from API for row ${row.id} (target direction)`)
+                    
+                    // Filter to only get source rows (rows from the linked table that link to this row)
+                    // When we're the target, the source rows are the ones we want to display
+                    const linkedIds = linkedRows
+                      .filter((lr: any) => {
+                        // Only include rows that are NOT the current row
+                        // These are the source rows (from linked table) that link to this target row
+                        return lr.row && lr.row.id !== row.id
+                      })
+                      .map((lr: any) => lr.row.id)
+                    
+                    rowData[col.name] = linkedIds
+                    console.log(`✅ Loaded ${linkedIds.length} linked records for ${col.name} in row ${row.id} (target direction):`, linkedIds)
+                  }
+                } else {
+                  console.log(`⚠️ No table link found for column ${col.name} (linkId: ${tableLink?.id}, rowId: ${row.id})`)
+                  // No table_link found, ensure field is an empty array
+                  if (!rowData[col.name] || !Array.isArray(rowData[col.name])) {
+                    rowData[col.name] = []
+                  }
+                }
+              } catch (error) {
+                console.error(`Error loading links for column ${col.name}:`, error)
+                // Ensure field is an empty array on error
+                if (!rowData[col.name] || !Array.isArray(rowData[col.name])) {
+                  rowData[col.name] = []
+                }
+              }
+            }
+          }
+          
+          return {
+            ...row,
+            data: rowData
+          }
+        })
+      )
+      
+      console.log('📊 Loaded rows with links:', rowsWithLinks.length)
+      setRows(rowsWithLinks as any)
     } catch (error) {
       console.error('Error loading table data:', error)
       toast.error('Failed to load table data')
@@ -317,12 +532,118 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
     toast.info('Filter feature coming soon! You will be able to filter by any field.')
   }
 
+  // Save handler specifically for link columns
+  const handleSaveLinks = async (rowId: string, columnName: string, newLinkedIds: string[]) => {
+    const row = rows.find(r => r.id === rowId)
+    if (!row) return
+
+    const column = columns.find(c => c.name === columnName)
+    if (!column || column.column_type !== 'link' || !column.linked_table_id) {
+      throw new Error('Invalid link column')
+    }
+
+    const previousLinkedIds = Array.isArray(row.data[columnName]) ? row.data[columnName] : []
+    const linkedRecordIds = Array.isArray(newLinkedIds) ? newLinkedIds : []
+
+    // Find or create the table_link
+    const { tableLinksGoClient, rowLinksGoClient } = await import('@/lib/api/participants-go-client')
+    
+    // Try both directions
+    let tableLinks = await tableLinksGoClient.getTableLinks(tableId)
+    let tableLink = tableLinks.find((l: any) =>
+      l.source_table_id === tableId &&
+      l.target_table_id === column.linked_table_id
+    )
+
+    if (!tableLink) {
+      tableLinks = await tableLinksGoClient.getTableLinks(column.linked_table_id)
+      tableLink = tableLinks.find((l: any) =>
+        l.source_table_id === column.linked_table_id &&
+        l.target_table_id === tableId
+      )
+    }
+
+    // Create link if it doesn't exist
+    if (!tableLink && column.id) {
+      tableLink = await tableLinksGoClient.createTableLink(
+        tableId,
+        column.id,
+        column.linked_table_id,
+        'many_to_many',
+        {
+          label: column.label || columnName,
+          reverseLabel: 'Linked Records'
+        }
+      )
+    }
+
+    if (!tableLink?.id) {
+      throw new Error('Failed to find or create table link')
+    }
+
+    const isSource = tableLink.source_table_id === tableId
+    const addedIds = linkedRecordIds.filter(id => !previousLinkedIds.includes(id))
+    const removedIds = previousLinkedIds.filter(id => !linkedRecordIds.includes(id))
+
+    // Create new links
+    for (const targetId of addedIds) {
+      if (isSource) {
+        await rowLinksGoClient.createRowLink(rowId, targetId, tableLink.id, {})
+      } else {
+        await rowLinksGoClient.createRowLink(targetId, rowId, tableLink.id, {})
+      }
+    }
+
+    // Delete removed links
+    for (const removedId of removedIds) {
+      const linkedRows = await rowLinksGoClient.getLinkedRows(
+        isSource ? rowId : removedId,
+        tableLink.id
+      )
+      const rowLink = linkedRows.find((lr: any) =>
+        isSource
+          ? lr.row.id === removedId
+          : lr.row.id === rowId
+      )
+      if (rowLink?.row_link_id) {
+        await rowLinksGoClient.deleteRowLink(rowLink.row_link_id)
+      }
+    }
+
+    // Reload table data to refresh links
+    await loadTableData()
+    
+    // Broadcast update to other clients
+    broadcastUpdate({
+      type: 'row_updated',
+      table_id: tableId,
+      row_id: rowId,
+      data: { ...row.data, [columnName]: newLinkedIds },
+      updated_by: null,
+      optimistic: false
+    })
+    
+    // Also notify the linked table to refresh (if it's open)
+    // This is a best-effort notification - the other table's subscription will catch it
+    console.log(`✅ Links updated for row ${rowId}, column ${columnName}. Linked table ${column.linked_table_id} should refresh.`)
+  }
+
   const handleCellEdit = async (rowId: string, columnName: string, value: any) => {
     try {
       const row = rows.find(r => r.id === rowId)
       if (!row) return
 
-      // Optimistic update - update UI immediately
+      // Check if this is a link column
+      const column = columns.find(c => c.name === columnName)
+      const isLinkColumn = column?.column_type === 'link' && column.linked_table_id
+      
+      if (isLinkColumn) {
+        // Link columns are handled by LinkField's onSave
+        // This should not be called for link columns
+        return
+      }
+
+      // For non-link columns, update the row data
       const updatedData = { ...row.data, [columnName]: value }
       setRows(prevRows => 
         prevRows.map(r => 
@@ -341,27 +662,12 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
       })
 
       // Update via Go API
-      console.log('Updating cell via Go API:', { rowId, columnName, value })
       const { goClient } = await import('@/lib/api/go-client')
-      
       await goClient.patch(`/tables/${tableId}/rows/${rowId}`, {
         data: updatedData
       })
-      
-      console.log('Cell updated successfully via Go API')
-      // Note: We don't update local state here since optimistic update already did it
-      // The Supabase Realtime will broadcast the update to all clients
     } catch (error) {
       console.error('Error updating cell:', error)
-      
-      // Revert optimistic update on error
-      const row = rows.find(r => r.id === rowId)
-      if (row) {
-        setRows(prevRows => 
-          prevRows.map(r => r.id === rowId ? row : r)
-        )
-      }
-      
       toast.error(`Failed to update cell: ${error}`)
     }
   }
@@ -480,44 +786,21 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
       
       if (editingColumn) {
         // Update existing column
-        const savedColumn = await tablesGoClient.updateColumn(
+        await tablesGoClient.updateColumn(
           tableId,
           editingColumn.id!,
           columnData
         )
-        // Convert TableColumn to Column
-        const columnForState: Column = {
-          id: savedColumn.id!,
-          name: savedColumn.name,
-          label: savedColumn.label,
-          column_type: savedColumn.column_type,
-          width: savedColumn.width,
-          is_visible: savedColumn.is_visible,
-          position: savedColumn.position,
-          linked_table_id: savedColumn.linked_table_id,
-          settings: savedColumn.settings,
-        }
-        setColumns(columns.map(col => col.id === editingColumn.id ? columnForState : col))
         toast.success('Column updated')
       } else {
         // Create new column
         const payload = { ...columnData, position: columns.length }
-        const savedColumn = await tablesGoClient.createColumn(tableId, payload)
-        // Convert TableColumn to Column
-        const columnForState: Column = {
-          id: savedColumn.id!,
-          name: savedColumn.name,
-          label: savedColumn.label,
-          column_type: savedColumn.column_type,
-          width: savedColumn.width,
-          is_visible: savedColumn.is_visible,
-          position: savedColumn.position,
-          linked_table_id: savedColumn.linked_table_id,
-          settings: savedColumn.settings,
-        }
-        setColumns([...columns, columnForState])
+        await tablesGoClient.createColumn(tableId, payload)
         toast.success('Column created')
       }
+      
+      // Reload table data to ensure everything is in sync
+      await loadTableData()
       
       setIsColumnEditorOpen(false)
       setEditingColumn(null)
@@ -537,13 +820,14 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
       const linkedRecordIds = Array.isArray(value) ? value : []
       
       return (
-        <RealTimeLinkField
+        <LinkField
           tableId={tableId}
           rowId={row.id}
-          columnId={column.id}
+          columnId={column.id || ''}
           columnName={column.name}
           linkedTableId={column.linked_table_id || ''}
           value={linkedRecordIds}
+          displayFields={column.settings?.displayFields || []}
           onChange={(newValue) => {
             // Update the local state immediately
             const updatedRows = rows.map(r => 
@@ -553,7 +837,10 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
             )
             setRows(updatedRows)
           }}
-          onCellEdit={handleCellEdit}
+          onSave={async (newValue) => {
+            // Save links using the dedicated handler
+            await handleSaveLinks(row.id, column.name, newValue)
+          }}
         />
       )
     }
@@ -995,33 +1282,52 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
                 </TableHead>
                 <TableHead className="w-12 text-center">#</TableHead>
                 {columns.filter(c => c.is_visible).map((column) => (
-                  <TableHead key={column.id} style={{ minWidth: column.width }}>
-                    <div className="flex items-center justify-between group">
-                      <span>{column.label}</span>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  <TableHead key={column.id} style={{ minWidth: column.width }} className="relative">
+                    <div className="flex items-center justify-between group/column">
+                      <span className="flex-1 min-w-0 truncate pr-2">{column.label}</span>
+                      <div className="relative">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="h-7 w-7 opacity-100 hover:bg-gray-100 transition-all flex-shrink-0 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setActiveColumnMenu(activeColumnMenu === column.id ? null : column.id)
+                          }}
+                          type="button"
+                        >
+                          <MoreHorizontal className="h-4 w-4 text-gray-600" />
+                        </Button>
+                        {activeColumnMenu === column.id && (
+                          <div 
+                            className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <ChevronDown className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEditColumn(column)}>
-                            <Settings className="h-4 w-4 mr-2" />
-                            Edit field
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDeleteColumn(column.id)}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete field
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleEditColumn(column)
+                                setActiveColumnMenu(null)
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                            >
+                              <Settings className="h-4 w-4" />
+                              Edit field
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteColumn(column.id)
+                                setActiveColumnMenu(null)
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete field
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </TableHead>
                 ))}

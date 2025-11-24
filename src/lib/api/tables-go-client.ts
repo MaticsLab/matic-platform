@@ -105,16 +105,24 @@ export const tablesGoClient = {
     tableId: string,
     input: Omit<TableColumn, 'id' | 'created_at' | 'updated_at'>
   ): Promise<TableColumn> {
-    return goClient.post<TableColumn>(`/tables/${tableId}/columns`, {
+    const payload: any = {
       name: input.name,
+      label: input.label || input.name, // Use label if provided, otherwise use name
       type: input.column_type,
-      position: input.position,
+      position: input.position || 0,
       width: input.width || 200,
-      is_required: false, // TODO: Add to TableColumn interface if needed
-      is_primary_key: input.is_primary || false,
+      is_primary: input.is_primary || false,
       options: input.settings || {},
       validation: input.validation || {},
-    })
+    }
+    
+    // Add linked_table_id if it's a link column
+    if (input.column_type === 'link' && input.linked_table_id) {
+      payload.linked_table_id = input.linked_table_id
+    }
+    
+    console.log('Creating column with payload:', payload)
+    return goClient.post<TableColumn>(`/tables/${tableId}/columns`, payload)
   },
 
   /**
@@ -127,10 +135,13 @@ export const tablesGoClient = {
   ): Promise<TableColumn> {
     const updateData: Record<string, any> = {}
     if (input.name !== undefined) updateData.name = input.name
+    if (input.label !== undefined) updateData.label = input.label
     if (input.column_type !== undefined) updateData.type = input.column_type
     if (input.position !== undefined) updateData.position = input.position
     if (input.width !== undefined) updateData.width = input.width
-    if (input.is_primary !== undefined) updateData.is_primary_key = input.is_primary
+    if (input.is_visible !== undefined) updateData.is_visible = input.is_visible
+    if (input.is_primary !== undefined) updateData.is_primary = input.is_primary
+    if (input.linked_table_id !== undefined) updateData.linked_table_id = input.linked_table_id
     if (input.settings !== undefined) updateData.options = input.settings
     if (input.validation !== undefined) updateData.validation = input.validation
     

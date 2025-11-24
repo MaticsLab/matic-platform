@@ -85,6 +85,10 @@ function EnrolledViewWrapper({ workspaceId }: { workspaceId: string }) {
           const table = await getOrCreateParticipantsTable(workspaceId, user.id)
           setParticipantsTableId(table.id)
           
+          // Ensure link exists between participants and activities tables
+          const { ensureParticipantsActivitiesLink } = await import('@/lib/api/participants-activities-link')
+          const linkIdFromEnsure = await ensureParticipantsActivitiesLink(workspaceId, user.id)
+          
           // Get link ID between participants and activities tables via Go API
           const { tableLinksGoClient } = await import('@/lib/api/participants-go-client')
           const links = await tableLinksGoClient.getTableLinks(table.id)
@@ -92,6 +96,8 @@ function EnrolledViewWrapper({ workspaceId }: { workspaceId: string }) {
           
           if (link) {
             setLinkId(link.id)
+          } else if (linkIdFromEnsure) {
+            setLinkId(linkIdFromEnsure)
           }
           
           // Load participants via Go API
@@ -500,15 +506,9 @@ export function TabContentRouter({ tab: propTab, workspaceId }: TabContentRouter
         }
       }
 
-      // Handle Overview and other custom workspace content
-      if (tab.url === `/w/${workspaceId}` || tab.title === 'Overview') {
-        return (
-          <div className="flex-1 overflow-hidden">
-            <WorkspaceDashboard 
-              workspaceId={workspaceId}
-            />
-          </div>
-        )
+      // Handle Overview - redirect to Activities Hub
+      if (tab.url === `/w/${workspaceId}` || tab.url === `/workspace/${workspaceId}` || tab.title === 'Overview') {
+        return <ActivitiesHubListPage workspaceId={workspaceId} />
       }
       
       return (

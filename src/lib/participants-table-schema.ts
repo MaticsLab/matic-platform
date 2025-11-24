@@ -21,6 +21,7 @@ const participantColumnDefs: Partial<TableColumn>[] = [
     column_type: 'text',
     is_primary: true,
     is_visible: true,
+    position: 0,
     width: 200,
     settings: {
       is_computed: true,
@@ -348,16 +349,20 @@ const participantColumnDefs: Partial<TableColumn>[] = [
   },
   
   // Program Enrollment (link to activities table)
+  // This column shows which table is connected (Activities table)
   {
     name: 'enrolled_programs',
     label: 'Enrolled Programs',
     column_type: 'link',
     is_visible: true,
     width: 250,
+    position: 350, // Position after contact fields
     settings: {
       // Will be set dynamically to link to activities table
       allowMultiple: true,
-      linkedTableName: 'activities'
+      linkedTableName: 'activities',
+      linkedTableLabel: 'Activities', // Shows which table this links to
+      displayFields: ['name', 'category', 'status']
     },
     validation: {}
   },
@@ -369,6 +374,7 @@ const participantColumnDefs: Partial<TableColumn>[] = [
     column_type: 'select',
     is_visible: true,
     width: 120,
+    position: 352,
     settings: {
       options: [
         { value: 'active', label: 'Active', color: '#10B981' },
@@ -418,12 +424,18 @@ export const PARTICIPANTS_DEFAULT_VIEW = {
 
 /**
  * Generate table columns with positions
+ * Ensures all columns have explicit positions, following the same pattern as activities table
  */
 export function getParticipantsColumns(): Omit<TableColumn, 'id'>[] {
   return participantColumnDefs.map((col, index) => ({
     ...col,
-    position: index,
-    is_primary: col.is_primary || false
+    // Use explicit position if provided, otherwise use index
+    position: col.position !== undefined ? col.position : index,
+    is_primary: col.is_primary || false,
+    is_visible: col.is_visible !== undefined ? col.is_visible : true,
+    width: col.width || 150,
+    settings: col.settings || {},
+    validation: col.validation || {}
   })) as Omit<TableColumn, 'id'>[]
 }
 /**

@@ -324,13 +324,15 @@ func DeleteTableRow(c *gin.Context) {
 // Table Column Handlers
 
 type CreateTableColumnInput struct {
-	TableID      uuid.UUID              `json:"table_id" binding:"required"`
+	// TableID is optional in body - we use URL param instead
 	Name         string                 `json:"name" binding:"required"`
+	Label        string                 `json:"label"` // Display label (defaults to name if not provided)
 	Type         string                 `json:"type" binding:"required"`
 	Position     int                    `json:"position"`
 	Width        int                    `json:"width"`
-	IsRequired   bool                   `json:"is_required"`
-	IsPrimaryKey bool                   `json:"is_primary_key"`
+	IsVisible    bool                   `json:"is_visible"`
+	IsPrimary    bool                   `json:"is_primary"` // Maps to is_primary in DB
+	LinkedTableID *uuid.UUID            `json:"linked_table_id"` // For link columns
 	Options      map[string]interface{} `json:"options"`
 	Validation   map[string]interface{} `json:"validation"`
 }
@@ -338,20 +340,30 @@ type CreateTableColumnInput struct {
 func CreateTableColumn(c *gin.Context) {
 	tableID := c.Param("id")
 
+	// Parse table ID from URL
+	parsedTableID, err := uuid.Parse(tableID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid table ID format"})
+		return
+	}
+
 	var input CreateTableColumnInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
 		return
 	}
 
 	// Verify table exists
 	var table models.DataTable
-	if err := database.DB.First(&table, "id = ?", tableID).Error; err != nil {
+	if err := database.DB.First(&table, "id = ?", parsedTableID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Table not found"})
 		return
 	}
 
 	// Set defaults
+	if input.Label == "" {
+		input.Label = input.Name // Use name as label if not provided
+	}
 	if input.Width == 0 {
 		input.Width = 200
 	}
@@ -362,14 +374,17 @@ func CreateTableColumn(c *gin.Context) {
 		input.Validation = make(map[string]interface{})
 	}
 
+	// Use table ID from URL parameter (more reliable than body)
 	column := models.TableColumn{
-		TableID:      input.TableID,
+		TableID:      parsedTableID,
 		Name:         input.Name,
+		Label:        input.Label,
 		Type:         input.Type,
 		Position:     input.Position,
 		Width:        input.Width,
-		IsRequired:   input.IsRequired,
-		IsPrimaryKey: input.IsPrimaryKey,
+		IsVisible:    true, // Default to visible
+		IsPrimary:    input.IsPrimary,
+		LinkedTableID: input.LinkedTableID,
 		Options:      mapToJSON(input.Options),
 		Validation:   mapToJSON(input.Validation),
 	}
@@ -384,11 +399,13 @@ func CreateTableColumn(c *gin.Context) {
 
 type UpdateTableColumnInput struct {
 	Name         *string                 `json:"name"`
+	Label        *string                 `json:"label"`
 	Type         *string                 `json:"type"`
 	Position     *int                    `json:"position"`
 	Width        *int                    `json:"width"`
-	IsRequired   *bool                   `json:"is_required"`
-	IsPrimaryKey *bool                   `json:"is_primary_key"`
+	IsVisible    *bool                   `json:"is_visible"`
+	IsPrimary    *bool                   `json:"is_primary"`
+	LinkedTableID *uuid.UUID             `json:"linked_table_id"`
 	Options      *map[string]interface{} `json:"options"`
 	Validation   *map[string]interface{} `json:"validation"`
 }
@@ -413,6 +430,9 @@ func UpdateTableColumn(c *gin.Context) {
 	if input.Name != nil {
 		column.Name = *input.Name
 	}
+	if input.Label != nil {
+		column.Label = *input.Label
+	}
 	if input.Type != nil {
 		column.Type = *input.Type
 	}
@@ -422,11 +442,14 @@ func UpdateTableColumn(c *gin.Context) {
 	if input.Width != nil {
 		column.Width = *input.Width
 	}
-	if input.IsRequired != nil {
-		column.IsRequired = *input.IsRequired
+	if input.IsVisible != nil {
+		column.IsVisible = *input.IsVisible
 	}
-	if input.IsPrimaryKey != nil {
-		column.IsPrimaryKey = *input.IsPrimaryKey
+	if input.IsPrimary != nil {
+		column.IsPrimary = *input.IsPrimary
+	}
+	if input.LinkedTableID != nil {
+		column.LinkedTableID = input.LinkedTableID
 	}
 	if input.Options != nil {
 		column.Options = mapToJSON(*input.Options)

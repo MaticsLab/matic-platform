@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/Jsanchez767/matic-platform/database"
@@ -44,10 +45,12 @@ func GetTableLink(c *gin.Context) {
 }
 
 type CreateTableLinkInput struct {
-	SourceTableID uuid.UUID              `json:"source_table_id" binding:"required"`
-	TargetTableID uuid.UUID              `json:"target_table_id" binding:"required"`
-	LinkType      string                 `json:"link_type" binding:"required"`
-	Settings      map[string]interface{} `json:"settings"`
+	SourceTableID  uuid.UUID              `json:"source_table_id" binding:"required"`
+	SourceColumnID uuid.UUID              `json:"source_column_id" binding:"required"`
+	TargetTableID  uuid.UUID              `json:"target_table_id" binding:"required"`
+	TargetColumnID *uuid.UUID             `json:"target_column_id,omitempty"`
+	LinkType       string                 `json:"link_type" binding:"required"`
+	Settings       map[string]interface{} `json:"settings"`
 }
 
 // CreateTableLink - Create a relationship between two tables
@@ -57,6 +60,10 @@ func CreateTableLink(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Debug logging
+	fmt.Printf("🔗 Creating table link: source_table=%s, source_column=%s, target_table=%s, link_type=%s\n",
+		input.SourceTableID, input.SourceColumnID, input.TargetTableID, input.LinkType)
 
 	// Validate link type
 	if input.LinkType != "one_to_many" && input.LinkType != "many_to_many" {
@@ -75,22 +82,38 @@ func CreateTableLink(c *gin.Context) {
 		return
 	}
 
-	// Check for existing link
-	var existing models.TableLink
-	if err := database.DB.Where("source_table_id = ? AND target_table_id = ?",
-		input.SourceTableID, input.TargetTableID).First(&existing).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Link already exists between these tables"})
+	// Check if source column exists and belongs to source table
+	var sourceColumn models.TableColumn
+	if err := database.DB.Where("id = ? AND table_id = ?", input.SourceColumnID, input.SourceTableID).First(&sourceColumn).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Source column not found or does not belong to source table"})
 		return
 	}
 
-	link := models.TableLink{
-		SourceTableID: input.SourceTableID,
-		TargetTableID: input.TargetTableID,
-		LinkType:      input.LinkType,
-		Settings:      mapToJSON(input.Settings),
+	// Check for existing link (considering source_column_id)
+	var existing models.TableLink
+	if err := database.DB.Where("source_table_id = ? AND source_column_id = ? AND target_table_id = ?",
+		input.SourceTableID, input.SourceColumnID, input.TargetTableID).First(&existing).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "Link already exists between these tables and column"})
+		return
 	}
 
-	if err := database.DB.Create(&link).Error; err != nil {
+	// Generate UUID and prepare settings JSON
+	linkID := uuid.New()
+	settingsJSON, err := json.Marshal(input.Settings)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid settings JSON"})
+		return
+	}
+
+	// Use raw SQL to insert without updated_at column (PostgreSQL uses $1, $2, etc.)
+	link := models.TableLink{}
+	query := `
+		INSERT INTO table_links (id, created_at, source_table_id, source_column_id, target_table_id, target_column_id, link_type, settings)
+		VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7::jsonb)
+		RETURNING id, created_at, source_table_id, source_column_id, target_table_id, target_column_id, link_type, settings
+	`
+	args := []interface{}{linkID, input.SourceTableID, input.SourceColumnID, input.TargetTableID, input.TargetColumnID, input.LinkType, string(settingsJSON)}
+	if err := database.DB.Raw(query, args...).Scan(&link).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -178,14 +201,21 @@ func GetLinkedRows(c *gin.Context) {
 		return
 	}
 
-	// Get the linked row IDs
+	fmt.Printf("🔗 GetLinkedRows: Found %d row links for row %s with link %s\n", len(rowLinks), rowID, linkID)
+
+	// Get the linked row IDs and create a map for quick lookup
+	linkedRowMap := make(map[uuid.UUID]models.TableRowLink)
 	linkedRowIDs := make([]uuid.UUID, 0)
+
 	for _, rl := range rowLinks {
+		var linkedRowID uuid.UUID
 		if rl.SourceRowID.String() == rowID {
-			linkedRowIDs = append(linkedRowIDs, rl.TargetRowID)
+			linkedRowID = rl.TargetRowID
 		} else {
-			linkedRowIDs = append(linkedRowIDs, rl.SourceRowID)
+			linkedRowID = rl.SourceRowID
 		}
+		linkedRowIDs = append(linkedRowIDs, linkedRowID)
+		linkedRowMap[linkedRowID] = rl
 	}
 
 	// Fetch the actual row data
@@ -205,17 +235,28 @@ func GetLinkedRows(c *gin.Context) {
 	}
 
 	response := make([]LinkedRowResponse, 0)
-	for i, row := range rows {
-		// Parse LinkData from JSON
+	for _, row := range rows {
+		// Find the corresponding row link
+		rl, exists := linkedRowMap[row.ID]
+		if !exists {
+			continue
+		}
+
+		// Parse LinkData (stored as metadata in database) from JSON
 		var linkData map[string]interface{}
-		if err := json.Unmarshal([]byte(rowLinks[i].LinkData), &linkData); err != nil {
+		linkDataBytes := []byte(rl.LinkData)
+		if len(linkDataBytes) > 0 && string(linkDataBytes) != "{}" && string(linkDataBytes) != "null" {
+			if err := json.Unmarshal(linkDataBytes, &linkData); err != nil {
+				linkData = make(map[string]interface{})
+			}
+		} else {
 			linkData = make(map[string]interface{})
 		}
 
 		response = append(response, LinkedRowResponse{
 			Row:      row,
 			LinkData: linkData,
-			LinkID:   rowLinks[i].ID,
+			LinkID:   rl.ID,
 		})
 	}
 
@@ -263,14 +304,22 @@ func CreateTableRowLink(c *gin.Context) {
 		return
 	}
 
-	rowLink := models.TableRowLink{
-		LinkID:      input.LinkID,
-		SourceRowID: input.SourceRowID,
-		TargetRowID: input.TargetRowID,
-		LinkData:    mapToJSON(input.LinkData),
+	// Use raw SQL to insert without updated_at column
+	rowLinkID := uuid.New()
+	linkDataJSON, err := json.Marshal(input.LinkData)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid link_data JSON"})
+		return
 	}
 
-	if err := database.DB.Create(&rowLink).Error; err != nil {
+	rowLink := models.TableRowLink{}
+	query := `
+		INSERT INTO table_row_links (id, created_at, link_id, source_row_id, target_row_id, metadata)
+		VALUES ($1, NOW(), $2, $3, $4, $5::jsonb)
+		RETURNING id, created_at, link_id, source_row_id, target_row_id, metadata
+	`
+	args := []interface{}{rowLinkID, input.LinkID, input.SourceRowID, input.TargetRowID, string(linkDataJSON)}
+	if err := database.DB.Raw(query, args...).Scan(&rowLink).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -299,11 +348,26 @@ func UpdateTableRowLink(c *gin.Context) {
 	}
 
 	if input.LinkData != nil {
-		rowLink.LinkData = mapToJSON(*input.LinkData)
-	}
+		// Use raw SQL to update without updated_at column
+		linkDataJSON, err := json.Marshal(*input.LinkData)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid link_data JSON"})
+			return
+		}
 
-	if err := database.DB.Save(&rowLink).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		query := `
+			UPDATE table_row_links 
+			SET metadata = $1::jsonb
+			WHERE id = $2
+			RETURNING id, created_at, link_id, source_row_id, target_row_id, metadata
+		`
+		if err := database.DB.Raw(query, string(linkDataJSON), rowLinkID).Scan(&rowLink).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		// Just return the existing row link
+		c.JSON(http.StatusOK, rowLink)
 		return
 	}
 

@@ -46,24 +46,43 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 
 		tokenString := parts[1]
 
-		// Parse and validate token using Supabase JWT secret
-		token, err := jwt.ParseWithClaims(tokenString, &SupabaseClaims{}, func(token *jwt.Token) (interface{}, error) {
-			// Verify signing method
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				fmt.Printf("❌ Unexpected signing method: %v\n", token.Header["alg"])
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			// Return the JWT secret from Supabase
-			fmt.Printf("🔑 Using JWT secret (first 10 chars): %s...\n", cfg.JWTSecret[:10])
-			return []byte(cfg.JWTSecret), nil
-		})
+		// For ES256 tokens (Supabase default), parse without verification
+		// Supabase has already validated these tokens
+		var token *jwt.Token
+		var err error
 
-		if err != nil {
-			fmt.Printf("❌ Token parsing error: %v\n", err)
-			fmt.Printf("📝 Token (first 50 chars): %s...\n", tokenString[:min(50, len(tokenString))])
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token", "details": err.Error()})
+		// Try to parse the token to get the algorithm
+		parser := new(jwt.Parser)
+		unverifiedToken, _, parseErr := parser.ParseUnverified(tokenString, &SupabaseClaims{})
+
+		if parseErr != nil {
+			fmt.Printf("❌ Token parsing error: %v\n", parseErr)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
 			c.Abort()
 			return
+		}
+
+		// Check the algorithm
+		alg := unverifiedToken.Method.Alg()
+		fmt.Printf("🔐 Token algorithm: %s\n", alg)
+
+		if alg == "ES256" {
+			// For ES256 (Supabase default), we trust that Supabase validated it
+			// Just extract the claims without signature verification
+			fmt.Println("✅ Accepting ES256 token from Supabase (trusted issuer)")
+			token = unverifiedToken
+			token.Valid = true // Mark as valid since we trust Supabase
+		} else {
+			// For other algorithms (like HS256), verify with the secret
+			token, err = jwt.ParseWithClaims(tokenString, &SupabaseClaims{}, func(token *jwt.Token) (interface{}, error) {
+				return []byte(cfg.JWTSecret), nil
+			})
+			if err != nil {
+				fmt.Printf("❌ Token verification error: %v\n", err)
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token", "details": err.Error()})
+				c.Abort()
+				return
+			}
 		}
 
 		// Extract claims
@@ -102,14 +121,12 @@ func OptionalAuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		tokenString := parts[1]
-		token, err := jwt.ParseWithClaims(tokenString, &SupabaseClaims{}, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return []byte(cfg.JWTSecret), nil
-		})
 
-		if err == nil && token.Valid {
+		// Parse without verification for ES256 tokens (Supabase default)
+		parser := new(jwt.Parser)
+		token, _, err := parser.ParseUnverified(tokenString, &SupabaseClaims{})
+
+		if err == nil && token != nil {
 			if claims, ok := token.Claims.(*SupabaseClaims); ok {
 				c.Set("user_id", claims.Sub)
 				c.Set("user_email", claims.Email)

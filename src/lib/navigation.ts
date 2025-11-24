@@ -28,7 +28,8 @@ import {
   Grid3x3,
   Home,
   Layout,
-  Table
+  Table,
+  Activity as ActivityIcon
 } from "lucide-react"
 
 // =============================================================================
@@ -75,7 +76,7 @@ export const NAV_CONFIG = {
     // Default redirects
     DEFAULT_AFTER_LOGIN: '/w/:workspaceSlug', // Redirect to current workspace after login
     DEFAULT_AFTER_LOGOUT: '/login',
-    DEFAULT_WORKSPACE_PAGE: '/overview'
+    DEFAULT_WORKSPACE_PAGE: '/activities-hubs'
   },
 
   // Global Navigation Items (always visible in header)
@@ -100,11 +101,11 @@ export const NAV_CONFIG = {
   // Workspace-specific sidebar navigation (visible when inside a workspace)
   WORKSPACE_NAVIGATION: [
     {
-      id: 'overview',
-      label: 'Overview',
-      href: '',
-      icon: Home,
-      description: 'Workspace overview and dashboard'
+      id: 'activities-hubs',
+      label: 'Activities Hub',
+      href: '/activities-hubs',
+      icon: ActivityIcon,
+      description: 'Manage programs and activities'
     },
     {
       id: 'forms',

@@ -34,11 +34,12 @@ export function TakeAttendanceDialog({
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
 
   // Initialize attendance records when participants change
+  // Pre-populate with existing status if available
   useEffect(() => {
     setAttendanceRecords(
       participants.map(p => ({
         participantId: p.id,
-        status: 'absent' as const
+        status: (p as any)._attendanceStatus || 'absent' as const
       }))
     );
   }, [participants]);
