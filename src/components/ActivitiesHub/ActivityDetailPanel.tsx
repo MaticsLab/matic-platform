@@ -9,7 +9,7 @@ import { Textarea } from '@/ui-components/textarea';
 import { toast } from 'sonner';
 import { deleteActivitiesHub, formatDate } from '@/lib/api/activities-hubs-client';
 import { activitiesSupabase } from '@/lib/api/activities-supabase';
-import type { ActivitiesHub, ActivitiesHubWithTabs, UpdateActivityInput } from '@/types/activities-hubs';
+import type { ActivitiesHub, ActivitiesHubWithTabs, UpdateActivityInput, ActivityStatus } from '@/types/activities-hubs';
 
 type ActivityDetailPanelProps = {
   activity: ActivitiesHub;
