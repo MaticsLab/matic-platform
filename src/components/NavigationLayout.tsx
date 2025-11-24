@@ -91,19 +91,19 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
     router.push(`/workspace/${slug}/activities-hubs`)
   }
 
-  const getWorkspaceColor = (workspace: Workspace | null) => {
+  const getWorkspaceColor = (workspace: any) => {
     if (!workspace) return 'bg-violet-600'
     // If color is a hex value, return it for inline style, otherwise use Tailwind class
     const color = workspace.color || '#7C3AED' // Default violet-600
     return color.startsWith('#') ? color : `bg-${color}`
   }
 
-  const getWorkspaceColorStyle = (workspace: Workspace | null) => {
+  const getWorkspaceColorStyle = (workspace: any) => {
     const color = getWorkspaceColor(workspace)
     return color.startsWith('#') ? { backgroundColor: color } : {}
   }
 
-  const getWorkspaceColorClass = (workspace: Workspace | null) => {
+  const getWorkspaceColorClass = (workspace: any) => {
     const color = getWorkspaceColor(workspace)
     return color.startsWith('#') ? '' : color
   }

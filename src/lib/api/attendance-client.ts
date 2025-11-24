@@ -106,7 +106,7 @@ export async function saveAttendanceSession(
   
   if (session.id) {
     // Update existing session
-    await tablesGoClient.updateRow(session.id, { data: rowData })
+    await tablesGoClient.updateRow(sessionsTable.id, session.id, { data: rowData })
     sessionRowId = session.id
   } else {
     // Create new session
@@ -274,7 +274,7 @@ export async function saveAttendanceRecords(
     if (existing?.id) {
       // Update existing record
       console.log(`🔄 Updating existing record ${existing.id} for participant ${record.participant_id}`)
-      updates.push(tablesGoClient.updateRow(existing.id, { data: rowData }))
+      updates.push(tablesGoClient.updateRow(recordsTable.id, existing.id, { data: rowData }))
     } else {
       // Queue for creation
       console.log(`➕ Creating new record for participant ${record.participant_id}`)
@@ -292,7 +292,7 @@ export async function saveAttendanceRecords(
     if (doubleCheck?.id) {
       console.log(`⚠️ Record already exists for participant ${participantId}, skipping creation`)
       // Update it instead
-      await tablesGoClient.updateRow(doubleCheck.id, { data: rowData })
+      await tablesGoClient.updateRow(recordsTable.id, doubleCheck.id, { data: rowData })
       continue
     }
     
@@ -311,7 +311,7 @@ export async function saveAttendanceRecords(
     const participantRow = participantMap.get(participantId)
     if (!participantRow) continue
     
-    if (sessionLink) {
+    if (sessionLink && sessionRow.id) {
       linkPromises.push(
         rowLinksGoClient.createRowLink(recordId, sessionRow.id, sessionLink.id, {})
       )
@@ -359,6 +359,10 @@ export async function loadAttendanceSessions(
   )
   
   if (!link) {
+    return []
+  }
+  
+  if (!activityRow?.id) {
     return []
   }
   
@@ -415,6 +419,10 @@ export async function loadAttendanceRecords(
   )
   
   if (!link) {
+    return []
+  }
+  
+  if (!sessionRow?.id) {
     return []
   }
   

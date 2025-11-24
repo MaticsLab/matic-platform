@@ -322,13 +322,15 @@ export function AttendanceView({ activities, workspaceId, onSelectActivity }: At
           const attendanceMap = await loadAttendanceRecordsMap(workspaceId, user.id, session.id);
           
           // Pre-populate attendance status for participants who already have records
+          // Store status in a separate map since Participant type doesn't have _attendanceStatus
+          const attendanceStatusMap = new Map<string, 'present' | 'absent' | 'excused'>();
           participantsData.forEach(participant => {
             const record = attendanceMap.get(participant.id);
             if (record) {
-              // Mark participant with existing status
-              participant._attendanceStatus = record.status;
+              attendanceStatusMap.set(participant.id, record.status);
             }
           });
+          // Note: The TakeAttendanceDialog will handle loading existing records separately
         } catch (error) {
           console.warn('Could not load existing attendance records:', error);
         }
@@ -362,9 +364,18 @@ export function AttendanceView({ activities, workspaceId, onSelectActivity }: At
       const totalPresent = records.filter(r => r.status === 'present').length;
       const attendanceRate = totalEnrolled > 0 ? (totalPresent / totalEnrolled) * 100 : 0;
       
-      // Save session
+      // Save session - need to find activity_id from selectedActivity
+      if (!selectedActivity) {
+        toast.error('Activity not selected');
+        return;
+      }
+      
       const sessionId = await saveAttendanceSession(workspaceId, user.id, {
-        ...session,
+        id: session.id,
+        activity_id: selectedActivity.id,
+        session_date: session.date,
+        begin_time: session.beginTime,
+        end_time: session.endTime,
         total_enrolled: totalEnrolled,
         total_present: totalPresent,
         attendance_rate: attendanceRate
@@ -434,11 +445,11 @@ export function AttendanceView({ activities, workspaceId, onSelectActivity }: At
       
       // Reload sessions for this activity
       const { loadAttendanceSessions } = await import('@/lib/api/attendance-client');
-      const updatedSessions = await loadAttendanceSessions(workspaceId, user.id, session.activity_id);
+      const updatedSessions = await loadAttendanceSessions(workspaceId, user.id, selectedActivity.id);
       setActivitySessions(prev => ({
         ...prev,
-        [session.activity_id]: updatedSessions.map(s => ({
-          id: s.id || `${session.activity_id}-${s.session_date}`,
+        [selectedActivity.id]: updatedSessions.map(s => ({
+          id: s.id || `${selectedActivity.id}-${s.session_date}`,
           date: s.session_date,
           beginTime: s.begin_time,
           endTime: s.end_time,
@@ -450,7 +461,7 @@ export function AttendanceView({ activities, workspaceId, onSelectActivity }: At
       // Force re-render to show updated data
       setSelectedActivity(null);
       setTimeout(() => {
-        const activity = activities.find(a => a.id === session.activity_id);
+        const activity = activities.find(a => a.id === selectedActivity.id);
         if (activity) {
           setSelectedActivity(activity);
         }

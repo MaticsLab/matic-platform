@@ -175,7 +175,7 @@ export function ColumnEditorModal({ isOpen, onClose, onSubmit, column, mode, wor
     
     const name = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
     
-    const columnData: Column = {
+    const columnData: any = {
       ...column,
       name,
       label: label || name, // Ensure label is set

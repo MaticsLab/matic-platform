@@ -153,7 +153,7 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
             l.source_column_id === column.id
           )
           
-          if (!tableLink) {
+          if (!tableLink && column.linked_table_id) {
             tableLinks = await tableLinksGoClient.getTableLinks(column.linked_table_id)
             tableLink = tableLinks.find((l: any) => 
               (l.source_table_id === tableId && l.target_table_id === column.linked_table_id) ||
