@@ -190,7 +190,7 @@ export function ActivityDetailPanel({
         );
       }
       
-      if (!activityRow) {
+      if (!activityRow || !activityRow.id) {
         console.error('❌ Activity row not found in activities table');
         console.log('Activity ID:', activity.id);
         console.log('Activity name:', activity.name);
