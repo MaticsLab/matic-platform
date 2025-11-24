@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getActivitiesHubBySlug } from '@/lib/api/activities-hubs-client';
 import { ActivityDetailPanel } from '@/components/ActivitiesHub/ActivityDetailPanel';
-import type { ActivitiesHubWithTabs } from '@/types/activities-hubs';
+import type { ActivitiesHub, ActivitiesHubWithTabs } from '@/types/activities-hubs';
 
 interface ActivitiesHubPageProps {
   workspaceId: string;
