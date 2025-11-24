@@ -550,7 +550,10 @@ export function ActivityDetailPanel({
             <label className="text-xs text-gray-500 mb-1 block">{label}</label>
             <select
               value={fieldValue as string || ''}
-              onChange={(e) => setEditedActivity({ ...editedActivity, [fieldName]: e.target.value })}
+              onChange={(e) => {
+                const value = e.target.value as ActivityStatus;
+                setEditedActivity({ ...editedActivity, [fieldName]: value });
+              }}
               onKeyDown={(e) => {
                 e.stopPropagation();
                 if (e.key === 'Enter') {
