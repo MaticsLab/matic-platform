@@ -381,11 +381,11 @@ export function AttendanceView({ activities, workspaceId, onSelectActivity }: At
         attendance_rate: attendanceRate
       });
       
-      // Save records
+      // Save records - map 'late' to 'present' if needed (or handle separately)
       const attendanceRecords = records.map(r => ({
         session_id: sessionId,
         participant_id: r.participantId,
-        status: r.status,
+        status: r.status === 'late' ? 'present' : r.status, // Map 'late' to 'present' for now
         recorded_at: new Date().toISOString()
       }));
       

@@ -9,7 +9,7 @@ import type { Participant } from '@/types/participants';
 
 type AttendanceRecord = {
   participantId: string;
-  status: 'present' | 'absent' | 'excused';
+  status: 'present' | 'absent' | 'excused' | 'late';
 };
 
 type TakeAttendanceDialogProps = {
@@ -44,7 +44,7 @@ export function TakeAttendanceDialog({
     );
   }, [participants]);
 
-  const updateAttendance = (participantId: string, status: 'present' | 'absent' | 'excused') => {
+  const updateAttendance = (participantId: string, status: 'present' | 'absent' | 'excused' | 'late') => {
     setAttendanceRecords(records =>
       records.map(r => r.participantId === participantId ? { ...r, status } : r)
     );

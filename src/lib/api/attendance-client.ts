@@ -27,7 +27,7 @@ export interface AttendanceRecord {
   id?: string
   session_id: string
   participant_id: string
-  status: 'present' | 'absent' | 'late' | 'excused'
+  status: 'present' | 'absent' | 'excused' | 'late'
   recorded_at?: string
   notes?: string
 }
