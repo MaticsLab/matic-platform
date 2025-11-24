@@ -380,15 +380,16 @@ export function ActivityDetailPanel({
       toast.success('Activity updated successfully');
       setIsEditing(false);
       // Convert Activity to ActivitiesHub format for state
+      const tabs = 'tabs' in activity ? activity.tabs : [];
       setEditedActivity({
         ...updated,
-        tabs: activity.tabs || []
+        tabs
       } as ActivitiesHub);
       
       if (onUpdated) {
         onUpdated({
           ...updated,
-          tabs: activity.tabs || []
+          tabs
         } as ActivitiesHub);
       }
     } catch (error: any) {
