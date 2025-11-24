@@ -141,7 +141,7 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
                   <DropdownMenuSeparator />
                   {workspaces.map((ws) => {
                     const isCurrent = ws.id === currentWorkspace?.id
-                    const workspaceColor = ws.color || '#7C3AED'
+                    const workspaceColor = (ws as any).color || '#7C3AED'
                     const colorClass = workspaceColor.startsWith('#') ? '' : `bg-${workspaceColor}`
                     const colorStyle = workspaceColor.startsWith('#') ? { backgroundColor: workspaceColor } : {}
                     return (

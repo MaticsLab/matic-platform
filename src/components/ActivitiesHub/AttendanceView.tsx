@@ -323,11 +323,13 @@ export function AttendanceView({ activities, workspaceId, onSelectActivity }: At
           
           // Pre-populate attendance status for participants who already have records
           // Store status in a separate map since Participant type doesn't have _attendanceStatus
-          const attendanceStatusMap = new Map<string, 'present' | 'absent' | 'excused'>();
+          const attendanceStatusMap = new Map<string, 'present' | 'absent' | 'excused' | 'late'>();
           participantsData.forEach(participant => {
             const record = attendanceMap.get(participant.id);
             if (record) {
-              attendanceStatusMap.set(participant.id, record.status);
+              // Map 'late' to 'present' for the dialog (or handle separately if needed)
+              const status = record.status === 'late' ? 'present' : record.status;
+              attendanceStatusMap.set(participant.id, status as 'present' | 'absent' | 'excused');
             }
           });
           // Note: The TakeAttendanceDialog will handle loading existing records separately
@@ -381,11 +383,11 @@ export function AttendanceView({ activities, workspaceId, onSelectActivity }: At
         attendance_rate: attendanceRate
       });
       
-      // Save records - map 'late' to 'present' if needed (or handle separately)
+      // Save records - convert status to match AttendanceRecord type
       const attendanceRecords = records.map(r => ({
         session_id: sessionId,
         participant_id: r.participantId,
-        status: r.status === 'late' ? 'present' : r.status, // Map 'late' to 'present' for now
+        status: (r.status === 'late' ? 'present' : r.status) as 'present' | 'absent' | 'excused' | 'late',
         recorded_at: new Date().toISOString()
       }));
       
@@ -708,12 +710,7 @@ export function AttendanceView({ activities, workspaceId, onSelectActivity }: At
         participants={participants}
         onSave={(records) => {
           if (selectedActivity && selectedSession) {
-            handleSaveAttendance({
-              activity_id: selectedActivity.id,
-              session_date: selectedSession.date,
-              begin_time: selectedSession.beginTime,
-              end_time: selectedSession.endTime
-            }, records);
+            handleSaveAttendance(selectedSession, records);
           }
         }}
       />
