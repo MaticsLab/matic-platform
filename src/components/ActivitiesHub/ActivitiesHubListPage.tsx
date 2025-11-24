@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Plus, 
   Calendar, 
@@ -290,6 +291,7 @@ interface ActivitiesHubListPageProps {
 }
 
 export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: ActivitiesHubListPageProps) {
+  const router = useRouter();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
