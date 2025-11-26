@@ -1,139 +1,242 @@
 'use client'
 
-import { useState } from 'react'
-import { CheckCircle, ChevronRight, AlertCircle, FileText, DollarSign, GraduationCap, Info, X, Edit2, MessageSquare } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { CheckCircle, ChevronRight, AlertCircle, FileText, DollarSign, GraduationCap, Info, X, Edit2, MessageSquare, Loader2 } from 'lucide-react'
+import { goClient } from '@/lib/api/go-client'
+import { Form } from '@/types/forms'
 
 interface ExternalReviewInterfaceProps {
   reviewerName: string
   token: string
 }
 
-// Mock Data for External Review
-const mockApplications = [
-  {
-    id: 'APP-2025-892',
-    redactedName: 'Applicant #892',
-    gpa: 3.8,
-    school: 'University of Illinois',
-    major: 'Environmental Science',
-    financials: {
-      gap: 12500,
-      agi: 'Redacted (< $45k)',
-      pell: true
-    },
-    essays: {
-      personal: "Growing up in a community where green spaces were scarce, I realized early on the impact of environment on mental health. My goal is to design urban landscapes that...",
-      challenge: "During my sophomore year, I had to take on a part-time job to support my family while maintaining my grades. This taught me time management..."
-    },
-    activities: [
-      { role: 'President', org: 'Eco Club', duration: '2 years' },
-      { role: 'Volunteer', org: 'City Food Pantry', duration: '4 years' }
-    ]
-  },
-  {
-    id: 'APP-2025-904',
-    redactedName: 'Applicant #904',
-    gpa: 3.5,
-    school: 'Michigan State',
-    major: 'Nursing',
-    financials: {
-      gap: 8200,
-      agi: 'Redacted (< $60k)',
-      pell: true
-    },
-    essays: {
-      personal: "Healthcare has always been my calling. After witnessing the shortage of nurses in my community...",
-      challenge: "Balancing varsity sports and AP Chemistry was my biggest academic hurdle..."
-    },
-    activities: [
-      { role: 'Captain', org: 'Varsity Soccer', duration: '3 years' },
-      { role: 'Member', org: 'HOSA', duration: '2 years' }
-    ]
-  },
-  {
-    id: 'APP-2025-915',
-    redactedName: 'Applicant #915',
-    gpa: 3.2,
-    school: 'DePaul University',
-    major: 'Computer Science',
-    financials: {
-      gap: 15000,
-      agi: 'Redacted (< $35k)',
-      pell: true
-    },
-    essays: {
-      personal: "Technology is the great equalizer. I want to build tools that help underserved communities access resources...",
-      challenge: "My family immigrated when I was 10, and learning a new language while keeping up with school was incredibly difficult..."
-    },
-    activities: [
-      { role: 'Member', org: 'Robotics Team', duration: '3 years' },
-      { role: 'Tutor', org: 'Math Lab', duration: '1 year' }
-    ]
+interface Application {
+  id: string
+  redactedName: string
+  gpa: number | string
+  school: string
+  major: string
+  financials: {
+    gap: number | string
+    agi: string
+    pell: boolean
   }
-]
+  essays: {
+    personal: string
+    challenge: string
+  }
+  activities: Array<{ role: string; org: string; duration: string }>
+  data: any
+}
 
-const rubricGuidelines = [
-  {
-    category: 'Academic Performance',
-    points: 20,
+interface RubricCategory {
+  id: string
+  category: string
+  max: number
+  description: string
+  criteria?: Array<{ range: string; desc: string }>
+}
+
+const DEFAULT_RUBRIC: RubricCategory[] = [
+  { 
+    id: 'academic', 
+    category: 'Academic Performance', 
+    max: 20, 
+    description: 'GPA, Course Rigor',
     criteria: [
-      { range: '18-20 pts', desc: 'GPA 3.5+, rigorous AP/IB workload, strong test scores' },
-      { range: '14-17 pts', desc: 'GPA 3.0-3.4, solid college prep curriculum' },
-      { range: '10-13 pts', desc: 'GPA 2.7-2.9, meets basic requirements' }
+      { range: '18-20', desc: 'Exceptional academic record, rigorous coursework' },
+      { range: '15-17', desc: 'Strong academic record, some rigorous coursework' },
+      { range: '10-14', desc: 'Average academic record' },
+      { range: '0-9', desc: 'Below average academic record' }
     ]
   },
-  {
-    category: 'Financial Need',
-    points: 30,
+  { 
+    id: 'financial', 
+    category: 'Financial Need', 
+    max: 30, 
+    description: 'Gap amount, Circumstances',
     criteria: [
-      { range: '25-30 pts', desc: 'High gap (>$10k), Pell eligible, significant hardship' },
-      { range: '15-24 pts', desc: 'Moderate gap ($5k-$10k), some family contribution' },
-      { range: '0-14 pts', desc: 'Low gap (<$5k) or high family contribution' }
+      { range: '25-30', desc: 'High financial need, significant gap' },
+      { range: '15-24', desc: 'Moderate financial need' },
+      { range: '0-14', desc: 'Low financial need' }
     ]
   },
-  {
-    category: 'Essay Quality',
-    points: 25,
+  { 
+    id: 'essays', 
+    category: 'Essay Quality', 
+    max: 25, 
+    description: 'Clarity, Goals, Voice',
     criteria: [
-      { range: '21-25 pts', desc: 'Compelling narrative, clear goals, authentic voice' },
-      { range: '15-20 pts', desc: 'Good structure, addresses prompt, some generic elements' },
-      { range: '0-14 pts', desc: 'Lacks focus, grammatical errors, short' }
+      { range: '21-25', desc: 'Compelling, clear, and authentic voice' },
+      { range: '15-20', desc: 'Clear and well-written' },
+      { range: '0-14', desc: 'Lacks clarity or depth' }
     ]
   },
-  {
-    category: 'Leadership',
-    points: 15,
+  { 
+    id: 'activities', 
+    category: 'Leadership', 
+    max: 15, 
+    description: 'Impact, Commitment',
     criteria: [
-      { range: '13-15 pts', desc: 'Significant impact, sustained commitment, initiative' },
-      { range: '8-12 pts', desc: 'Active participation, some leadership roles' },
-      { range: '0-7 pts', desc: 'Minimal involvement' }
+      { range: '13-15', desc: 'Significant leadership and impact' },
+      { range: '8-12', desc: 'Some leadership or consistent involvement' },
+      { range: '0-7', desc: 'Little to no involvement' }
     ]
   },
-  {
-    category: 'Recommendation',
-    points: 10,
+  { 
+    id: 'rec', 
+    category: 'Recommendation', 
+    max: 10, 
+    description: 'Teacher endorsement',
     criteria: [
-      { range: '9-10 pts', desc: 'Strong endorsement, specific examples of character' },
-      { range: '6-8 pts', desc: 'Positive but generic' },
-      { range: '0-5 pts', desc: 'Neutral or reserved' }
+      { range: '9-10', desc: 'Strongly enthusiastic endorsement' },
+      { range: '6-8', desc: 'Positive endorsement' },
+      { range: '0-5', desc: 'Neutral or negative endorsement' }
     ]
-  }
+  },
 ]
 
 export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewInterfaceProps) {
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [applications, setApplications] = useState<Application[]>([])
+  const [rubric, setRubric] = useState<RubricCategory[]>(DEFAULT_RUBRIC)
+  const [reviewConfig, setReviewConfig] = useState<Record<string, { visible: boolean; redact: boolean }>>({})
+  
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [scores, setScores] = useState<Record<string, any>>({})
+  const [scores, setScores] = useState<Record<string, Record<string, number>>>({})
   const [submitted, setSubmitted] = useState<string[]>([])
   const [showRubric, setShowRubric] = useState(false)
   
-  // New State
   const [rubricNotes, setRubricNotes] = useState<Record<string, Record<string, string>>>({})
   const [appComments, setAppComments] = useState<Record<string, Record<string, string>>>({})
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({})
 
-  const currentApp = mockApplications[currentIndex]
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true)
+        // Fetch data from public endpoint
+        const response = await goClient.get<{ form: Form; submissions: any[] }>(`/external-review/${token}`)
+        
+        const { form, submissions } = response
+        
+        // Parse settings
+        const settings = form.settings || {}
+        if (settings.rubric && Array.isArray(settings.rubric) && settings.rubric.length > 0) {
+          setRubric(settings.rubric as RubricCategory[])
+        }
+        if (settings.reviewConfig) {
+          setReviewConfig(settings.reviewConfig as any)
+        }
+
+        // Map submissions to applications
+        const mappedApps = submissions.map(sub => {
+          const data = typeof sub.data === 'string' ? JSON.parse(sub.data) : sub.data
+          const metadata = typeof sub.metadata === 'string' ? JSON.parse(sub.metadata) : sub.metadata || {}
+          
+          // Check if already reviewed
+          if (metadata.review || sub.status === 'reviewed') {
+            setSubmitted(prev => {
+              if (!prev.includes(sub.id)) return [...prev, sub.id]
+              return prev
+            })
+            if (metadata.review?.scores) {
+              setScores(prev => ({ ...prev, [sub.id]: metadata.review.scores }))
+            }
+            if (metadata.review?.notes) {
+              setRubricNotes(prev => ({ ...prev, [sub.id]: metadata.review.notes }))
+            }
+            if (metadata.review?.comments) {
+              setAppComments(prev => ({ ...prev, [sub.id]: metadata.review.comments }))
+            }
+          }
+
+          // Map fields based on mappings or default logic
+          const mappings = settings.mappings || {}
+          
+          const getValue = (key: string, fallbackKeys: string[]) => {
+            if (mappings[key] && data[mappings[key]]) return data[mappings[key]]
+            for (const k of fallbackKeys) {
+              if (data[k]) return data[k]
+            }
+            return 'N/A'
+          }
+
+          return {
+            id: sub.id,
+            redactedName: `Applicant #${sub.id.substring(0, 8)}`,
+            gpa: getValue('gpa', ['gpa', 'GPA', 'grade_point_average']),
+            school: getValue('school', ['school', 'university', 'college', 'high_school']),
+            major: getValue('major', ['major', 'intended_major', 'program']),
+            financials: {
+              gap: getValue('efc', ['efc', 'sai', 'financial_need']),
+              agi: 'Redacted',
+              pell: data.pell_eligible === 'yes' || data.pell === true
+            },
+            essays: {
+              personal: getValue('personal_statement', ['personal_statement', 'essay', 'statement']),
+              challenge: getValue('challenge', ['challenge_essay', 'resilience'])
+            },
+            activities: Array.isArray(data.activities) ? data.activities : [],
+            data: data
+          }
+        })
+
+        setApplications(mappedApps)
+        
+        // Initialize scores for all apps
+        const initialScores: Record<string, Record<string, number>> = {}
+        mappedApps.forEach(app => {
+          if (!initialScores[app.id]) {
+            initialScores[app.id] = {}
+            // Initialize with 0 for each rubric category if not already set
+            rubric.forEach(cat => {
+              initialScores[app.id][cat.id] = 0
+            })
+          }
+        })
+        setScores(prev => ({ ...initialScores, ...prev }))
+
+      } catch (err) {
+        console.error('Failed to fetch review data:', err)
+        setError('Invalid review token or session expired.')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (token) {
+      fetchData()
+    }
+  }, [token])
+
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-500">Loading review session...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || applications.length === 0) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md p-6 bg-white rounded-xl shadow-sm border border-gray-200">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-500">{error || 'No applications found for review.'}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const currentApp = applications[currentIndex]
   const isSubmitted = submitted.includes(currentApp.id)
-  const currentScore = scores[currentApp.id] || { academic: 0, financial: 0, essays: 0, activities: 0, rec: 0 }
+  const currentScore = scores[currentApp.id] || {}
 
   const handleScoreChange = (category: string, value: number) => {
     if (isSubmitted) return
@@ -146,32 +249,44 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
     })
   }
 
-  const handleRubricNoteChange = (category: string, note: string) => {
-    if (isSubmitted) return
-    setRubricNotes({
-      ...rubricNotes,
-      [currentApp.id]: {
-        ...(rubricNotes[currentApp.id] || {}),
-        [category]: note
-      }
-    })
-  }
-
-  const handleAppCommentChange = (section: string, comment: string) => {
+  const handleAppCommentChange = (sectionId: string, value: string) => {
     if (isSubmitted) return
     setAppComments({
       ...appComments,
       [currentApp.id]: {
         ...(appComments[currentApp.id] || {}),
-        [section]: comment
+        [sectionId]: value
       }
     })
   }
 
-  const handleSubmit = () => {
-    setSubmitted([...submitted, currentApp.id])
-    if (currentIndex < mockApplications.length - 1) {
-      setTimeout(() => setCurrentIndex(currentIndex + 1), 1500)
+  const handleRubricNoteChange = (categoryId: string, value: string) => {
+    if (isSubmitted) return
+    setRubricNotes({
+      ...rubricNotes,
+      [currentApp.id]: {
+        ...(rubricNotes[currentApp.id] || {}),
+        [categoryId]: value
+      }
+    })
+  }
+
+  const handleSubmit = async () => {
+    try {
+      await goClient.post(`/external-review/${token}/submit/${currentApp.id}`, {
+        scores: currentScore,
+        notes: rubricNotes[currentApp.id],
+        comments: appComments[currentApp.id],
+        status: 'reviewed'
+      })
+
+      setSubmitted([...submitted, currentApp.id])
+      if (currentIndex < applications.length - 1) {
+        setTimeout(() => setCurrentIndex(currentIndex + 1), 1500)
+      }
+    } catch (err) {
+      console.error('Failed to submit review:', err)
+      alert('Failed to submit review. Please try again.')
     }
   }
 
@@ -179,7 +294,7 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
     setSubmitted(submitted.filter(id => id !== currentApp.id))
   }
 
-  const totalScore = Object.values(currentScore).reduce((a: any, b: any) => a + b, 0) as number
+  const totalScore = Object.values(currentScore).reduce((a: number, b: number) => a + b, 0)
 
   const renderSectionHeader = (title: string, sectionId: string) => {
     const hasComment = !!(appComments[currentApp.id]?.[sectionId])
@@ -237,17 +352,17 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
             <h3 className="font-semibold text-gray-900 text-sm uppercase tracking-wide">Your Queue</h3>
             <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
               <span>Progress</span>
-              <span className="font-medium text-gray-900">{submitted.length} / {mockApplications.length}</span>
+              <span className="font-medium text-gray-900">{submitted.length} / {applications.length}</span>
             </div>
             <div className="mt-1 w-full bg-gray-200 rounded-full h-1.5">
               <div 
                 className="bg-blue-600 h-1.5 rounded-full transition-all duration-500" 
-                style={{ width: `${(submitted.length / mockApplications.length) * 100}%` }}
+                style={{ width: `${(submitted.length / applications.length) * 100}%` }}
               ></div>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {mockApplications.map((app, idx) => {
+            {applications.map((app, idx) => {
                const isAppSubmitted = submitted.includes(app.id)
                const isActive = idx === currentIndex
                return (
@@ -390,28 +505,22 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
                       </div>
                     ) : (
                       <div className="space-y-6">
-                        {[
-                          { id: 'academic', label: 'Academic Performance', max: 20, desc: 'GPA, Course Rigor' },
-                          { id: 'financial', label: 'Financial Need', max: 30, desc: 'Gap amount, Circumstances' },
-                          { id: 'essays', label: 'Essay Quality', max: 25, desc: 'Clarity, Goals, Voice' },
-                          { id: 'activities', label: 'Leadership', max: 15, desc: 'Impact, Commitment' },
-                          { id: 'rec', label: 'Recommendation', max: 10, desc: 'Teacher endorsement' },
-                        ].map((field) => (
+                        {rubric.map((field) => (
                           <div key={field.id} className="p-3 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
                             <div className="flex justify-between mb-2">
                               <div>
-                                <span className="font-medium text-gray-900 block text-sm">{field.label}</span>
-                                <span className="text-xs text-gray-500">{field.desc}</span>
+                                <span className="font-medium text-gray-900 block text-sm">{field.category}</span>
+                                <span className="text-xs text-gray-500">{field.description}</span>
                               </div>
                               <span className="font-medium text-gray-700 text-sm">
-                                {currentScore[field.id]}/{field.max}
+                                {currentScore[field.id] || 0}/{field.max}
                               </span>
                             </div>
                             <input 
                               type="range" 
                               min="0" 
                               max={field.max} 
-                              value={currentScore[field.id]}
+                              value={currentScore[field.id] || 0}
                               onChange={(e) => handleScoreChange(field.id, parseInt(e.target.value))}
                               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600 mb-2" 
                             />
@@ -455,19 +564,23 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
             </div>
             <div className="flex-1 overflow-y-auto p-6">
               <div className="space-y-6">
-                {rubricGuidelines.map((section, i) => (
+                {rubric.map((section, i) => (
                   <div key={i} className="border border-gray-200 rounded-lg overflow-hidden">
                     <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
                       <h4 className="font-bold text-gray-900">{section.category}</h4>
-                      <span className="text-sm font-medium text-gray-500">Max: {section.points} pts</span>
+                      <span className="text-sm font-medium text-gray-500">Max: {section.max} pts</span>
                     </div>
                     <div className="divide-y divide-gray-100">
-                      {section.criteria.map((crit, j) => (
-                        <div key={j} className="px-4 py-3 flex gap-4">
-                          <span className="text-sm font-bold text-blue-600 w-24 flex-shrink-0">{crit.range}</span>
-                          <span className="text-sm text-gray-600">{crit.desc}</span>
-                        </div>
-                      ))}
+                      {section.criteria && section.criteria.length > 0 ? (
+                        section.criteria.map((crit, j) => (
+                          <div key={j} className="px-4 py-3 flex gap-4">
+                            <span className="text-sm font-bold text-blue-600 w-24 flex-shrink-0">{crit.range}</span>
+                            <span className="text-sm text-gray-600">{crit.desc}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-sm text-gray-500 italic">No specific criteria defined.</div>
+                      )}
                     </div>
                   </div>
                 ))}

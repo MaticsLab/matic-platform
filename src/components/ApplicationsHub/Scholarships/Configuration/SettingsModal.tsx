@@ -6,9 +6,10 @@ import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui-components/tabs'
-import { Plus, Trash2, Save } from 'lucide-react'
+import { Plus, Trash2, Save, Eye, Shield, AlertTriangle } from 'lucide-react'
 import { goClient } from '@/lib/api/go-client'
 import { Form, FormField } from '@/types/forms'
+import { Switch } from '@/ui-components/switch'
 
 interface SettingsModalProps {
   open: boolean
@@ -33,8 +34,13 @@ interface FieldMapping {
   email: string
 }
 
+interface ReviewFieldConfig {
+  visible: boolean
+  redact: boolean
+}
+
 export function SettingsModal({ open, onOpenChange, formId, onSave }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState('rubric')
+  const [activeTab, setActiveTab] = useState('review-display')
   const [rubric, setRubric] = useState<RubricCategory[]>([])
   const [mappings, setMappings] = useState<FieldMapping>({
     gpa: '',
@@ -44,6 +50,7 @@ export function SettingsModal({ open, onOpenChange, formId, onSave }: SettingsMo
     name: '',
     email: ''
   })
+  const [reviewConfig, setReviewConfig] = useState<Record<string, ReviewFieldConfig>>({})
   const [fields, setFields] = useState<FormField[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
@@ -76,6 +83,21 @@ export function SettingsModal({ open, onOpenChange, formId, onSave }: SettingsMo
       if (settings.mappings) {
         setMappings(settings.mappings as FieldMapping)
       }
+
+      // Initialize review config
+      const savedConfig = settings.reviewConfig || {}
+      const initialConfig: Record<string, ReviewFieldConfig> = {}
+      
+      // Default to visible if not configured
+      form.fields?.forEach(field => {
+        if (savedConfig[field.id]) {
+          initialConfig[field.id] = savedConfig[field.id]
+        } else {
+          initialConfig[field.id] = { visible: true, redact: false }
+        }
+      })
+      setReviewConfig(initialConfig)
+
     } catch (error) {
       console.error('Failed to fetch settings:', error)
     } finally {
@@ -89,7 +111,8 @@ export function SettingsModal({ open, onOpenChange, formId, onSave }: SettingsMo
       const updatedSettings = {
         ...currentForm.settings,
         rubric,
-        mappings
+        mappings,
+        reviewConfig
       }
       
       await goClient.patch(`/forms/${formId}`, {
@@ -101,6 +124,26 @@ export function SettingsModal({ open, onOpenChange, formId, onSave }: SettingsMo
     } catch (error) {
       console.error('Failed to save settings:', error)
     }
+  }
+
+  const toggleFieldVisibility = (fieldId: string) => {
+    setReviewConfig(prev => ({
+      ...prev,
+      [fieldId]: {
+        ...prev[fieldId],
+        visible: !prev[fieldId]?.visible
+      }
+    }))
+  }
+
+  const toggleFieldRedaction = (fieldId: string) => {
+    setReviewConfig(prev => ({
+      ...prev,
+      [fieldId]: {
+        ...prev[fieldId],
+        redact: !prev[fieldId]?.redact
+      }
+    }))
   }
 
   const addRubricCategory = () => {
@@ -121,17 +164,71 @@ export function SettingsModal({ open, onOpenChange, formId, onSave }: SettingsMo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Application Settings</DialogTitle>
-          <DialogDescription>Configure scoring rubric and data mappings.</DialogDescription>
+          <DialogDescription>Configure how applications are reviewed and scored.</DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-          <TabsList>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="review-display">Review Display</TabsTrigger>
             <TabsTrigger value="rubric">Scoring Rubric</TabsTrigger>
-            <TabsTrigger value="mappings">Field Mappings</TabsTrigger>
+            <TabsTrigger value="mappings">Data Mappings</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="review-display" className="space-y-4 py-4">
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4">
+              <div className="flex gap-3">
+                <Eye className="w-5 h-5 text-blue-600 shrink-0" />
+                <div>
+                  <h4 className="font-medium text-blue-900">Reviewer Visibility</h4>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Control which fields are visible to reviewers. Use the "Redact" option to mask sensitive PII (Personally Identifiable Information) like SSNs or financial data.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-50 text-gray-500 font-medium border-b">
+                  <tr>
+                    <th className="px-4 py-3">Field Name</th>
+                    <th className="px-4 py-3 w-32 text-center">Show in Review</th>
+                    <th className="px-4 py-3 w-32 text-center">Redact PII</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {fields.map((field) => (
+                    <tr key={field.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-gray-900">{field.label}</div>
+                        <div className="text-xs text-gray-500">{field.type}</div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex justify-center">
+                          <Switch 
+                            checked={reviewConfig[field.id]?.visible ?? true}
+                            onCheckedChange={() => toggleFieldVisibility(field.id)}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex justify-center">
+                          <Switch 
+                            checked={reviewConfig[field.id]?.redact ?? false}
+                            onCheckedChange={() => toggleFieldRedaction(field.id)}
+                            className="data-[state=checked]:bg-red-500"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </TabsContent>
 
           <TabsContent value="rubric" className="space-y-4 py-4">
             <div className="flex justify-between items-center">

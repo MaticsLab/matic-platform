@@ -187,6 +187,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.POST("/forms/:id/submit", handlers.SubmitForm)
 		api.GET("/forms/:id/submission", handlers.GetFormSubmission)
 
+		// External Review Routes (Public with Token)
+		api.GET("/external-review/:token", handlers.GetExternalReviewData)
+		api.POST("/external-review/:token/submit/:submission_id", handlers.SubmitExternalReview)
+
 		// Protected routes - require authentication
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware(cfg))

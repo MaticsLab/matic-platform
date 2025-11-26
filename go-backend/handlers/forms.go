@@ -581,3 +581,125 @@ func GetFormSubmission(c *gin.Context) {
 	json.Unmarshal(row.Data, &data)
 	c.JSON(http.StatusOK, data)
 }
+
+// External Review Handlers
+
+type ExternalReviewDTO struct {
+	Form        FormDTO      `json:"form"`
+	Submissions []models.Row `json:"submissions"`
+}
+
+func GetExternalReviewData(c *gin.Context) {
+	token := c.Param("token")
+
+	// Find form with this review token in settings
+	// Note: This is a JSONB query. Syntax depends on GORM/Postgres driver.
+	// We'll fetch all forms and filter in memory for simplicity if JSON query is complex,
+	// but better to use database query.
+	// Postgres: settings->>'review_token' = ?
+
+	var table models.Table
+	if err := database.DB.Where("settings->>'review_token' = ?", token).First(&table).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Invalid review token"})
+		return
+	}
+
+	// Get Form Details (reuse GetForm logic)
+	var fields []models.Field
+	database.DB.Where("table_id = ?", table.ID).Order("position ASC").Find(&fields)
+
+	var settings map[string]interface{}
+	json.Unmarshal(table.Settings, &settings)
+
+	formDTO := FormDTO{
+		ID:          table.ID,
+		WorkspaceID: table.WorkspaceID,
+		Name:        table.Name,
+		Slug:        table.Slug,
+		Description: table.Description,
+		Settings:    settings,
+		Fields:      fields,
+		CreatedAt:   table.CreatedAt,
+		UpdatedAt:   table.UpdatedAt,
+	}
+
+	// Get Submissions
+	var rows []models.Row
+	if err := database.DB.Where("table_id = ?", table.ID).Order("created_at DESC").Find(&rows).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, ExternalReviewDTO{
+		Form:        formDTO,
+		Submissions: rows,
+	})
+}
+
+type SubmitReviewInput struct {
+	Scores   map[string]int            `json:"scores"`
+	Notes    map[string]string         `json:"notes"`
+	Comments map[string]string         `json:"comments"`
+	Status   string                    `json:"status"` // 'approved', 'rejected', 'reviewed'
+}
+
+func SubmitExternalReview(c *gin.Context) {
+	token := c.Param("token")
+	submissionID := c.Param("submission_id")
+
+	// Verify token
+	var table models.Table
+	if err := database.DB.Where("settings->>'review_token' = ?", token).First(&table).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Invalid review token"})
+		return
+	}
+
+	var input SubmitReviewInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get submission
+	var row models.Row
+	if err := database.DB.First(&row, "id = ? AND table_id = ?", submissionID, table.ID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
+		return
+	}
+
+	// Update submission metadata with review data
+	var metadata map[string]interface{}
+	if len(row.Metadata) > 0 {
+		json.Unmarshal(row.Metadata, &metadata)
+	} else {
+		metadata = make(map[string]interface{})
+	}
+
+	// Store review in metadata
+	reviewData := map[string]interface{}{
+		"scores":      input.Scores,
+		"notes":       input.Notes,
+		"comments":    input.Comments,
+		"reviewed_at": time.Now(),
+		"reviewer":    "External Reviewer", // Could be passed in input if we had reviewer names
+	}
+
+	// Append to reviews array or overwrite? Let's overwrite for single reviewer for now,
+	// or append if we want multiple.
+	metadata["review"] = reviewData
+
+	// Update status if provided
+	if input.Status != "" {
+		metadata["status"] = input.Status
+		metadata["reviewed_at"] = time.Now()
+	}
+
+	row.Metadata = mapToJSON(metadata)
+
+	if err := database.DB.Save(&row).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, row)
+}

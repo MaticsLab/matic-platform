@@ -141,6 +141,7 @@ type Row struct {
 	BaseModel
 	TableID   uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
 	Data      datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"data"`
+	Metadata  datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"metadata"` // Added Metadata
 	Position  int            `gorm:"default:0" json:"position"`
 	CreatedBy *uuid.UUID     `gorm:"type:uuid" json:"created_by,omitempty"`
 	UpdatedBy *uuid.UUID     `gorm:"type:uuid" json:"updated_by,omitempty"`
