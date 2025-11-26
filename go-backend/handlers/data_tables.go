@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -16,14 +17,14 @@ import (
 func ListDataTables(c *gin.Context) {
 	workspaceID := c.Query("workspace_id")
 
-	var tables []models.DataTable
+	var tables []models.Table
 	query := database.DB
 
 	if workspaceID != "" {
 		query = query.Where("workspace_id = ?", workspaceID)
 	}
 
-	if err := query.Preload("Columns").Order("created_at DESC").Find(&tables).Error; err != nil {
+	if err := query.Preload("Fields").Order("created_at DESC").Find(&tables).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -32,7 +33,7 @@ func ListDataTables(c *gin.Context) {
 	for i := range tables {
 		if tables[i].RowCount == 0 {
 			var count int64
-			database.DB.Model(&models.TableRow{}).Where("table_id = ?", tables[i].ID).Count(&count)
+			database.DB.Model(&models.Row{}).Where("table_id = ?", tables[i].ID).Count(&count)
 			tables[i].RowCount = int(count)
 		}
 	}
@@ -43,8 +44,8 @@ func ListDataTables(c *gin.Context) {
 func GetDataTable(c *gin.Context) {
 	id := c.Param("id")
 
-	var table models.DataTable
-	if err := database.DB.Preload("Columns").
+	var table models.Table
+	if err := database.DB.Preload("Fields").
 		Preload("Views").
 		First(&table, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data table not found"})
@@ -54,7 +55,7 @@ func GetDataTable(c *gin.Context) {
 	// Calculate row_count if not already set
 	if table.RowCount == 0 {
 		var count int64
-		database.DB.Model(&models.TableRow{}).Where("table_id = ?", table.ID).Count(&count)
+		database.DB.Model(&models.Row{}).Where("table_id = ?", table.ID).Count(&count)
 		table.RowCount = int(count)
 	}
 
@@ -96,9 +97,9 @@ func CreateDataTable(c *gin.Context) {
 
 	// Generate slug from name
 	slug := generateSlug(input.Name)
-	
+
 	// Check for duplicate slug in workspace
-	var existing models.DataTable
+	var existing models.Table
 	if err := database.DB.Where("workspace_id = ? AND slug = ?", input.WorkspaceID, slug).First(&existing).Error; err == nil {
 		// Slug exists, append a number
 		counter := 1
@@ -117,7 +118,7 @@ func CreateDataTable(c *gin.Context) {
 		}
 	}
 
-	table := models.DataTable{
+	table := models.Table{
 		WorkspaceID: input.WorkspaceID,
 		Name:        input.Name,
 		Slug:        slug,
@@ -147,7 +148,7 @@ type UpdateDataTableInput struct {
 func UpdateDataTable(c *gin.Context) {
 	id := c.Param("id")
 
-	var table models.DataTable
+	var table models.Table
 	if err := database.DB.First(&table, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data table not found"})
 		return
@@ -183,7 +184,7 @@ func UpdateDataTable(c *gin.Context) {
 func DeleteDataTable(c *gin.Context) {
 	id := c.Param("id")
 
-	var table models.DataTable
+	var table models.Table
 	if err := database.DB.First(&table, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data table not found"})
 		return
@@ -202,7 +203,7 @@ func DeleteDataTable(c *gin.Context) {
 func ListTableRows(c *gin.Context) {
 	tableID := c.Param("id")
 
-	var rows []models.TableRow
+	var rows []models.Row
 	if err := database.DB.Where("table_id = ?", tableID).Order("position ASC").Find(&rows).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -233,7 +234,7 @@ func CreateTableRow(c *gin.Context) {
 	}
 
 	// Verify table exists
-	var table models.DataTable
+	var table models.Table
 	if err := database.DB.Where("id = ?", parsedTableID).First(&table).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Table not found"})
 		return
@@ -252,7 +253,7 @@ func CreateTableRow(c *gin.Context) {
 		return
 	}
 
-	row := models.TableRow{
+	row := models.Row{
 		TableID:   parsedTableID,
 		Data:      mapToJSON(input.Data),
 		Position:  input.Position,
@@ -276,7 +277,7 @@ func UpdateTableRow(c *gin.Context) {
 	tableID := c.Param("id")
 	rowID := c.Param("row_id")
 
-	var row models.TableRow
+	var row models.Row
 	if err := database.DB.Where("id = ? AND table_id = ?", rowID, tableID).First(&row).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Row not found"})
 		return
@@ -307,7 +308,7 @@ func DeleteTableRow(c *gin.Context) {
 	tableID := c.Param("id")
 	rowID := c.Param("row_id")
 
-	var row models.TableRow
+	var row models.Row
 	if err := database.DB.Where("id = ? AND table_id = ?", rowID, tableID).First(&row).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Row not found"})
 		return
@@ -325,16 +326,16 @@ func DeleteTableRow(c *gin.Context) {
 
 type CreateTableColumnInput struct {
 	// TableID is optional in body - we use URL param instead
-	Name         string                 `json:"name" binding:"required"`
-	Label        string                 `json:"label"` // Display label (defaults to name if not provided)
-	Type         string                 `json:"type" binding:"required"`
-	Position     int                    `json:"position"`
-	Width        int                    `json:"width"`
-	IsVisible    bool                   `json:"is_visible"`
-	IsPrimary    bool                   `json:"is_primary"` // Maps to is_primary in DB
-	LinkedTableID *uuid.UUID            `json:"linked_table_id"` // For link columns
-	Options      map[string]interface{} `json:"options"`
-	Validation   map[string]interface{} `json:"validation"`
+	Name          string                 `json:"name" binding:"required"`
+	Label         string                 `json:"label"` // Display label (defaults to name if not provided)
+	Type          string                 `json:"type" binding:"required"`
+	Position      int                    `json:"position"`
+	Width         int                    `json:"width"`
+	IsVisible     bool                   `json:"is_visible"`
+	IsPrimary     bool                   `json:"is_primary"`      // Maps to is_primary in DB
+	LinkedTableID *uuid.UUID             `json:"linked_table_id"` // For link columns
+	Options       map[string]interface{} `json:"options"`
+	Validation    map[string]interface{} `json:"validation"`
 }
 
 func CreateTableColumn(c *gin.Context) {
@@ -354,7 +355,7 @@ func CreateTableColumn(c *gin.Context) {
 	}
 
 	// Verify table exists
-	var table models.DataTable
+	var table models.Table
 	if err := database.DB.First(&table, "id = ?", parsedTableID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Table not found"})
 		return
@@ -374,48 +375,67 @@ func CreateTableColumn(c *gin.Context) {
 		input.Validation = make(map[string]interface{})
 	}
 
-	// Use table ID from URL parameter (more reliable than body)
-	column := models.TableColumn{
-		TableID:      parsedTableID,
-		Name:         input.Name,
-		Label:        input.Label,
-		Type:         input.Type,
-		Position:     input.Position,
-		Width:        input.Width,
-		IsVisible:    true, // Default to visible
-		IsPrimary:    input.IsPrimary,
-		LinkedTableID: input.LinkedTableID,
-		Options:      mapToJSON(input.Options),
-		Validation:   mapToJSON(input.Validation),
+	// Construct Config map
+	config := make(map[string]interface{})
+	for k, v := range input.Options {
+		config[k] = v
+	}
+	if len(input.Validation) > 0 {
+		config["validation"] = input.Validation
+	}
+	config["width"] = input.Width
+	config["is_visible"] = true // Default to visible, override if needed? Input has IsVisible bool, default false?
+	// Actually input.IsVisible is bool, default false. But we want default true?
+	// The struct field `IsVisible` defaults to false in Go.
+	// If user sends true, it's true.
+	// If user sends nothing, it's false.
+	// But we want default true.
+	// We can check if it was present in JSON? No, simple binding doesn't tell.
+	// Let's assume default true if not specified?
+	// Or just use what's provided.
+	config["is_visible"] = input.IsVisible
+	config["is_primary"] = input.IsPrimary
+	if input.LinkedTableID != nil {
+		config["linked_table_id"] = input.LinkedTableID
 	}
 
-	if err := database.DB.Create(&column).Error; err != nil {
+	// Use table ID from URL parameter (more reliable than body)
+	field := models.Field{
+		TableID:  parsedTableID,
+		Name:     input.Name,
+		Label:    input.Label,
+		Type:     input.Type,
+		Position: input.Position,
+		Config:   mapToJSON(config),
+	}
+
+	if err := database.DB.Create(&field).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, column)
+	c.JSON(http.StatusCreated, field)
 }
 
 type UpdateTableColumnInput struct {
-	Name         *string                 `json:"name"`
-	Label        *string                 `json:"label"`
-	Type         *string                 `json:"type"`
-	Position     *int                    `json:"position"`
-	Width        *int                    `json:"width"`
-	IsVisible    *bool                   `json:"is_visible"`
-	IsPrimary    *bool                   `json:"is_primary"`
-	LinkedTableID *uuid.UUID             `json:"linked_table_id"`
-	Options      *map[string]interface{} `json:"options"`
-	Validation   *map[string]interface{} `json:"validation"`
+	Name          *string                 `json:"name"`
+	Label         *string                 `json:"label"`
+	Type          *string                 `json:"type"`
+	Position      *int                    `json:"position"`
+	Width         *int                    `json:"width"`
+	IsVisible     *bool                   `json:"is_visible"`
+	IsPrimary     *bool                   `json:"is_primary"`
+	LinkedTableID *uuid.UUID              `json:"linked_table_id"`
+	Options       *map[string]interface{} `json:"options"`
+	Validation    *map[string]interface{} `json:"validation"`
 }
 
 func UpdateTableColumn(c *gin.Context) {
 	tableID := c.Param("id")
 	columnID := c.Param("column_id")
 
-	var column models.TableColumn
-	if err := database.DB.Where("id = ? AND table_id = ?", columnID, tableID).First(&column).Error; err != nil {
+	var field models.Field
+	if err := database.DB.Where("id = ? AND table_id = ?", columnID, tableID).First(&field).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Column not found"})
 		return
 	}
@@ -428,55 +448,66 @@ func UpdateTableColumn(c *gin.Context) {
 
 	// Update fields if provided
 	if input.Name != nil {
-		column.Name = *input.Name
+		field.Name = *input.Name
 	}
 	if input.Label != nil {
-		column.Label = *input.Label
+		field.Label = *input.Label
 	}
 	if input.Type != nil {
-		column.Type = *input.Type
+		field.Type = *input.Type
 	}
 	if input.Position != nil {
-		column.Position = *input.Position
-	}
-	if input.Width != nil {
-		column.Width = *input.Width
-	}
-	if input.IsVisible != nil {
-		column.IsVisible = *input.IsVisible
-	}
-	if input.IsPrimary != nil {
-		column.IsPrimary = *input.IsPrimary
-	}
-	if input.LinkedTableID != nil {
-		column.LinkedTableID = input.LinkedTableID
-	}
-	if input.Options != nil {
-		column.Options = mapToJSON(*input.Options)
-	}
-	if input.Validation != nil {
-		column.Validation = mapToJSON(*input.Validation)
+		field.Position = *input.Position
 	}
 
-	if err := database.DB.Save(&column).Error; err != nil {
+	// Update Config
+	config := make(map[string]interface{})
+	if len(field.Config) > 0 {
+		json.Unmarshal(field.Config, &config)
+	}
+
+	if input.Width != nil {
+		config["width"] = *input.Width
+	}
+	if input.IsVisible != nil {
+		config["is_visible"] = *input.IsVisible
+	}
+	if input.IsPrimary != nil {
+		config["is_primary"] = *input.IsPrimary
+	}
+	if input.LinkedTableID != nil {
+		config["linked_table_id"] = input.LinkedTableID
+	}
+	if input.Options != nil {
+		for k, v := range *input.Options {
+			config[k] = v
+		}
+	}
+	if input.Validation != nil {
+		config["validation"] = *input.Validation
+	}
+
+	field.Config = mapToJSON(config)
+
+	if err := database.DB.Save(&field).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, column)
+	c.JSON(http.StatusOK, field)
 }
 
 func DeleteTableColumn(c *gin.Context) {
 	tableID := c.Param("id")
 	columnID := c.Param("column_id")
 
-	var column models.TableColumn
-	if err := database.DB.Where("id = ? AND table_id = ?", columnID, tableID).First(&column).Error; err != nil {
+	var field models.Field
+	if err := database.DB.Where("id = ? AND table_id = ?", columnID, tableID).First(&field).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Column not found"})
 		return
 	}
 
-	if err := database.DB.Delete(&column).Error; err != nil {
+	if err := database.DB.Delete(&field).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

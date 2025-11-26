@@ -97,6 +97,14 @@ export const goClient = {
       params,
     }),
 
+  // PUT request
+  put: <T>(endpoint: string, data: any, params?: Record<string, string>) =>
+    goFetch<T>(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+      params,
+    }),
+
   // DELETE request
   delete: <T>(endpoint: string, params?: Record<string, string>) =>
     goFetch<T>(endpoint, { method: 'DELETE', params }),

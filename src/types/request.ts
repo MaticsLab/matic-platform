@@ -7,7 +7,7 @@ export type UserRole = 'staff' | 'supervisor' | 'program_director' | 'finance' |
 
 export type ApprovalAction = 'approve' | 'deny' | 'request_changes' | 'forward' | 'pending';
 
-export type FieldType = 'text' | 'textarea' | 'number' | 'date' | 'select' | 'checkbox' | 'file' | 'item_list' | 'email' | 'phone' | 'url';
+export type FieldType = 'text' | 'textarea' | 'number' | 'date' | 'select' | 'checkbox' | 'file' | 'item_list' | 'email' | 'phone' | 'url' | 'group' | 'repeater';
 
 // User Types
 export interface RequestUser {
@@ -58,6 +58,7 @@ export interface FormField {
   };
   defaultValue?: any;
   helpText?: string;
+  subFields?: FormField[];
 }
 
 export interface FormTemplate {

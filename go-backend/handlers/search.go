@@ -108,11 +108,11 @@ func SearchWorkspace(c *gin.Context) {
 
 // searchDataTables searches for data tables
 func searchDataTables(workspaceID uuid.UUID, workspaceSlug, query string) []SearchResult {
-	var tables []models.DataTable
+	var tables []models.Table
 	searchPattern := "%" + strings.ToLower(query) + "%"
 
-	database.DB.Preload("Columns").
-		Where("workspace_id = ? AND (LOWER(name) LIKE ? OR LOWER(description) LIKE ?)",
+	database.DB.Preload("Fields").
+		Where("workspace_id = ? AND icon != 'form' AND (LOWER(name) LIKE ? OR LOWER(description) LIKE ?)",
 			workspaceID, searchPattern, searchPattern).
 		Limit(20).
 		Find(&tables)
@@ -134,7 +134,7 @@ func searchDataTables(workspaceID uuid.UUID, workspaceSlug, query string) []Sear
 			WorkspaceID: workspaceID.String(),
 			Score:       score,
 			Metadata: map[string]interface{}{
-				"columnCount": len(table.Columns),
+				"columnCount": len(table.Fields),
 				"lastUpdated": table.UpdatedAt,
 				"createdAt":   table.CreatedAt,
 			},
@@ -147,11 +147,11 @@ func searchDataTables(workspaceID uuid.UUID, workspaceSlug, query string) []Sear
 
 // searchForms searches for forms
 func searchForms(workspaceID uuid.UUID, workspaceSlug, query string) []SearchResult {
-	var forms []models.Form
+	var forms []models.Table
 	searchPattern := "%" + strings.ToLower(query) + "%"
 
 	database.DB.Preload("Fields").
-		Where("workspace_id = ? AND (LOWER(name) LIKE ? OR LOWER(description) LIKE ?)",
+		Where("workspace_id = ? AND icon = 'form' AND (LOWER(name) LIKE ? OR LOWER(description) LIKE ?)",
 			workspaceID, searchPattern, searchPattern).
 		Limit(20).
 		Find(&forms)
@@ -165,7 +165,18 @@ func searchForms(workspaceID uuid.UUID, workspaceSlug, query string) []SearchRes
 
 		// Count submissions
 		var submissionCount int64
-		database.DB.Model(&models.FormSubmission{}).Where("form_id = ?", form.ID).Count(&submissionCount)
+		database.DB.Model(&models.Row{}).Where("table_id = ?", form.ID).Count(&submissionCount)
+
+		// Check if published
+		isPublished := false
+		var view models.View
+		if err := database.DB.Where("table_id = ? AND type = ?", form.ID, "form").First(&view).Error; err == nil {
+			var config map[string]interface{}
+			json.Unmarshal(view.Config, &config)
+			if val, ok := config["is_published"].(bool); ok {
+				isPublished = val
+			}
+		}
 
 		results = append(results, SearchResult{
 			ID:          form.ID.String(),
@@ -179,7 +190,7 @@ func searchForms(workspaceID uuid.UUID, workspaceSlug, query string) []SearchRes
 			Metadata: map[string]interface{}{
 				"fieldCount":      len(form.Fields),
 				"submissionCount": submissionCount,
-				"published":       form.IsPublished,
+				"published":       isPublished,
 				"lastUpdated":     form.UpdatedAt,
 				"createdAt":       form.CreatedAt,
 			},
@@ -235,12 +246,12 @@ func searchTableRows(workspaceID uuid.UUID, workspaceSlug, query string) []Searc
 	var results []SearchResult
 
 	// Get all tables in workspace
-	var tables []models.DataTable
-	database.DB.Where("workspace_id = ?", workspaceID).Limit(10).Find(&tables)
+	var tables []models.Table
+	database.DB.Where("workspace_id = ? AND icon != 'form'", workspaceID).Limit(10).Find(&tables)
 
 	for _, table := range tables {
 		// Search rows in this table
-		var rows []models.TableRow
+		var rows []models.Row
 		searchPattern := "%" + strings.ToLower(query) + "%"
 
 		// Search in JSONB data column using PostgreSQL operators
@@ -376,7 +387,7 @@ func SearchTableRows(c *gin.Context) {
 	}
 
 	// Get table info
-	var table models.DataTable
+	var table models.Table
 	if err := database.DB.Where("id = ?", tableUUID).First(&table).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Table not found"})
 		return
@@ -390,7 +401,7 @@ func SearchTableRows(c *gin.Context) {
 	}
 
 	// Search rows
-	var rows []models.TableRow
+	var rows []models.Row
 	searchPattern := "%" + strings.ToLower(query) + "%"
 
 	// Get columns to filter (if specified)
@@ -476,7 +487,7 @@ func SearchFormSubmissions(c *gin.Context) {
 	}
 
 	// Get form info
-	var form models.Form
+	var form models.Table
 	if err := database.DB.Where("id = ?", formUUID).First(&form).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
 		return
@@ -490,7 +501,7 @@ func SearchFormSubmissions(c *gin.Context) {
 	}
 
 	// Search submissions
-	var submissions []models.FormSubmission
+	var submissions []models.Row
 	searchPattern := "%" + strings.ToLower(query) + "%"
 
 	// Get fields to filter (if specified)
@@ -501,7 +512,7 @@ func SearchFormSubmissions(c *gin.Context) {
 	}
 
 	// Build query
-	dbQuery := database.DB.Where("form_id = ?", formUUID)
+	dbQuery := database.DB.Where("table_id = ?", formUUID)
 
 	if len(fieldFilter) > 0 {
 		// Search only in specific fields
@@ -529,9 +540,21 @@ func SearchFormSubmissions(c *gin.Context) {
 	for _, submission := range submissions {
 		subtitle := extractRowPreview(submission.Data)
 
+		// Extract IP and UserAgent from data if available
+		var dataMap map[string]interface{}
+		json.Unmarshal(submission.Data, &dataMap)
+		ipAddress := ""
+		userAgent := ""
+		if val, ok := dataMap["_ip_address"].(string); ok {
+			ipAddress = val
+		}
+		if val, ok := dataMap["_user_agent"].(string); ok {
+			userAgent = val
+		}
+
 		results = append(results, SearchResult{
 			ID:          submission.ID.String(),
-			Title:       fmt.Sprintf("Submission from %s", submission.IPAddress),
+			Title:       fmt.Sprintf("Submission from %s", ipAddress),
 			Subtitle:    subtitle,
 			Type:        "submission",
 			URL:         fmt.Sprintf("/workspace/%s/form/%s/submission/%s", workspace.Slug, form.ID, submission.ID),
@@ -540,8 +563,8 @@ func SearchFormSubmissions(c *gin.Context) {
 			Metadata: map[string]interface{}{
 				"formName":  form.Name,
 				"formId":    form.ID,
-				"ipAddress": submission.IPAddress,
-				"userAgent": submission.UserAgent,
+				"ipAddress": ipAddress,
+				"userAgent": userAgent,
 				"createdAt": submission.CreatedAt,
 				"data":      submission.Data,
 			},

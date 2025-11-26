@@ -72,7 +72,7 @@ func CreateTableLink(c *gin.Context) {
 	}
 
 	// Check if tables exist
-	var sourceTable, targetTable models.DataTable
+	var sourceTable, targetTable models.Table
 	if err := database.DB.First(&sourceTable, "id = ?", input.SourceTableID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Source table not found"})
 		return
@@ -83,7 +83,7 @@ func CreateTableLink(c *gin.Context) {
 	}
 
 	// Check if source column exists and belongs to source table
-	var sourceColumn models.TableColumn
+	var sourceColumn models.Field
 	if err := database.DB.Where("id = ? AND table_id = ?", input.SourceColumnID, input.SourceTableID).First(&sourceColumn).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Source column not found or does not belong to source table"})
 		return
@@ -219,7 +219,7 @@ func GetLinkedRows(c *gin.Context) {
 	}
 
 	// Fetch the actual row data
-	var rows []models.TableRow
+	var rows []models.Row
 	if len(linkedRowIDs) > 0 {
 		if err := database.DB.Where("id IN ?", linkedRowIDs).Find(&rows).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -229,7 +229,7 @@ func GetLinkedRows(c *gin.Context) {
 
 	// Return rows with their link metadata
 	type LinkedRowResponse struct {
-		Row      models.TableRow        `json:"row"`
+		Row      models.Row             `json:"row"`
 		LinkData map[string]interface{} `json:"link_data"`
 		LinkID   uuid.UUID              `json:"row_link_id"`
 	}
@@ -286,7 +286,7 @@ func CreateTableRowLink(c *gin.Context) {
 	}
 
 	// Verify rows exist
-	var sourceRow, targetRow models.TableRow
+	var sourceRow, targetRow models.Row
 	if err := database.DB.First(&sourceRow, "id = ?", input.SourceRowID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Source row not found"})
 		return

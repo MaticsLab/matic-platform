@@ -64,12 +64,12 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 
 		// Check the algorithm
 		alg := unverifiedToken.Method.Alg()
-		fmt.Printf("🔐 Token algorithm: %s\n", alg)
+		fmt.Printf("🔐 Token algorithm: '%s'\n", alg)
 
-		if alg == "ES256" {
+		if alg == "ES256" || alg == "RS256" {
 			// For ES256 (Supabase default), we trust that Supabase validated it
 			// Just extract the claims without signature verification
-			fmt.Println("✅ Accepting ES256 token from Supabase (trusted issuer)")
+			fmt.Println("✅ Accepting ES256/RS256 token from Supabase (trusted issuer)")
 			token = unverifiedToken
 			token.Valid = true // Mark as valid since we trust Supabase
 		} else {

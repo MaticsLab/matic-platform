@@ -31,13 +31,15 @@ export type FieldWidth = 'full' | 'half' | 'third' | 'quarter'
 
 export interface FormField {
   id: string
-  form_id: string
+  form_id: string // This might be table_id in backend
+  table_id?: string
   name: string
   label: string
   placeholder?: string
   description?: string
-  field_type: FieldType
+  type: FieldType // Changed from field_type to type to match backend
   settings: Record<string, any>
+  config?: Record<string, any>
   validation: Record<string, any>
   options: Array<{ label: string; value: string }>
   position: number

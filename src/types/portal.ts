@@ -1,0 +1,38 @@
+export type FieldType = 
+  | 'text' | 'textarea' | 'email' | 'phone' | 'number' | 'url' 
+  | 'select' | 'multiselect' | 'radio' | 'checkbox' 
+  | 'date' | 'datetime' | 'time' 
+  | 'file' | 'image' | 'signature' | 'rating'
+  | 'divider' | 'heading' | 'paragraph'
+  | 'group' | 'repeater'
+
+export type Field = {
+  id: string
+  type: FieldType
+  label: string
+  placeholder?: string
+  required: boolean
+  options?: string[]
+  width?: 'full' | 'half' | 'third' | 'quarter'
+  sectionId?: string
+  children?: Field[] // For groups and repeaters
+  validation?: Record<string, any>
+}
+
+export type Section = {
+  id: string
+  title: string
+  description?: string
+  fields: Field[]
+}
+
+export type PortalConfig = {
+  sections: Section[]
+  settings: {
+    name: string
+    themeColor: string
+    logoUrl: string
+    loginFields: Field[]
+    signupFields: Field[]
+  }
+}

@@ -22,7 +22,7 @@ const TAB_ICONS = {
 }
 
 export function TabNavigation({ workspaceId, onTabChange, tabManager: externalTabManager }: TabNavigationProps) {
-  const { tabManager: contextTabManager, activeTab, tabs } = useTabContext()
+  const { tabManager: contextTabManager, activeTab, tabs, triggerNavigation } = useTabContext()
   const tabManager = externalTabManager || contextTabManager
   
   // Use context values or local state as fallback
@@ -104,17 +104,22 @@ export function TabNavigation({ workspaceId, onTabChange, tabManager: externalTa
   }
 
   const handleNavigate = (direction: 'back' | 'forward') => {
-    if (!tabManager || currentTabs.length === 0) return
-    
-    const currentIndex = currentTabs.findIndex(tab => tab.id === currentActiveTab?.id)
-    if (currentIndex === -1) return
+    if (contextTabManager) {
+      triggerNavigation(direction)
+    } else {
+      // Fallback for local usage without provider
+      if (!tabManager || currentTabs.length === 0) return
+      
+      const currentIndex = currentTabs.findIndex(tab => tab.id === currentActiveTab?.id)
+      if (currentIndex === -1) return
 
-    if (direction === 'back' && currentIndex > 0) {
-      const previousTab = currentTabs[currentIndex - 1]
-      tabManager.setActiveTab(previousTab.id)
-    } else if (direction === 'forward' && currentIndex < currentTabs.length - 1) {
-      const nextTab = currentTabs[currentIndex + 1]
-      tabManager.setActiveTab(nextTab.id)
+      if (direction === 'back' && currentIndex > 0) {
+        const previousTab = currentTabs[currentIndex - 1]
+        tabManager.setActiveTab(previousTab.id)
+      } else if (direction === 'forward' && currentIndex < currentTabs.length - 1) {
+        const nextTab = currentTabs[currentIndex + 1]
+        tabManager.setActiveTab(nextTab.id)
+      }
     }
   }
 

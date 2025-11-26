@@ -36,15 +36,15 @@ export default function LoginPage() {
       const lastWorkspace = getLastWorkspace()
       
       if (lastWorkspace) {
-        // Redirect to activities hub of last visited workspace
-        router.push(`/workspace/${lastWorkspace}/activities-hubs`)
+        // Redirect to last visited workspace
+        router.push(`/workspace/${lastWorkspace}`)
       } else {
-        // Get first workspace and redirect to its activities hub
+        // Get first workspace and redirect to it
         const user = await getCurrentUser()
         if (user) {
           const workspaces = await workspacesSupabase.getWorkspacesForUser(user.id)
           if (workspaces && workspaces.length > 0) {
-            router.push(`/workspace/${workspaces[0].slug}/activities-hubs`)
+            router.push(`/workspace/${workspaces[0].slug}`)
           } else {
             // No workspaces - this shouldn't happen, but redirect to home
             router.push('/')

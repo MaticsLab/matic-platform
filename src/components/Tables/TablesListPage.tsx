@@ -68,22 +68,17 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
 
   useEffect(() => {
     if (workspaceId) {
-    loadTables()
+      loadTables()
     }
   }, [workspaceId])
 
   const loadTables = async () => {
     try {
       setLoading(true)
-      console.log('🔍 Loading tables for workspace:', workspaceId)
       const data = await listTables(workspaceId)
-      console.log('✅ Tables loaded:', data.length, data)
       setTables(data || [])
-      if (data && data.length === 0) {
-        console.log('ℹ️ No tables found in workspace')
-      }
     } catch (error: any) {
-      console.error('❌ Error loading tables:', error)
+      console.error('Error loading tables:', error)
       toast.error(`Failed to load tables: ${error.message || 'Unknown error'}`)
       setTables([])
     } finally {

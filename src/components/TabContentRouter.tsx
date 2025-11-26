@@ -2,7 +2,7 @@
 
 import { TabData } from '@/lib/tab-manager'
 import { useTabContext } from './WorkspaceTabProvider'
-import { FileText, Calendar, Users, Search, Plus, BarChart3, Folder, Clock, Layout, Inbox, Activity as ActivityIcon } from 'lucide-react'
+import { FileText, Calendar, Users, Search, Plus, BarChart3, Folder, Clock, Layout, Inbox, Activity as ActivityIcon, LayoutGrid, GraduationCap, FileInput, Database, Settings, Filter, MoreHorizontal, ArrowRight, Pin } from 'lucide-react'
 import { TablesListPage } from './Tables/TablesListPage'
 import { TableGridView } from './Tables/TableGridView'
 import { FormsListPage as FormsListComponent } from './Forms/FormsListPage'
@@ -13,6 +13,7 @@ import { AddParticipantDialog } from './ActivitiesHub/AddParticipantDialog'
 import { ParticipantDetailPanel } from './ActivitiesHub/ParticipantDetailPanel'
 import { RequestHubViewer } from './RequestHub/RequestHubViewer'
 import { RequestHubListPage } from './RequestHub/RequestHubListPage'
+import { ApplicationsHub } from './ApplicationsHub/ApplicationsHub'
 import { useState, useEffect } from 'react'
 import { activitiesSupabase } from '@/lib/api/activities-supabase'
 import type { Activity } from '@/types/activities-hubs'
@@ -506,9 +507,29 @@ export function TabContentRouter({ tab: propTab, workspaceId }: TabContentRouter
         }
       }
 
-      // Handle Overview - redirect to Activities Hub
+      // Handle Overview - show Dashboard
       if (tab.url === `/w/${workspaceId}` || tab.url === `/workspace/${workspaceId}` || tab.title === 'Overview') {
-        return <ActivitiesHubListPage workspaceId={workspaceId} />
+        return <WorkspaceDashboard workspaceId={workspaceId} />
+      }
+      
+      // Handle Applications Hub
+      if (tab.url?.includes('/applications')) {
+        return <ApplicationsHub workspaceId={workspaceId} />
+      }
+
+      // Handle People Hub
+      if (tab.url?.includes('/people')) {
+        return (
+          <div className="h-full p-6 bg-gray-50">
+            <div className="h-full bg-white rounded-lg border border-gray-200 flex items-center justify-center">
+              <div className="text-center text-gray-500">
+                <Users className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                <p className="font-medium mb-2">People Hub</p>
+                <p className="text-sm">Directory coming soon</p>
+              </div>
+            </div>
+          </div>
+        )
       }
       
       return (
@@ -742,153 +763,257 @@ function SearchResultsView({
 function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
   const { tabManager } = useTabContext()
 
-  const handleQuickAction = (type: 'forms' | 'tables' | 'calendar' | 'document' | 'activities-hubs' | 'request-hubs') => {
+  const handleNavigate = (hub: string) => {
     if (!tabManager) return
     
-    switch (type) {
-      case 'forms':
-        tabManager.addTab({
-          title: 'Forms',
-          type: 'form',
-          url: `/workspace/${workspaceId}/forms`,
-          workspaceId,
-          metadata: {}
-        })
-        break
-      case 'tables':
-        tabManager.addTab({
-          title: 'Tables',
-          type: 'table',
-          url: `/workspace/${workspaceId}/tables`,
-          workspaceId,
-          metadata: {}
-        })
-        break
-      case 'activities-hubs':
+    switch (hub) {
+      case 'activities':
         tabManager.addTab({
           title: 'Activities Hub',
           type: 'custom',
           url: `/workspace/${workspaceId}/activities-hubs`,
           workspaceId,
-          metadata: {}
+          metadata: { hub: 'activities' }
         })
         break
-      case 'request-hubs':
+      case 'applications':
         tabManager.addTab({
-          title: 'Request Hubs',
+          title: 'Applications',
+          type: 'custom',
+          url: `/workspace/${workspaceId}/applications`,
+          workspaceId,
+          metadata: { hub: 'applications' }
+        })
+        break
+      case 'requests':
+        tabManager.addTab({
+          title: 'Request Hub',
           type: 'custom',
           url: `/workspace/${workspaceId}/request-hubs`,
           workspaceId,
-          metadata: {}
+          metadata: { hub: 'requests' }
         })
         break
-      case 'calendar':
+      case 'data':
         tabManager.addTab({
-          title: 'Calendar',
-          type: 'calendar',
-          url: `/workspace/${workspaceId}/calendar`,
+          title: 'Data Tables',
+          type: 'table',
+          url: `/workspace/${workspaceId}/tables`,
           workspaceId,
-          metadata: {}
+          metadata: { hub: 'data' }
         })
         break
-      case 'document':
+      case 'people':
         tabManager.addTab({
-          title: 'New Document',
+          title: 'People',
           type: 'custom',
-          url: `/workspace/${workspaceId}/docs/new`,
+          url: `/workspace/${workspaceId}/people`,
           workspaceId,
-          metadata: {}
+          metadata: { hub: 'people' }
         })
+        break
+      case 'settings':
+        // Settings usually opens a modal, but we can have a tab too
+        console.log('Open settings')
         break
     }
   }
 
+  // Mock data for stats
+  const stats = [
+    { label: 'Active Programs', value: '12', subtext: '+2 this week', icon: ActivityIcon, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Pending Requests', value: '8', subtext: '3 high priority', icon: Inbox, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { label: 'Apps in Review', value: '45', subtext: '12 due today', icon: GraduationCap, color: 'text-green-600', bg: 'bg-green-50' },
+    { label: 'Attendance Rate', value: '94%', subtext: 'Last 7 days', icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
+  ]
+
+  // Mock data for hubs with more details
+  const hubs = [
+    { 
+      id: 'activities', 
+      name: 'Activities Hub', 
+      icon: ActivityIcon, 
+      description: 'Manage programs, events, and attendance tracking.', 
+      color: 'blue',
+      preview: '3 programs today',
+      action: 'View Programs'
+    },
+    { 
+      id: 'requests', 
+      name: 'Request Hub', 
+      icon: Inbox, 
+      description: 'Centralize incoming requests and approvals.', 
+      color: 'orange',
+      preview: '12 pending requests',
+      action: 'Review Requests'
+    },
+    { 
+      id: 'applications', 
+      name: 'Applications Hub', 
+      icon: GraduationCap, 
+      description: 'Manage scholarships, grants, and admissions.', 
+      color: 'green',
+      preview: '5 new applications',
+      action: 'Review Apps'
+    },
+    { 
+      id: 'data', 
+      name: 'Data Hub', 
+      icon: Database, 
+      description: 'System tables, data management, and reporting.', 
+      color: 'slate',
+      preview: '18 active tables',
+      action: 'Manage Data'
+    },
+    { 
+      id: 'people', 
+      name: 'People Hub', 
+      icon: Users, 
+      description: 'Directory, profiles, and user management.', 
+      color: 'purple',
+      preview: '128 total users',
+      action: 'View Directory'
+    },
+  ]
+
+  // Mock activity feed
+  const activities = [
+    { user: 'Sarah Smith', action: 'submitted a field trip request', target: 'Science Museum Trip', time: '10 mins ago', hub: 'Request Hub' },
+    { user: 'John Doe', action: 'completed attendance for', target: 'Afternoon Arts Program', time: '1 hour ago', hub: 'Activities' },
+    { user: 'Maria Garcia', action: 'submitted new application', target: 'Fall Scholarship', time: '2 hours ago', hub: 'Applications' },
+    { user: 'System', action: 'generated weekly report', target: 'Attendance Summary', time: '5 hours ago', hub: 'Data Hub' },
+    { user: 'Alex Chen', action: 'updated profile', target: 'Emergency Contacts', time: '1 day ago', hub: 'People Hub' },
+  ]
+
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Workspace Overview
-        </h1>
-        <p className="text-gray-600">
-          Welcome to your collaborative workspace. Get started by creating content or exploring existing resources.
-        </p>
+    <div className="max-w-7xl mx-auto p-8">
+      {/* Header with Customization */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Workspace Overview
+          </h1>
+          <p className="text-gray-600">
+            Welcome back! Here's what's happening in your workspace.
+          </p>
+        </div>
+        <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+          <Settings className="w-4 h-4" />
+          <span>Customize Dashboard</span>
+        </button>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div onClick={() => handleQuickAction('document')}>
-          <QuickActionCard
-            title="New Document"
-            description="Create a collaborative document"
-            icon={FileText}
-            color="blue"
-          />
-        </div>
-        <div onClick={() => handleQuickAction('forms')}>
-          <QuickActionCard
-            title="New Form"
-            description="Build interactive forms"
-            icon={Users}
-            color="green"
-          />
-        </div>
-        <div onClick={() => handleQuickAction('activities-hubs')}>
-          <QuickActionCard
-            title="Activities Hub"
-            description="Manage programs & activities"
-            icon={ActivityIcon}
-            color="purple"
-          />
-        </div>
-        <div onClick={() => handleQuickAction('tables')}>
-          <QuickActionCard
-            title="Tables"
-            description="Manage your data tables"
-            icon={Folder}
-            color="orange"
-          />
-        </div>
+      {/* Quick Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+        {stats.map((stat, index) => (
+          <div key={index} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-start justify-between mb-4">
+              <div className={`p-3 rounded-lg ${stat.bg}`}>
+                <stat.icon className={`w-6 h-6 ${stat.color}`} />
+              </div>
+              {/* Optional trend indicator could go here */}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500 mb-1">{stat.label}</p>
+              <h3 className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</h3>
+              <p className="text-xs text-gray-500">{stat.subtext}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Clock size={20} className="text-gray-500" />
-            <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Hub Access Cards (Main Content - 2 cols) */}
+        <div className="lg:col-span-2 space-y-8">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900">Your Hubs</h2>
+            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">Manage Hubs</button>
           </div>
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-              <FileText size={16} className="text-blue-500" />
-              <div className="flex-1">
-                <p className="font-medium text-gray-900">Welcome Document</p>
-                <p className="text-sm text-gray-600">Created just now</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {hubs.map((hub) => (
+              <div 
+                key={hub.id}
+                className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-all group flex flex-col h-full"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`p-3 rounded-lg bg-${hub.color}-50 group-hover:bg-${hub.color}-100 transition-colors`}>
+                    <hub.icon className={`w-6 h-6 text-${hub.color}-600`} />
+                  </div>
+                  <button className="text-gray-400 hover:text-gray-600">
+                    <MoreHorizontal className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <h3 className="text-lg font-bold text-gray-900 mb-2">{hub.name}</h3>
+                <p className="text-gray-600 text-sm mb-6 flex-1">{hub.description}</p>
+                
+                <div className="pt-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">At a glance</span>
+                    <span className="text-xs font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded-full">{hub.preview}</span>
+                  </div>
+                  
+                  <button 
+                    onClick={() => handleNavigate(hub.id)}
+                    className={`w-full py-2 px-4 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2 group-hover:border-${hub.color}-200 group-hover:text-${hub.color}-700 group-hover:bg-${hub.color}-50`}
+                  >
+                    {hub.action}
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-            </div>
+            ))}
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Folder size={20} className="text-gray-500" />
-            <h2 className="text-lg font-semibold text-gray-900">Quick Access</h2>
+        {/* Recent Activity Feed (Sidebar - 1 col) */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900">Activity Feed</h2>
+            <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
+              <Filter className="w-4 h-4" />
+            </button>
           </div>
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100">
-              <Users size={16} className="text-green-500" />
-              <div className="flex-1">
-                <p className="font-medium text-gray-900">Team Members</p>
-                <p className="text-sm text-gray-600">Manage workspace access</p>
-              </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="divide-y divide-gray-100">
+              {activities.map((activity, i) => (
+                <div key={i} className="p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-600 flex-shrink-0">
+                      {activity.user.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-900">
+                        <span className="font-semibold">{activity.user}</span> {activity.action} <span className="font-medium text-blue-600">{activity.target}</span>
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-gray-500">{activity.time}</span>
+                        <span className="text-xs text-gray-300">•</span>
+                        <span className="text-xs font-medium text-gray-500">{activity.hub}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100">
-              <FileText size={16} className="text-blue-500" />
-              <div className="flex-1">
-                <p className="font-medium text-gray-900">All Documents</p>
-                <p className="text-sm text-gray-600">Browse workspace content</p>
-              </div>
+            <div className="p-3 bg-gray-50 border-t border-gray-100 text-center">
+              <button className="text-sm text-blue-600 font-medium hover:text-blue-700">View all activity</button>
             </div>
+          </div>
+
+          {/* Optional: Pinned Items or Quick Links could go here */}
+          <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl border border-blue-100 p-5">
+            <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+              <Pin className="w-4 h-4 text-blue-600" />
+              Quick Links
+            </h3>
+            <ul className="space-y-2">
+              <li><button className="text-sm text-gray-600 hover:text-blue-600 hover:underline">Weekly Attendance Report</button></li>
+              <li><button className="text-sm text-gray-600 hover:text-blue-600 hover:underline">Pending Approvals (3)</button></li>
+              <li><button className="text-sm text-gray-600 hover:text-blue-600 hover:underline">New Program Template</button></li>
+            </ul>
           </div>
         </div>
       </div>

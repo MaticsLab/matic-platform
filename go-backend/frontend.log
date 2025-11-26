@@ -1,0 +1,248 @@
+
+> matic-platform@2.0.0 dev
+> next dev
+
+  ▲ Next.js 14.2.5
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 897ms
+ ○ Compiling /workspace/[slug] ...
+ ✓ Compiled /workspace/[slug] in 1994ms (2529 modules)
+ GET /workspace/bpnc 200 in 263ms
+ ✓ Compiled in 113ms (1270 modules)
+ GET /workspace/bpnc 200 in 133ms
+ GET /workspace/bpnc 200 in 181ms
+ ✓ Compiled /external-review/[token] in 318ms (2528 modules)
+ GET /external-review/rev_k29s8d 200 in 512ms
+ ✓ Compiled in 331ms (2548 modules)
+ ✓ Compiled in 325ms (2550 modules)
+ ✓ Compiled in 319ms (2552 modules)
+ ✓ Compiled in 344ms (2552 modules)
+ ✓ Compiled in 217ms (2552 modules)
+ ✓ Compiled in 199ms (2552 modules)
+ ✓ Compiled in 223ms (2552 modules)
+ ✓ Compiled in 206ms (2552 modules)
+ ✓ Compiled in 275ms (2552 modules)
+ ✓ Compiled in 215ms (2552 modules)
+ ✓ Compiled in 269ms (2552 modules)
+ ✓ Compiled in 188ms (2552 modules)
+ ✓ Compiled in 364ms (2552 modules)
+ ✓ Compiled /_not-found in 257ms (2541 modules)
+ GET /application-portal 404 in 315ms
+ GET /application-portal 404 in 36ms
+ ✓ Compiled in 195ms (1280 modules)
+ ✓ Compiled in 108ms (1280 modules)
+ ✓ Compiled in 115ms (1280 modules)
+ ✓ Compiled in 105ms (1280 modules)
+ ✓ Compiled in 99ms (1280 modules)
+ ✓ Compiled in 87ms (1280 modules)
+ ✓ Compiled in 125ms (1280 modules)
+ ✓ Compiled in 109ms (1280 modules)
+ ✓ Compiled in 106ms (1280 modules)
+ ✓ Compiled in 98ms (1280 modules)
+ ✓ Compiled in 105ms (1280 modules)
+ ✓ Compiled in 327ms (2552 modules)
+ ✓ Compiled in 207ms (2552 modules)
+ ✓ Compiled in 418ms (2554 modules)
+ ✓ Compiled /_not-found in 147ms (2543 modules)
+ GET /apply/fall-2025-scholarship 404 in 188ms
+ GET /apply/fall-2025-scholarship 404 in 17ms
+ GET /apply/scholarship_application 404 in 16ms
+ GET /external-review/rev_k29s8d 200 in 30ms
+ ✓ Compiled in 285ms (2557 modules)
+ GET /apply/scholarship_application 404 in 29ms
+ GET /apply/fall-2025-scholarship 404 in 15ms
+ GET /apply/fall-2025-scholarship 404 in 17ms
+ ✓ Compiled in 149ms (1283 modules)
+ GET /apply/fall-2025-scholarship 404 in 9ms
+ ✓ Compiled in 106ms (1283 modules)
+ ○ Compiling /apply/[slug] ...
+ ✓ Compiled /apply/[slug] in 675ms (2578 modules)
+ ⨯ Error: Event handlers cannot be passed to Client Component props.
+  <... onBack={function onBack}>
+              ^^^^^^^^^^^^^^^^^
+If you need interactivity, consider converting part of this to a Client Component.
+    at stringify (<anonymous>)
+    at stringify (<anonymous>)
+digest: "845947799"
+ ⨯ Error: Event handlers cannot be passed to Client Component props.
+  <... onBack={function onBack}>
+              ^^^^^^^^^^^^^^^^^
+If you need interactivity, consider converting part of this to a Client Component.
+    at stringify (<anonymous>)
+    at stringify (<anonymous>)
+digest: "845947799"
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled in 274ms (2565 modules)
+ GET /apply/fall-2025-scholarship 200 in 210ms
+ ✓ Compiled / in 222ms (2571 modules)
+ GET / 200 in 270ms
+ GET /workspace/bpnc/activities-hubs 404 in 8ms
+ GET / 200 in 18ms
+ GET /workspace/bpnc/activities-hubs 404 in 8ms
+ GET /apply/fall-2025-scholarship 200 in 52ms
+ ✓ Compiled in 248ms (2585 modules)
+ ✓ Compiled in 104ms (1295 modules)
+ GET / 200 in 61ms
+ GET /workspace/bpnc/activities-hubs 404 in 9ms
+ GET / 200 in 19ms
+ GET /workspace/bpnc/activities-hubs 404 in 10ms
+ GET /apply/fall-2025-scholarship 200 in 60ms
+ ✓ Compiled in 171ms (1295 modules)
+ ✓ Compiled in 107ms (1295 modules)
+ ✓ Compiled in 257ms (2585 modules)
+ ✓ Compiled in 910ms (3367 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ⨯ src/components/ApplicationsHub/Scholarships/ApplicantPortal/ApplicationForm.tsx (347:16) @ ArrowRight
+ ⨯ ReferenceError: ArrowRight is not defined
+    at ApplicationForm (./src/components/ApplicationsHub/Scholarships/ApplicantPortal/ApplicationForm.tsx:602:121)
+digest: "2491007542"
+[0m [90m 345 |[39m             [33m>[39m[0m
+[0m [90m 346 |[39m               [33mSave[39m [33m&[39m [33mContinue[39m[0m
+[0m[31m[1m>[22m[39m[90m 347 |[39m               [33m<[39m[33mArrowRight[39m className[33m=[39m[32m"w-4 h-4 ml-2"[39m [33m/[39m[33m>[39m[0m
+[0m [90m     |[39m                [31m[1m^[22m[39m[0m
+[0m [90m 348 |[39m             [33m<[39m[33m/[39m[33mButton[39m[33m>[39m[0m
+[0m [90m 349 |[39m           [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m[0m
+[0m [90m 350 |[39m         [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m[0m
+ GET /apply/fall-2025-scholarship 500 in 126ms
+ ✓ Compiled in 244ms (3367 modules)
+ GET /apply/fall-2025-scholarship 200 in 57ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled in 294ms (3366 modules)
+ GET /apply/fall-2025-scholarship 200 in 92ms
+ ✓ Compiled in 756ms (3366 modules)
+ ✓ Compiled in 364ms (3366 modules)
+ ✓ Compiled in 286ms (3366 modules)
+ ✓ Compiled in 244ms (3366 modules)
+ ✓ Compiled in 475ms (3366 modules)
+ ✓ Compiled /_not-found in 341ms (3355 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 388ms
+ ✓ Compiled in 289ms (3369 modules)
+ ✓ Compiled in 293ms (3369 modules)
+ ✓ Compiled in 380ms (3366 modules)
+ ✓ Compiled in 387ms (3366 modules)
+ ✓ Compiled in 275ms (3366 modules)
+ ✓ Compiled in 213ms (3366 modules)
+ ✓ Compiled /_not-found in 258ms (3355 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 298ms
+ ✓ Compiled in 391ms (3366 modules)
+ ✓ Compiled in 176ms (1687 modules)
+ ✓ Compiled in 121ms (1687 modules)
+ ✓ Compiled in 136ms (1687 modules)
+ ✓ Compiled in 117ms (1687 modules)
+ ✓ Compiled in 148ms (1687 modules)
+ ✓ Compiled in 122ms (1687 modules)
+ ✓ Compiled in 114ms (1687 modules)
+ ✓ Compiled in 117ms (1687 modules)
+ ✓ Compiled in 101ms (1687 modules)
+ ✓ Compiled in 115ms (1687 modules)
+ GET /workspace/bpnc 200 in 183ms
+ ✓ Compiled in 446ms (3366 modules)
+ ✓ Compiled in 262ms (3360 modules)
+ ✓ Compiled in 238ms (3360 modules)
+ ✓ Compiled in 235ms (3360 modules)
+ ✓ Compiled in 199ms (3360 modules)
+ ○ Compiling /workspace/[slug]/portal-editor ...
+ ✓ Compiled /workspace/[slug]/portal-editor in 644ms (3588 modules)
+ GET /workspace/0313c4ef-d371-4846-9f0d-60494145d2b5/portal-editor 200 in 880ms
+ ✓ Compiled in 345ms (3602 modules)
+ ✓ Compiled in 142ms (1804 modules)
+ ✓ Compiled in 127ms (1804 modules)
+ ✓ Compiled in 217ms (3602 modules)
+ ✓ Compiled in 252ms (3602 modules)
+ ✓ Compiled in 312ms (3606 modules)
+ ✓ Compiled in 268ms (3606 modules)
+ ✓ Compiled in 339ms (3606 modules)
+ ✓ Compiled in 251ms (3606 modules)
+ GET /apply/fall-2025-scholarship 200 in 78ms
+ ✓ Compiled in 203ms (3606 modules)
+ ✓ Compiled in 201ms (3606 modules)
+ ✓ Compiled in 143ms (1806 modules)
+ ✓ Compiled in 122ms (1806 modules)
+ ✓ Compiled in 216ms (3606 modules)
+ ✓ Compiled in 195ms (3606 modules)
+ ✓ Compiled in 254ms (3606 modules)
+ ✓ Compiled in 516ms (3610 modules)
+ ✓ Compiled in 324ms (3610 modules)
+ ✓ Compiled in 204ms (3610 modules)
+ ✓ Compiled in 538ms (3618 modules)
+ ✓ Compiled in 696ms (3618 modules)
+ ✓ Compiled in 279ms (3618 modules)
+ ✓ Compiled in 476ms (3618 modules)
+ ✓ Compiled in 354ms (3604 modules)
+ ✓ Compiled in 639ms (3622 modules)
+ ✓ Compiled in 232ms (3622 modules)
+ ✓ Compiled in 203ms (3622 modules)
+ ✓ Compiled in 661ms (3622 modules)
+ ✓ Compiled /_not-found in 337ms (3611 modules)
+ GET /apply/fall-2025-scholarship 200 in 119ms
+ GET /workspace/0313c4ef-d371-4846-9f0d-60494145d2b5/portal-editor 200 in 118ms
+ ⨯ Failed to generate static paths for /apply/[slug]:
+Error: Cannot find module './vendor-chunks/framer-motion.js'
+Require stack:
+- /Users/jesussanchez/Downloads/matic-platform/.next/server/webpack-runtime.js
+- /Users/jesussanchez/Downloads/matic-platform/.next/server/app/apply/[slug]/page.js
+- /Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/require.js
+- /Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/load-components.js
+- /Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/build/utils.js
+- /Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/dev/static-paths-worker.js
+- /Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/compiled/jest-worker/processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at /Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:244:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (/Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/jesussanchez/Downloads/matic-platform/.next/server/webpack-runtime.js',
+    '/Users/jesussanchez/Downloads/matic-platform/.next/server/app/apply/[slug]/page.js',
+    '/Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/require.js',
+    '/Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/load-components.js',
+    '/Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/build/utils.js',
+    '/Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/dev/static-paths-worker.js',
+    '/Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/compiled/jest-worker/processChild.js'
+  ]
+}
+ GET /_next/static/chunks/app/apply/%5Bslug%5D/page.js 404 in 12ms
+ GET /_next/static/chunks/app/workspace/%5Bslug%5D/portal-editor/page.js 404 in 11ms
+ ⨯ Failed to generate static paths for /workspace/[slug]/portal-editor:
+Error: Cannot find module './vendor-chunks/framer-motion.js'
+Require stack:
+- /Users/jesussanchez/Downloads/matic-platform/.next/server/webpack-runtime.js
+- /Users/jesussanchez/Downloads/matic-platform/.next/server/app/workspace/[slug]/portal-editor/page.js
+- /Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/require.js
+- /Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/load-components.js
+- /Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/build/utils.js
+- /Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/dev/static-paths-worker.js
+- /Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/compiled/jest-worker/processChild.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1420:15)
+    at /Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:244:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1503:12)
+    at mod.require (/Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16) {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/jesussanchez/Downloads/matic-platform/.next/server/webpack-runtime.js',
+    '/Users/jesussanchez/Downloads/matic-platform/.next/server/app/workspace/[slug]/portal-editor/page.js',
+    '/Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/require.js',
+    '/Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/load-components.js',
+    '/Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/build/utils.js',
+    '/Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/server/dev/static-paths-worker.js',
+    '/Users/jesussanchez/Downloads/matic-platform/node_modules/next/dist/compiled/jest-worker/processChild.js'
+  ]
+}

@@ -103,8 +103,8 @@ export default function SignUpPage() {
 
       const workspace = await workspaceResponse.json()
 
-      // 4. Redirect to the activities hub of the new workspace
-      router.push(`/workspace/${workspace.slug}/activities-hubs`)
+      // 4. Redirect to the new workspace
+      router.push(`/workspace/${workspace.slug}`)
     } catch (err: any) {
       console.error('Signup error:', err)
       setError(err.message || 'Failed to create account')

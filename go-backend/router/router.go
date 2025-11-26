@@ -182,6 +182,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			})
 		})
 
+		// Public Form Routes
+		api.GET("/forms/by-slug/:slug", handlers.GetFormBySlug)
+		api.POST("/forms/:id/submit", handlers.SubmitForm)
+		api.GET("/forms/:id/submission", handlers.GetFormSubmission)
+
 		// Protected routes - require authentication
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware(cfg))
@@ -264,11 +269,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				forms.POST("", handlers.CreateForm)
 				forms.GET("/:id", handlers.GetForm)
 				forms.PATCH("/:id", handlers.UpdateForm)
+				forms.PUT("/:id/structure", handlers.UpdateFormStructure) // Add this line
 				forms.DELETE("/:id", handlers.DeleteForm)
 
 				// Form submissions
 				forms.GET("/:id/submissions", handlers.ListFormSubmissions)
-				forms.POST("/:id/submit", handlers.SubmitForm)
 
 				// Form search
 				forms.GET("/:id/search", handlers.SearchFormSubmissions)

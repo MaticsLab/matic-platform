@@ -1,0 +1,504 @@
+2025/11/25 20:25:17 ✅ Database connected successfully
+2025/11/25 20:25:17 📝 Using existing database schema (managed by Supabase migrations)
+[GIN-debug] [WARNING] Creating an Engine instance with the Logger and Recovery middleware already attached.
+
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] Loaded HTML Templates (3): 
+	- api_docs.html
+	- 
+	- api-docs.html
+
+[GIN-debug] GET    /                         --> github.com/Jsanchez767/matic-platform/router.SetupRouter.func1 (4 handlers)
+[GIN-debug] GET    /api-info                 --> github.com/Jsanchez767/matic-platform/router.SetupRouter.func2 (4 handlers)
+[GIN-debug] GET    /health                   --> github.com/Jsanchez767/matic-platform/router.SetupRouter.func3 (4 handlers)
+[GIN-debug] GET    /api/v1                   --> github.com/Jsanchez767/matic-platform/router.SetupRouter.func4 (4 handlers)
+[GIN-debug] GET    /api/v1/docs              --> github.com/Jsanchez767/matic-platform/router.SetupRouter.func5 (4 handlers)
+[GIN-debug] GET    /api/v1/workspaces        --> github.com/Jsanchez767/matic-platform/handlers.ListWorkspaces (5 handlers)
+[GIN-debug] POST   /api/v1/workspaces        --> github.com/Jsanchez767/matic-platform/handlers.CreateWorkspace (5 handlers)
+[GIN-debug] GET    /api/v1/workspaces/:id    --> github.com/Jsanchez767/matic-platform/handlers.GetWorkspace (5 handlers)
+[GIN-debug] PATCH  /api/v1/workspaces/:id    --> github.com/Jsanchez767/matic-platform/handlers.UpdateWorkspace (5 handlers)
+[GIN-debug] DELETE /api/v1/workspaces/:id    --> github.com/Jsanchez767/matic-platform/handlers.DeleteWorkspace (5 handlers)
+[GIN-debug] GET    /api/v1/activities-hubs   --> github.com/Jsanchez767/matic-platform/handlers.ListActivitiesHubs (5 handlers)
+[GIN-debug] POST   /api/v1/activities-hubs   --> github.com/Jsanchez767/matic-platform/handlers.CreateActivitiesHub (5 handlers)
+[GIN-debug] GET    /api/v1/activities-hubs/by-slug/:slug --> github.com/Jsanchez767/matic-platform/handlers.GetActivitiesHubBySlug (5 handlers)
+[GIN-debug] GET    /api/v1/activities-hubs/:hub_id --> github.com/Jsanchez767/matic-platform/handlers.GetActivitiesHub (5 handlers)
+[GIN-debug] PATCH  /api/v1/activities-hubs/:hub_id --> github.com/Jsanchez767/matic-platform/handlers.UpdateActivitiesHub (5 handlers)
+[GIN-debug] DELETE /api/v1/activities-hubs/:hub_id --> github.com/Jsanchez767/matic-platform/handlers.DeleteActivitiesHub (5 handlers)
+[GIN-debug] GET    /api/v1/activities-hubs/:hub_id/tabs --> github.com/Jsanchez767/matic-platform/handlers.ListActivitiesHubTabs (5 handlers)
+[GIN-debug] POST   /api/v1/activities-hubs/:hub_id/tabs --> github.com/Jsanchez767/matic-platform/handlers.CreateActivitiesHubTab (5 handlers)
+[GIN-debug] PATCH  /api/v1/activities-hubs/:hub_id/tabs/:tab_id --> github.com/Jsanchez767/matic-platform/handlers.UpdateActivitiesHubTab (5 handlers)
+[GIN-debug] DELETE /api/v1/activities-hubs/:hub_id/tabs/:tab_id --> github.com/Jsanchez767/matic-platform/handlers.DeleteActivitiesHubTab (5 handlers)
+[GIN-debug] POST   /api/v1/activities-hubs/:hub_id/tabs/reorder --> github.com/Jsanchez767/matic-platform/handlers.ReorderActivitiesHubTabs (5 handlers)
+[GIN-debug] GET    /api/v1/tables            --> github.com/Jsanchez767/matic-platform/handlers.ListDataTables (5 handlers)
+[GIN-debug] POST   /api/v1/tables            --> github.com/Jsanchez767/matic-platform/handlers.CreateDataTable (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id        --> github.com/Jsanchez767/matic-platform/handlers.GetDataTable (5 handlers)
+[GIN-debug] PATCH  /api/v1/tables/:id        --> github.com/Jsanchez767/matic-platform/handlers.UpdateDataTable (5 handlers)
+[GIN-debug] DELETE /api/v1/tables/:id        --> github.com/Jsanchez767/matic-platform/handlers.DeleteDataTable (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/rows   --> github.com/Jsanchez767/matic-platform/handlers.ListTableRows (5 handlers)
+[GIN-debug] POST   /api/v1/tables/:id/rows   --> github.com/Jsanchez767/matic-platform/handlers.CreateTableRow (5 handlers)
+[GIN-debug] PATCH  /api/v1/tables/:id/rows/:row_id --> github.com/Jsanchez767/matic-platform/handlers.UpdateTableRow (5 handlers)
+[GIN-debug] DELETE /api/v1/tables/:id/rows/:row_id --> github.com/Jsanchez767/matic-platform/handlers.DeleteTableRow (5 handlers)
+[GIN-debug] POST   /api/v1/tables/:id/columns --> github.com/Jsanchez767/matic-platform/handlers.CreateTableColumn (5 handlers)
+[GIN-debug] PATCH  /api/v1/tables/:id/columns/:column_id --> github.com/Jsanchez767/matic-platform/handlers.UpdateTableColumn (5 handlers)
+[GIN-debug] DELETE /api/v1/tables/:id/columns/:column_id --> github.com/Jsanchez767/matic-platform/handlers.DeleteTableColumn (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/search --> github.com/Jsanchez767/matic-platform/handlers.SearchTableRows (5 handlers)
+[GIN-debug] GET    /api/v1/table-links       --> github.com/Jsanchez767/matic-platform/handlers.ListTableLinks (5 handlers)
+[GIN-debug] POST   /api/v1/table-links       --> github.com/Jsanchez767/matic-platform/handlers.CreateTableLink (5 handlers)
+[GIN-debug] GET    /api/v1/table-links/:id   --> github.com/Jsanchez767/matic-platform/handlers.GetTableLink (5 handlers)
+[GIN-debug] PATCH  /api/v1/table-links/:id   --> github.com/Jsanchez767/matic-platform/handlers.UpdateTableLink (5 handlers)
+[GIN-debug] DELETE /api/v1/table-links/:id   --> github.com/Jsanchez767/matic-platform/handlers.DeleteTableLink (5 handlers)
+[GIN-debug] GET    /api/v1/row-links/rows/:row_id/linked --> github.com/Jsanchez767/matic-platform/handlers.GetLinkedRows (5 handlers)
+[GIN-debug] POST   /api/v1/row-links         --> github.com/Jsanchez767/matic-platform/handlers.CreateTableRowLink (5 handlers)
+[GIN-debug] PATCH  /api/v1/row-links/:id     --> github.com/Jsanchez767/matic-platform/handlers.UpdateTableRowLink (5 handlers)
+[GIN-debug] DELETE /api/v1/row-links/:id     --> github.com/Jsanchez767/matic-platform/handlers.DeleteTableRowLink (5 handlers)
+[GIN-debug] GET    /api/v1/forms             --> github.com/Jsanchez767/matic-platform/handlers.ListForms (5 handlers)
+[GIN-debug] POST   /api/v1/forms             --> github.com/Jsanchez767/matic-platform/handlers.CreateForm (5 handlers)
+[GIN-debug] GET    /api/v1/forms/:id         --> github.com/Jsanchez767/matic-platform/handlers.GetForm (5 handlers)
+[GIN-debug] PATCH  /api/v1/forms/:id         --> github.com/Jsanchez767/matic-platform/handlers.UpdateForm (5 handlers)
+[GIN-debug] DELETE /api/v1/forms/:id         --> github.com/Jsanchez767/matic-platform/handlers.DeleteForm (5 handlers)
+[GIN-debug] GET    /api/v1/forms/:id/submissions --> github.com/Jsanchez767/matic-platform/handlers.ListFormSubmissions (5 handlers)
+[GIN-debug] POST   /api/v1/forms/:id/submit  --> github.com/Jsanchez767/matic-platform/handlers.SubmitForm (5 handlers)
+[GIN-debug] GET    /api/v1/forms/:id/search  --> github.com/Jsanchez767/matic-platform/handlers.SearchFormSubmissions (5 handlers)
+[GIN-debug] GET    /api/v1/search            --> github.com/Jsanchez767/matic-platform/handlers.SearchWorkspace (5 handlers)
+[GIN-debug] GET    /api/v1/search/suggestions --> github.com/Jsanchez767/matic-platform/handlers.GetSearchSuggestions (5 handlers)
+[GIN-debug] GET    /api/v1/search/recent     --> github.com/Jsanchez767/matic-platform/handlers.GetRecentSearches (5 handlers)
+[GIN-debug] POST   /api/v1/search/history    --> github.com/Jsanchez767/matic-platform/handlers.SaveSearchHistory (5 handlers)
+[GIN-debug] GET    /api/v1/search/popular    --> github.com/Jsanchez767/matic-platform/handlers.GetPopularSearches (5 handlers)
+[GIN-debug] DELETE /api/v1/search/history/:workspace_id --> github.com/Jsanchez767/matic-platform/handlers.ClearSearchHistory (5 handlers)
+2025/11/25 20:25:17 🚀 Server starting on port 8000
+2025/11/25 20:25:17 � API: http://localhost:8000/api/v1
+2025/11/25 20:25:17 ❤️  Health: http://localhost:8000/health
+[GIN-debug] [WARNING] You trusted all proxies, this is NOT safe. We recommend you to set a value.
+Please check https://pkg.go.dev/github.com/gin-gonic/gin#readme-don-t-trust-all-proxies for details.
+[GIN-debug] Listening and serving HTTP on :8000
+[GIN] 2025/11/25 - 21:54:29 | 204 |     132.708µs |             ::1 | OPTIONS  "/api/v1/request-hubs?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5&include_inactive=true"
+[GIN] 2025/11/25 - 21:54:29 | 204 |      93.542µs |             ::1 | OPTIONS  "/api/v1/request-hubs?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5&include_inactive=true"
+[GIN] 2025/11/25 - 21:54:29 | 404 |         3.5µs |             ::1 | GET      "/api/v1/request-hubs?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5&include_inactive=true"
+[GIN] 2025/11/25 - 21:54:29 | 404 |       4.666µs |             ::1 | GET      "/api/v1/request-hubs?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5&include_inactive=true"
+[GIN] 2025/11/25 - 21:54:45 | 204 |       12.75µs |             ::1 | OPTIONS  "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+[GIN] 2025/11/25 - 21:54:45 | 204 |      44.791µs |             ::1 | OPTIONS  "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:54:45 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:26
+[0m[33m[110.544ms] [34;1m[rows:70][0m SELECT * FROM "table_columns" WHERE "table_columns"."table_id" IN ('faa66771-cc25-497f-b2c1-85d62a23cc21','6f92cb77-510e-48fb-ad99-bea9c972c342','ad1b7948-6fe2-4d21-84f3-08177acf7a0a','d45cf8f2-82a2-42e9-a530-49ab3e6ae10a','cdb3b95d-4298-46db-9083-839d9042c82d','21a17876-ca15-4379-aed4-172c8ae6341a','cfc848b2-98d0-42df-a391-e9523e81ef0c')
+
+2025/11/25 21:54:45 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:26 [33mSLOW SQL >= 200ms
+[0m[31;1m[224.286ms] [33m[rows:7][35m SELECT * FROM "data_tables" WHERE workspace_id = '0313c4ef-d371-4846-9f0d-60494145d2b5' ORDER BY created_at DESC[0m
+
+2025/11/25 21:54:45 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[72.966ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'faa66771-cc25-497f-b2c1-85d62a23cc21'
+
+2025/11/25 21:54:45 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[33.950ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = '6f92cb77-510e-48fb-ad99-bea9c972c342'
+
+2025/11/25 21:54:45 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[42.744ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+
+2025/11/25 21:54:45 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[43.421ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a'
+
+2025/11/25 21:54:45 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[36.363ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'cdb3b95d-4298-46db-9083-839d9042c82d'
+
+2025/11/25 21:54:45 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[31.144ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = '21a17876-ca15-4379-aed4-172c8ae6341a'
+
+2025/11/25 21:54:45 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[35.720ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'cfc848b2-98d0-42df-a391-e9523e81ef0c'
+[GIN] 2025/11/25 - 21:54:45 | 200 |  527.975792ms |             ::1 | GET      "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:54:45 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:26
+[0m[33m[38.211ms] [34;1m[rows:70][0m SELECT * FROM "table_columns" WHERE "table_columns"."table_id" IN ('faa66771-cc25-497f-b2c1-85d62a23cc21','6f92cb77-510e-48fb-ad99-bea9c972c342','ad1b7948-6fe2-4d21-84f3-08177acf7a0a','d45cf8f2-82a2-42e9-a530-49ab3e6ae10a','cdb3b95d-4298-46db-9083-839d9042c82d','21a17876-ca15-4379-aed4-172c8ae6341a','cfc848b2-98d0-42df-a391-e9523e81ef0c')
+
+2025/11/25 21:54:45 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:26
+[0m[33m[71.012ms] [34;1m[rows:7][0m SELECT * FROM "data_tables" WHERE workspace_id = '0313c4ef-d371-4846-9f0d-60494145d2b5' ORDER BY created_at DESC
+
+2025/11/25 21:54:45 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[32.087ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'faa66771-cc25-497f-b2c1-85d62a23cc21'
+
+2025/11/25 21:54:45 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[35.620ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = '6f92cb77-510e-48fb-ad99-bea9c972c342'
+
+2025/11/25 21:54:45 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[36.061ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+
+2025/11/25 21:54:46 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[34.658ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a'
+
+2025/11/25 21:54:46 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[35.555ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'cdb3b95d-4298-46db-9083-839d9042c82d'
+
+2025/11/25 21:54:46 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[36.585ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = '21a17876-ca15-4379-aed4-172c8ae6341a'
+
+2025/11/25 21:54:46 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[39.336ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'cfc848b2-98d0-42df-a391-e9523e81ef0c'
+[GIN] 2025/11/25 - 21:54:46 | 200 |  323.452291ms |             ::1 | GET      "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+[GIN] 2025/11/25 - 21:58:20 | 204 |      14.125µs |             ::1 | OPTIONS  "/api/v1/tables/ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 21:58:20 | 204 |       4.959µs |             ::1 | OPTIONS  "/api/v1/tables/ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:20 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:49
+[0m[33m[76.259ms] [34;1m[rows:34][0m SELECT * FROM "table_columns" WHERE "table_columns"."table_id" = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+
+2025/11/25 21:58:20 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:49
+[0m[33m[82.686ms] [34;1m[rows:1][0m SELECT * FROM "table_views" WHERE "table_views"."table_id" = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+
+2025/11/25 21:58:20 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:49 [33mSLOW SQL >= 200ms
+[0m[31;1m[277.475ms] [33m[rows:1][35m SELECT * FROM "data_tables" WHERE id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a' ORDER BY "data_tables"."id" LIMIT 1[0m
+
+2025/11/25 21:58:20 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:57
+[0m[33m[43.076ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+[GIN] 2025/11/25 - 21:58:20 | 200 |     321.815ms |             ::1 | GET      "/api/v1/tables/ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+[GIN] 2025/11/25 - 21:58:20 | 204 |       3.583µs |             ::1 | OPTIONS  "/api/v1/tables/ad1b7948-6fe2-4d21-84f3-08177acf7a0a/rows"
+[GIN] 2025/11/25 - 21:58:20 | 204 |      29.208µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 21:58:20 | 204 |      12.791µs |             ::1 | OPTIONS  "/api/v1/tables/d45cf8f2-82a2-42e9-a530-49ab3e6ae10a/rows"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:20 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:49
+[0m[33m[33.518ms] [34;1m[rows:34][0m SELECT * FROM "table_columns" WHERE "table_columns"."table_id" = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+
+2025/11/25 21:58:20 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:49
+[0m[33m[39.106ms] [34;1m[rows:1][0m SELECT * FROM "table_views" WHERE "table_views"."table_id" = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+
+2025/11/25 21:58:20 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:49
+[0m[33m[104.164ms] [34;1m[rows:1][0m SELECT * FROM "data_tables" WHERE id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a' ORDER BY "data_tables"."id" LIMIT 1
+
+2025/11/25 21:58:20 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:57
+[0m[33m[34.653ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+[GIN] 2025/11/25 - 21:58:20 | 200 |  139.825209ms |             ::1 | GET      "/api/v1/tables/ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:26 [33mSLOW SQL >= 200ms
+[0m[31;1m[364.652ms] [33m[rows:2][35m SELECT * FROM "table_links" WHERE source_table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a' OR target_table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'[0m
+[GIN] 2025/11/25 - 21:58:21 | 200 |  365.317833ms |             ::1 | GET      "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+[GIN] 2025/11/25 - 21:58:21 | 204 |       8.292µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=d45cf8f2-82a2-42e9-a530-49ab3e6ae10a"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:206 [33mSLOW SQL >= 200ms
+[0m[31;1m[384.678ms] [33m[rows:3][35m SELECT * FROM "table_rows" WHERE table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a' ORDER BY position ASC[0m
+[GIN] 2025/11/25 - 21:58:21 | 200 |  385.184209ms |             ::1 | GET      "/api/v1/tables/d45cf8f2-82a2-42e9-a530-49ab3e6ae10a/rows"
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:206 [33mSLOW SQL >= 200ms
+[0m[31;1m[390.945ms] [33m[rows:1][35m SELECT * FROM "table_rows" WHERE table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a' ORDER BY position ASC[0m
+[GIN] 2025/11/25 - 21:58:21 | 200 |  391.284292ms |             ::1 | GET      "/api/v1/tables/ad1b7948-6fe2-4d21-84f3-08177acf7a0a/rows"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:26
+[0m[33m[65.592ms] [34;1m[rows:2][0m SELECT * FROM "table_links" WHERE source_table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a' OR target_table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+[GIN] 2025/11/25 - 21:58:21 | 200 |   66.302208ms |             ::1 | GET      "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:26
+[0m[33m[73.578ms] [34;1m[rows:2][0m SELECT * FROM "table_links" WHERE source_table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a' OR target_table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a'
+[GIN] 2025/11/25 - 21:58:21 | 200 |   73.992917ms |             ::1 | GET      "/api/v1/table-links?table_id=d45cf8f2-82a2-42e9-a530-49ab3e6ae10a"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:206
+[0m[33m[69.824ms] [34;1m[rows:1][0m SELECT * FROM "table_rows" WHERE table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a' ORDER BY position ASC
+[GIN] 2025/11/25 - 21:58:21 | 200 |   70.445833ms |             ::1 | GET      "/api/v1/tables/ad1b7948-6fe2-4d21-84f3-08177acf7a0a/rows"
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:26
+[0m[33m[32.240ms] [34;1m[rows:2][0m SELECT * FROM "table_links" WHERE source_table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a' OR target_table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+[GIN] 2025/11/25 - 21:58:21 | 200 |   32.603792ms |             ::1 | GET      "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:26
+[0m[33m[32.668ms] [34;1m[rows:2][0m SELECT * FROM "table_links" WHERE source_table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a' OR target_table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a'
+[GIN] 2025/11/25 - 21:58:21 | 200 |   33.116375ms |             ::1 | GET      "/api/v1/table-links?table_id=d45cf8f2-82a2-42e9-a530-49ab3e6ae10a"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:26
+[0m[33m[41.586ms] [34;1m[rows:2][0m SELECT * FROM "table_links" WHERE source_table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a' OR target_table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+[GIN] 2025/11/25 - 21:58:21 | 200 |   42.161917ms |             ::1 | GET      "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:26
+[0m[33m[36.603ms] [34;1m[rows:2][0m SELECT * FROM "table_links" WHERE source_table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a' OR target_table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a'
+[GIN] 2025/11/25 - 21:58:21 | 200 |   36.968375ms |             ::1 | GET      "/api/v1/table-links?table_id=d45cf8f2-82a2-42e9-a530-49ab3e6ae10a"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+[GIN] 2025/11/25 - 21:58:21 | 204 |         4.5µs |             ::1 | OPTIONS  "/api/v1/row-links/rows/eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b/linked?link_id=fd0a24da-0ff3-44ad-8a34-1f4b9578538d"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:26
+[0m[33m[34.904ms] [34;1m[rows:2][0m SELECT * FROM "table_links" WHERE source_table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a' OR target_table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a'
+[GIN] 2025/11/25 - 21:58:21 | 200 |   35.208542ms |             ::1 | GET      "/api/v1/table-links?table_id=d45cf8f2-82a2-42e9-a530-49ab3e6ae10a"
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:199
+[0m[33m[77.728ms] [34;1m[rows:2][0m SELECT * FROM "table_row_links" WHERE link_id = 'fd0a24da-0ff3-44ad-8a34-1f4b9578538d' AND (source_row_id = 'eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b' OR target_row_id = 'eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b')
+🔗 GetLinkedRows: Found 2 row links for row eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b with link fd0a24da-0ff3-44ad-8a34-1f4b9578538d
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:224
+[0m[33m[72.237ms] [34;1m[rows:2][0m SELECT * FROM "table_rows" WHERE id IN ('7bc0c7db-84f8-40b7-8408-11387ea17cc4','864b5b0f-4cfb-4c71-8fdf-982fd31bc265')
+[GIN] 2025/11/25 - 21:58:21 | 200 |     150.711ms |             ::1 | GET      "/api/v1/row-links/rows/eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b/linked?link_id=fd0a24da-0ff3-44ad-8a34-1f4b9578538d"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:199
+[0m[33m[38.983ms] [34;1m[rows:2][0m SELECT * FROM "table_row_links" WHERE link_id = 'fd0a24da-0ff3-44ad-8a34-1f4b9578538d' AND (source_row_id = 'eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b' OR target_row_id = 'eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b')
+🔗 GetLinkedRows: Found 2 row links for row eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b with link fd0a24da-0ff3-44ad-8a34-1f4b9578538d
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:26
+[0m[33m[42.736ms] [34;1m[rows:2][0m SELECT * FROM "table_links" WHERE source_table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a' OR target_table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+[GIN] 2025/11/25 - 21:58:21 | 200 |   43.019208ms |             ::1 | GET      "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:224
+[0m[33m[35.848ms] [34;1m[rows:2][0m SELECT * FROM "table_rows" WHERE id IN ('7bc0c7db-84f8-40b7-8408-11387ea17cc4','864b5b0f-4cfb-4c71-8fdf-982fd31bc265')
+[GIN] 2025/11/25 - 21:58:21 | 200 |   75.294333ms |             ::1 | GET      "/api/v1/row-links/rows/eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b/linked?link_id=fd0a24da-0ff3-44ad-8a34-1f4b9578538d"
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:26
+[0m[33m[34.100ms] [34;1m[rows:2][0m SELECT * FROM "table_links" WHERE source_table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a' OR target_table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+[GIN] 2025/11/25 - 21:58:21 | 200 |   34.344917ms |             ::1 | GET      "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:26
+[0m[33m[113.585ms] [34;1m[rows:2][0m SELECT * FROM "table_links" WHERE source_table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a' OR target_table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a'
+[GIN] 2025/11/25 - 21:58:21 | 200 |  113.902334ms |             ::1 | GET      "/api/v1/table-links?table_id=d45cf8f2-82a2-42e9-a530-49ab3e6ae10a"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:26
+[0m[33m[38.891ms] [34;1m[rows:2][0m SELECT * FROM "table_links" WHERE source_table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a' OR target_table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a'
+[GIN] 2025/11/25 - 21:58:21 | 200 |    39.33625ms |             ::1 | GET      "/api/v1/table-links?table_id=d45cf8f2-82a2-42e9-a530-49ab3e6ae10a"
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:199
+[0m[33m[71.348ms] [34;1m[rows:2][0m SELECT * FROM "table_row_links" WHERE link_id = 'fd0a24da-0ff3-44ad-8a34-1f4b9578538d' AND (source_row_id = 'eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b' OR target_row_id = 'eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b')
+🔗 GetLinkedRows: Found 2 row links for row eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b with link fd0a24da-0ff3-44ad-8a34-1f4b9578538d
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:224
+[0m[33m[72.272ms] [34;1m[rows:2][0m SELECT * FROM "table_rows" WHERE id IN ('7bc0c7db-84f8-40b7-8408-11387ea17cc4','864b5b0f-4cfb-4c71-8fdf-982fd31bc265')
+[GIN] 2025/11/25 - 21:58:21 | 200 |  144.181292ms |             ::1 | GET      "/api/v1/row-links/rows/eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b/linked?link_id=fd0a24da-0ff3-44ad-8a34-1f4b9578538d"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:199
+[0m[33m[32.650ms] [34;1m[rows:2][0m SELECT * FROM "table_row_links" WHERE link_id = 'fd0a24da-0ff3-44ad-8a34-1f4b9578538d' AND (source_row_id = 'eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b' OR target_row_id = 'eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b')
+🔗 GetLinkedRows: Found 2 row links for row eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b with link fd0a24da-0ff3-44ad-8a34-1f4b9578538d
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:206
+[0m[33m[31.068ms] [34;1m[rows:3][0m SELECT * FROM "table_rows" WHERE table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a' ORDER BY position ASC
+[GIN] 2025/11/25 - 21:58:21 | 200 |   31.361041ms |             ::1 | GET      "/api/v1/tables/d45cf8f2-82a2-42e9-a530-49ab3e6ae10a/rows"
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/table_links.go:224
+[0m[33m[36.177ms] [34;1m[rows:2][0m SELECT * FROM "table_rows" WHERE id IN ('7bc0c7db-84f8-40b7-8408-11387ea17cc4','864b5b0f-4cfb-4c71-8fdf-982fd31bc265')
+[GIN] 2025/11/25 - 21:58:21 | 200 |    69.66525ms |             ::1 | GET      "/api/v1/row-links/rows/eacfc7c5-dee1-43ad-a3cd-7a13bd0f297b/linked?link_id=fd0a24da-0ff3-44ad-8a34-1f4b9578538d"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:21 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:206
+[0m[33m[67.772ms] [34;1m[rows:3][0m SELECT * FROM "table_rows" WHERE table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a' ORDER BY position ASC
+[GIN] 2025/11/25 - 21:58:21 | 200 |    68.13275ms |             ::1 | GET      "/api/v1/tables/d45cf8f2-82a2-42e9-a530-49ab3e6ae10a/rows"
+[GIN] 2025/11/25 - 21:58:43 | 204 |      17.792µs |             ::1 | OPTIONS  "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+[GIN] 2025/11/25 - 21:58:43 | 204 |       9.792µs |             ::1 | OPTIONS  "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:43 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:26
+[0m[33m[103.093ms] [34;1m[rows:70][0m SELECT * FROM "table_columns" WHERE "table_columns"."table_id" IN ('faa66771-cc25-497f-b2c1-85d62a23cc21','6f92cb77-510e-48fb-ad99-bea9c972c342','ad1b7948-6fe2-4d21-84f3-08177acf7a0a','d45cf8f2-82a2-42e9-a530-49ab3e6ae10a','cdb3b95d-4298-46db-9083-839d9042c82d','21a17876-ca15-4379-aed4-172c8ae6341a','cfc848b2-98d0-42df-a391-e9523e81ef0c')
+
+2025/11/25 21:58:43 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:26 [33mSLOW SQL >= 200ms
+[0m[31;1m[206.193ms] [33m[rows:7][35m SELECT * FROM "data_tables" WHERE workspace_id = '0313c4ef-d371-4846-9f0d-60494145d2b5' ORDER BY created_at DESC[0m
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[69.232ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'faa66771-cc25-497f-b2c1-85d62a23cc21'
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[35.916ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = '6f92cb77-510e-48fb-ad99-bea9c972c342'
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[35.109ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[44.276ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a'
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[36.684ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'cdb3b95d-4298-46db-9083-839d9042c82d'
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[35.298ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = '21a17876-ca15-4379-aed4-172c8ae6341a'
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[31.436ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'cfc848b2-98d0-42df-a391-e9523e81ef0c'
+[GIN] 2025/11/25 - 21:58:44 | 200 |   496.86375ms |             ::1 | GET      "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:26
+[0m[33m[36.829ms] [34;1m[rows:70][0m SELECT * FROM "table_columns" WHERE "table_columns"."table_id" IN ('faa66771-cc25-497f-b2c1-85d62a23cc21','6f92cb77-510e-48fb-ad99-bea9c972c342','ad1b7948-6fe2-4d21-84f3-08177acf7a0a','d45cf8f2-82a2-42e9-a530-49ab3e6ae10a','cdb3b95d-4298-46db-9083-839d9042c82d','21a17876-ca15-4379-aed4-172c8ae6341a','cfc848b2-98d0-42df-a391-e9523e81ef0c')
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:26
+[0m[33m[70.863ms] [34;1m[rows:7][0m SELECT * FROM "data_tables" WHERE workspace_id = '0313c4ef-d371-4846-9f0d-60494145d2b5' ORDER BY created_at DESC
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[34.219ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'faa66771-cc25-497f-b2c1-85d62a23cc21'
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[38.015ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = '6f92cb77-510e-48fb-ad99-bea9c972c342'
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[30.593ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[31.484ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a'
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[35.620ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'cdb3b95d-4298-46db-9083-839d9042c82d'
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[36.629ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = '21a17876-ca15-4379-aed4-172c8ae6341a'
+
+2025/11/25 21:58:44 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[35.050ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'cfc848b2-98d0-42df-a391-e9523e81ef0c'
+[GIN] 2025/11/25 - 21:58:44 | 200 |  314.862792ms |             ::1 | GET      "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+[GIN] 2025/11/25 - 21:59:30 | 204 |      19.209µs |             ::1 | OPTIONS  "/api/v1/request-hubs?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5&include_inactive=true"
+[GIN] 2025/11/25 - 21:59:30 | 204 |       8.042µs |             ::1 | OPTIONS  "/api/v1/request-hubs?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5&include_inactive=true"
+[GIN] 2025/11/25 - 21:59:30 | 404 |       4.208µs |             ::1 | GET      "/api/v1/request-hubs?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5&include_inactive=true"
+[GIN] 2025/11/25 - 21:59:30 | 404 |       4.834µs |             ::1 | GET      "/api/v1/request-hubs?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5&include_inactive=true"
+[GIN] 2025/11/25 - 21:59:33 | 204 |      15.833µs |             ::1 | OPTIONS  "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+[GIN] 2025/11/25 - 21:59:33 | 204 |       5.125µs |             ::1 | OPTIONS  "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:26
+[0m[33m[67.940ms] [34;1m[rows:70][0m SELECT * FROM "table_columns" WHERE "table_columns"."table_id" IN ('faa66771-cc25-497f-b2c1-85d62a23cc21','6f92cb77-510e-48fb-ad99-bea9c972c342','ad1b7948-6fe2-4d21-84f3-08177acf7a0a','d45cf8f2-82a2-42e9-a530-49ab3e6ae10a','cdb3b95d-4298-46db-9083-839d9042c82d','21a17876-ca15-4379-aed4-172c8ae6341a','cfc848b2-98d0-42df-a391-e9523e81ef0c')
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:26
+[0m[33m[144.666ms] [34;1m[rows:7][0m SELECT * FROM "data_tables" WHERE workspace_id = '0313c4ef-d371-4846-9f0d-60494145d2b5' ORDER BY created_at DESC
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[31.811ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'faa66771-cc25-497f-b2c1-85d62a23cc21'
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[38.548ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = '6f92cb77-510e-48fb-ad99-bea9c972c342'
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[33.400ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[34.941ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a'
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[36.777ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'cdb3b95d-4298-46db-9083-839d9042c82d'
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[31.407ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = '21a17876-ca15-4379-aed4-172c8ae6341a'
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[33.913ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'cfc848b2-98d0-42df-a391-e9523e81ef0c'
+[GIN] 2025/11/25 - 21:59:33 | 200 |  387.694917ms |             ::1 | GET      "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:26
+[0m[33m[38.432ms] [34;1m[rows:70][0m SELECT * FROM "table_columns" WHERE "table_columns"."table_id" IN ('faa66771-cc25-497f-b2c1-85d62a23cc21','6f92cb77-510e-48fb-ad99-bea9c972c342','ad1b7948-6fe2-4d21-84f3-08177acf7a0a','d45cf8f2-82a2-42e9-a530-49ab3e6ae10a','cdb3b95d-4298-46db-9083-839d9042c82d','21a17876-ca15-4379-aed4-172c8ae6341a','cfc848b2-98d0-42df-a391-e9523e81ef0c')
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:26
+[0m[33m[79.630ms] [34;1m[rows:7][0m SELECT * FROM "data_tables" WHERE workspace_id = '0313c4ef-d371-4846-9f0d-60494145d2b5' ORDER BY created_at DESC
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[32.379ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'faa66771-cc25-497f-b2c1-85d62a23cc21'
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[31.274ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = '6f92cb77-510e-48fb-ad99-bea9c972c342'
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[32.808ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'ad1b7948-6fe2-4d21-84f3-08177acf7a0a'
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[31.578ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'd45cf8f2-82a2-42e9-a530-49ab3e6ae10a'
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[30.167ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'cdb3b95d-4298-46db-9083-839d9042c82d'
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[35.649ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = '21a17876-ca15-4379-aed4-172c8ae6341a'
+
+2025/11/25 21:59:33 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/data_tables.go:35
+[0m[33m[36.553ms] [34;1m[rows:1][0m SELECT count(*) FROM "table_rows" WHERE table_id = 'cfc848b2-98d0-42df-a391-e9523e81ef0c'
+[GIN] 2025/11/25 - 21:59:33 | 200 |  312.651625ms |             ::1 | GET      "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+[GIN] 2025/11/25 - 21:59:34 | 404 |      10.125µs |             ::1 | GET      "/api/v1/request-hubs?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5&include_inactive=true"
+[GIN] 2025/11/25 - 21:59:34 | 404 |      10.083µs |             ::1 | GET      "/api/v1/request-hubs?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5&include_inactive=true"
+[GIN] 2025/11/25 - 22:02:02 | 204 |       3.375µs |             ::1 | OPTIONS  "/api/v1/workspaces"
+[GIN] 2025/11/25 - 22:02:02 | 204 |       4.125µs |             ::1 | OPTIONS  "/api/v1/workspaces"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 22:02:02 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/workspaces.go:30
+[0m[33m[70.993ms] [34;1m[rows:1][0m SELECT * FROM "workspace_members" WHERE "workspace_members"."workspace_id" = '0313c4ef-d371-4846-9f0d-60494145d2b5'
+
+2025/11/25 22:02:02 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/workspaces.go:30
+[0m[33m[177.478ms] [34;1m[rows:1][0m SELECT * FROM "workspaces" WHERE is_archived = false ORDER BY created_at DESC
+[GIN] 2025/11/25 - 22:02:02 | 200 |  177.601833ms |             ::1 | GET      "/api/v1/workspaces"
+🔐 Token algorithm: 'ES256'
+✅ Accepting ES256/RS256 token from Supabase (trusted issuer)
+
+2025/11/25 22:02:02 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/workspaces.go:30
+[0m[33m[31.481ms] [34;1m[rows:1][0m SELECT * FROM "workspace_members" WHERE "workspace_members"."workspace_id" = '0313c4ef-d371-4846-9f0d-60494145d2b5'
+
+2025/11/25 22:02:02 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/handlers/workspaces.go:30
+[0m[33m[61.397ms] [34;1m[rows:1][0m SELECT * FROM "workspaces" WHERE is_archived = false ORDER BY created_at DESC
+[GIN] 2025/11/25 - 22:02:02 | 200 |   61.504292ms |             ::1 | GET      "/api/v1/workspaces"
+[GIN] 2025/11/25 - 22:03:23 | 403 |       5.625µs |             ::1 | OPTIONS  "/api/v1/tables/cfc848b2-98d0-42df-a391-e9523e81ef0c"
+[GIN] 2025/11/25 - 22:03:23 | 403 |       2.167µs |             ::1 | OPTIONS  "/api/v1/tables/cfc848b2-98d0-42df-a391-e9523e81ef0c"
+[GIN] 2025/11/25 - 22:03:26 | 403 |         6.5µs |             ::1 | OPTIONS  "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+[GIN] 2025/11/25 - 22:03:26 | 403 |       3.125µs |             ::1 | OPTIONS  "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+[GIN] 2025/11/25 - 22:03:27 | 403 |        4.25µs |             ::1 | OPTIONS  "/api/v1/tables/cfc848b2-98d0-42df-a391-e9523e81ef0c"
+[GIN] 2025/11/25 - 22:03:27 | 403 |           1µs |             ::1 | OPTIONS  "/api/v1/tables/cfc848b2-98d0-42df-a391-e9523e81ef0c"
+[GIN] 2025/11/25 - 22:03:28 | 403 |         4.5µs |             ::1 | OPTIONS  "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+[GIN] 2025/11/25 - 22:03:28 | 403 |       4.583µs |             ::1 | OPTIONS  "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+[GIN] 2025/11/25 - 22:03:31 | 403 |       6.292µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:03:31 | 403 |       5.708µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:03:34 | 403 |       3.125µs |             ::1 | OPTIONS  "/api/v1/request-hubs?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5&include_inactive=true"
+[GIN] 2025/11/25 - 22:03:34 | 403 |        6.25µs |             ::1 | OPTIONS  "/api/v1/request-hubs?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5&include_inactive=true"
+[GIN] 2025/11/25 - 22:03:34 | 403 |       2.958µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:03:34 | 403 |       7.167µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:03:35 | 403 |       7.292µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:03:35 | 403 |       7.208µs |             ::1 | OPTIONS  "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+[GIN] 2025/11/25 - 22:03:35 | 403 |       1.875µs |             ::1 | OPTIONS  "/api/v1/tables?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5"
+[GIN] 2025/11/25 - 22:03:35 | 403 |         4.5µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:03:35 | 403 |      13.458µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:03:35 | 403 |       4.375µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:04:01 | 403 |      11.958µs |             ::1 | OPTIONS  "/api/v1/request-hubs?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5&include_inactive=true"
+[GIN] 2025/11/25 - 22:04:01 | 403 |       8.625µs |             ::1 | OPTIONS  "/api/v1/request-hubs?workspace_id=0313c4ef-d371-4846-9f0d-60494145d2b5&include_inactive=true"
+[GIN] 2025/11/25 - 22:04:03 | 403 |       6.209µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:04:03 | 403 |       6.875µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:04:06 | 403 |       4.959µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:04:06 | 403 |       1.917µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:04:07 | 403 |       2.583µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:04:07 | 403 |       6.917µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:04:07 | 403 |      12.792µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:04:07 | 403 |       4.625µs |             ::1 | OPTIONS  "/api/v1/table-links?table_id=ad1b7948-6fe2-4d21-84f3-08177acf7a0a"
+[GIN] 2025/11/25 - 22:04:10 | 403 |       2.208µs |             ::1 | OPTIONS  "/api/v1/workspaces"
+[GIN] 2025/11/25 - 22:04:10 | 403 |         750ns |             ::1 | OPTIONS  "/api/v1/workspaces"
+signal: killed

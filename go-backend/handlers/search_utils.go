@@ -44,8 +44,8 @@ func GetSearchSuggestions(c *gin.Context) {
 	searchPattern := strings.ToLower(query) + "%"
 
 	// Get table name suggestions
-	var tables []models.DataTable
-	database.DB.Where("workspace_id = ? AND LOWER(name) LIKE ?", workspaceUUID, searchPattern).
+	var tables []models.Table
+	database.DB.Where("workspace_id = ? AND icon != 'form' AND LOWER(name) LIKE ?", workspaceUUID, searchPattern).
 		Limit(limit).
 		Select("name").
 		Find(&tables)
@@ -54,8 +54,8 @@ func GetSearchSuggestions(c *gin.Context) {
 	}
 
 	// Get form name suggestions
-	var forms []models.Form
-	database.DB.Where("workspace_id = ? AND LOWER(name) LIKE ?", workspaceUUID, searchPattern).
+	var forms []models.Table
+	database.DB.Where("workspace_id = ? AND icon = 'form' AND LOWER(name) LIKE ?", workspaceUUID, searchPattern).
 		Limit(limit - len(suggestions)).
 		Select("name").
 		Find(&forms)
@@ -132,10 +132,10 @@ func GetRecentSearches(c *gin.Context) {
 // SaveSearchHistory saves a search query to history
 func SaveSearchHistory(c *gin.Context) {
 	var request struct {
-		WorkspaceID  string `json:"workspace_id" binding:"required"`
-		Query        string `json:"query" binding:"required"`
-		ResultCount  int    `json:"result_count"`
-		UserID       string `json:"user_id"`
+		WorkspaceID string `json:"workspace_id" binding:"required"`
+		Query       string `json:"query" binding:"required"`
+		ResultCount int    `json:"result_count"`
+		UserID      string `json:"user_id"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -150,10 +150,10 @@ func SaveSearchHistory(c *gin.Context) {
 	}
 
 	history := models.SearchHistory{
-		WorkspaceID:  workspaceUUID,
-		Query:        request.Query,
-		ResultCount:  request.ResultCount,
-		CreatedAt:    time.Now(),
+		WorkspaceID: workspaceUUID,
+		Query:       request.Query,
+		ResultCount: request.ResultCount,
+		CreatedAt:   time.Now(),
 	}
 
 	if request.UserID != "" {
