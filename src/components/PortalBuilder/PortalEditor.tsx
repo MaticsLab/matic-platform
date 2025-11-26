@@ -37,6 +37,10 @@ const INITIAL_CONFIG: PortalConfig = {
     name: 'Scholarship Portal',
     themeColor: '#3B82F6',
     logoUrl: '',
+    font: 'inter',
+    buttonStyle: 'rounded',
+    authLayout: 'centered',
+    socialLogin: false,
     loginFields: [
       { id: 'l1', type: 'email', label: 'Email', required: true, width: 'full' },
       { id: 'l2', type: 'text', label: 'Password', required: true, width: 'full' }

@@ -32,6 +32,13 @@ export type PortalConfig = {
     name: string
     themeColor: string
     logoUrl: string
+    font?: 'inter' | 'roboto' | 'serif' | 'mono'
+    buttonStyle?: 'rounded' | 'pill' | 'sharp'
+    authLayout?: 'split' | 'centered' | 'card'
+    backgroundImageUrl?: string
+    socialLogin?: boolean
+    termsUrl?: string
+    privacyUrl?: string
     loginFields: Field[]
     signupFields: Field[]
   }
