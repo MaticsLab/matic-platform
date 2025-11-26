@@ -4,7 +4,7 @@ import { ClipboardList, Activity, FileText, BarChart3, Plus, Settings, Download,
 import { cn } from '@/lib/utils'
 import { TabData } from '@/lib/tab-manager'
 import { useRouter } from 'next/navigation'
-import { useTabContext } from './WorkspaceTabProvider'
+import { useTabContext, TabAction } from './WorkspaceTabProvider'
 
 interface TabActionBarProps {
   activeTab: TabData | null
@@ -36,7 +36,7 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
   }
 
   // Determine which actions to show based on the active tab
-  const getActionsForTab = () => {
+  const getActionsForTab = (): TabAction[] => {
     // Activities Hub tab - show Attendance and Enrolled actions
     if (activeTab?.title?.includes('Activities') || activeTab?.url?.includes('activities-hub')) {
       return [

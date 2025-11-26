@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, FileCheck, Mail, Settings, ChevronLeft, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink } from 'lucide-react'
+import { LayoutDashboard, FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink } from 'lucide-react'
 import { ScholarshipDashboard } from './Dashboard/ScholarshipDashboard'
 import { ReviewWorkspace } from './Review/ReviewWorkspace'
 import { CommunicationsCenter } from './Communications/CommunicationsCenter'
