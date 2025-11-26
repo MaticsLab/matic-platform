@@ -82,7 +82,7 @@ export function PortalSettings({ type, settings, onUpdate }: PortalSettingsProps
                 <p className="text-sm text-gray-500">Sign in to continue</p>
               </div>
               <div className="space-y-3">
-                {settings.loginFields.map(field => (
+                {(settings.loginFields || []).map(field => (
                   <div key={field.id} className="space-y-1">
                     <Label className="text-xs">{field.label}</Label>
                     <Input disabled placeholder={field.placeholder} />
@@ -97,12 +97,12 @@ export function PortalSettings({ type, settings, onUpdate }: PortalSettingsProps
 
           <div className="space-y-4">
             <h3 className="font-medium text-gray-900">Login Fields</h3>
-            {settings.loginFields.map((field, idx) => (
+            {(settings.loginFields || []).map((field, idx) => (
               <div key={field.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <Input 
                   value={field.label} 
                   onChange={(e) => {
-                    const newFields = [...settings.loginFields]
+                    const newFields = [...(settings.loginFields || [])]
                     newFields[idx].label = e.target.value
                     onUpdate({ loginFields: newFields })
                   }}

@@ -142,8 +142,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                      name: fullForm.name,
                      themeColor: fullForm.settings.themeColor || '#3B82F6',
                      logoUrl: fullForm.settings.logoUrl,
-                     loginFields: fullForm.settings.loginFields,
-                     signupFields: fullForm.settings.signupFields
+                     loginFields: fullForm.settings.loginFields || INITIAL_CONFIG.settings.loginFields,
+                     signupFields: fullForm.settings.signupFields || INITIAL_CONFIG.settings.signupFields
                  }
              })
              if (sections.length > 0) {
@@ -175,8 +175,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                      name: fullForm.name,
                      themeColor: fullForm.settings?.themeColor || '#3B82F6',
                      logoUrl: fullForm.settings?.logoUrl,
-                     loginFields: fullForm.settings?.loginFields,
-                     signupFields: fullForm.settings?.signupFields
+                     loginFields: fullForm.settings?.loginFields || INITIAL_CONFIG.settings.loginFields,
+                     signupFields: fullForm.settings?.signupFields || INITIAL_CONFIG.settings.signupFields
                   }
               })
               setActiveSectionId('default')
