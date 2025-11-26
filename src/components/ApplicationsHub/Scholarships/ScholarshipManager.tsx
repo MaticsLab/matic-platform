@@ -156,8 +156,58 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
     <div className="h-full flex flex-col bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4 overflow-hidden">
+        <div className="flex items-center gap-6 overflow-hidden flex-1">
           <h1 className="text-lg font-bold text-gray-900 shrink-0">{form?.name || 'Loading...'}</h1>
+          
+          <div className="h-6 w-px bg-gray-200 mx-2 shrink-0" />
+
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${
+                activeTab === 'dashboard' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              Dashboard
+            </button>
+            <button
+              onClick={() => setActiveTab('review')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${
+                activeTab === 'review' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <FileCheck className="w-4 h-4" />
+              Review
+            </button>
+            <button
+              onClick={() => setActiveTab('communications')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${
+                activeTab === 'communications' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Mail className="w-4 h-4" />
+              Communications
+            </button>
+            <button
+              onClick={() => setActiveTab('reviewers')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${
+                activeTab === 'reviewers' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              Reviewers
+            </button>
+            <button
+              onClick={() => setActiveTab('workflows')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${
+                activeTab === 'workflows' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <GitMerge className="w-4 h-4" />
+              Workflows
+            </button>
+          </div>
         </div>
 
         {/* Dialog for Share Action - Triggered via TabActionBar */}
@@ -231,54 +281,7 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
         </Dialog>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
-        <button
-          onClick={() => setActiveTab('dashboard')}
-          className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'dashboard' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          <LayoutDashboard className="w-4 h-4" />
-          Dashboard
-        </button>
-        <button
-          onClick={() => setActiveTab('review')}
-          className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'review' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          <FileCheck className="w-4 h-4" />
-          Review
-        </button>
-        <button
-          onClick={() => setActiveTab('communications')}
-          className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'communications' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          <Mail className="w-4 h-4" />
-          Communications
-        </button>
-        <button
-          onClick={() => setActiveTab('reviewers')}
-          className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'reviewers' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          Reviewers
-        </button>
-        <button
-          onClick={() => setActiveTab('workflows')}
-          className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'workflows' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          <GitMerge className="w-4 h-4" />
-          Workflows
-        </button>
-      </div>
+
 
       {/* Content Area */}
       <div className="flex-1 overflow-hidden">
