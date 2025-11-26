@@ -3,12 +3,21 @@
 import React, { useState, useEffect, createContext, useContext, useCallback } from 'react'
 import { TabManager, TabData } from '@/lib/tab-manager'
 
+export interface TabAction {
+  label: string
+  icon: any
+  onClick: () => void
+  variant?: 'default' | 'outline' | 'ghost'
+}
+
 interface TabContextType {
   tabManager: TabManager | null
   activeTab: TabData | null
   tabs: TabData[]
   registerNavigationHandler: (handler: ((direction: 'back' | 'forward') => boolean) | null) => void
   triggerNavigation: (direction: 'back' | 'forward') => void
+  tabActions: TabAction[]
+  setTabActions: (actions: TabAction[]) => void
 }
 
 const TabContext = createContext<TabContextType>({
@@ -16,7 +25,9 @@ const TabContext = createContext<TabContextType>({
   activeTab: null,
   tabs: [],
   registerNavigationHandler: () => {},
-  triggerNavigation: () => {}
+  triggerNavigation: () => {},
+  tabActions: [],
+  setTabActions: () => {}
 })
 
 export const useTabContext = () => useContext(TabContext)
@@ -31,6 +42,7 @@ export function WorkspaceTabProvider({ children, workspaceId }: WorkspaceTabProv
   const [activeTab, setActiveTab] = useState<TabData | null>(null)
   const [tabs, setTabs] = useState<TabData[]>([])
   const [navigationHandler, setNavigationHandler] = useState<((direction: 'back' | 'forward') => boolean) | null>(null)
+  const [tabActions, setTabActions] = useState<TabAction[]>([])
 
   const registerNavigationHandler = useCallback((handler: ((direction: 'back' | 'forward') => boolean) | null) => {
     setNavigationHandler(() => handler)
@@ -115,7 +127,9 @@ export function WorkspaceTabProvider({ children, workspaceId }: WorkspaceTabProv
     activeTab,
     tabs,
     registerNavigationHandler,
-    triggerNavigation
+    triggerNavigation,
+    tabActions,
+    setTabActions
   }
 
   return (

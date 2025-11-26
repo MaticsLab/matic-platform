@@ -26,7 +26,7 @@ interface ScholarshipManagerProps {
 type Tab = 'dashboard' | 'review' | 'communications' | 'builder' | 'reviewers' | 'settings' | 'workflows'
 
 export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerProps) {
-  const { tabs, tabManager } = useTabContext()
+  const { tabs, tabManager, setTabActions } = useTabContext()
   const hubUrl = `/workspace/${workspaceId}/applications`
   const hubTab = tabs.find(t => t.url === hubUrl)
   
@@ -103,6 +103,32 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
     }
   }
 
+  // Register tab actions
+  useEffect(() => {
+    setTabActions([
+      {
+        label: 'Portal Editor',
+        icon: FileText,
+        onClick: () => window.open(`/workspace/${workspaceSlug || workspaceId}/portal-editor?formId=${formId}`, '_blank'),
+        variant: 'outline'
+      },
+      {
+        label: 'Share',
+        icon: Share2,
+        onClick: () => setIsShareOpen(true),
+        variant: 'outline'
+      },
+      {
+        label: 'Settings',
+        icon: Settings,
+        onClick: () => setActiveTab('settings'),
+        variant: 'ghost'
+      }
+    ])
+
+    return () => setTabActions([])
+  }, [workspaceId, workspaceSlug, formId, setTabActions])
+
   // Initialize state from metadata
   useEffect(() => {
     if (hubTab && !isInitialized) {
@@ -134,104 +160,75 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
           <h1 className="text-lg font-bold text-gray-900 shrink-0">{form?.name || 'Loading...'}</h1>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="gap-2 h-8"
-            onClick={() => window.open(`/workspace/${workspaceSlug || workspaceId}/portal-editor?formId=${formId}`, '_blank')}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            Portal Editor
-          </Button>
-
-          <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2 h-8">
-                <Share2 className="w-3.5 h-3.5" />
-                Share
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Share Application</DialogTitle>
-                <DialogDescription>
-                  Share this link with applicants to let them apply. You can customize the URL below.
-                </DialogDescription>
-              </DialogHeader>
-              
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>Public Application Link</Label>
-                  <div className="flex gap-2">
-                    <div className="flex-1 relative">
-                      {isEditingSlug ? (
-                        <div className="flex items-center border rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
-                          <div className="bg-gray-50 px-3 py-2 text-sm text-gray-500 border-r border-gray-200 whitespace-nowrap">
-                            .../apply/
-                          </div>
-                          <input 
-                            value={tempSlug}
-                            onChange={e => setTempSlug(e.target.value)}
-                            className="flex-1 px-3 py-2 text-sm outline-none"
-                            placeholder="enter-slug-here"
-                            autoFocus
-                          />
+        {/* Dialog for Share Action - Triggered via TabActionBar */}
+        <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Share Application</DialogTitle>
+              <DialogDescription>
+                Share this link with applicants to let them apply. You can customize the URL below.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Public Application Link</Label>
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    {isEditingSlug ? (
+                      <div className="flex items-center border rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
+                        <div className="bg-gray-50 px-3 py-2 text-sm text-gray-500 border-r border-gray-200 whitespace-nowrap">
+                          .../apply/
                         </div>
-                      ) : (
-                        <Input 
-                          value={fullUrl} 
-                          readOnly
-                          className="bg-gray-50 text-gray-600"
+                        <input 
+                          value={tempSlug}
+                          onChange={e => setTempSlug(e.target.value)}
+                          className="flex-1 px-3 py-2 text-sm outline-none"
+                          placeholder="enter-slug-here"
+                          autoFocus
                         />
-                      )}
-                    </div>
-                    
-                    {!isEditingSlug ? (
-                      <>
-                        <Button variant="outline" size="icon" onClick={() => {
-                          setTempSlug(applicationSlug)
-                          setIsEditingSlug(true)
-                        }}>
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button variant="outline" size="icon" onClick={handleCopy}>
-                          {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-                        </Button>
-                      </>
+                      </div>
                     ) : (
-                      <Button onClick={handleSaveSlug}>Save</Button>
+                      <Input 
+                        value={fullUrl} 
+                        readOnly
+                        className="bg-gray-50 text-gray-600"
+                      />
                     )}
                   </div>
+                  
+                  {!isEditingSlug ? (
+                    <>
+                      <Button variant="outline" size="icon" onClick={() => {
+                        setTempSlug(applicationSlug)
+                        setIsEditingSlug(true)
+                      }}>
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button variant="outline" size="icon" onClick={handleCopy}>
+                        {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button onClick={handleSaveSlug}>Save</Button>
+                  )}
                 </div>
-                
-                {!isEditingSlug && (
-                  <div className="bg-blue-50 text-blue-700 p-3 rounded-lg text-sm flex gap-2 items-start">
-                    <ExternalLink className="w-4 h-4 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium">Ready to share?</p>
-                      <a href={fullUrl} target="_blank" rel="noreferrer" className="hover:underline opacity-90">
-                        Open public application page
-                      </a>
-                    </div>
-                  </div>
-                )}
               </div>
-            </DialogContent>
-          </Dialog>
-
-          <div className="h-4 w-px bg-gray-200 mx-1" />
-
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors ${
-              activeTab === 'settings' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <Settings className="w-4 h-4" />
-            Settings
-          </button>
-        </div>
+              
+              {!isEditingSlug && (
+                <div className="bg-blue-50 text-blue-700 p-3 rounded-lg text-sm flex gap-2 items-start">
+                  <ExternalLink className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium">Ready to share?</p>
+                    <a href={fullUrl} target="_blank" rel="noreferrer" className="hover:underline opacity-90">
+                      Open public application page
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Navigation Tabs */}

@@ -4,6 +4,7 @@ import { ClipboardList, Activity, FileText, BarChart3, Plus, Settings, Download,
 import { cn } from '@/lib/utils'
 import { TabData } from '@/lib/tab-manager'
 import { useRouter } from 'next/navigation'
+import { useTabContext } from './WorkspaceTabProvider'
 
 interface TabActionBarProps {
   activeTab: TabData | null
@@ -15,6 +16,7 @@ interface TabActionBarProps {
 
 export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigate }: TabActionBarProps) {
   const router = useRouter()
+  const { tabActions } = useTabContext()
 
   // Find current tab index for navigation
   const currentTabIndex = activeTab ? tabs.findIndex(tab => tab.id === activeTab.id) : -1
@@ -170,7 +172,8 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
     return []
   }
 
-  const actions = getActionsForTab()
+  const defaultActions = getActionsForTab()
+  const actions = tabActions.length > 0 ? tabActions : defaultActions
 
 
   return (
@@ -209,11 +212,17 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
       <div className="flex items-center gap-2">
         {actions.map((action, index) => {
           const Icon = action.icon
+          const isOutline = action.variant === 'outline'
           return (
             <button
               key={index}
               onClick={action.onClick}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all"
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-all",
+                isOutline 
+                  ? "border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300" 
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              )}
             >
               <Icon size={16} />
               <span className="font-medium">{action.label}</span>
