@@ -18,7 +18,12 @@ type Config struct {
 
 func LoadConfig() *Config {
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
-	origins := []string{"http://localhost:3000"}
+	origins := []string{
+		"http://localhost:3000",
+		"https://www.maticsapp.com",
+		"https://maticsapp.com",
+		"https://matics-platform.vercel.app", // Fallback for Vercel preview deployments
+	}
 	if allowedOrigins != "" {
 		origins = strings.Split(allowedOrigins, ",")
 	}
