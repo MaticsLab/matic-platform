@@ -5,6 +5,7 @@ import { Search, Filter, ChevronRight, Star, MessageSquare, CheckCircle, XCircle
 import { cn } from '@/lib/utils'
 import { goClient } from '@/lib/api/go-client'
 import { FormSubmission, Form } from '@/types/forms'
+import { workflowsClient, ApplicationStage } from '@/lib/api/workflows-client'
 
 interface ReviewWorkspaceProps {
   workspaceId: string
@@ -105,7 +106,7 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
 
   useEffect(() => {
     async function fetchData() {
-      if (!formId) return
+      if (!formId || !workspaceId) return
       
       setIsLoading(true)
       try {
@@ -114,12 +115,30 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
         const settings = form.settings || {}
         setFormSettings(settings)
         
-        // Load Phases from Workflow
+        // Load Phases from Workflow API (connected to WorkflowBuilder)
         let loadedPhases: Phase[] = []
-        if (settings.workflow && settings.workflow.phases) {
+        
+        // Try to get workflow ID from form settings
+        const workflowId = settings.workflow_id || settings.workflow?.id
+        
+        if (workflowId) {
+          // Fetch stages from the workflow
+          const stages = await workflowsClient.listStages(workspaceId, workflowId)
+          
+          // Transform ApplicationStage to Phase format
+          loadedPhases = stages.map((stage: ApplicationStage, index: number) => ({
+            id: stage.id,
+            name: stage.name,
+            type: stage.stage_type === 'review' ? 'review' : 'automated',
+            description: stage.description || undefined,
+            rubric: [] // Can be loaded from rubric if configured
+          }))
+        } else if (settings.workflow && settings.workflow.phases) {
+          // Fallback to old format
           loadedPhases = settings.workflow.phases
-          setPhases(loadedPhases)
         }
+        
+        setPhases(loadedPhases)
 
         if (settings.views && Array.isArray(settings.views) && settings.views.length > 0) {
           setViews(settings.views)

@@ -5,6 +5,7 @@ import { Users, Plus, Copy, ExternalLink, Trash2, CheckCircle, RefreshCw, Search
 import { cn } from '@/lib/utils'
 import { goClient } from '@/lib/api/go-client'
 import { Form } from '@/types/forms'
+import { workflowsClient, ReviewerType as WorkflowReviewerType } from '@/lib/api/workflows-client'
 
 interface Reviewer {
   id: string
@@ -20,9 +21,11 @@ interface Reviewer {
 
 interface ReviewerManagementProps {
   formId: string | null
+  workspaceId?: string
 }
 
-export function ReviewerManagement({ formId }: ReviewerManagementProps) {
+export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementProps) {
+  const [reviewerTypes, setReviewerTypes] = useState<WorkflowReviewerType[]>([])
   const [reviewers, setReviewers] = useState<Reviewer[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -47,6 +50,20 @@ export function ReviewerManagement({ formId }: ReviewerManagementProps) {
       fetchReviewers()
     }
   }, [formId])
+
+  // Fetch reviewer types from WorkflowBuilder
+  useEffect(() => {
+    const fetchReviewerTypes = async () => {
+      if (!workspaceId) return
+      try {
+        const types = await workflowsClient.listReviewerTypes(workspaceId)
+        setReviewerTypes(types)
+      } catch (error) {
+        console.error('Failed to fetch reviewer types:', error)
+      }
+    }
+    fetchReviewerTypes()
+  }, [workspaceId])
 
   useEffect(() => {
     if (assignmentStrategy === 'manual' && formId && submissions.length === 0) {
