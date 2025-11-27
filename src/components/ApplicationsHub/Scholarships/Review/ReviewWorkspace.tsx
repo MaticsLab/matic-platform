@@ -1,832 +1,1097 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { Search, Filter, ChevronRight, Star, MessageSquare, CheckCircle, XCircle, MoreHorizontal, Download, ChevronDown, Calculator, FileText, Users, Award, ArrowUpDown, Flag, ThumbsUp, ThumbsDown, AlertCircle, School, DollarSign, Loader2, Settings, Plus, Trash2, Edit2, Save, Layout } from 'lucide-react'
+import { 
+  Search, ChevronRight, ChevronLeft, Star, CheckCircle, 
+  FileText, Users, Award, Flag, 
+  ThumbsUp, ThumbsDown, AlertCircle, Loader2, 
+  Eye, Clock, User, MessageSquare,
+  ArrowRight, Filter, LayoutGrid, List,
+  X, Save, RefreshCw, Zap, Play, Pause,
+  ChevronDown, Maximize2, Minimize2, Send,
+  Target, TrendingUp, BarChart3, Layers,
+  UserCheck, UserPlus, ArrowUpRight, Inbox
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { goClient } from '@/lib/api/go-client'
 import { FormSubmission, Form } from '@/types/forms'
-import { workflowsClient, ApplicationStage } from '@/lib/api/workflows-client'
+import { 
+  workflowsClient, 
+  ApplicationStage, 
+  Rubric, 
+  StageReviewerConfig, 
+  ReviewerType,
+  ReviewWorkflow 
+} from '@/lib/api/workflows-client'
+import { Button } from '@/ui-components/button'
+import { Badge } from '@/ui-components/badge'
 
 interface ReviewWorkspaceProps {
   workspaceId: string
   formId: string | null
 }
 
-interface ReviewView {
-  id: string;
-  label: string;
-  type: 'application' | 'financials' | 'scoring';
-}
-
-// Workflow Types
-interface RubricGuideline {
-  id: string
-  range: string
-  description: string
-}
-
-interface RubricCategory {
+interface ApplicationData {
   id: string
   name: string
-  points: number
-  description?: string
-  guidelines?: RubricGuideline[]
+  email: string
+  submittedAt: string
+  stageId: string
+  stageName: string
+  status: 'pending' | 'in_review' | 'approved' | 'rejected' | 'needs_info'
+  score: number | null
+  maxScore: number
+  reviewCount: number
+  requiredReviews: number
+  assignedReviewers: string[]
+  tags: string[]
+  raw_data: Record<string, any>
+  scores: Record<string, number>
+  comments: string
+  flagged: boolean
 }
 
-interface Phase {
-  id: string
-  name: string
-  type: 'review' | 'interview' | 'automated' | 'decision'
-  description?: string
-  rubric?: RubricCategory[]
+interface StageWithConfig extends ApplicationStage {
+  reviewerConfigs: StageReviewerConfig[]
+  rubric: Rubric | null
+  applicationCount: number
 }
 
-type SortOrder = 'newest' | 'score_high' | 'score_low';
-
-interface Financials {
-  coa: number;
-  pell: number;
-  stateGrants: number;
-  institutionalScholarships: number;
-  loans: number;
-  workStudy: number;
-  familyContribution: number;
-}
-
-interface Scores {
-  [key: string]: number;
-}
-
-interface Application {
-  id: string;
-  name: string;
-  gpa: number;
-  phaseId: string; // ID of the current phase
-  phaseName: string; // Display name
-  status: 'pending' | 'approved' | 'rejected';
-  submissionDate: string;
-  tags: string[];
-  financials: Financials;
-  scores: Scores;
-  chosenSchool: string;
-  raw_data: any; // Store original submission data
-}
+type ViewMode = 'focus' | 'queue' | 'analytics'
 
 export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
-  const [applications, setApplications] = useState<Application[]>([])
+  // Core state
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [workflow, setWorkflow] = useState<ReviewWorkflow | null>(null)
+  const [stages, setStages] = useState<StageWithConfig[]>([])
+  const [applications, setApplications] = useState<ApplicationData[]>([])
+  const [reviewerTypes, setReviewerTypes] = useState<ReviewerType[]>([])
+  const [rubrics, setRubrics] = useState<Rubric[]>([])
+  
+  // UI state - completely different approach
+  const [viewMode, setViewMode] = useState<ViewMode>('queue')
+  const [selectedStageId, setSelectedStageId] = useState<string>('')
+  const [selectedAppIndex, setSelectedAppIndex] = useState(0)
+  const [isReviewMode, setIsReviewMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+  const [filterStatus, setFilterStatus] = useState<string>('all')
   
-  const [views, setViews] = useState<ReviewView[]>([
-    { id: 'v1', label: 'Application', type: 'application' },
-    { id: 'v2', label: 'Financial Analysis', type: 'financials' },
-    { id: 'v3', label: 'Scoring & Rubric', type: 'scoring' },
-  ])
-  const [activeViewId, setActiveViewId] = useState<string>('v1')
-  const [isViewBuilderOpen, setIsViewBuilderOpen] = useState(false)
-  const [isSavingViews, setIsSavingViews] = useState(false)
+  // Scoring state
+  const [editingScores, setEditingScores] = useState<Record<string, number>>({})
+  const [editingComments, setEditingComments] = useState('')
+  const [reviewTimer, setReviewTimer] = useState(0)
+  const [timerActive, setTimerActive] = useState(false)
 
-  const [phases, setPhases] = useState<Phase[]>([])
-  const [filterPhaseId, setFilterPhaseId] = useState<string>('All')
-  const [sortOrder, setSortOrder] = useState<SortOrder>('newest')
-  const [formSettings, setFormSettings] = useState<any>({})
-  
-  // State to track the "active" phase for scoring context
-  const [scoringPhaseId, setScoringPhaseId] = useState<string | null>(null)
-  
-  // State for interactive scoring
-  const [currentScores, setCurrentScores] = useState<Scores | null>(null)
-
-  const [showGuidelines, setShowGuidelines] = useState(false)
-
-  // View Builder State
-  const [editingViewId, setEditingViewId] = useState<string | null>(null)
-  const [tempViewLabel, setTempViewLabel] = useState('')
-
+  // Timer effect
   useEffect(() => {
-    async function fetchData() {
-      if (!formId || !workspaceId) return
-      
-      setIsLoading(true)
-      try {
-        // Fetch form settings first
-        const form = await goClient.get<Form>(`/forms/${formId}`)
-        const settings = form.settings || {}
-        setFormSettings(settings)
-        
-        // Load Phases from Workflow API (connected to WorkflowBuilder)
-        let loadedPhases: Phase[] = []
-        
-        // Try to get workflow ID from form settings
-        const workflowId = settings.workflow_id || settings.workflow?.id
-        
-        if (workflowId) {
-          // Fetch stages from the workflow
-          const stages = await workflowsClient.listStages(workspaceId, workflowId)
-          
-          // Transform ApplicationStage to Phase format
-          loadedPhases = stages.map((stage: ApplicationStage, index: number) => ({
-            id: stage.id,
-            name: stage.name,
-            type: stage.stage_type === 'review' ? 'review' : 'automated',
-            description: stage.description || undefined,
-            rubric: [] // Can be loaded from rubric if configured
-          }))
-        } else if (settings.workflow && settings.workflow.phases) {
-          // Fallback to old format
-          loadedPhases = settings.workflow.phases
-        }
-        
-        setPhases(loadedPhases)
-
-        if (settings.views && Array.isArray(settings.views) && settings.views.length > 0) {
-          setViews(settings.views)
-          setActiveViewId(settings.views[0].id)
-        }
-        
-        const mappings = settings.mappings || {}
-
-        const submissions = await goClient.get<FormSubmission[]>(`/forms/${formId}/submissions`)
-        
-        // Transform submissions to Application format
-        const transformedApps: Application[] = submissions.map((sub: FormSubmission) => {
-          const data = sub.data || {}
-          
-          // Use mappings if available, otherwise fallbacks
-          const name = mappings.name ? data[mappings.name] : (data['Full Name'] || data['name'] || data['Name'] || `Applicant ${sub.id.substring(0, 6)}`)
-          
-          // Try to find GPA
-          const gpaField = mappings.gpa
-          const gpaVal = gpaField ? data[gpaField] : (data['GPA'] || data['gpa'])
-          const gpa = parseFloat(gpaVal || '0') || 0
-          
-          // Mock financials for now as they might not be in the form
-          const efcField = mappings.efc
-          const efcVal = efcField ? data[efcField] : (data['EFC'] || data['SAI'])
-          const efc = parseFloat(efcVal || '0') || 0
-
-          const financials: Financials = {
-            coa: 45000, // TODO: Make dynamic based on school selection if possible
-            pell: 0,
-            stateGrants: 0,
-            institutionalScholarships: 0,
-            loans: 0,
-            workStudy: 0,
-            familyContribution: efc
-          }
-          
-          // Determine Phase
-          // In a real app, this would be stored in the submission metadata or a separate status table
-          // For now, we default to the first phase if available
-          const currentPhaseId = loadedPhases.length > 0 ? loadedPhases[0].id : 'p1'
-          const currentPhaseName = loadedPhases.find(p => p.id === currentPhaseId)?.name || 'Application'
-
-          // Initialize scores based on rubric of the current phase
-          const scores: Scores = {}
-          // We might want to load saved scores here
-          
-          const schoolField = mappings.school
-          const school = schoolField ? data[schoolField] : (data['School'] || data['University'] || 'Undecided')
-
-          return {
-            id: sub.id,
-            name: name || 'Unknown',
-            gpa,
-            phaseId: currentPhaseId,
-            phaseName: currentPhaseName,
-            status: 'pending',
-            submissionDate: new Date(sub.submitted_at).toLocaleDateString(),
-            tags: [],
-            financials,
-            scores,
-            chosenSchool: school,
-            raw_data: data
-          }
-        })
-        
-        setApplications(transformedApps)
-        if (transformedApps.length > 0) {
-          setSelectedAppId(transformedApps[0].id)
-        }
-      } catch (error) {
-        console.error('Failed to fetch data:', error)
-      } finally {
-        setIsLoading(false)
-      }
+    let interval: NodeJS.Timeout
+    if (timerActive && isReviewMode) {
+      interval = setInterval(() => setReviewTimer(t => t + 1), 1000)
     }
+    return () => clearInterval(interval)
+  }, [timerActive, isReviewMode])
 
-    fetchData()
-  }, [formId])
+  // Load all data
+  useEffect(() => {
+    if (!formId || !workspaceId) return
+    loadData()
+  }, [formId, workspaceId])
 
-  const selectedApp = applications.find(app => app.id === selectedAppId)
-  const activeView = views.find(v => v.id === activeViewId) || views[0]
-
-  // Update scoring phase when app changes
-  useMemo(() => {
-    if (selectedApp) {
-      setScoringPhaseId(selectedApp.phaseId)
-      setCurrentScores(selectedApp.scores)
-    }
-  }, [selectedApp])
-
-  const calculateTotalScore = (scores: Scores) => {
-    return Object.values(scores).reduce((sum, val) => sum + (val || 0), 0)
-  }
-
-  const handleScoreChange = (category: string, value: number) => {
-    if (currentScores) {
-      setCurrentScores({ ...currentScores, [category]: value })
-    }
-  }
-
-  const filteredApps = useMemo(() => {
-    let result = applications.filter(app => {
-      const matchesSearch = app.name.toLowerCase().includes(searchQuery.toLowerCase())
-      const matchesPhase = filterPhaseId === 'All' || app.phaseId === filterPhaseId
-      return matchesSearch && matchesPhase
-    })
-
-    return result.sort((a, b) => {
-      if (sortOrder === 'score_high') {
-        return calculateTotalScore(b.scores) - calculateTotalScore(a.scores)
-      } else if (sortOrder === 'score_low') {
-        return calculateTotalScore(a.scores) - calculateTotalScore(b.scores)
-      } else {
-        // Default to newest (mock date parsing or just id for now)
-        return b.id.localeCompare(a.id)
-      }
-    })
-  }, [searchQuery, filterPhaseId, sortOrder, applications])
-
-  const calculateGap = (fin: Financials) => {
-    const giftAid = fin.pell + fin.stateGrants + fin.institutionalScholarships
-    return fin.coa - giftAid
-  }
-
-  const getNextPhase = (currentId: string) => {
-    const idx = phases.findIndex(p => p.id === currentId);
-    if (idx !== -1 && idx < phases.length - 1) return phases[idx + 1];
-    return null;
-  }
-
-  const handleAddView = () => {
-    const newView: ReviewView = {
-      id: `v${Date.now()}`,
-      label: 'New View',
-      type: 'application'
-    }
-    setViews([...views, newView])
-    setEditingViewId(newView.id)
-    setTempViewLabel(newView.label)
-  }
-
-  const handleDeleteView = (id: string) => {
-    const newViews = views.filter(v => v.id !== id)
-    setViews(newViews)
-    if (activeViewId === id && newViews.length > 0) {
-      setActiveViewId(newViews[0].id)
-    }
-  }
-
-  const handleSaveViewLabel = (id: string) => {
-    setViews(views.map(v => v.id === id ? { ...v, label: tempViewLabel } : v))
-    setEditingViewId(null)
-  }
-
-  const handleChangeViewType = (id: string, type: ReviewView['type']) => {
-    setViews(views.map(v => v.id === id ? { ...v, type } : v))
-  }
-
-  const saveViewsToBackend = async () => {
-    if (!formId) return
-    setIsSavingViews(true)
+  const loadData = async () => {
+    setIsLoading(true)
     try {
-      const newSettings = { ...formSettings, views }
-      await goClient.patch(`/forms/${formId}`, { settings: newSettings })
-      setFormSettings(newSettings)
+      const form = await goClient.get<Form>(`/forms/${formId}`)
+      const settings = form.settings || {}
+      const workflowId = settings.workflow_id
+
+      const [workflows, allRubrics, allReviewerTypes] = await Promise.all([
+        workflowsClient.listWorkflows(workspaceId),
+        workflowsClient.listRubrics(workspaceId),
+        workflowsClient.listReviewerTypes(workspaceId)
+      ])
+      
+      setRubrics(allRubrics)
+      setReviewerTypes(allReviewerTypes)
+
+      let activeWorkflow = workflowId 
+        ? workflows.find(w => w.id === workflowId) 
+        : workflows.find(w => w.is_active) || workflows[0]
+      
+      let loadedStages: StageWithConfig[] = []
+      
+      if (activeWorkflow) {
+        setWorkflow(activeWorkflow)
+        
+        const stagesData = await workflowsClient.listStages(workspaceId, activeWorkflow.id)
+        
+        loadedStages = await Promise.all(
+          stagesData.map(async (stage) => {
+            let configs: StageReviewerConfig[] = []
+            try {
+              configs = await workflowsClient.listStageConfigs(stage.id)
+            } catch {}
+            
+            const primaryConfig = configs[0]
+            const rubric = primaryConfig?.rubric_id 
+              ? allRubrics.find(r => r.id === primaryConfig.rubric_id) || null
+              : null
+            
+            return {
+              ...stage,
+              reviewerConfigs: configs,
+              rubric,
+              applicationCount: 0
+            }
+          })
+        )
+        
+        loadedStages = loadedStages.sort((a, b) => a.order_index - b.order_index)
+        setStages(loadedStages)
+        if (loadedStages.length > 0) setSelectedStageId(loadedStages[0].id)
+      }
+
+      const submissions = await goClient.get<FormSubmission[]>(`/forms/${formId}/submissions`)
+      
+      const apps: ApplicationData[] = submissions.map((sub) => {
+        const data = sub.data || {}
+        const reviewData = (sub as any).review_data || {}
+        
+        const name = data['Full Name'] || data['name'] || data['Name'] || 
+                    `${data['First Name'] || ''} ${data['Last Name'] || ''}`.trim() ||
+                    `Applicant ${sub.id.substring(0, 6)}`
+        
+        const email = data['Email'] || data['email'] || ''
+        const stageId = reviewData.stage_id || (loadedStages.length > 0 ? loadedStages[0].id : '')
+        const stage = loadedStages.find(s => s.id === stageId)
+        
+        return {
+          id: sub.id,
+          name,
+          email,
+          submittedAt: sub.submitted_at,
+          stageId,
+          stageName: stage?.name || 'Unassigned',
+          status: reviewData.status || 'pending',
+          score: reviewData.total_score || null,
+          maxScore: stage?.rubric?.max_score || 100,
+          reviewCount: reviewData.review_count || 0,
+          requiredReviews: stage?.reviewerConfigs?.[0]?.min_reviews_required || 1,
+          assignedReviewers: reviewData.assigned_reviewers || [],
+          tags: reviewData.tags || [],
+          raw_data: data,
+          scores: reviewData.scores || {},
+          comments: reviewData.comments || '',
+          flagged: reviewData.flagged || false
+        }
+      })
+      
+      setApplications(apps)
+      
+      const updatedStages = loadedStages.map(stage => ({
+        ...stage,
+        applicationCount: apps.filter(a => a.stageId === stage.id).length
+      }))
+      setStages(updatedStages)
+
     } catch (error) {
-      console.error('Failed to save views:', error)
+      console.error('Failed to load review data:', error)
     } finally {
-      setIsSavingViews(false)
+      setIsLoading(false)
     }
   }
 
-  // Get current phase configuration
-  const currentPhaseConfig = phases.find(p => p.id === scoringPhaseId)
-  const currentRubric = currentPhaseConfig?.rubric || []
-  const maxScore = currentRubric.reduce((sum, cat) => sum + cat.points, 0)
+  // Get filtered applications for current stage
+  const stageApps = useMemo(() => {
+    return applications.filter(app => {
+      const matchesStage = app.stageId === selectedStageId
+      const matchesSearch = !searchQuery || 
+        app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.email.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesStatus = filterStatus === 'all' || app.status === filterStatus
+      return matchesStage && matchesSearch && matchesStatus
+    })
+  }, [applications, selectedStageId, searchQuery, filterStatus])
+
+  // Current application
+  const currentApp = stageApps[selectedAppIndex] || null
+  const currentStage = stages.find(s => s.id === selectedStageId)
+  const currentRubric = currentStage?.rubric || null
+
+  // Stats
+  const stats = useMemo(() => {
+    const pending = applications.filter(a => a.status === 'pending').length
+    const inReview = applications.filter(a => a.status === 'in_review').length
+    const approved = applications.filter(a => a.status === 'approved').length
+    const rejected = applications.filter(a => a.status === 'rejected').length
+    const avgScore = applications.filter(a => a.score !== null).reduce((acc, a) => acc + (a.score || 0), 0) / 
+                     Math.max(applications.filter(a => a.score !== null).length, 1)
+    return { pending, inReview, approved, rejected, avgScore: Math.round(avgScore) }
+  }, [applications])
+
+  // Navigation
+  const goToNext = () => {
+    if (selectedAppIndex < stageApps.length - 1) {
+      setSelectedAppIndex(prev => prev + 1)
+      resetReview()
+    }
+  }
+  
+  const goToPrev = () => {
+    if (selectedAppIndex > 0) {
+      setSelectedAppIndex(prev => prev - 1)
+      resetReview()
+    }
+  }
+
+  const resetReview = () => {
+    setEditingScores({})
+    setEditingComments('')
+    setReviewTimer(0)
+    setTimerActive(false)
+  }
+
+  const startReview = () => {
+    if (currentApp) {
+      setIsReviewMode(true)
+      setEditingScores(currentApp.scores)
+      setEditingComments(currentApp.comments)
+      setTimerActive(true)
+    }
+  }
+
+  const handleMoveToStage = async (appId: string, newStageId: string) => {
+    setApplications(prev => prev.map(app => 
+      app.id === appId 
+        ? { ...app, stageId: newStageId, stageName: stages.find(s => s.id === newStageId)?.name || '' }
+        : app
+    ))
+    
+    setStages(prev => prev.map(stage => ({
+      ...stage,
+      applicationCount: applications.filter(a => 
+        a.id === appId ? newStageId === stage.id : a.stageId === stage.id
+      ).length
+    })))
+  }
+
+  const handleSaveAndNext = async () => {
+    if (!currentApp) return
+    setIsSaving(true)
+    try {
+      const totalScore = Object.values(editingScores).reduce((sum, val) => sum + (val || 0), 0)
+      
+      setApplications(prev => prev.map(app => 
+        app.id === currentApp.id
+          ? { ...app, scores: editingScores, comments: editingComments, score: totalScore, status: 'in_review' as const }
+          : app
+      ))
+      
+      // Move to next or exit review mode
+      if (selectedAppIndex < stageApps.length - 1) {
+        goToNext()
+      } else {
+        setIsReviewMode(false)
+      }
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDecision = async (decision: 'approved' | 'rejected') => {
+    if (!currentApp) return
+    
+    setApplications(prev => prev.map(app => 
+      app.id === currentApp.id
+        ? { ...app, status: decision }
+        : app
+    ))
+    
+    goToNext()
+  }
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60)
+    const s = seconds % 60
+    return `${m}:${s.toString().padStart(2, '0')}`
+  }
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-500">Loading review workspace...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!workflow || stages.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md">
+          <div className="w-20 h-20 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="w-10 h-10 text-amber-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">No Workflow Configured</h2>
+          <p className="text-gray-600 mb-8">
+            Set up a review workflow with stages to start reviewing applications.
+          </p>
+          <Button className="bg-blue-600 hover:bg-blue-700">
+            <Zap className="w-4 h-4 mr-2" />
+            Configure Workflow
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Full-screen review mode
+  if (isReviewMode && currentApp) {
+    return (
+      <FocusReviewMode
+        app={currentApp}
+        appIndex={selectedAppIndex}
+        totalApps={stageApps.length}
+        stage={currentStage!}
+        rubric={currentRubric}
+        scores={editingScores}
+        comments={editingComments}
+        timer={reviewTimer}
+        timerActive={timerActive}
+        isSaving={isSaving}
+        onScoreChange={(cat, val) => setEditingScores(p => ({ ...p, [cat]: val }))}
+        onCommentsChange={setEditingComments}
+        onToggleTimer={() => setTimerActive(!timerActive)}
+        onSaveAndNext={handleSaveAndNext}
+        onDecision={handleDecision}
+        onPrev={goToPrev}
+        onNext={goToNext}
+        onExit={() => {
+          setIsReviewMode(false)
+          setTimerActive(false)
+        }}
+      />
+    )
+  }
 
   return (
-    <div className="h-full flex flex-col md:flex-row overflow-hidden bg-white relative">
-      {/* View Builder Modal */}
-      {isViewBuilderOpen && (
-        <div className="absolute inset-0 z-50 bg-black/50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-              <div className="flex items-center gap-2">
-                <Layout className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-bold text-gray-900">View Builder</h3>
-              </div>
-              <button onClick={() => setIsViewBuilderOpen(false)} className="text-gray-400 hover:text-gray-600">
-                <XCircle className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              <p className="text-sm text-gray-600 mb-4">Customize the tabs and views available in the review workspace.</p>
-              
-              <div className="space-y-3">
-                {views.map((view) => (
-                  <div key={view.id} className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg bg-white hover:border-blue-300 transition-colors">
-                    <div className="p-2 bg-gray-100 rounded-md text-gray-500">
-                      {view.type === 'application' && <FileText className="w-4 h-4" />}
-                      {view.type === 'financials' && <Calculator className="w-4 h-4" />}
-                      {view.type === 'scoring' && <Award className="w-4 h-4" />}
-                    </div>
-                    
-                    <div className="flex-1">
-                      {editingViewId === view.id ? (
-                        <div className="flex items-center gap-2">
-                          <input 
-                            type="text" 
-                            value={tempViewLabel}
-                            onChange={(e) => setTempViewLabel(e.target.value)}
-                            className="flex-1 px-2 py-1 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            autoFocus
-                          />
-                          <button onClick={() => handleSaveViewLabel(view.id)} className="p-1 text-green-600 hover:bg-green-50 rounded">
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">{view.label}</span>
-                          <button 
-                            onClick={() => { setEditingViewId(view.id); setTempViewLabel(view.label); }}
-                            className="text-gray-400 hover:text-blue-600"
-                          >
-                            <Edit2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-gray-500">Type:</span>
-                        <select 
-                          value={view.type}
-                          onChange={(e) => handleChangeViewType(view.id, e.target.value as ReviewView['type'])}
-                          className="text-xs border-none bg-transparent p-0 text-blue-600 font-medium focus:ring-0 cursor-pointer"
-                        >
-                          <option value="application">Application Data</option>
-                          <option value="financials">Financial Analysis</option>
-                          <option value="scoring">Scoring Rubric</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <button 
-                      onClick={() => handleDeleteView(view.id)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      disabled={views.length <= 1}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <button 
-                onClick={handleAddView}
-                className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 font-medium hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-all flex items-center justify-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Add New View
-              </button>
-            </div>
-            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end">
-              <button 
-                onClick={() => {
-                  saveViewsToBackend()
-                  setIsViewBuilderOpen(false)
-                }}
-                disabled={isSavingViews}
-                className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2"
-              >
-                {isSavingViews && <Loader2 className="w-4 h-4 animate-spin" />}
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Guidelines Modal */}
-      {showGuidelines && currentPhaseConfig && (
-        <div className="absolute inset-0 z-50 bg-black/50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-              <h3 className="text-lg font-bold text-gray-900">Scoring Rubric Guidelines</h3>
-              <button onClick={() => setShowGuidelines(false)} className="text-gray-400 hover:text-gray-600">
-                <XCircle className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {currentRubric.map((section, idx) => (
-                <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex justify-between items-center">
-                    <span className="font-bold text-gray-900">{section.name}</span>
-                    <span className="text-sm text-gray-500">Max: {section.points} pts</span>
-                  </div>
-                  <div className="p-4">
-                    <p className="text-sm text-gray-600 mb-3">{section.description || 'No description provided.'}</p>
-                    {section.guidelines && section.guidelines.length > 0 && (
-                      <div className="space-y-2">
-                        {section.guidelines.map(g => (
-                          <div key={g.id} className="flex gap-3 text-sm">
-                            <span className="font-medium text-blue-600 min-w-[80px]">{g.range}</span>
-                            <span className="text-gray-700">{g.description}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+    <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
+      {/* Top Bar */}
+      <div className="bg-white border-b border-gray-200 px-6 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <h1 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <Eye className="w-5 h-5 text-blue-600" />
+              Review Center
+            </h1>
+            
+            {/* View Mode Tabs */}
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              {[
+                { id: 'queue' as const, icon: Inbox, label: 'Queue' },
+                { id: 'focus' as const, icon: Target, label: 'Focus' },
+                { id: 'analytics' as const, icon: BarChart3, label: 'Analytics' }
+              ].map(mode => (
+                <button
+                  key={mode.id}
+                  onClick={() => setViewMode(mode.id)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all",
+                    viewMode === mode.id 
+                      ? "bg-white text-blue-600 shadow-sm border border-gray-200" 
+                      : "text-gray-500 hover:text-gray-900"
+                  )}
+                >
+                  <mode.icon className="w-4 h-4" />
+                  {mode.label}
+                </button>
               ))}
             </div>
-            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end">
-              <button 
-                onClick={() => setShowGuidelines(false)}
-                className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800"
-              >
-                Close Guide
-              </button>
-            </div>
           </div>
-        </div>
-      )}
 
-      {/* Left Sidebar: Application List */}
-      <div className="w-full md:w-1/3 lg:w-1/4 border-r border-gray-200 flex flex-col bg-gray-50">
-        {/* Search & Filter Header */}
-        <div className="p-4 border-b border-gray-200 bg-white space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search applicants..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <div className="flex gap-2">
-            <select 
-              className="flex-1 px-3 py-1.5 bg-white border border-gray-300 rounded-md text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={filterPhaseId}
-              onChange={(e) => setFilterPhaseId(e.target.value)}
-            >
-              <option value="All">All Phases</option>
-              {phases.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+          <div className="flex items-center gap-3">
             <div className="relative">
-              <select 
-                className="appearance-none pl-8 pr-4 py-1.5 bg-white border border-gray-300 rounded-md text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-              >
-                <option value="newest">Newest</option>
-                <option value="score_high">Highest Score</option>
-                <option value="score_low">Lowest Score</option>
-              </select>
-              <ArrowUpDown className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search applicants..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 pr-4 py-2 w-64 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              />
+            </div>
+            <Button variant="ghost" size="sm" onClick={loadData} className="text-gray-500 hover:text-gray-900 hover:bg-gray-100">
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar - Stages */}
+        <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+          <div className="p-4 border-b border-gray-200">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Workflow Stages</h3>
+            <p className="text-xs text-gray-400">{workflow.name}</p>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-2">
+            {stages.map((stage, idx) => {
+              const count = applications.filter(a => a.stageId === stage.id).length
+              const isActive = stage.id === selectedStageId
+              
+              return (
+                <button
+                  key={stage.id}
+                  onClick={() => {
+                    setSelectedStageId(stage.id)
+                    setSelectedAppIndex(0)
+                  }}
+                  className={cn(
+                    "w-full text-left px-3 py-3 rounded-lg mb-1 transition-all group",
+                    isActive 
+                      ? "bg-blue-50 border border-blue-200" 
+                      : "hover:bg-gray-50"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold",
+                      isActive ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500"
+                    )}>
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        "font-medium truncate",
+                        isActive ? "text-gray-900" : "text-gray-700"
+                      )}>{stage.name}</p>
+                      <p className="text-xs text-gray-400">{stage.stage_type}</p>
+                    </div>
+                    <Badge className={cn(
+                      "ml-auto",
+                      count > 0 
+                        ? "bg-blue-100 text-blue-700 border-blue-200" 
+                        : "bg-gray-100 text-gray-400"
+                    )}>
+                      {count}
+                    </Badge>
+                  </div>
+                  
+                  {stage.rubric && (
+                    <div className="mt-2 ml-11 flex items-center gap-1 text-xs text-gray-400">
+                      <Award className="w-3 h-3" />
+                      {stage.rubric.name}
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Quick Stats */}
+          <div className="p-4 border-t border-gray-200 space-y-3">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Overview</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-gray-50 rounded-lg p-2 text-center">
+                <p className="text-lg font-bold text-amber-600">{stats.pending}</p>
+                <p className="text-xs text-gray-500">Pending</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2 text-center">
+                <p className="text-lg font-bold text-blue-600">{stats.inReview}</p>
+                <p className="text-xs text-gray-500">In Review</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2 text-center">
+                <p className="text-lg font-bold text-green-600">{stats.approved}</p>
+                <p className="text-xs text-gray-500">Approved</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2 text-center">
+                <p className="text-lg font-bold text-red-600">{stats.rejected}</p>
+                <p className="text-xs text-gray-500">Rejected</p>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* List */}
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {viewMode === 'queue' && (
+            <QueueView
+              apps={stageApps}
+              selectedIndex={selectedAppIndex}
+              onSelect={(idx) => setSelectedAppIndex(idx)}
+              onStartReview={startReview}
+              currentApp={currentApp}
+              stage={currentStage}
+              rubric={currentRubric}
+            />
+          )}
+          
+          {viewMode === 'focus' && (
+            <div className="flex-1 flex items-center justify-center bg-gray-50">
+              {stageApps.length > 0 ? (
+                <div className="text-center">
+                  <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <Target className="w-10 h-10 text-blue-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">Focus Mode</h2>
+                  <p className="text-gray-500 mb-6 max-w-sm">
+                    Review applications one by one without distractions. Timer tracks your review time.
+                  </p>
+                  <Button onClick={startReview} className="bg-blue-600 hover:bg-blue-700">
+                    <Play className="w-4 h-4 mr-2" />
+                    Start Reviewing ({stageApps.length} applications)
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <div className="w-20 h-20 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <CheckCircle className="w-10 h-10 text-green-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">All Clear!</h2>
+                  <p className="text-gray-500">No applications in this stage to review.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {viewMode === 'analytics' && (
+            <AnalyticsView stats={stats} stages={stages} applications={applications} />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Queue View - List of applications with preview
+function QueueView({
+  apps,
+  selectedIndex,
+  onSelect,
+  onStartReview,
+  currentApp,
+  stage,
+  rubric
+}: {
+  apps: ApplicationData[]
+  selectedIndex: number
+  onSelect: (idx: number) => void
+  onStartReview: () => void
+  currentApp: ApplicationData | null
+  stage?: StageWithConfig
+  rubric: Rubric | null
+}) {
+  return (
+    <div className="flex-1 flex overflow-hidden">
+      {/* Application List */}
+      <div className="w-96 border-r border-gray-200 flex flex-col bg-white">
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="font-medium text-gray-900">{apps.length} Applications</h3>
+          <select className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700">
+            <option>Most Recent</option>
+            <option>Oldest First</option>
+            <option>Highest Score</option>
+          </select>
+        </div>
+        
         <div className="flex-1 overflow-y-auto">
-          {filteredApps.map((app) => (
-            <div
+          {apps.map((app, idx) => (
+            <button
               key={app.id}
-              onClick={() => setSelectedAppId(app.id)}
+              onClick={() => onSelect(idx)}
               className={cn(
-                "p-4 border-b border-gray-100 cursor-pointer hover:bg-blue-50 transition-colors group",
-                selectedAppId === app.id ? 'bg-blue-50 border-l-4 border-l-blue-600' : 'bg-white border-l-4 border-l-transparent'
+                "w-full text-left px-4 py-4 border-b border-gray-100 transition-all",
+                idx === selectedIndex 
+                  ? "bg-blue-50 border-l-2 border-l-blue-600" 
+                  : "hover:bg-gray-50"
               )}
             >
-              <div className="flex justify-between items-start mb-1">
-                <h4 className={cn("font-semibold", selectedAppId === app.id ? 'text-blue-900' : 'text-gray-900')}>
-                  {app.name}
-                </h4>
-                <span className="text-xs text-gray-500">{app.submissionDate}</span>
-              </div>
-              <div className="flex flex-col gap-1 mb-2">
-                <span className="text-xs font-medium text-gray-500">{app.phaseName}</span>
-                <div className="flex items-center gap-2">
-                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1",
-                    app.status === 'approved' ? 'bg-green-100 text-green-700' :
-                    app.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                    'bg-yellow-100 text-yellow-700'
-                  )}>
-                    {app.status === 'approved' && <CheckCircle className="w-3 h-3" />}
-                    {app.status === 'rejected' && <XCircle className="w-3 h-3" />}
-                    {app.status === 'pending' && <AlertCircle className="w-3 h-3" />}
-                    {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
-                  </span>
-                  <span className="flex items-center gap-1 text-xs font-medium text-gray-600 ml-auto">
-                    <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                    {calculateTotalScore(app.scores)}
-                  </span>
+              <div className="flex items-start gap-3">
+                <div className={cn(
+                  "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0",
+                  app.status === 'approved' ? "bg-green-100 text-green-700" :
+                  app.status === 'rejected' ? "bg-red-100 text-red-700" :
+                  app.status === 'in_review' ? "bg-blue-100 text-blue-700" :
+                  "bg-gray-100 text-gray-600"
+                )}>
+                  {app.name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-gray-900 truncate">{app.name}</p>
+                    {app.flagged && <Flag className="w-3 h-3 text-red-500 shrink-0" />}
+                  </div>
+                  <p className="text-xs text-gray-500 truncate">{app.email}</p>
+                  <div className="flex items-center gap-3 mt-2">
+                    {app.score !== null && (
+                      <span className="flex items-center gap-1 text-xs text-amber-600">
+                        <Star className="w-3 h-3 fill-current" />
+                        {app.score}/{app.maxScore}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <Users className="w-3 h-3" />
+                      {app.reviewCount}/{app.requiredReviews}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {new Date(app.submittedAt).toLocaleDateString()}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-1">
-                {app.tags.map((tag, i) => (
-                  <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[10px] rounded border border-gray-200">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
+            </button>
           ))}
-          {filteredApps.length === 0 && (
-            <div className="p-8 text-center text-gray-500 text-sm">
-              No applications found matching your filters.
+          
+          {apps.length === 0 && (
+            <div className="p-8 text-center">
+              <Inbox className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No applications in this stage</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Right Content: Detail & Scoring */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-gray-50">
-        {selectedApp && currentScores ? (
+      {/* Preview Panel */}
+      <div className="flex-1 flex flex-col bg-gray-50">
+        {currentApp ? (
           <>
-            {/* Scrollable Content Area */}
-            <div className="flex-1 overflow-y-auto p-8">
-              <div className="max-w-5xl mx-auto space-y-6">
-                
-                {/* Header Card */}
-                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                  <div className="flex justify-between items-start mb-4">
-                    <h2 className="text-2xl font-bold text-gray-900">{selectedApp.name}</h2>
-                    <div className="flex gap-3">
-                      <button className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 shadow-sm flex items-center gap-2">
-                        <Flag className="w-4 h-4" />
-                        Flag
-                      </button>
-                      {getNextPhase(selectedApp.phaseId) && (
-                        <button className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm flex items-center gap-2">
-                          Move to {getNextPhase(selectedApp.phaseId)?.name}
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-6 text-sm text-gray-600">
-                    <span className="flex items-center gap-2">
-                      <Star className="w-4 h-4 text-gray-400" /> 
-                      GPA: <span className="font-medium text-gray-900">{selectedApp.gpa}</span>
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <School className="w-4 h-4 text-gray-400" /> 
-                      School: <span className="font-medium text-gray-900">{selectedApp.chosenSchool}</span>
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <DollarSign className="w-4 h-4 text-gray-400" />
-                      Gap: <span className="font-medium text-red-600">${calculateGap(selectedApp.financials).toLocaleString()}</span>
-                    </span>
-                  </div>
+            <div className="p-6 border-b border-gray-200 bg-white">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">{currentApp.name}</h2>
+                  <p className="text-gray-500">{currentApp.email}</p>
                 </div>
-
-                {/* Tabs */}
-                <div className="flex gap-3 items-center">
-                  <div className="flex gap-2">
-                    {views.map(view => (
-                      <button 
-                        key={view.id}
-                        onClick={() => setActiveViewId(view.id)}
-                        className={cn("px-4 py-2 rounded-full text-sm font-medium border transition-colors flex items-center gap-2", 
-                          activeViewId === view.id 
-                            ? "bg-gray-900 text-white border-gray-900" 
-                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                        )}
-                      >
-                        {view.type === 'application' && <FileText className="w-4 h-4" />}
-                        {view.type === 'financials' && <Calculator className="w-4 h-4" />}
-                        {view.type === 'scoring' && <Award className="w-4 h-4" />}
-                        {view.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="h-6 w-px bg-gray-300 mx-1"></div>
-                  <button 
-                    onClick={() => setIsViewBuilderOpen(true)}
-                    className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-                    title="Configure Views"
-                  >
-                    <Settings className="w-4 h-4" />
-                  </button>
-                </div>
+                <Button onClick={onStartReview} className="bg-blue-600 hover:bg-blue-700">
+                  <Play className="w-4 h-4 mr-2" />
+                  Start Review
+                </Button>
+              </div>
+              
+              {/* Status & Score */}
+              <div className="flex items-center gap-4 mt-4">
+                <Badge className={cn(
+                  "capitalize",
+                  currentApp.status === 'approved' && "bg-green-100 text-green-700 border-green-200",
+                  currentApp.status === 'rejected' && "bg-red-100 text-red-700 border-red-200",
+                  currentApp.status === 'in_review' && "bg-blue-100 text-blue-700 border-blue-200",
+                  currentApp.status === 'pending' && "bg-amber-100 text-amber-700 border-amber-200"
+                )}>
+                  {currentApp.status.replace('_', ' ')}
+                </Badge>
                 
-                {activeView.type === 'application' && (
-                  <div className="space-y-6 animate-in fade-in duration-300">
-                    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 border-b border-gray-100 pb-2">Application Data</h3>
-                      <div className="grid grid-cols-1 gap-4">
-                        {Object.entries(selectedApp.raw_data || {}).map(([key, value]) => {
-                          if (typeof value === 'object') return null; // Skip complex objects for now
-                          return (
-                            <div key={key} className="border-b border-gray-50 pb-2 last:border-0">
-                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{key}</p>
-                              <p className="text-gray-900 whitespace-pre-wrap">{String(value)}</p>
-                            </div>
-                          )
-                        })}
-                        {(!selectedApp.raw_data || Object.keys(selectedApp.raw_data).length === 0) && (
-                           <p className="text-gray-500 italic">No application data available.</p>
-                        )}
-                      </div>
+                {currentApp.score !== null && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-blue-500 to-blue-600"
+                        style={{ width: `${(currentApp.score / currentApp.maxScore) * 100}%` }}
+                      />
                     </div>
+                    <span className="text-sm font-medium text-gray-900">{currentApp.score}/{currentApp.maxScore}</span>
                   </div>
                 )}
-
-                {activeView.type === 'financials' && (
-                  <div className="space-y-6 animate-in fade-in duration-300">
-                    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-6">Financial Need Calculation</h3>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-4">
-                          <h4 className="font-medium text-gray-700">Costs & Contribution</h4>
-                          <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                            <span className="text-gray-600">Cost of Attendance (COA)</span>
-                            <span className="font-semibold">${selectedApp.financials.coa.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                            <span className="text-gray-600">Family Contribution (EFC/SAI)</span>
-                            <span className="font-semibold">${selectedApp.financials.familyContribution.toLocaleString()}</span>
-                          </div>
-                        </div>
-
-                        <div className="space-y-4">
-                          <h4 className="font-medium text-gray-700">Gift Aid (Grants & Scholarships)</h4>
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">Pell Grant</span>
-                            <span className="font-medium text-green-700">+ ${selectedApp.financials.pell.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">State Grants (MAP)</span>
-                            <span className="font-medium text-green-700">+ ${selectedApp.financials.stateGrants.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">Institutional Scholarships</span>
-                            <span className="font-medium text-green-700">+ ${selectedApp.financials.institutionalScholarships.toLocaleString()}</span>
-                          </div>
-                          <div className="pt-2 border-t border-gray-200 flex justify-between items-center font-medium">
-                            <span>Total Gift Aid</span>
-                            <span className="text-green-700">${(selectedApp.financials.pell + selectedApp.financials.stateGrants + selectedApp.financials.institutionalScholarships).toLocaleString()}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-8 p-6 bg-blue-50 rounded-xl border border-blue-100">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <h4 className="text-lg font-bold text-blue-900">Remaining Need Gap</h4>
-                            <p className="text-sm text-blue-700 mt-1">COA - Total Gift Aid (Loans/Work-Study excluded)</p>
-                          </div>
-                          <div className="text-3xl font-bold text-blue-700">
-                            ${calculateGap(selectedApp.financials).toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeView.type === 'scoring' && (
-                  <div className="space-y-6 animate-in fade-in duration-300">
-                    {currentPhaseConfig && currentRubric.length > 0 ? (
-                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                        {/* Header Banner */}
-                        <div className={cn("p-6 text-white flex justify-between items-center", 
-                          currentPhaseConfig.type === 'interview' ? 'bg-purple-600' : 'bg-blue-600'
-                        )}>
-                          <div>
-                            <h3 className="text-xl font-medium">{currentPhaseConfig.name} Scoring</h3>
-                            <div className="flex items-center gap-4 mt-1">
-                              <p className={cn("text-sm", currentPhaseConfig.type === 'interview' ? 'text-purple-100' : 'text-blue-100')}>
-                                Evaluate the candidate based on the following criteria.
-                              </p>
-                              <button 
-                                onClick={() => setShowGuidelines(true)}
-                                className={cn("text-xs px-3 py-1 rounded-full font-medium flex items-center gap-1.5 transition-colors border",
-                                  currentPhaseConfig.type === 'interview' 
-                                    ? "bg-purple-500/50 hover:bg-purple-500 border-purple-400/30" 
-                                    : "bg-blue-500/50 hover:bg-blue-500 border-blue-400/30"
-                                )}
-                              >
-                                <FileText className="w-3 h-3" />
-                                View Guidelines
-                              </button>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-5xl font-bold">
-                              {calculateTotalScore(currentScores)}
-                              <span className={cn("text-2xl font-normal", currentPhaseConfig.type === 'interview' ? 'text-purple-200' : 'text-blue-200')}>/{maxScore}</span>
-                            </span>
-                            <p className={cn("text-xs font-medium uppercase tracking-wide mt-1", currentPhaseConfig.type === 'interview' ? 'text-purple-200' : 'text-blue-200')}>Total Score</p>
-                          </div>
-                        </div>
-                        
-                        <div className="p-8 space-y-8">
-                          {currentRubric.map((item) => (
-                            <div key={item.id} className="group">
-                              <div className="flex justify-between mb-3">
-                                <div>
-                                  <span className="font-medium text-gray-900 block text-base">{item.name}</span>
-                                  <span className="text-xs text-gray-500">{item.description}</span>
-                                </div>
-                                <span className="font-bold text-gray-900 bg-gray-100 px-3 py-1 rounded-lg">
-                                  {currentScores[item.id] || 0}/{item.points}
-                                </span>
-                              </div>
-                              <input 
-                                type="range" 
-                                min="0" 
-                                max={item.points} 
-                                value={currentScores[item.id] || 0} 
-                                onChange={(e) => handleScoreChange(item.id, parseInt(e.target.value))}
-                                className={cn("w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer transition-all",
-                                  currentPhaseConfig.type === 'interview' ? "accent-purple-600 hover:accent-purple-700" : "accent-blue-600 hover:accent-blue-700"
-                                )}
-                              />
-                              <div className="flex justify-between mt-1 text-xs text-gray-400">
-                                <span>0</span>
-                                <span>{item.points}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="px-8 pb-8">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Reviewer Comments</label>
-                          <textarea 
-                            className={cn("w-full p-3 border border-gray-300 rounded-lg focus:ring-2 outline-none text-sm",
-                              currentPhaseConfig.type === 'interview' ? "focus:ring-purple-500" : "focus:ring-blue-500"
-                            )}
-                            rows={3}
-                            placeholder="Add any additional context or feedback..."
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center py-12 bg-white rounded-xl border border-gray-200 border-dashed">
-                        <div className="p-3 bg-gray-50 rounded-full mb-3">
-                          <Award className="w-6 h-6 text-gray-400" />
-                        </div>
-                        <h3 className="text-gray-900 font-medium">No Rubric Configured</h3>
-                        <p className="text-sm text-gray-500 mt-1">There is no active scoring rubric for {currentPhaseConfig?.name || 'this phase'}.</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
+                
+                <span className="text-sm text-gray-500 flex items-center gap-1">
+                  <Clock className="w-4 h-4" />
+                  Submitted {new Date(currentApp.submittedAt).toLocaleDateString()}
+                </span>
               </div>
             </div>
-            
-            {/* Sticky Footer for Actions */}
-            <div className="bg-white border-t border-gray-200 p-4 flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
-               <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <span>All required fields reviewed</span>
-               </div>
-               <div className="flex gap-3">
-                  <button className="px-4 py-2 border border-red-200 text-red-600 rounded-lg font-medium hover:bg-red-50 flex items-center gap-2">
-                    <ThumbsDown className="w-4 h-4" />
-                    Reject
-                  </button>
-                  {getNextPhase(selectedApp.phaseId) ? (
-                    <button className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-2 shadow-sm">
-                      <ThumbsUp className="w-4 h-4" />
-                      Move to {getNextPhase(selectedApp.phaseId)?.name}
-                    </button>
-                  ) : (
-                    <button className="px-4 py-2 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 flex items-center gap-2 shadow-sm">
-                      <CheckCircle className="w-4 h-4" />
-                      Finalize Decision
-                    </button>
-                  )}
-               </div>
+
+            {/* Application Data Preview */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Application Data</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {Object.entries(currentApp.raw_data).slice(0, 8).map(([key, value]) => {
+                  if (typeof value === 'object') return null
+                  return (
+                    <div key={key} className="bg-white rounded-lg p-4 border border-gray-200">
+                      <p className="text-xs font-medium text-gray-400 uppercase mb-1">{key}</p>
+                      <p className="text-gray-900 truncate">{String(value)}</p>
+                    </div>
+                  )
+                })}
+              </div>
+              
+              {rubric && (
+                <div className="mt-8">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Scoring Rubric</h3>
+                  <div className="bg-white rounded-lg p-4 border border-gray-200">
+                    <p className="font-medium text-gray-900 mb-2">{rubric.name}</p>
+                    <p className="text-sm text-gray-500 mb-3">{rubric.description}</p>
+                    <div className="flex items-center gap-2">
+                      <Award className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm text-gray-700">Max Score: {rubric.max_score}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
-            Select an application to review
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <Eye className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">Select an application to preview</p>
+            </div>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+// Focus Review Mode - Full screen immersive review
+function FocusReviewMode({
+  app,
+  appIndex,
+  totalApps,
+  stage,
+  rubric,
+  scores,
+  comments,
+  timer,
+  timerActive,
+  isSaving,
+  onScoreChange,
+  onCommentsChange,
+  onToggleTimer,
+  onSaveAndNext,
+  onDecision,
+  onPrev,
+  onNext,
+  onExit
+}: {
+  app: ApplicationData
+  appIndex: number
+  totalApps: number
+  stage: StageWithConfig
+  rubric: Rubric | null
+  scores: Record<string, number>
+  comments: string
+  timer: number
+  timerActive: boolean
+  isSaving: boolean
+  onScoreChange: (cat: string, val: number) => void
+  onCommentsChange: (c: string) => void
+  onToggleTimer: () => void
+  onSaveAndNext: () => void
+  onDecision: (d: 'approved' | 'rejected') => void
+  onPrev: () => void
+  onNext: () => void
+  onExit: () => void
+}) {
+  const totalScore = Object.values(scores).reduce((sum, val) => sum + (val || 0), 0)
+  const maxScore = rubric?.max_score || 100
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
+
+  return (
+    <div className="fixed inset-0 bg-white z-50 flex flex-col">
+      {/* Top Bar */}
+      <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6">
+        <div className="flex items-center gap-4">
+          <button onClick={onExit} className="text-gray-500 hover:text-gray-900 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+          <div className="h-6 w-px bg-gray-200" />
+          <span className="text-gray-500 text-sm">
+            Reviewing <span className="text-gray-900 font-medium">{appIndex + 1}</span> of <span className="text-gray-900">{totalApps}</span>
+          </span>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-1.5">
+            <button onClick={onToggleTimer} className="text-gray-500 hover:text-gray-900">
+              {timerActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+            </button>
+            <span className="text-gray-900 font-mono text-sm min-w-[50px]">{formatTime(timer)}</span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onPrev}
+              disabled={appIndex === 0}
+              className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={onNext}
+              disabled={appIndex === totalApps - 1}
+              className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left - Application Data */}
+        <div className="w-1/2 border-r border-gray-200 overflow-y-auto bg-gray-50">
+          <div className="p-8">
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 mb-1">{app.name}</h1>
+                <p className="text-gray-500">{app.email}</p>
+              </div>
+              {app.flagged && (
+                <Badge className="bg-red-100 text-red-700 border-red-200">
+                  <Flag className="w-3 h-3 mr-1" />
+                  Flagged
+                </Badge>
+              )}
+            </div>
+
+            <div className="space-y-6">
+              {Object.entries(app.raw_data).map(([key, value]) => {
+                if (typeof value === 'object') return null
+                const strValue = String(value)
+                const isLongText = strValue.length > 100
+                
+                return (
+                  <div key={key} className="border-b border-gray-200 pb-4">
+                    <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">{key}</p>
+                    <p className={cn(
+                      "text-gray-700",
+                      isLongText && "text-sm leading-relaxed"
+                    )}>{strValue}</p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Right - Scoring */}
+        <div className="w-1/2 flex flex-col bg-white">
+          <div className="p-8 flex-1 overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-gray-900">Score Application</h2>
+              <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                {stage.name}
+              </Badge>
+            </div>
+
+            {/* Total Score */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 mb-8 border border-blue-100">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-gray-600">Total Score</span>
+                <span className="text-3xl font-bold text-gray-900">
+                  {totalScore}<span className="text-lg text-gray-400">/{maxScore}</span>
+                </span>
+              </div>
+              <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-300"
+                  style={{ width: `${(totalScore / maxScore) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Rubric Categories */}
+            {rubric && Array.isArray(rubric.categories) ? (
+              <div className="space-y-6">
+                {rubric.categories.map((cat: any) => (
+                  <div key={cat.id} className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{cat.name}</h3>
+                        {cat.description && (
+                          <p className="text-sm text-gray-500 mt-1">{cat.description}</p>
+                        )}
+                      </div>
+                      <span className="font-bold text-gray-900 text-lg">
+                        {scores[cat.id] || 0}<span className="text-gray-400">/{cat.points}</span>
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max={cat.points}
+                      value={scores[cat.id] || 0}
+                      onChange={(e) => onScoreChange(cat.id, parseInt(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-blue-600"
+                    />
+                    <div className="flex justify-between text-xs text-gray-400 mt-1">
+                      <span>0</span>
+                      <span>{cat.points}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
+                <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No rubric configured for this stage</p>
+              </div>
+            )}
+
+            {/* Comments */}
+            <div className="mt-8">
+              <label className="block text-sm font-semibold text-gray-700 mb-3">
+                <MessageSquare className="w-4 h-4 inline mr-2" />
+                Review Notes
+              </label>
+              <textarea
+                value={comments}
+                onChange={(e) => onCommentsChange(e.target.value)}
+                placeholder="Add your notes about this application..."
+                rows={4}
+                className="w-full p-4 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Action Footer */}
+          <div className="p-6 bg-gray-50 border-t border-gray-200">
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline" 
+                onClick={() => onDecision('rejected')}
+                className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+              >
+                <ThumbsDown className="w-4 h-4 mr-2" />
+                Reject
+              </Button>
+              <Button 
+                onClick={onSaveAndNext}
+                disabled={isSaving}
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
+              >
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                Save & Next
+              </Button>
+              <Button 
+                onClick={() => onDecision('approved')}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                <ThumbsUp className="w-4 h-4 mr-2" />
+                Approve
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Analytics View
+function AnalyticsView({ 
+  stats, 
+  stages, 
+  applications 
+}: { 
+  stats: { pending: number; inReview: number; approved: number; rejected: number; avgScore: number }
+  stages: StageWithConfig[]
+  applications: ApplicationData[]
+}) {
+  return (
+    <div className="flex-1 overflow-y-auto p-8 bg-gray-50">
+      <h2 className="text-xl font-bold text-gray-900 mb-6">Review Analytics</h2>
+      
+      {/* Overview Cards */}
+      <div className="grid grid-cols-5 gap-4 mb-8">
+        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+              <FileText className="w-5 h-5 text-gray-500" />
+            </div>
+            <span className="text-gray-500 text-sm">Total</span>
+          </div>
+          <p className="text-3xl font-bold text-gray-900">{applications.length}</p>
+        </div>
+        
+        <div className="bg-amber-50 rounded-xl p-5 border border-amber-200">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+              <Clock className="w-5 h-5 text-amber-600" />
+            </div>
+            <span className="text-amber-700 text-sm">Pending</span>
+          </div>
+          <p className="text-3xl font-bold text-amber-600">{stats.pending}</p>
+        </div>
+        
+        <div className="bg-blue-50 rounded-xl p-5 border border-blue-200">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Eye className="w-5 h-5 text-blue-600" />
+            </div>
+            <span className="text-blue-700 text-sm">In Review</span>
+          </div>
+          <p className="text-3xl font-bold text-blue-600">{stats.inReview}</p>
+        </div>
+        
+        <div className="bg-green-50 rounded-xl p-5 border border-green-200">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+              <ThumbsUp className="w-5 h-5 text-green-600" />
+            </div>
+            <span className="text-green-700 text-sm">Approved</span>
+          </div>
+          <p className="text-3xl font-bold text-green-600">{stats.approved}</p>
+        </div>
+        
+        <div className="bg-red-50 rounded-xl p-5 border border-red-200">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+              <ThumbsDown className="w-5 h-5 text-red-600" />
+            </div>
+            <span className="text-red-700 text-sm">Rejected</span>
+          </div>
+          <p className="text-3xl font-bold text-red-600">{stats.rejected}</p>
+        </div>
+      </div>
+
+      {/* Stage Distribution */}
+      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm mb-8">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Stage Distribution</h3>
+        <div className="space-y-4">
+          {stages.map((stage, idx) => {
+            const count = applications.filter(a => a.stageId === stage.id).length
+            const percentage = applications.length > 0 ? (count / applications.length) * 100 : 0
+            
+            return (
+              <div key={stage.id}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center text-xs font-bold text-white">
+                      {idx + 1}
+                    </span>
+                    <span className="text-gray-700">{stage.name}</span>
+                  </div>
+                  <span className="text-gray-900 font-medium">{count}</span>
+                </div>
+                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all"
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Average Score */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">Average Score</h3>
+            <p className="text-gray-500 text-sm">Across all reviewed applications</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Star className="w-8 h-8 text-amber-500 fill-amber-500" />
+            <span className="text-4xl font-bold text-gray-900">{stats.avgScore}</span>
+          </div>
+        </div>
       </div>
     </div>
   )

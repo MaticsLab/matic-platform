@@ -25,6 +25,8 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
   const [isInitialized, setIsInitialized] = useState(false)
   const [forms, setForms] = useState<Form[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'draft'>('all')
 
   // Initialize state from metadata
   useEffect(() => {
@@ -107,9 +109,6 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
       />
     )
   }
-
-  const [searchQuery, setSearchQuery] = useState('')
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'draft'>('all')
 
   const filteredForms = forms.filter(form => {
     const matchesSearch = !searchQuery || 

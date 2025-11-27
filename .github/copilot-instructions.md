@@ -1,161 +1,116 @@
 # Matic Platform - AI Agent Instructions
 
 ## Project Overview
-Full-stack Airtable-like platform with forms and data tables using Go backend with Gin framework. Built with Next.js 14 (App Router), Go, PostgreSQL (Supabase), and TypeScript. Uses hybrid architecture: Go backend for all CRUD operations, Supabase for auth and real-time updates.
+Full-stack Airtable-like platform with forms, data tables, and review workflows. Built with Next.js 14 (App Router), Go/Gin backend, PostgreSQL (Supabase), and TypeScript. Hybrid architecture: Go backend for all CRUD operations, Supabase for auth and real-time updates.
 
 ## Architecture
 
-### Stack Components
-- **Frontend**: Next.js 14 App Router (`src/app/`), React 18, TypeScript, Tailwind CSS
-- **Backend**: Go with Gin framework and GORM, running at `backend.maticslab.com:443` (production) or `localhost:8080` (dev)
-- **Database**: PostgreSQL (Supabase) with 18 tables defined in `001_initial_schema.sql`
-- **Auth**: Supabase Auth (token-based, managed via `src/lib/supabase.ts`)
-- **Realtime**: Supabase postgres_changes subscriptions for live collaborative updates
-
-### Data Flow Pattern
+### Data Flow (Critical Pattern)
 ```
-Client Component → API Client (`src/lib/api/*-client.ts` or `go-client.ts`)
-  → Go Backend (`go-backend/handlers/*.go` via Gin router)
-  → GORM Model (`go-backend/models/models.go`)
-  → PostgreSQL
-  
-Real-time Updates:
-  PostgreSQL → Supabase Realtime → Client Component useEffect
+Frontend Component → API Client (src/lib/api/*-client.ts)
+  → Go Backend (go-backend/handlers/*.go)
+  → GORM Model → PostgreSQL
+
+Realtime: PostgreSQL → Supabase postgres_changes → Client useEffect
 ```
 
-**Critical**: Frontend never queries Supabase directly for data (except auth). All CRUD operations go through Go backend. Real-time updates use Supabase postgres_changes subscriptions.
+**Rule**: Frontend NEVER queries Supabase directly for data (except auth). All CRUD goes through Go backend.
 
-## Key Conventions
+### Stack
+- **Frontend**: Next.js 14 App Router, React 18, TypeScript, Tailwind, shadcn/ui (`src/ui-components/`)
+- **Backend**: Go 1.21+ with Gin framework, GORM ORM (`go-backend/`)
+- **Database**: PostgreSQL via Supabase, schema in `docs/001_initial_schema.sql`
+- **Auth**: Supabase Auth, tokens passed via `Authorization: Bearer <token>`
 
-### Backend (Go)
-- **Models**: Use GORM models with UUID primary keys in `go-backend/models/models.go`
-- **Handlers**: RESTful handlers in `go-backend/handlers/*.go` with Gin context
-- **Router**: All routes defined in `go-backend/router/router.go` under `/api/v1` prefix
-- **Auth**: Supabase Auth tokens passed via `Authorization: Bearer <token>` header
-- **CORS**: Configured in router setup - supports all origins with credentials
-- **JSONB**: Use `datatypes.JSON` from GORM for JSONB columns (settings, data, metadata)
+## Development
 
-Example endpoint pattern:
+### Quick Start
+```bash
+# Terminal 1 - Backend (localhost:8080)
+cd go-backend && go run main.go
+
+# Terminal 2 - Frontend (localhost:3000)
+npm run dev
+```
+
+### Environment
+- Backend: `go-backend/.env` (DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY)
+- Frontend: `.env.local` (NEXT_PUBLIC_GO_API_URL, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY)
+
+## Key Patterns
+
+### Adding New API Features
+1. **Model**: Add GORM model in `go-backend/models/*.go` (use `uuid.UUID`, `datatypes.JSON` for JSONB)
+2. **Handler**: Create in `go-backend/handlers/your_feature.go`
+3. **Route**: Register in `go-backend/router/router.go` under `/api/v1`
+4. **Types**: Add TypeScript types in `src/types/*.ts`
+5. **Client**: Create `src/lib/api/your-feature-client.ts` using `goFetch` from `go-client.ts`
+
+Example handler pattern:
 ```go
 func GetDataTable(c *gin.Context) {
     id := c.Param("id")
     var table models.DataTable
-    
     if err := database.DB.Preload("Columns").First(&table, "id = ?", id).Error; err != nil {
         c.JSON(404, gin.H{"error": "Table not found"})
         return
     }
-    
     c.JSON(200, table)
 }
 ```
 
-### Frontend (Next.js)
-- **Client components**: Mark with `"use client"` - used for all interactive UI (most components)
-- **Import aliases**: Use `@/` prefix (configured in `tsconfig.json`) - e.g., `@/lib/api/go-client`
-- **API clients**: Use `goClient` from `@/lib/api/go-client` for all data operations - never fetch directly
-- **Auth**: Get token via `getSessionToken()` from `@/lib/supabase`, automatically injected by `goFetch()`
-- **Types**: Match backend schemas exactly, defined in `src/types/*.ts`
-- **Styling**: Tailwind with shadcn/ui components in `src/ui-components/` - use `cn()` for conditional classes
-
-### Tab System (Critical Pattern)
-Workspace UI uses persistent tab system managed by `TabManager` (`src/lib/tab-manager.ts`):
-- Tabs stored in localStorage per workspace
-- `WorkspaceTabProvider.tsx` wraps workspace pages
-- Always route through tab system, not direct Next.js navigation
-- Overview tab auto-created if all tabs closed
-
-## Development Workflows
-
-### Starting the Stack
-```bash
-# Terminal 1 - Go Backend
-cd go-backend
-go run main.go
-
-# Terminal 2 - Frontend
-npm run dev
+Example client pattern (see `src/lib/api/workflows-client.ts`):
+```typescript
+import { goFetch } from './go-client';
+export const myClient = {
+  list: (workspaceId: string) => goFetch<MyType[]>(`/my-resource?workspace_id=${workspaceId}`),
+  create: (data: Partial<MyType>) => goFetch<MyType>('/my-resource', { method: 'POST', body: JSON.stringify(data) }),
+};
 ```
 
-**Access**:
-- Frontend: http://localhost:3000
-- Go Backend: http://localhost:8080 (HTML API docs at root)
-- API Docs JSON: http://localhost:8080/api/v1/docs
+### Frontend Conventions
+- **Client components**: Mark with `"use client"` - most components need this
+- **Imports**: Use `@/` prefix (e.g., `@/lib/api/go-client`, `@/types/data-tables`)
+- **Styling**: Tailwind + `cn()` utility for conditional classes
+- **Components**: shadcn/ui in `src/ui-components/`, custom in `src/components/`
 
-### Environment Setup
-- Go Backend: `go-backend/.env` with database connection (uses Supabase PostgreSQL)
-- Frontend: `.env.local` with `NEXT_PUBLIC_GO_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+### Tab System (Workspace Navigation)
+`TabManager` (`src/lib/tab-manager.ts`) manages workspace tabs via localStorage:
+- Always navigate through tab system, not direct Next.js `router.push()`
+- `WorkspaceTabProvider.tsx` wraps workspace pages
+- Overview tab auto-created if all tabs closed
 
-### Adding New Features
+## Current API Endpoints (see `go-backend/router/router.go`)
 
-**For data tables/forms features** (20+ column types, 6 view types):
-1. Check if column type exists in `go-backend/models/models.go` (TableColumn.ColumnType)
-2. Add handler if needed in `go-backend/handlers/*.go`
-3. Add frontend types (`src/types/data-tables.ts`)
-4. Add API client methods (`src/lib/api/go-client.ts` or feature-specific client)
-5. Test via http://localhost:8080 or curl
-
-**For new handlers**:
-1. Add handler function in `go-backend/handlers/your_feature.go`
-2. Register route in `go-backend/router/router.go` under `/api/v1`
-3. Create corresponding API client in `src/lib/api/your-feature-client.ts`
-
-## Migration Context (Read Before Large Changes)
-
-**Status**: Migrated to Go backend from FastAPI
-- ✅ Backend: Go with Gin framework (workspaces, tables, forms, activities hubs, search, table links)
-- ✅ Authentication: Supabase Auth integrated, token passed via Authorization header
-- ✅ Table operations: All CRUD using Go API
-- ✅ Realtime: Using Supabase postgres_changes subscriptions (no WebSocket)
-- ⏳ Some legacy components still use Supabase queries directly
-
-When migrating components:
-1. Search for `.from('table_name')` - these are Supabase queries to replace
-2. Find equivalent in `goClient` from `@/lib/api/go-client`
-3. Remove Supabase imports, add Go client imports
-4. Update async patterns (Supabase uses different promise patterns)
-
-## Database Schema Essentials
-
-4. **Update async patterns** (Supabase uses different promise patterns)
-
-## Database Schema Essentials
-
-**Core hierarchy**: `organizations` → `workspaces` → `forms`/`data_tables`
-
-**Tables (Airtable-like sheets)**:
-- `data_tables` - Table definitions
-- `table_columns` - Column schemas (supports 20+ types: text, number, select, lookup, formula, etc.)
-- `table_rows` - Data stored as JSONB in `data` field
-- `table_views` - Grid, kanban, calendar, gallery, timeline, form views
-- `table_links` + `table_row_links` - Cross-table relationships
-
-**Column types to know**: text, number, select, multiselect, date, datetime, checkbox, url, email, phone, attachment, user, lookup, rollup, formula, autonumber, rating, duration, currency, progress
-
-**Forms**:
-- `forms` + `form_fields` - Form definitions
-- `form_submissions` - Submitted data
-- `form_table_connections` - Link forms to populate tables
+| Resource | Endpoints |
+|----------|-----------|
+| Workspaces | `/api/v1/workspaces` |
+| Activities Hubs | `/api/v1/activities-hubs` + `/tabs` |
+| Tables | `/api/v1/tables` + `/rows`, `/columns`, `/search` |
+| Table Links | `/api/v1/table-links`, `/api/v1/row-links` |
+| Forms | `/api/v1/forms` + `/submissions`, `/submit` |
+| Search | `/api/v1/search` + `/suggestions`, `/recent`, `/popular` |
+| Workflows | `/api/v1/workflows`, `/stages`, `/reviewer-types`, `/rubrics` |
 
 ## Common Pitfalls
 
-1. **Trailing slashes in API endpoints**: Always use endpoints **without** trailing slashes for consistency - e.g., `/tables/{id}/rows` not `/tables/{id}/rows/`
-2. **Client components**: Most components need `"use client"` - server components can't use hooks/events
-3. **CORS**: Add new domains to `go-backend/router/router.go` CORS middleware
-4. **JSONB columns**: Use `datatypes.JSON` from GORM for settings, data, metadata fields
-5. **UUID handling**: Go backend uses `uuid.UUID`, frontend uses strings - conversion automatic via JSON marshaling
+1. **No trailing slashes**: Use `/tables/{id}/rows` not `/tables/{id}/rows/`
+2. **JSONB columns**: Use `datatypes.JSON` from GORM, not `map[string]interface{}`
+3. **UUID types**: Go uses `uuid.UUID`, frontend uses strings (auto-converts via JSON)
+4. **Auth tokens**: `goFetch()` auto-injects token via `getSessionToken()`
+5. **CORS**: Add new domains to `go-backend/router/router.go` cors config
 
 ## File Reference
 
-**Essential files for understanding**:
-- `001_initial_schema.sql` - Complete DB schema (single source of truth)
-- `go-backend/router/router.go` - All API endpoints registered
-- `go-backend/handlers/*.go` - Handler implementations
-- `go-backend/models/models.go` - GORM models
-- `src/lib/api/go-client.ts` - Base Go API client
-- `src/lib/api/participants-go-client.ts` - Reference implementation for feature-specific clients
+**Core Files**:
+- `go-backend/router/router.go` - All API routes
+- `go-backend/models/*.go` - GORM models (models.go, workflows.go, search.go)
+- `go-backend/handlers/*.go` - Request handlers
+- `src/lib/api/go-client.ts` - Base API client with auth
+- `src/lib/api/workflows-client.ts` - Reference for feature-specific clients
+- `src/lib/tab-manager.ts` - Workspace tab management
 - `src/components/NavigationLayout.tsx` - Main app shell
 
-**Legacy/reference** (don't copy patterns from these):
-- `old-app-files/` - Original implementation before migration
-- `*.original.tsx` / `*.old.tsx` - Backup files during migration
+**Types**: `src/types/*.ts` (data-tables.ts, forms.ts, workspaces.ts, activities-hubs.ts)
+
+**Schema**: `docs/001_initial_schema.sql` - Database single source of truth
