@@ -8,7 +8,88 @@
 -- - Hub Types: Categories of data tables (activities, applications, data)
 -- - Module Definitions: Available features that can be enabled
 -- - Hub Module Configs: Per-table module enablement settings
+--
+-- CLEANUP: Removes legacy/redundant tables:
+-- - activities_hubs, activities_hub_tabs (replaced by data_tables with hub_type)
+-- - module_configs, module_instances (replaced by hub_module_configs)
+-- - request_hub_forms, request_hub_tables (legacy, unused)
+-- - forms, form_fields, form_submissions (NOT USED - using data_tables instead)
+-- - form_table_connections (NOT USED - forms are data_tables with icon='form')
 -- =====================================================
+
+-- =====================================================
+-- PHASE 0: DROP LEGACY/REDUNDANT TABLES
+-- =====================================================
+
+-- Drop old module system tables from 003_schema_cleanup.sql (replaced by hub_module_configs)
+DROP TABLE IF EXISTS module_instances CASCADE;
+DROP TABLE IF EXISTS module_configs CASCADE;
+
+-- Drop legacy request hub tables (unused)
+DROP TABLE IF EXISTS request_hub_forms CASCADE;
+DROP TABLE IF EXISTS request_hub_tables CASCADE;
+DROP TABLE IF EXISTS request_templates CASCADE;
+
+-- Drop unused forms tables (we use data_tables with icon='form' instead)
+-- The Go backend uses models.Table for forms, not a separate forms table
+DROP TABLE IF EXISTS form_table_connections CASCADE;
+DROP TABLE IF EXISTS form_submissions CASCADE;
+DROP TABLE IF EXISTS form_fields CASCADE;
+DROP TABLE IF EXISTS forms CASCADE;
+
+-- Migrate activities_hubs data to data_tables before dropping
+-- First, create data_tables entries for any activities_hubs that don't have corresponding tables
+DO $$
+DECLARE
+    hub RECORD;
+    new_table_id UUID;
+BEGIN
+    -- Check if activities_hubs table exists before trying to migrate
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'activities_hubs') THEN
+        FOR hub IN 
+            SELECT ah.* FROM activities_hubs ah
+            WHERE NOT EXISTS (
+                SELECT 1 FROM data_tables dt 
+                WHERE dt.workspace_id = ah.workspace_id 
+                AND dt.slug = ah.slug
+            )
+        LOOP
+            -- Insert into data_tables with hub_type = 'activities'
+            INSERT INTO data_tables (
+                id, workspace_id, name, slug, description, icon, color, 
+                settings, hub_type, created_by, created_at, updated_at
+            ) VALUES (
+                hub.id, -- Use same ID for easier reference
+                hub.workspace_id,
+                hub.name,
+                hub.slug,
+                hub.description,
+                COALESCE((hub.settings->>'icon')::TEXT, 'calendar'),
+                COALESCE((hub.settings->>'color')::TEXT, '#10B981'),
+                hub.settings,
+                'activities',
+                hub.created_by,
+                hub.created_at,
+                hub.updated_at
+            )
+            ON CONFLICT (id) DO UPDATE SET hub_type = 'activities';
+            
+            RAISE NOTICE 'Migrated activities_hub % to data_tables', hub.name;
+        END LOOP;
+        
+        -- Update any existing data_tables that match activities_hubs by slug
+        UPDATE data_tables dt
+        SET hub_type = 'activities'
+        FROM activities_hubs ah
+        WHERE dt.workspace_id = ah.workspace_id 
+        AND dt.slug = ah.slug
+        AND (dt.hub_type IS NULL OR dt.hub_type = 'data');
+    END IF;
+END $$;
+
+-- Now safe to drop activities_hubs tables
+DROP TABLE IF EXISTS activities_hub_tabs CASCADE;
+DROP TABLE IF EXISTS activities_hubs CASCADE;
 
 -- =====================================================
 -- PHASE 1: ADD HUB_TYPE TO DATA_TABLES
@@ -352,20 +433,15 @@ RETURNS void AS $$
 DECLARE
     t RECORD;
 BEGIN
-    FOR t IN SELECT id, name FROM data_tables WHERE hub_type = 'data' OR hub_type IS NULL
+    FOR t IN SELECT id, name, icon FROM data_tables WHERE hub_type = 'data' OR hub_type IS NULL
     LOOP
         -- Check if table has pulse enabled -> activities
         IF EXISTS (SELECT 1 FROM pulse_enabled_tables WHERE table_id = t.id AND enabled = TRUE) THEN
             UPDATE data_tables SET hub_type = 'activities' WHERE id = t.id;
-        -- Check if table has form connections -> applications
-        ELSIF EXISTS (SELECT 1 FROM form_table_connections WHERE table_id = t.id) THEN
-            -- Check if any connected form has review workflow
-            IF EXISTS (
-                SELECT 1 FROM form_submissions fs
-                JOIN forms f ON fs.form_id = f.id
-                JOIN form_table_connections ftc ON f.id = ftc.form_id
-                WHERE ftc.table_id = t.id
-            ) THEN
+        -- Check if table is a form (icon='form') with submissions -> applications
+        ELSIF t.icon = 'form' THEN
+            -- Forms that have rows are likely application forms
+            IF EXISTS (SELECT 1 FROM table_rows WHERE table_id = t.id LIMIT 1) THEN
                 UPDATE data_tables SET hub_type = 'applications' WHERE id = t.id;
             END IF;
         -- Check if table name suggests activities
@@ -394,6 +470,26 @@ COMMENT ON FUNCTION auto_enable_default_modules() IS 'Automatically enables defa
 COMMENT ON FUNCTION migrate_existing_hub_types() IS 'Infers and sets hub_type for existing tables based on their usage patterns';
 
 -- =====================================================
+-- PHASE 11: RUN MIGRATION AND CLEANUP
+-- =====================================================
+
+-- Auto-detect and set hub_type for existing tables
+SELECT migrate_existing_hub_types();
+
+-- Summary of deleted tables:
+-- ✓ module_instances - replaced by hub_module_configs
+-- ✓ module_configs - replaced by hub_module_configs  
+-- ✓ activities_hubs - migrated to data_tables with hub_type='activities'
+-- ✓ activities_hub_tabs - dropped (tabs now stored in data_tables.settings)
+-- ✓ request_hub_forms - legacy, unused
+-- ✓ request_hub_tables - legacy, unused
+-- ✓ request_templates - legacy, unused
+-- ✓ forms - NOT USED (Go backend uses data_tables with icon='form')
+-- ✓ form_fields - NOT USED (Go backend uses table_fields)
+-- ✓ form_submissions - NOT USED (Go backend uses table_rows)
+-- ✓ form_table_connections - NOT USED (forms ARE data_tables)
+
+-- =====================================================
 -- VERIFICATION QUERIES
 -- =====================================================
 
@@ -412,3 +508,15 @@ COMMENT ON FUNCTION migrate_existing_hub_types() IS 'Infers and sets hub_type fo
 -- LEFT JOIN hub_module_configs hmc ON md.id = hmc.module_id AND hmc.table_id = 'YOUR_TABLE_ID'
 -- WHERE 'YOUR_HUB_TYPE' = ANY(md.available_for_hub_types)
 -- ORDER BY md.display_order;
+
+-- Verify migration worked - show tables by hub type
+-- SELECT hub_type, COUNT(*) as count, array_agg(name) as table_names
+-- FROM data_tables
+-- GROUP BY hub_type;
+
+-- Show what tables were NOT dropped (these are still needed)
+-- Remaining tables: organizations, organization_members, workspaces, workspace_members,
+-- data_tables, table_fields, table_rows, table_views, table_links, table_row_links,
+-- table_attachments, table_comments, active_sessions, activity_logs, scan_history,
+-- pulse_enabled_tables, review_workflows, application_stages, reviewer_types, 
+-- rubrics, stage_reviewer_configs, module_definitions, hub_module_configs
