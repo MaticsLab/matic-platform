@@ -272,7 +272,7 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
         {activeTab === 'review' && <ReviewWorkspace workspaceId={workspaceId} formId={formId} />}
         {activeTab === 'communications' && <CommunicationsCenter workspaceId={workspaceId} formId={formId} />}
         {activeTab === 'reviewers' && <ReviewerManagement formId={formId} />}
-        {activeTab === 'workflows' && <WorkflowBuilder formId={formId} />}
+        {activeTab === 'workflows' && <WorkflowBuilder workspaceId={workspaceId} />}
         {activeTab === 'settings' && (
           <div className="p-8 text-center text-gray-500">
             <Settings className="w-12 h-12 mx-auto mb-4 text-gray-400" />
