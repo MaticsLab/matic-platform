@@ -26,6 +26,9 @@ export type FieldType =
   | 'divider'
   | 'heading'
   | 'paragraph'
+  | 'section'
+  | 'group'
+  | 'repeater'
 
 export type FieldWidth = 'full' | 'half' | 'third' | 'quarter'
 
@@ -56,8 +59,10 @@ export interface FormField {
   id: string
   form_id: string // This might be table_id in backend
   table_id?: string
+  section_id?: string // ID of the section this field belongs to
   name: string
   label: string
+  title?: string // For section type fields
   placeholder?: string
   description?: string
   type: FieldType // Changed from field_type to type to match backend

@@ -284,6 +284,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 				// Reviewer Assignment
 				forms.POST("/:id/reviewers/:reviewer_id/assign", handlers.AssignReviewerApplications)
+
+				// Workflow Assignment & Stage Management
+				forms.POST("/:id/submissions/:submission_id/assign-workflow", handlers.AssignSubmissionWorkflow)
+				forms.POST("/:id/submissions/:submission_id/move-stage", handlers.MoveSubmissionToStage)
+				forms.PATCH("/:id/submissions/:submission_id/review-data", handlers.UpdateSubmissionReviewData)
+				forms.POST("/:id/submissions/bulk-assign-workflow", handlers.BulkAssignWorkflow)
 			}
 
 			// Search

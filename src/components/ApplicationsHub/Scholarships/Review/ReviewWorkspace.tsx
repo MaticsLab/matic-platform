@@ -49,6 +49,7 @@ interface ApplicationData {
   scores: Record<string, number>
   comments: string
   flagged: boolean
+  workflowId?: string
 }
 
 interface StageWithConfig extends ApplicationStage {
@@ -63,20 +64,28 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
   // Core state
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [workflows, setWorkflows] = useState<ReviewWorkflow[]>([])
   const [workflow, setWorkflow] = useState<ReviewWorkflow | null>(null)
   const [stages, setStages] = useState<StageWithConfig[]>([])
   const [applications, setApplications] = useState<ApplicationData[]>([])
   const [reviewerTypes, setReviewerTypes] = useState<ReviewerType[]>([])
   const [rubrics, setRubrics] = useState<Rubric[]>([])
   
-  // UI state - completely different approach
+  // UI state
   const [viewMode, setViewMode] = useState<ViewMode>('queue')
-  const [selectedStageId, setSelectedStageId] = useState<string>('')
+  const [selectedStageId, setSelectedStageId] = useState<string>('all')
   const [selectedAppIndex, setSelectedAppIndex] = useState(0)
   const [isReviewMode, setIsReviewMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [filterScoreMin, setFilterScoreMin] = useState<number | null>(null)
+  const [filterScoreMax, setFilterScoreMax] = useState<number | null>(null)
+  const [filterTags, setFilterTags] = useState<string[]>([])
+  const [filterReviewerType, setFilterReviewerType] = useState<string>('all')
+  const [filterReviewed, setFilterReviewed] = useState<string>('all') // 'all', 'reviewed', 'unreviewed'
+  const [showWorkflowSelector, setShowWorkflowSelector] = useState(false)
+  const [selectedAppsForBulk, setSelectedAppsForBulk] = useState<string[]>([])
   
   // Scoring state
   const [editingScores, setEditingScores] = useState<Record<string, number>>({})
@@ -99,6 +108,44 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
     loadData()
   }, [formId, workspaceId])
 
+  // Reload stages when workflow changes
+  useEffect(() => {
+    if (!workflow || !workspaceId) return
+    loadStagesForWorkflow(workflow.id)
+  }, [workflow?.id])
+
+  const loadStagesForWorkflow = async (workflowId: string) => {
+    try {
+      const stagesData = await workflowsClient.listStages(workspaceId, workflowId)
+      
+      const loadedStages = await Promise.all(
+        stagesData.map(async (stage) => {
+          let configs: StageReviewerConfig[] = []
+          try {
+            configs = await workflowsClient.listStageConfigs(stage.id)
+          } catch {}
+          
+          const primaryConfig = configs[0]
+          const rubric = primaryConfig?.rubric_id 
+            ? rubrics.find(r => r.id === primaryConfig.rubric_id) || null
+            : null
+          
+          return {
+            ...stage,
+            reviewerConfigs: configs,
+            rubric,
+            applicationCount: applications.filter(a => a.stageId === stage.id).length
+          }
+        })
+      )
+      
+      const sorted = loadedStages.sort((a, b) => a.order_index - b.order_index)
+      setStages(sorted)
+    } catch (error) {
+      console.error('Failed to load stages:', error)
+    }
+  }
+
   const loadData = async () => {
     setIsLoading(true)
     try {
@@ -106,18 +153,19 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
       const settings = form.settings || {}
       const workflowId = settings.workflow_id
 
-      const [workflows, allRubrics, allReviewerTypes] = await Promise.all([
+      const [allWorkflows, allRubrics, allReviewerTypes] = await Promise.all([
         workflowsClient.listWorkflows(workspaceId),
         workflowsClient.listRubrics(workspaceId),
         workflowsClient.listReviewerTypes(workspaceId)
       ])
       
+      setWorkflows(allWorkflows)
       setRubrics(allRubrics)
       setReviewerTypes(allReviewerTypes)
 
       let activeWorkflow = workflowId 
-        ? workflows.find(w => w.id === workflowId) 
-        : workflows.find(w => w.is_active) || workflows[0]
+        ? allWorkflows.find(w => w.id === workflowId) 
+        : allWorkflows.find(w => w.is_active) || allWorkflows[0]
       
       let loadedStages: StageWithConfig[] = []
       
@@ -156,14 +204,17 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
       
       const apps: ApplicationData[] = submissions.map((sub) => {
         const data = sub.data || {}
-        const reviewData = (sub as any).review_data || {}
+        const metadata = (sub as any).metadata || {}
         
         const name = data['Full Name'] || data['name'] || data['Name'] || 
                     `${data['First Name'] || ''} ${data['Last Name'] || ''}`.trim() ||
                     `Applicant ${sub.id.substring(0, 6)}`
         
         const email = data['Email'] || data['email'] || ''
-        const stageId = reviewData.stage_id || (loadedStages.length > 0 ? loadedStages[0].id : '')
+        
+        // Use metadata for workflow tracking
+        const assignedWorkflowId = metadata.assigned_workflow_id
+        const stageId = metadata.current_stage_id || (loadedStages.length > 0 ? loadedStages[0].id : '')
         const stage = loadedStages.find(s => s.id === stageId)
         
         return {
@@ -173,17 +224,18 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
           submittedAt: sub.submitted_at,
           stageId,
           stageName: stage?.name || 'Unassigned',
-          status: reviewData.status || 'pending',
-          score: reviewData.total_score || null,
+          status: metadata.status || 'pending',
+          score: metadata.total_score || null,
           maxScore: stage?.rubric?.max_score || 100,
-          reviewCount: reviewData.review_count || 0,
+          reviewCount: metadata.review_count || 0,
           requiredReviews: stage?.reviewerConfigs?.[0]?.min_reviews_required || 1,
-          assignedReviewers: reviewData.assigned_reviewers || [],
-          tags: reviewData.tags || [],
+          assignedReviewers: metadata.assigned_reviewers || [],
+          tags: metadata.tags || [],
           raw_data: data,
-          scores: reviewData.scores || {},
-          comments: reviewData.comments || '',
-          flagged: reviewData.flagged || false
+          scores: metadata.scores || {},
+          comments: metadata.comments || '',
+          flagged: metadata.flagged || false,
+          workflowId: assignedWorkflowId
         }
       })
       
@@ -203,32 +255,59 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
   }
 
   // Get filtered applications for current stage
+  // Get all unique tags from applications for filter options
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>()
+    applications.forEach(app => app.tags.forEach(tag => tagSet.add(tag)))
+    return Array.from(tagSet).sort()
+  }, [applications])
+
   const stageApps = useMemo(() => {
     return applications.filter(app => {
-      const matchesStage = app.stageId === selectedStageId
+      const matchesStage = selectedStageId === 'all' || app.stageId === selectedStageId
+      const matchesWorkflow = !workflow || app.workflowId === workflow.id || !app.workflowId // Include unassigned
       const matchesSearch = !searchQuery || 
         app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         app.email.toLowerCase().includes(searchQuery.toLowerCase())
       const matchesStatus = filterStatus === 'all' || app.status === filterStatus
-      return matchesStage && matchesSearch && matchesStatus
+      
+      // Score range filter
+      const matchesScoreMin = filterScoreMin === null || (app.score !== null && app.score >= filterScoreMin)
+      const matchesScoreMax = filterScoreMax === null || (app.score !== null && app.score <= filterScoreMax)
+      
+      // Tags filter - app must have all selected tags
+      const matchesTags = filterTags.length === 0 || filterTags.every(tag => app.tags.includes(tag))
+      
+      // Reviewed filter
+      const matchesReviewed = 
+        filterReviewed === 'all' || 
+        (filterReviewed === 'reviewed' && app.reviewCount > 0) ||
+        (filterReviewed === 'unreviewed' && app.reviewCount === 0)
+      
+      return matchesStage && matchesWorkflow && matchesSearch && matchesStatus && 
+             matchesScoreMin && matchesScoreMax && matchesTags && matchesReviewed
     })
-  }, [applications, selectedStageId, searchQuery, filterStatus])
+  }, [applications, selectedStageId, workflow, searchQuery, filterStatus, filterScoreMin, filterScoreMax, filterTags, filterReviewed])
 
   // Current application
   const currentApp = stageApps[selectedAppIndex] || null
-  const currentStage = stages.find(s => s.id === selectedStageId)
+  const currentStage = stages.find(s => s.id === selectedStageId) || (currentApp ? stages.find(s => s.id === currentApp.stageId) : null)
   const currentRubric = currentStage?.rubric || null
 
-  // Stats
+  // Stats for current workflow
   const stats = useMemo(() => {
-    const pending = applications.filter(a => a.status === 'pending').length
-    const inReview = applications.filter(a => a.status === 'in_review').length
-    const approved = applications.filter(a => a.status === 'approved').length
-    const rejected = applications.filter(a => a.status === 'rejected').length
-    const avgScore = applications.filter(a => a.score !== null).reduce((acc, a) => acc + (a.score || 0), 0) / 
-                     Math.max(applications.filter(a => a.score !== null).length, 1)
-    return { pending, inReview, approved, rejected, avgScore: Math.round(avgScore) }
-  }, [applications])
+    const workflowApps = workflow 
+      ? applications.filter(a => a.workflowId === workflow.id || !a.workflowId)
+      : applications
+    const pending = workflowApps.filter(a => a.status === 'pending').length
+    const inReview = workflowApps.filter(a => a.status === 'in_review').length
+    const approved = workflowApps.filter(a => a.status === 'approved').length
+    const rejected = workflowApps.filter(a => a.status === 'rejected').length
+    const unassigned = workflowApps.filter(a => !a.workflowId).length
+    const avgScore = workflowApps.filter(a => a.score !== null).reduce((acc, a) => acc + (a.score || 0), 0) / 
+                     Math.max(workflowApps.filter(a => a.score !== null).length, 1)
+    return { pending, inReview, approved, rejected, unassigned, avgScore: Math.round(avgScore), total: workflowApps.length }
+  }, [applications, workflow])
 
   // Navigation
   const goToNext = () => {
@@ -261,26 +340,78 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
     }
   }
 
-  const handleMoveToStage = async (appId: string, newStageId: string) => {
-    setApplications(prev => prev.map(app => 
-      app.id === appId 
-        ? { ...app, stageId: newStageId, stageName: stages.find(s => s.id === newStageId)?.name || '' }
-        : app
-    ))
+  const handleMoveToStage = async (appId: string, newStageId: string, reason?: string) => {
+    if (!formId) return
     
-    setStages(prev => prev.map(stage => ({
-      ...stage,
-      applicationCount: applications.filter(a => 
-        a.id === appId ? newStageId === stage.id : a.stageId === stage.id
-      ).length
-    })))
+    try {
+      // Persist to backend
+      await workflowsClient.moveToStage(formId, appId, newStageId, reason)
+      
+      // Update local state
+      setApplications(prev => prev.map(app => 
+        app.id === appId 
+          ? { ...app, stageId: newStageId, stageName: stages.find(s => s.id === newStageId)?.name || '' }
+          : app
+      ))
+      
+      // Update stage counts
+      setStages(prev => prev.map(stage => ({
+        ...stage,
+        applicationCount: applications.filter(a => 
+          a.id === appId ? newStageId === stage.id : a.stageId === stage.id
+        ).length
+      })))
+    } catch (error) {
+      console.error('Failed to move to stage:', error)
+    }
+  }
+
+  const handleAssignWorkflow = async (appId: string, workflowId: string, stageId: string) => {
+    if (!formId) return
+    
+    try {
+      await workflowsClient.assignWorkflow(formId, appId, workflowId, stageId)
+      
+      setApplications(prev => prev.map(app => 
+        app.id === appId 
+          ? { ...app, workflowId, stageId, stageName: stages.find(s => s.id === stageId)?.name || '' }
+          : app
+      ))
+    } catch (error) {
+      console.error('Failed to assign workflow:', error)
+    }
+  }
+
+  const handleBulkAssignWorkflow = async (workflowId: string, stageId: string) => {
+    if (!formId || selectedAppsForBulk.length === 0) return
+    
+    try {
+      await workflowsClient.bulkAssignWorkflow(formId, selectedAppsForBulk, workflowId, stageId)
+      
+      setApplications(prev => prev.map(app => 
+        selectedAppsForBulk.includes(app.id)
+          ? { ...app, workflowId, stageId, stageName: stages.find(s => s.id === stageId)?.name || '' }
+          : app
+      ))
+      
+      setSelectedAppsForBulk([])
+    } catch (error) {
+      console.error('Failed to bulk assign workflow:', error)
+    }
   }
 
   const handleSaveAndNext = async () => {
-    if (!currentApp) return
+    if (!currentApp || !formId) return
     setIsSaving(true)
     try {
       const totalScore = Object.values(editingScores).reduce((sum, val) => sum + (val || 0), 0)
+      
+      // Persist to backend
+      await workflowsClient.updateReviewData(formId, currentApp.id, {
+        scores: editingScores,
+        comments: editingComments,
+        status: 'in_review'
+      })
       
       setApplications(prev => prev.map(app => 
         app.id === currentApp.id
@@ -300,15 +431,41 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
   }
 
   const handleDecision = async (decision: 'approved' | 'rejected') => {
-    if (!currentApp) return
+    if (!currentApp || !formId) return
     
-    setApplications(prev => prev.map(app => 
-      app.id === currentApp.id
-        ? { ...app, status: decision }
-        : app
-    ))
-    
-    goToNext()
+    try {
+      // Persist decision to backend
+      await workflowsClient.updateReviewData(formId, currentApp.id, {
+        decision,
+        status: decision
+      })
+      
+      setApplications(prev => prev.map(app => 
+        app.id === currentApp.id
+          ? { ...app, status: decision }
+          : app
+      ))
+      
+      // If approved and there's a next stage, optionally move to it
+      if (decision === 'approved') {
+        const currentStageIndex = stages.findIndex(s => s.id === currentApp.stageId)
+        if (currentStageIndex >= 0 && currentStageIndex < stages.length - 1) {
+          const nextStage = stages[currentStageIndex + 1]
+          await handleMoveToStage(currentApp.id, nextStage.id, 'Auto-advanced after approval')
+        }
+      }
+      
+      goToNext()
+    } catch (error) {
+      console.error('Failed to save decision:', error)
+    }
+  }
+
+  const handleSwitchWorkflow = (newWorkflow: ReviewWorkflow) => {
+    setWorkflow(newWorkflow)
+    setSelectedStageId('all')
+    setSelectedAppIndex(0)
+    setShowWorkflowSelector(false)
   }
 
   const formatTime = (seconds: number) => {
@@ -388,6 +545,54 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
               Review Center
             </h1>
             
+            {/* Workflow Selector */}
+            <div className="relative">
+              <button
+                onClick={() => setShowWorkflowSelector(!showWorkflowSelector)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+              >
+                <Layers className="w-4 h-4 text-blue-600" />
+                <span className="font-medium text-blue-900">{workflow?.name || 'Select Workflow'}</span>
+                <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">
+                  {workflow?.is_active ? 'Active' : 'Draft'}
+                </Badge>
+                <ChevronDown className={cn("w-4 h-4 text-blue-600 transition-transform", showWorkflowSelector && "rotate-180")} />
+              </button>
+              
+              {showWorkflowSelector && (
+                <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                  <div className="p-3 border-b border-gray-100 bg-gray-50">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Available Workflows</p>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto p-2">
+                    {workflows.map(wf => (
+                      <button
+                        key={wf.id}
+                        onClick={() => handleSwitchWorkflow(wf)}
+                        className={cn(
+                          "w-full text-left p-3 rounded-lg flex items-center justify-between hover:bg-gray-50 transition-colors",
+                          workflow?.id === wf.id && "bg-blue-50 border border-blue-200"
+                        )}
+                      >
+                        <div>
+                          <p className="font-medium text-gray-900">{wf.name}</p>
+                          <p className="text-xs text-gray-500">{wf.description || 'No description'}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {wf.is_active && (
+                            <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">Active</Badge>
+                          )}
+                          {workflow?.id === wf.id && (
+                            <CheckCircle className="w-4 h-4 text-blue-600" />
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
             {/* View Mode Tabs */}
             <div className="flex bg-gray-100 rounded-lg p-1">
               {[
@@ -423,11 +628,136 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
                 className="pl-9 pr-4 py-2 w-64 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
               />
             </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setShowFilters(!showFilters)} 
+              className={cn(
+                "text-gray-500 hover:text-gray-900 hover:bg-gray-100",
+                showFilters && "bg-blue-50 text-blue-600"
+              )}
+            >
+              <Filter className="w-4 h-4" />
+              {(filterStatus !== 'all' || filterTags.length > 0 || filterScoreMin !== null || filterScoreMax !== null || filterReviewed !== 'all') && (
+                <span className="ml-1 w-2 h-2 bg-blue-500 rounded-full" />
+              )}
+            </Button>
             <Button variant="ghost" size="sm" onClick={loadData} className="text-gray-500 hover:text-gray-900 hover:bg-gray-100">
               <RefreshCw className="w-4 h-4" />
             </Button>
           </div>
         </div>
+        
+        {/* Advanced Filters Panel */}
+        {showFilters && (
+          <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+            <div className="flex flex-wrap items-end gap-4">
+              {/* Status Filter */}
+              <div className="w-40">
+                <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="in_review">In Review</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+
+              {/* Review Status Filter */}
+              <div className="w-40">
+                <label className="block text-xs font-medium text-gray-500 mb-1">Review Status</label>
+                <select
+                  value={filterReviewed}
+                  onChange={(e) => setFilterReviewed(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                >
+                  <option value="all">All</option>
+                  <option value="reviewed">Reviewed</option>
+                  <option value="unreviewed">Unreviewed</option>
+                </select>
+              </div>
+
+              {/* Score Range Filter */}
+              <div className="flex items-end gap-2">
+                <div className="w-24">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Min Score</label>
+                  <input
+                    type="number"
+                    value={filterScoreMin ?? ''}
+                    onChange={(e) => setFilterScoreMin(e.target.value ? parseInt(e.target.value) : null)}
+                    placeholder="0"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                  />
+                </div>
+                <span className="text-gray-400 pb-2">–</span>
+                <div className="w-24">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Max Score</label>
+                  <input
+                    type="number"
+                    value={filterScoreMax ?? ''}
+                    onChange={(e) => setFilterScoreMax(e.target.value ? parseInt(e.target.value) : null)}
+                    placeholder="100"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Tags Filter */}
+              {allTags.length > 0 && (
+                <div className="flex-1 min-w-48 max-w-md">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Tags</label>
+                  <div className="flex flex-wrap gap-1 p-2 bg-white border border-gray-200 rounded-lg min-h-[38px]">
+                    {allTags.map(tag => (
+                      <button
+                        key={tag}
+                        onClick={() => {
+                          if (filterTags.includes(tag)) {
+                            setFilterTags(filterTags.filter(t => t !== tag))
+                          } else {
+                            setFilterTags([...filterTags, tag])
+                          }
+                        }}
+                        className={cn(
+                          "px-2 py-0.5 text-xs rounded-full border transition-all",
+                          filterTags.includes(tag)
+                            ? "bg-blue-100 text-blue-700 border-blue-200"
+                            : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                        )}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                    {allTags.length === 0 && (
+                      <span className="text-xs text-gray-400">No tags available</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Clear Filters */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setFilterStatus('all')
+                  setFilterReviewed('all')
+                  setFilterScoreMin(null)
+                  setFilterScoreMax(null)
+                  setFilterTags([])
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-4 h-4 mr-1" />
+                Clear Filters
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 flex overflow-hidden">
@@ -439,6 +769,56 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
           </div>
           
           <div className="flex-1 overflow-y-auto p-2">
+            {/* All Applications Option */}
+            <button
+              onClick={() => {
+                setSelectedStageId('all')
+                setSelectedAppIndex(0)
+              }}
+              className={cn(
+                "w-full text-left px-3 py-3 rounded-lg mb-2 transition-all group",
+                selectedStageId === 'all' 
+                  ? "bg-blue-50 border border-blue-200" 
+                  : "hover:bg-gray-50 border border-transparent"
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "w-8 h-8 rounded-lg flex items-center justify-center",
+                  selectedStageId === 'all' ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500"
+                )}>
+                  <Inbox className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={cn(
+                    "font-medium",
+                    selectedStageId === 'all' ? "text-gray-900" : "text-gray-700"
+                  )}>All Applications</p>
+                  <p className="text-xs text-gray-400">View all stages</p>
+                </div>
+                <Badge className="bg-gray-100 text-gray-600 border-gray-200">
+                  {stats.total}
+                </Badge>
+              </div>
+            </button>
+
+            {/* Unassigned Applications */}
+            {stats.unassigned > 0 && (
+              <div className="px-3 py-2 mb-2 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                    <span className="text-sm font-medium text-amber-800">Unassigned</span>
+                  </div>
+                  <Badge className="bg-amber-100 text-amber-700 border-amber-200">
+                    {stats.unassigned}
+                  </Badge>
+                </div>
+              </div>
+            )}
+
+            <div className="border-t border-gray-100 my-2" />
+            
             {stages.map((stage, idx) => {
               const count = applications.filter(a => a.stageId === stage.id).length
               const isActive = stage.id === selectedStageId
@@ -525,7 +905,7 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
               onSelect={(idx) => setSelectedAppIndex(idx)}
               onStartReview={startReview}
               currentApp={currentApp}
-              stage={currentStage}
+              stage={currentStage || undefined}
               rubric={currentRubric}
             />
           )}
@@ -626,7 +1006,12 @@ function QueueView({
                     {app.flagged && <Flag className="w-3 h-3 text-red-500 shrink-0" />}
                   </div>
                   <p className="text-xs text-gray-500 truncate">{app.email}</p>
-                  <div className="flex items-center gap-3 mt-2">
+                  <div className="flex items-center gap-2 mt-2">
+                    {app.stageName && (
+                      <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs">
+                        {app.stageName}
+                      </Badge>
+                    )}
                     {app.score !== null && (
                       <span className="flex items-center gap-1 text-xs text-amber-600">
                         <Star className="w-3 h-3 fill-current" />
@@ -636,9 +1021,6 @@ function QueueView({
                     <span className="flex items-center gap-1 text-xs text-gray-400">
                       <Users className="w-3 h-3" />
                       {app.reviewCount}/{app.requiredReviews}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      {new Date(app.submittedAt).toLocaleDateString()}
                     </span>
                   </div>
                 </div>
@@ -988,10 +1370,140 @@ function AnalyticsView({
   stages, 
   applications 
 }: { 
-  stats: { pending: number; inReview: number; approved: number; rejected: number; avgScore: number }
+  stats: { pending: number; inReview: number; approved: number; rejected: number; avgScore: number; total: number }
   stages: StageWithConfig[]
   applications: ApplicationData[]
 }) {
+  // Calculate score distribution buckets (0-20, 20-40, 40-60, 60-80, 80-100)
+  const scoredApps = applications.filter(a => a.score !== null)
+  const scoreDistribution = useMemo(() => {
+    const buckets = [
+      { label: '0-20%', min: 0, max: 20, count: 0, color: 'bg-red-500' },
+      { label: '20-40%', min: 20, max: 40, count: 0, color: 'bg-orange-500' },
+      { label: '40-60%', min: 40, max: 60, count: 0, color: 'bg-yellow-500' },
+      { label: '60-80%', min: 60, max: 80, count: 0, color: 'bg-blue-500' },
+      { label: '80-100%', min: 80, max: 100, count: 0, color: 'bg-green-500' },
+    ]
+    
+    scoredApps.forEach(app => {
+      const percentage = (app.score || 0) / (app.maxScore || 100) * 100
+      for (const bucket of buckets) {
+        if (percentage >= bucket.min && percentage < bucket.max + (bucket.max === 100 ? 1 : 0)) {
+          bucket.count++
+          break
+        }
+      }
+    })
+    
+    return buckets
+  }, [scoredApps])
+
+  // Calculate average scores per rubric category
+  const categoryScores = useMemo(() => {
+    const categoryMap: Record<string, { name: string; total: number; count: number; maxPoints: number }> = {}
+    
+    applications.forEach(app => {
+      if (app.scores && Object.keys(app.scores).length > 0) {
+        Object.entries(app.scores).forEach(([catId, score]) => {
+          if (!categoryMap[catId]) {
+            // Try to find category name from stage rubrics
+            let catName = catId
+            let maxPts = 100
+            for (const stage of stages) {
+              if (stage.rubric?.categories) {
+                const categories = typeof stage.rubric.categories === 'string' 
+                  ? JSON.parse(stage.rubric.categories) 
+                  : stage.rubric.categories
+                const cat = (categories as any[]).find((c: any) => c.id === catId)
+                if (cat) {
+                  catName = cat.name || cat.category || catId
+                  maxPts = cat.maxPoints || cat.max_points || cat.max || 100
+                  break
+                }
+              }
+            }
+            categoryMap[catId] = { name: catName, total: 0, count: 0, maxPoints: maxPts }
+          }
+          categoryMap[catId].total += score as number
+          categoryMap[catId].count++
+        })
+      }
+    })
+    
+    return Object.entries(categoryMap).map(([id, data]) => ({
+      id,
+      name: data.name,
+      avgScore: data.count > 0 ? Math.round(data.total / data.count * 10) / 10 : 0,
+      maxPoints: data.maxPoints,
+      percentage: data.count > 0 ? Math.round((data.total / data.count) / data.maxPoints * 100) : 0
+    }))
+  }, [applications, stages])
+
+  // Calculate reviewer performance metrics
+  const reviewerMetrics = useMemo(() => {
+    const reviewerMap: Record<string, { 
+      id: string; 
+      name: string; 
+      completedCount: number; 
+      totalScore: number;
+      scores: number[];
+      avgScore: number;
+      variance: number;
+      lastActive?: string;
+    }> = {}
+    
+    applications.forEach(app => {
+      const metadata = app.raw_data
+      // We need to access review_history which is in the original metadata
+      // For now, use assigned reviewers count
+      app.assignedReviewers.forEach(reviewerId => {
+        if (!reviewerMap[reviewerId]) {
+          reviewerMap[reviewerId] = { 
+            id: reviewerId, 
+            name: `Reviewer ${reviewerId.substring(0, 4)}`,
+            completedCount: 0, 
+            totalScore: 0,
+            scores: [],
+            avgScore: 0,
+            variance: 0
+          }
+        }
+        if (app.reviewCount > 0) {
+          reviewerMap[reviewerId].completedCount++
+        }
+      })
+    })
+    
+    // Calculate stats for each reviewer
+    Object.values(reviewerMap).forEach(reviewer => {
+      if (reviewer.scores.length > 0) {
+        reviewer.avgScore = Math.round(reviewer.scores.reduce((a, b) => a + b, 0) / reviewer.scores.length)
+        const mean = reviewer.avgScore
+        reviewer.variance = Math.round(
+          reviewer.scores.reduce((sum, s) => sum + Math.pow(s - mean, 2), 0) / reviewer.scores.length
+        )
+      }
+    })
+    
+    return Object.values(reviewerMap).sort((a, b) => b.completedCount - a.completedCount)
+  }, [applications])
+
+  // Tags distribution
+  const tagDistribution = useMemo(() => {
+    const tagMap: Record<string, number> = {}
+    applications.forEach(app => {
+      app.tags.forEach(tag => {
+        tagMap[tag] = (tagMap[tag] || 0) + 1
+      })
+    })
+    return Object.entries(tagMap)
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
+  }, [applications])
+
+  const maxDistributionCount = Math.max(...scoreDistribution.map(b => b.count), 1)
+
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-gray-50">
       <h2 className="text-xl font-bold text-gray-900 mb-6">Review Analytics</h2>
@@ -1049,38 +1561,197 @@ function AnalyticsView({
         </div>
       </div>
 
-      {/* Stage Distribution */}
-      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">Stage Distribution</h3>
-        <div className="space-y-4">
-          {stages.map((stage, idx) => {
-            const count = applications.filter(a => a.stageId === stage.id).length
-            const percentage = applications.length > 0 ? (count / applications.length) * 100 : 0
-            
-            return (
-              <div key={stage.id}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <span className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center text-xs font-bold text-white">
-                      {idx + 1}
-                    </span>
-                    <span className="text-gray-700">{stage.name}</span>
+      <div className="grid grid-cols-2 gap-8 mb-8">
+        {/* Score Distribution Chart */}
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">Score Distribution</h3>
+            <span className="text-sm text-gray-500">{scoredApps.length} scored</span>
+          </div>
+          <div className="space-y-3">
+            {scoreDistribution.map((bucket) => (
+              <div key={bucket.label} className="flex items-center gap-3">
+                <span className="w-16 text-sm text-gray-600">{bucket.label}</span>
+                <div className="flex-1 h-8 bg-gray-100 rounded-lg overflow-hidden">
+                  <div 
+                    className={cn("h-full transition-all flex items-center justify-end pr-2", bucket.color)}
+                    style={{ width: `${Math.max((bucket.count / maxDistributionCount) * 100, bucket.count > 0 ? 10 : 0)}%` }}
+                  >
+                    {bucket.count > 0 && (
+                      <span className="text-xs font-bold text-white">{bucket.count}</span>
+                    )}
                   </div>
-                  <span className="text-gray-900 font-medium">{count}</span>
+                </div>
+                <span className="w-8 text-right text-sm font-medium text-gray-700">{bucket.count}</span>
+              </div>
+            ))}
+          </div>
+          {scoredApps.length === 0 && (
+            <p className="text-gray-500 text-center py-4">No scored applications yet</p>
+          )}
+        </div>
+
+        {/* Average Scores by Category */}
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Average Scores by Category</h3>
+          <div className="space-y-4">
+            {categoryScores.length > 0 ? categoryScores.map((cat) => (
+              <div key={cat.id}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-gray-700">{cat.name}</span>
+                  <span className="text-sm font-medium text-gray-900">{cat.avgScore}/{cat.maxPoints}</span>
                 </div>
                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all"
-                    style={{ width: `${percentage}%` }}
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      cat.percentage >= 80 ? "bg-green-500" :
+                      cat.percentage >= 60 ? "bg-blue-500" :
+                      cat.percentage >= 40 ? "bg-yellow-500" :
+                      "bg-red-500"
+                    )}
+                    style={{ width: `${cat.percentage}%` }}
                   />
                 </div>
               </div>
-            )
-          })}
+            )) : (
+              <p className="text-gray-500 text-center py-4">No category scores yet</p>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Average Score */}
+      <div className="grid grid-cols-2 gap-8 mb-8">
+        {/* Stage Distribution */}
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Stage Distribution</h3>
+          <div className="space-y-4">
+            {stages.map((stage, idx) => {
+              const count = applications.filter(a => a.stageId === stage.id).length
+              const percentage = applications.length > 0 ? (count / applications.length) * 100 : 0
+              
+              return (
+                <div key={stage.id}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <span className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center text-xs font-bold text-white">
+                        {idx + 1}
+                      </span>
+                      <span className="text-gray-700">{stage.name}</span>
+                    </div>
+                    <span className="text-gray-900 font-medium">{count}</span>
+                  </div>
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all"
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Tags Distribution */}
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Top Tags</h3>
+          {tagDistribution.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {tagDistribution.map(({ tag, count }) => (
+                <Badge 
+                  key={tag} 
+                  className="bg-purple-100 text-purple-700 border-purple-200 px-3 py-1.5"
+                >
+                  {tag} <span className="ml-1 font-bold">{count}</span>
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-4">No tags assigned yet</p>
+          )}
+        </div>
+      </div>
+
+      {/* Reviewer Performance */}
+      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm mb-8">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Reviewer Activity</h3>
+        {reviewerMetrics.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Reviewer</th>
+                  <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">Assigned</th>
+                  <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">Completed</th>
+                  <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">Avg Score</th>
+                  <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">Variance</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Completion Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reviewerMetrics.slice(0, 10).map((reviewer) => {
+                  const assignedCount = applications.filter(a => 
+                    a.assignedReviewers.includes(reviewer.id)
+                  ).length
+                  const completionRate = assignedCount > 0 
+                    ? Math.round((reviewer.completedCount / assignedCount) * 100) 
+                    : 0
+                  
+                  return (
+                    <tr key={reviewer.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <User className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <span className="text-gray-900 font-medium">{reviewer.name}</span>
+                        </div>
+                      </td>
+                      <td className="text-center py-3 px-4 text-gray-600">{assignedCount}</td>
+                      <td className="text-center py-3 px-4 text-gray-900 font-medium">{reviewer.completedCount}</td>
+                      <td className="text-center py-3 px-4">
+                        {reviewer.avgScore > 0 ? (
+                          <span className="text-amber-600 font-medium">{reviewer.avgScore}</span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        {reviewer.variance > 0 ? (
+                          <span className="text-gray-600">±{Math.sqrt(reviewer.variance).toFixed(1)}</span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="text-right py-3 px-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                              className={cn(
+                                "h-full rounded-full",
+                                completionRate >= 80 ? "bg-green-500" :
+                                completionRate >= 50 ? "bg-blue-500" :
+                                "bg-amber-500"
+                              )}
+                              style={{ width: `${completionRate}%` }}
+                            />
+                          </div>
+                          <span className="text-sm font-medium text-gray-900 w-10 text-right">{completionRate}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-gray-500 text-center py-4">No reviewer activity yet</p>
+        )}
+      </div>
+
+      {/* Average Score Card */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
         <div className="flex items-center justify-between">
           <div>

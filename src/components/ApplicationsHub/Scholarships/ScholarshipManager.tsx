@@ -209,27 +209,10 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
         {/* Top Bar */}
         <div className="px-6 py-3 flex items-center justify-between gap-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-sm">
-              {form?.name?.charAt(0) || 'S'}
-            </div>
             <div>
               <h1 className="text-lg font-bold text-gray-900">{form?.name || 'Loading...'}</h1>
               <p className="text-xs text-gray-500">{stats.totalSubmissions} submissions • {stats.workflowsConfigured} workflow{stats.workflowsConfigured !== 1 ? 's' : ''}</p>
             </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.open(`/workspace/${workspaceSlug || workspaceId}/portal-editor?formId=${formId}`, '_blank')}>
-              <FileText className="w-4 h-4 mr-2" />
-              Portal Editor
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setIsShareOpen(true)}>
-              <Share2 className="w-4 h-4 mr-2" />
-              Share
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setIsSettingsModalOpen(true)}>
-              <Settings className="w-4 h-4" />
-            </Button>
           </div>
         </div>
 
@@ -500,7 +483,7 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
         {activeTab === 'review' && <ReviewWorkspace workspaceId={workspaceId} formId={formId} />}
         {activeTab === 'communications' && <CommunicationsCenter workspaceId={workspaceId} formId={formId} />}
         {activeTab === 'reviewers' && <ReviewerManagement formId={formId} workspaceId={workspaceId} />}
-        {activeTab === 'workflows' && <WorkflowBuilder workspaceId={workspaceId} />}
+        {activeTab === 'workflows' && <WorkflowBuilder workspaceId={workspaceId} formId={formId} />}
         {activeTab === 'settings' && (
           <div className="p-8 text-center text-gray-500">
             <Settings className="w-12 h-12 mx-auto mb-4 text-gray-400" />

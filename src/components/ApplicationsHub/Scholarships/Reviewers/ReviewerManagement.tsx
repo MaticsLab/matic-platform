@@ -24,6 +24,17 @@ interface Reviewer {
   status: 'active' | 'completed' | 'expired'
   lastActive: string
   role: string
+  reviewer_type_id?: string
+}
+
+interface Submission {
+  id: string
+  data: any
+  metadata?: {
+    assigned_reviewers?: string[]
+    [key: string]: any
+  }
+  status?: string
 }
 
 interface ReviewerManagementProps {
@@ -47,11 +58,16 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
   const [selectedReviewerTypeId, setSelectedReviewerTypeId] = useState<string>('')
   const [assignmentStrategy, setAssignmentStrategy] = useState<'random' | 'manual'>('random')
   const [assignmentCount, setAssignmentCount] = useState(10)
+  const [onlyUnassigned, setOnlyUnassigned] = useState(true) // New: only assign unassigned apps
   const [isAssigning, setIsAssigning] = useState(false)
-  const [submissions, setSubmissions] = useState<any[]>([])
+  const [submissions, setSubmissions] = useState<Submission[]>([])
   const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<string[]>([])
   const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(false)
   const [inviteStep, setInviteStep] = useState<1 | 2 | 3>(1)
+  
+  // New: For assigning more apps to existing reviewer
+  const [assignToExistingReviewer, setAssignToExistingReviewer] = useState<Reviewer | null>(null)
+  const [showAssignModal, setShowAssignModal] = useState(false)
 
   useEffect(() => {
     if (formId) fetchReviewers()
@@ -79,8 +95,13 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
   const fetchSubmissions = async () => {
     setIsLoadingSubmissions(true)
     try {
-      const data = await goClient.get<any[]>(`/forms/${formId}/submissions`)
-      setSubmissions(Array.isArray(data) ? data : [])
+      const data = await goClient.get<Submission[]>(`/forms/${formId}/submissions`)
+      // Parse metadata if it's a string
+      const parsed = (Array.isArray(data) ? data : []).map(sub => ({
+        ...sub,
+        metadata: typeof sub.metadata === 'string' ? JSON.parse(sub.metadata) : sub.metadata || {}
+      }))
+      setSubmissions(parsed)
     } catch (error) {
       console.error('Failed to fetch submissions:', error)
     } finally {
@@ -133,7 +154,8 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
         completedCount: 0,
         status: 'active',
         lastActive: 'Just now',
-        role: selectedType?.name || 'External Reviewer'
+        role: selectedType?.name || 'External Reviewer',
+        reviewer_type_id: selectedReviewerTypeId || undefined
       }
       
       const updated = [...reviewers, newReviewer]
@@ -141,14 +163,21 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
       
       if (assignmentStrategy === 'random') {
         const response = await goClient.post<{count: number}>(`/forms/${formId}/reviewers/${reviewerId}/assign`, {
-          strategy: 'random', count: assignmentCount, reviewer_type_id: selectedReviewerTypeId || undefined
+          strategy: 'random', 
+          count: assignmentCount, 
+          reviewer_type_id: selectedReviewerTypeId || undefined,
+          only_unassigned: onlyUnassigned
         })
         setReviewers(updated.map(r => r.id === reviewerId ? { ...r, assignedCount: response.count } : r))
+        await fetchSubmissions() // Refresh to update assignment status
       } else if (assignmentStrategy === 'manual' && selectedSubmissionIds.length > 0) {
         const response = await goClient.post<{count: number}>(`/forms/${formId}/reviewers/${reviewerId}/assign`, {
-          strategy: 'manual', submission_ids: selectedSubmissionIds, reviewer_type_id: selectedReviewerTypeId || undefined
+          strategy: 'manual', 
+          submission_ids: selectedSubmissionIds, 
+          reviewer_type_id: selectedReviewerTypeId || undefined
         })
         setReviewers(updated.map(r => r.id === reviewerId ? { ...r, assignedCount: response.count } : r))
+        await fetchSubmissions() // Refresh to update assignment status
       }
 
       showToast('Reviewer invited successfully', 'success')
@@ -168,14 +197,82 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
     setSelectedReviewerTypeId('')
     setAssignmentStrategy('random')
     setAssignmentCount(10)
+    setOnlyUnassigned(true)
     setSelectedSubmissionIds([])
     setInviteStep(1)
+    setAssignToExistingReviewer(null)
+    setShowAssignModal(false)
+  }
+
+  // New: Handle assigning more applications to an existing reviewer
+  const handleAssignMoreToReviewer = async () => {
+    if (!formId || !assignToExistingReviewer) return
+    setIsAssigning(true)
+    
+    try {
+      let newAssignedCount = 0
+      
+      if (assignmentStrategy === 'random') {
+        const response = await goClient.post<{count: number}>(`/forms/${formId}/reviewers/${assignToExistingReviewer.id}/assign`, {
+          strategy: 'random', 
+          count: assignmentCount, 
+          only_unassigned: onlyUnassigned
+        })
+        newAssignedCount = response.count
+      } else if (assignmentStrategy === 'manual' && selectedSubmissionIds.length > 0) {
+        const response = await goClient.post<{count: number}>(`/forms/${formId}/reviewers/${assignToExistingReviewer.id}/assign`, {
+          strategy: 'manual', 
+          submission_ids: selectedSubmissionIds
+        })
+        newAssignedCount = response.count
+      }
+
+      // Update the reviewer's assigned count
+      const updatedReviewers = reviewers.map(r => 
+        r.id === assignToExistingReviewer.id 
+          ? { ...r, assignedCount: r.assignedCount + newAssignedCount } 
+          : r
+      )
+      await saveReviewers(updatedReviewers)
+      await fetchSubmissions() // Refresh to update assignment status
+
+      showToast(`Assigned ${newAssignedCount} more applications to ${assignToExistingReviewer.name}`, 'success')
+      resetInviteForm()
+    } catch (error) {
+      console.error('Failed to assign more applications:', error)
+      showToast('Failed to assign applications', 'error')
+    } finally {
+      setIsAssigning(false)
+    }
+  }
+
+  const openAssignMoreModal = (reviewer: Reviewer) => {
+    setAssignToExistingReviewer(reviewer)
+    setAssignmentStrategy('random')
+    setAssignmentCount(10)
+    setOnlyUnassigned(true)
+    setSelectedSubmissionIds([])
+    setShowAssignModal(true)
+    if (submissions.length === 0) {
+      fetchSubmissions()
+    }
   }
 
   const handleDeleteReviewer = async (id: string) => {
     if (!confirm('Remove this reviewer?')) return
     await saveReviewers(reviewers.filter(r => r.id !== id))
     showToast('Reviewer removed', 'success')
+  }
+
+  const handleUpdateReviewerRole = async (reviewerId: string, newRoleId: string) => {
+    const selectedType = reviewerTypes.find(t => t.id === newRoleId)
+    if (!selectedType) return
+    
+    const updatedReviewers = reviewers.map(r => 
+      r.id === reviewerId ? { ...r, role: selectedType.name, reviewer_type_id: newRoleId } : r
+    )
+    await saveReviewers(updatedReviewers)
+    showToast(`Role updated to ${selectedType.name}`, 'success')
   }
 
   const copyLink = (id: string, token: string) => {
@@ -278,7 +375,7 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <h3 className="font-medium text-gray-900 truncate">{reviewer.name}</h3>
-                          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full font-medium">{reviewer.role}</span>
+                          <span className="px-2.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">{reviewer.role}</span>
                           {reviewer.status === 'completed' && <CheckCircle className="w-4 h-4 text-green-500" />}
                         </div>
                         <div className="flex items-center gap-3 text-sm text-gray-500 mt-0.5">
@@ -309,19 +406,53 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
                     </div>
                     {isExpanded && (
                       <div className="px-4 pb-4 pt-0 border-t border-gray-100 bg-gray-50/50">
-                        <div className="pt-4 flex items-center justify-between">
+                        <div className="pt-4 space-y-4">
+                          {/* Role Assignment */}
                           <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg">
-                              <LinkIcon className="w-3.5 h-3.5 text-gray-400" />
-                              <code className="text-xs text-gray-600">/external-review/{reviewer.token}</code>
+                            <div className="flex items-center gap-2">
+                              <Shield className="w-4 h-4 text-gray-400" />
+                              <span className="text-sm font-medium text-gray-700">Role:</span>
                             </div>
-                            <span className={cn("px-2 py-1 text-xs font-medium rounded-full", reviewer.status === 'active' && "bg-green-100 text-green-700", reviewer.status === 'completed' && "bg-blue-100 text-blue-700", reviewer.status === 'expired' && "bg-gray-100 text-gray-600")}>
-                              {reviewer.status.charAt(0).toUpperCase() + reviewer.status.slice(1)}
-                            </span>
+                            {reviewerTypes.length > 0 ? (
+                              <select
+                                value={reviewerTypes.find(t => t.name === reviewer.role)?.id || ''}
+                                onChange={(e) => handleUpdateReviewerRole(reviewer.id, e.target.value)}
+                                className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="" disabled>Select role...</option>
+                                {reviewerTypes.map(type => (
+                                  <option key={type.id} value={type.id}>
+                                    {type.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="px-2.5 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
+                                {reviewer.role}
+                              </span>
+                            )}
                           </div>
-                          <button onClick={() => handleDeleteReviewer(reviewer.id)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg">
-                            <Trash2 className="w-4 h-4" />Remove
-                          </button>
+                          
+                          {/* Link and Status */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg">
+                                <LinkIcon className="w-3.5 h-3.5 text-gray-400" />
+                                <code className="text-xs text-gray-600">/external-review/{reviewer.token}</code>
+                              </div>
+                              <span className={cn("px-2 py-1 text-xs font-medium rounded-full", reviewer.status === 'active' && "bg-green-100 text-green-700", reviewer.status === 'completed' && "bg-blue-100 text-blue-700", reviewer.status === 'expired' && "bg-gray-100 text-gray-600")}>
+                                {reviewer.status.charAt(0).toUpperCase() + reviewer.status.slice(1)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => openAssignMoreModal(reviewer)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200">
+                                <Target className="w-4 h-4" />Assign More
+                              </button>
+                              <button onClick={() => handleDeleteReviewer(reviewer.id)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg">
+                                <Trash2 className="w-4 h-4" />Remove
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -358,18 +489,30 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
                       <input type="email" value={newReviewerEmail} onChange={(e) => setNewReviewerEmail(e.target.value)} placeholder="reviewer@university.edu" className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
-                    {reviewerTypes.length > 0 && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Role Type</label>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Reviewer Role <span className="text-red-500">*</span>
+                      </label>
+                      {reviewerTypes.length > 0 ? (
                         <select value={selectedReviewerTypeId} onChange={(e) => setSelectedReviewerTypeId(e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                           <option value="">Select a role...</option>
-                          {reviewerTypes.map(type => (<option key={type.id} value={type.id}>{type.name}</option>))}
+                          {reviewerTypes.map(type => (<option key={type.id} value={type.id}>{type.name}{type.description ? ` - ${type.description}` : ''}</option>))}
                         </select>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                          <p className="text-sm text-amber-800 font-medium">No roles configured</p>
+                          <p className="text-xs text-amber-600 mt-1">Go to Workflows → Reviewer Roles to create roles first, then come back to invite reviewers.</p>
+                        </div>
+                      )}
+                      {selectedReviewerTypeId && (
+                        <p className="text-xs text-gray-500 mt-1.5">
+                          {reviewerTypes.find(t => t.id === selectedReviewerTypeId)?.description || 'This role determines what the reviewer can access and evaluate.'}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <div className="flex justify-end pt-4">
-                    <button onClick={() => setInviteStep(2)} disabled={!newReviewerName.trim()} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                    <button onClick={() => setInviteStep(2)} disabled={!newReviewerName.trim() || !selectedReviewerTypeId} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
                       Continue<ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -395,16 +538,51 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
                       <p className="text-xs text-gray-500 mt-1">Choose specific applications</p>
                     </button>
                   </div>
+                  
+                  {/* Only Unassigned Toggle - shown for random strategy */}
                   {assignmentStrategy === 'random' && (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Number of Applications</label>
-                      <input type="number" min="1" max="100" value={assignmentCount} onChange={(e) => setAssignmentCount(parseInt(e.target.value) || 10)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">Only unassigned applications</label>
+                          <p className="text-xs text-gray-500 mt-0.5">Only assign applications not yet assigned to any reviewer</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setOnlyUnassigned(!onlyUnassigned)}
+                          className={cn(
+                            "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                            onlyUnassigned ? "bg-blue-600" : "bg-gray-200"
+                          )}
+                        >
+                          <span className={cn(
+                            "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                            onlyUnassigned ? "translate-x-5" : "translate-x-0"
+                          )} />
+                        </button>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Number of Applications</label>
+                        <input type="number" min="1" max="100" value={assignmentCount} onChange={(e) => setAssignmentCount(parseInt(e.target.value) || 10)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      {submissions.length > 0 && (
+                        <p className="text-xs text-gray-500">
+                          {submissions.filter(s => !s.metadata?.assigned_reviewers?.length).length} unassigned of {submissions.length} total applications
+                        </p>
+                      )}
                     </div>
                   )}
+                  
                   {assignmentStrategy === 'manual' && (
                     <div className="bg-gray-50 rounded-lg p-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Select Applications ({selectedSubmissionIds.length})</label>
-                      <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto bg-white">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm font-medium text-gray-700">Select Applications ({selectedSubmissionIds.length})</label>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded">Unassigned</span>
+                          <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded">Assigned</span>
+                        </div>
+                      </div>
+                      <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto bg-white">
                         {isLoadingSubmissions ? (
                           <div className="p-4 text-center text-gray-500 text-sm"><RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />Loading...</div>
                         ) : submissions.length === 0 ? (
@@ -415,17 +593,55 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
                               const data = typeof sub.data === 'string' ? JSON.parse(sub.data) : sub.data
                               const name = data.personal?.firstName ? `${data.personal.firstName} ${data.personal.lastName}` : `Submission #${sub.id.substring(0, 8)}`
                               const isSelected = selectedSubmissionIds.includes(sub.id)
+                              const assignedReviewers = sub.metadata?.assigned_reviewers || []
+                              const isAssigned = assignedReviewers.length > 0
+                              const assignedToNames = assignedReviewers.map((rid: string) => {
+                                const r = reviewers.find(rev => rev.id === rid)
+                                return r?.name || `Reviewer ${rid.substring(0, 4)}`
+                              })
+                              
                               return (
-                                <div key={sub.id} onClick={() => setSelectedSubmissionIds(isSelected ? selectedSubmissionIds.filter(id => id !== sub.id) : [...selectedSubmissionIds, sub.id])} className={cn("p-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50", isSelected && "bg-blue-50")}>
-                                  <div className={cn("w-5 h-5 rounded border-2 flex items-center justify-center", isSelected ? "bg-blue-600 border-blue-600" : "border-gray-300")}>
+                                <div 
+                                  key={sub.id} 
+                                  onClick={() => setSelectedSubmissionIds(isSelected ? selectedSubmissionIds.filter(id => id !== sub.id) : [...selectedSubmissionIds, sub.id])} 
+                                  className={cn(
+                                    "p-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50",
+                                    isSelected && "bg-blue-50",
+                                    isAssigned && !isSelected && "bg-amber-50/50"
+                                  )}
+                                >
+                                  <div className={cn("w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0", isSelected ? "bg-blue-600 border-blue-600" : "border-gray-300")}>
                                     {isSelected && <CheckCircle className="w-3 h-3 text-white" />}
                                   </div>
-                                  <span className="text-sm font-medium text-gray-900 truncate">{name}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-sm font-medium text-gray-900 truncate block">{name}</span>
+                                    {isAssigned && (
+                                      <span className="text-xs text-amber-600">Assigned to: {assignedToNames.join(', ')}</span>
+                                    )}
+                                  </div>
+                                  {!isAssigned && (
+                                    <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded flex-shrink-0">New</span>
+                                  )}
                                 </div>
                               )
                             })}
                           </div>
                         )}
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                        <span>{submissions.filter(s => !s.metadata?.assigned_reviewers?.length).length} unassigned</span>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const unassignedIds = submissions
+                              .filter(s => !s.metadata?.assigned_reviewers?.length)
+                              .map(s => s.id)
+                            setSelectedSubmissionIds(unassignedIds)
+                          }}
+                          className="text-blue-600 hover:text-blue-700"
+                        >
+                          Select all unassigned
+                        </button>
                       </div>
                     </div>
                   )}
@@ -471,6 +687,136 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
           </div>
         )}
       </div>
+
+      {/* Assign More Modal */}
+      {showAssignModal && assignToExistingReviewer && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Assign More Applications</h3>
+                <p className="text-sm text-gray-500">to {assignToExistingReviewer.name}</p>
+              </div>
+              <button onClick={resetInviteForm} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              {/* Strategy Selection */}
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setAssignmentStrategy('random')} className={cn("p-3 rounded-xl border-2 text-left transition-all", assignmentStrategy === 'random' ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300")}>
+                  <Sparkles className={cn("w-4 h-4 mb-1", assignmentStrategy === 'random' ? "text-blue-600" : "text-gray-400")} />
+                  <h3 className="font-medium text-gray-900 text-sm">Random</h3>
+                </button>
+                <button onClick={() => setAssignmentStrategy('manual')} className={cn("p-3 rounded-xl border-2 text-left transition-all", assignmentStrategy === 'manual' ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300")}>
+                  <Target className={cn("w-4 h-4 mb-1", assignmentStrategy === 'manual' ? "text-blue-600" : "text-gray-400")} />
+                  <h3 className="font-medium text-gray-900 text-sm">Manual</h3>
+                </button>
+              </div>
+
+              {assignmentStrategy === 'random' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Only unassigned</label>
+                      <p className="text-xs text-gray-500">Skip already assigned applications</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOnlyUnassigned(!onlyUnassigned)}
+                      className={cn(
+                        "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                        onlyUnassigned ? "bg-blue-600" : "bg-gray-200"
+                      )}
+                    >
+                      <span className={cn(
+                        "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition",
+                        onlyUnassigned ? "translate-x-5" : "translate-x-0"
+                      )} />
+                    </button>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Number of applications</label>
+                    <input type="number" min="1" max="100" value={assignmentCount} onChange={(e) => setAssignmentCount(parseInt(e.target.value) || 10)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  {submissions.length > 0 && (
+                    <p className="text-xs text-gray-500">
+                      {submissions.filter(s => !s.metadata?.assigned_reviewers?.length).length} unassigned of {submissions.length} total
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {assignmentStrategy === 'manual' && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-gray-700">Select ({selectedSubmissionIds.length})</label>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const unassignedIds = submissions
+                          .filter(s => !s.metadata?.assigned_reviewers?.includes(assignToExistingReviewer.id))
+                          .map(s => s.id)
+                        setSelectedSubmissionIds(unassignedIds)
+                      }}
+                      className="text-xs text-blue-600 hover:text-blue-700"
+                    >
+                      Select all available
+                    </button>
+                  </div>
+                  <div className="border border-gray-200 rounded-lg max-h-56 overflow-y-auto bg-white">
+                    {isLoadingSubmissions ? (
+                      <div className="p-4 text-center text-gray-500 text-sm"><RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />Loading...</div>
+                    ) : (
+                      <div className="divide-y divide-gray-100">
+                        {submissions.map(sub => {
+                          const data = typeof sub.data === 'string' ? JSON.parse(sub.data) : sub.data
+                          const name = data.personal?.firstName ? `${data.personal.firstName} ${data.personal.lastName}` : `#${sub.id.substring(0, 8)}`
+                          const isSelected = selectedSubmissionIds.includes(sub.id)
+                          const isAlreadyAssignedToThis = sub.metadata?.assigned_reviewers?.includes(assignToExistingReviewer.id)
+                          
+                          if (isAlreadyAssignedToThis) return null // Hide already assigned to this reviewer
+                          
+                          const assignedReviewers = sub.metadata?.assigned_reviewers || []
+                          const isAssignedToOthers = assignedReviewers.length > 0
+                          
+                          return (
+                            <div 
+                              key={sub.id} 
+                              onClick={() => setSelectedSubmissionIds(isSelected ? selectedSubmissionIds.filter(id => id !== sub.id) : [...selectedSubmissionIds, sub.id])} 
+                              className={cn("p-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50", isSelected && "bg-blue-50")}
+                            >
+                              <div className={cn("w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0", isSelected ? "bg-blue-600 border-blue-600" : "border-gray-300")}>
+                                {isSelected && <CheckCircle className="w-2.5 h-2.5 text-white" />}
+                              </div>
+                              <span className="text-sm text-gray-900 truncate flex-1">{name}</span>
+                              {!isAssignedToOthers && <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded">New</span>}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
+              <button onClick={resetInviteForm} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+              <button 
+                onClick={handleAssignMoreToReviewer} 
+                disabled={isAssigning || (assignmentStrategy === 'manual' && selectedSubmissionIds.length === 0)}
+                className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {isAssigning ? <><RefreshCw className="w-4 h-4 animate-spin" />Assigning...</> : <><Target className="w-4 h-4" />Assign</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

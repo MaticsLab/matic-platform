@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
@@ -588,8 +591,12 @@ func GetFormSubmission(c *gin.Context) {
 // External Review Handlers
 
 type ExternalReviewDTO struct {
-	Form        FormDTO      `json:"form"`
-	Submissions []models.Row `json:"submissions"`
+	Form        FormDTO                     `json:"form"`
+	Submissions []models.Row                `json:"submissions"`
+	Reviewer    map[string]interface{}      `json:"reviewer,omitempty"`
+	StageConfig *models.StageReviewerConfig `json:"stage_config,omitempty"`
+	Rubric      *models.Rubric              `json:"rubric,omitempty"`
+	Stage       *models.ApplicationStage    `json:"stage,omitempty"` // ApplicationStage with custom_statuses, custom_tags
 }
 
 func GetExternalReviewData(c *gin.Context) {
@@ -599,18 +606,24 @@ func GetExternalReviewData(c *gin.Context) {
 	// Check both the single 'review_token' field (legacy) and the 'reviewers' array
 	var table models.Table
 	var reviewerID string
+	var reviewerInfo map[string]interface{}
+	var reviewerTypeID string
 
 	// Try finding in reviewers array first
 	if err := database.DB.Where("settings->'reviewers' @> ?", fmt.Sprintf(`[{"token": "%s"}]`, token)).First(&table).Error; err == nil {
-		// Found in reviewers array, extract ID
+		// Found in reviewers array, extract ID and reviewer_type_id
 		var settings map[string]interface{}
 		if err := json.Unmarshal(table.Settings, &settings); err == nil {
 			if reviewers, ok := settings["reviewers"].([]interface{}); ok {
 				for _, r := range reviewers {
 					if rMap, ok := r.(map[string]interface{}); ok {
 						if t, ok := rMap["token"].(string); ok && t == token {
+							reviewerInfo = rMap
 							if id, ok := rMap["id"].(string); ok {
 								reviewerID = id
+							}
+							if typeID, ok := rMap["reviewer_type_id"].(string); ok {
+								reviewerTypeID = typeID
 							}
 							break
 						}
@@ -659,16 +672,49 @@ func GetExternalReviewData(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, ExternalReviewDTO{
+	// Build response
+	response := ExternalReviewDTO{
 		Form:        formDTO,
 		Submissions: rows,
-	})
+		Reviewer:    reviewerInfo,
+	}
+
+	// If we have a reviewer_type_id, try to find the stage config
+	if reviewerTypeID != "" {
+		var stageConfigs []models.StageReviewerConfig
+		if err := database.DB.Where("reviewer_type_id = ?", reviewerTypeID).Find(&stageConfigs).Error; err == nil && len(stageConfigs) > 0 {
+			// Use the first matching config (typically one stage per reviewer type)
+			response.StageConfig = &stageConfigs[0]
+
+			// Fetch the ApplicationStage for custom_statuses, custom_tags, logic_rules
+			var stage models.ApplicationStage
+			if err := database.DB.First(&stage, "id = ?", stageConfigs[0].StageID).Error; err == nil {
+				response.Stage = &stage
+			}
+
+			// If the stage config has an assigned rubric, fetch it
+			rubricID := stageConfigs[0].AssignedRubricID
+			if rubricID == nil {
+				rubricID = stageConfigs[0].RubricID
+			}
+			if rubricID != nil {
+				var rubric models.Rubric
+				if err := database.DB.First(&rubric, "id = ?", rubricID).Error; err == nil {
+					response.Rubric = &rubric
+				}
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 type AssignReviewerInput struct {
-	Strategy      string   `json:"strategy"` // 'random' or 'manual'
-	Count         int      `json:"count"`
-	SubmissionIDs []string `json:"submission_ids"`
+	Strategy       string   `json:"strategy"` // 'random' or 'manual'
+	Count          int      `json:"count"`
+	SubmissionIDs  []string `json:"submission_ids"`
+	OnlyUnassigned bool     `json:"only_unassigned"`  // Only assign applications not assigned to ANY reviewer
+	ReviewerTypeID string   `json:"reviewer_type_id"` // Optional reviewer type for context
 }
 
 func AssignReviewerApplications(c *gin.Context) {
@@ -704,12 +750,20 @@ func AssignReviewerApplications(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Count must be greater than 0"})
 			return
 		}
-		// Find unassigned rows or rows not assigned to this reviewer
-		// For simplicity, let's just pick random rows that are NOT already assigned to this reviewer
-		// Query: NOT (metadata->'assigned_reviewers' @> '["reviewerID"]')
-		if err := database.DB.Where("table_id = ? AND (metadata->'assigned_reviewers' IS NULL OR NOT (metadata->'assigned_reviewers' @> ?))",
-			formID, fmt.Sprintf(`["%s"]`, reviewerID)).
-			Order("RANDOM()").Limit(input.Count).Find(&rowsToAssign).Error; err != nil {
+		// Find rows that are NOT already assigned to this reviewer
+		// If only_unassigned is true, also exclude rows assigned to ANY reviewer
+		query := database.DB.Where("table_id = ?", formID)
+
+		if input.OnlyUnassigned {
+			// Only truly unassigned applications (no assigned_reviewers or empty array)
+			query = query.Where("(metadata->'assigned_reviewers' IS NULL OR metadata->>'assigned_reviewers' = '[]' OR metadata->>'assigned_reviewers' = 'null')")
+		} else {
+			// Just not assigned to this specific reviewer
+			query = query.Where("(metadata->'assigned_reviewers' IS NULL OR NOT (metadata->'assigned_reviewers' @> ?))",
+				fmt.Sprintf(`["%s"]`, reviewerID))
+		}
+
+		if err := query.Order("RANDOM()").Limit(input.Count).Find(&rowsToAssign).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -787,10 +841,243 @@ func AssignReviewerApplications(c *gin.Context) {
 }
 
 type SubmitReviewInput struct {
-	Scores   map[string]int    `json:"scores"`
-	Notes    map[string]string `json:"notes"`
-	Comments map[string]string `json:"comments"`
-	Status   string            `json:"status"` // 'approved', 'rejected', 'reviewed'
+	Scores          map[string]int    `json:"scores"`
+	Notes           map[string]string `json:"notes"`
+	Comments        map[string]string `json:"comments"`
+	OverallComments string            `json:"overall_comments"`
+	Status          string            `json:"status"` // 'approved', 'rejected', 'reviewed', or custom status
+	Tags            []string          `json:"tags"`
+	IsDraft         bool              `json:"is_draft"`
+}
+
+// LogicRules represents the parsed logic rules from ApplicationStage
+type LogicRules struct {
+	AutoAdvanceCondition string `json:"auto_advance_condition"` // e.g., "if average_score >= 80 then advance to Stage 2"
+	AutoRejectCondition  string `json:"auto_reject_condition"`  // e.g., "if average_score < 40 then reject"
+	VisibilityRules      string `json:"visibility_rules"`       // e.g., "[High Priority, Needs Review]"
+}
+
+// WorkflowActionResult represents the outcome of logic rule evaluation
+type WorkflowActionResult struct {
+	ShouldAdvance bool   `json:"should_advance"`
+	ShouldReject  bool   `json:"should_reject"`
+	NextStageID   string `json:"next_stage_id,omitempty"`
+	NextStageName string `json:"next_stage_name,omitempty"`
+	ActionTaken   string `json:"action_taken"`
+	ConditionMet  string `json:"condition_met"`
+}
+
+// EvaluateWorkflowLogic checks logic rules and determines if auto-actions should be taken
+func EvaluateWorkflowLogic(metadata map[string]interface{}, stageID string, reviewerTypeID string) (*WorkflowActionResult, error) {
+	result := &WorkflowActionResult{}
+
+	// Get the stage config
+	var stageConfig models.StageReviewerConfig
+	if err := database.DB.Where("stage_id = ? AND reviewer_type_id = ?", stageID, reviewerTypeID).First(&stageConfig).Error; err != nil {
+		// No config for this stage/reviewer type, try just stage_id
+		if err := database.DB.Where("stage_id = ?", stageID).First(&stageConfig).Error; err != nil {
+			return result, nil // No config found, no auto-action
+		}
+	}
+
+	// Get the ApplicationStage for logic_rules
+	var stage models.ApplicationStage
+	if err := database.DB.First(&stage, "id = ?", stageID).Error; err != nil {
+		return result, nil
+	}
+
+	// Parse logic rules
+	var logicRules LogicRules
+	if len(stage.LogicRules) > 0 {
+		if err := json.Unmarshal(stage.LogicRules, &logicRules); err != nil {
+			return result, nil
+		}
+	}
+
+	// Extract scores from metadata
+	var averageScore float64
+	var totalScore float64
+	var reviewCount int
+
+	if reviewHistory, ok := metadata["review_history"].([]interface{}); ok && len(reviewHistory) > 0 {
+		reviewCount = len(reviewHistory)
+		for _, review := range reviewHistory {
+			if reviewMap, ok := review.(map[string]interface{}); ok {
+				if ts, ok := reviewMap["total_score"].(float64); ok {
+					totalScore += ts
+				} else if ts, ok := reviewMap["total_score"].(int); ok {
+					totalScore += float64(ts)
+				}
+			}
+		}
+		if reviewCount > 0 {
+			averageScore = totalScore / float64(reviewCount)
+		}
+	}
+
+	// Check minimum reviews required
+	minReviewsRequired := stageConfig.MinReviewsRequired
+	if minReviewsRequired == 0 {
+		minReviewsRequired = 1 // Default to at least 1 review
+	}
+
+	if reviewCount < minReviewsRequired {
+		result.ActionTaken = "waiting_for_reviews"
+		return result, nil // Not enough reviews yet
+	}
+
+	// Evaluate auto_advance_condition
+	if logicRules.AutoAdvanceCondition != "" {
+		conditionMet, nextStageName := evaluateCondition(logicRules.AutoAdvanceCondition, averageScore, totalScore)
+		if conditionMet {
+			result.ShouldAdvance = true
+			result.NextStageName = nextStageName
+			result.ActionTaken = "auto_advanced"
+			result.ConditionMet = logicRules.AutoAdvanceCondition
+
+			// Find next stage in the workflow
+			var workflow models.ReviewWorkflow
+			if err := database.DB.First(&workflow, "id = ?", stage.ReviewWorkflowID).Error; err == nil {
+				var stages []models.ApplicationStage
+				if err := database.DB.Where("review_workflow_id = ?", workflow.ID).Order("order_index ASC").Find(&stages).Error; err == nil {
+					for i, s := range stages {
+						if s.ID == stage.ID && i+1 < len(stages) {
+							result.NextStageID = stages[i+1].ID.String()
+							result.NextStageName = stages[i+1].Name
+							break
+						}
+						// Or if matching by name
+						if nextStageName != "" && strings.Contains(strings.ToLower(s.Name), strings.ToLower(nextStageName)) {
+							result.NextStageID = s.ID.String()
+							result.NextStageName = s.Name
+							break
+						}
+					}
+				}
+			}
+			return result, nil
+		}
+	}
+
+	// Evaluate auto_reject_condition
+	if logicRules.AutoRejectCondition != "" {
+		conditionMet, _ := evaluateCondition(logicRules.AutoRejectCondition, averageScore, totalScore)
+		if conditionMet {
+			result.ShouldReject = true
+			result.ActionTaken = "auto_rejected"
+			result.ConditionMet = logicRules.AutoRejectCondition
+			return result, nil
+		}
+	}
+
+	result.ActionTaken = "none"
+	return result, nil
+}
+
+// evaluateCondition parses and evaluates a condition string like "if average_score >= 80 then advance to Stage 2"
+func evaluateCondition(condition string, averageScore, totalScore float64) (bool, string) {
+	// Parse condition: "if <metric> <operator> <value> then <action> [to <target>]"
+	re := regexp.MustCompile(`(?i)if\s+(\w+)\s*(>=|<=|>|<|==|!=)\s*(\d+(?:\.\d+)?)\s+then\s+(.+)`)
+	matches := re.FindStringSubmatch(condition)
+
+	if len(matches) < 5 {
+		return false, ""
+	}
+
+	metric := strings.ToLower(matches[1])
+	operator := matches[2]
+	valueStr := matches[3]
+	action := matches[4]
+
+	value, err := strconv.ParseFloat(valueStr, 64)
+	if err != nil {
+		return false, ""
+	}
+
+	// Get the metric value
+	var metricValue float64
+	switch metric {
+	case "average_score", "avg_score", "avg":
+		metricValue = averageScore
+	case "total_score", "total":
+		metricValue = totalScore
+	default:
+		return false, ""
+	}
+
+	// Evaluate the condition
+	var conditionMet bool
+	switch operator {
+	case ">=":
+		conditionMet = metricValue >= value
+	case "<=":
+		conditionMet = metricValue <= value
+	case ">":
+		conditionMet = metricValue > value
+	case "<":
+		conditionMet = metricValue < value
+	case "==":
+		conditionMet = metricValue == value
+	case "!=":
+		conditionMet = metricValue != value
+	}
+
+	// Extract target stage name if present
+	targetStage := ""
+	targetRe := regexp.MustCompile(`(?i)advance\s+to\s+(.+)`)
+	if targetMatches := targetRe.FindStringSubmatch(action); len(targetMatches) > 1 {
+		targetStage = strings.TrimSpace(targetMatches[1])
+	}
+
+	return conditionMet, targetStage
+}
+
+// ApplyWorkflowAction applies the result of logic evaluation to the submission
+func ApplyWorkflowAction(row *models.Row, metadata map[string]interface{}, result *WorkflowActionResult) error {
+	if result.ShouldAdvance && result.NextStageID != "" {
+		// Update stage_id in metadata
+		metadata["stage_id"] = result.NextStageID
+		metadata["stage_name"] = result.NextStageName
+
+		// Track stage history
+		stageHistory := []interface{}{}
+		if existingHistory, ok := metadata["stage_history"].([]interface{}); ok {
+			stageHistory = existingHistory
+		}
+		stageHistory = append(stageHistory, map[string]interface{}{
+			"from_stage": metadata["current_stage_id"],
+			"to_stage":   result.NextStageID,
+			"action":     "auto_advanced",
+			"condition":  result.ConditionMet,
+			"timestamp":  time.Now(),
+		})
+		metadata["stage_history"] = stageHistory
+		metadata["current_stage_id"] = result.NextStageID
+		metadata["workflow_action"] = "auto_advanced"
+	}
+
+	if result.ShouldReject {
+		metadata["status"] = "rejected"
+		metadata["rejected_at"] = time.Now()
+		metadata["rejection_reason"] = "auto_rejected"
+		metadata["workflow_action"] = "auto_rejected"
+		metadata["workflow_condition"] = result.ConditionMet
+
+		// Track in stage history
+		stageHistory := []interface{}{}
+		if existingHistory, ok := metadata["stage_history"].([]interface{}); ok {
+			stageHistory = existingHistory
+		}
+		stageHistory = append(stageHistory, map[string]interface{}{
+			"action":    "auto_rejected",
+			"condition": result.ConditionMet,
+			"timestamp": time.Now(),
+		})
+		metadata["stage_history"] = stageHistory
+	}
+
+	row.Metadata = mapToJSON(metadata)
+	return database.DB.Save(row).Error
 }
 
 func SubmitExternalReview(c *gin.Context) {
@@ -851,23 +1138,73 @@ func SubmitExternalReview(c *gin.Context) {
 
 	// Store review in metadata
 	reviewData := map[string]interface{}{
-		"scores":      input.Scores,
-		"notes":       input.Notes,
-		"comments":    input.Comments,
-		"reviewed_at": time.Now(),
-		"reviewer":    reviewerName,
-		"reviewer_id": reviewerID,
+		"scores":           input.Scores,
+		"notes":            input.Notes,
+		"comments":         input.Comments,
+		"overall_comments": input.OverallComments,
+		"status":           input.Status,
+		"tags":             input.Tags,
+		"is_draft":         input.IsDraft,
+		"reviewed_at":      time.Now(),
+		"reviewer":         reviewerName,
+		"reviewer_id":      reviewerID,
 	}
+
+	// Calculate total score
+	totalScore := 0
+	for _, v := range input.Scores {
+		totalScore += v
+	}
+	reviewData["total_score"] = totalScore
 
 	// Append to reviews array or overwrite? Let's overwrite for single reviewer for now,
 	// or append if we want multiple.
 	metadata["review"] = reviewData
 
-	// Update status if provided
-	if input.Status != "" {
+	// Update status if provided and not a draft
+	if input.Status != "" && !input.IsDraft {
 		metadata["status"] = input.Status
 		metadata["reviewed_at"] = time.Now()
 	}
+
+	// Store tags at metadata level for filtering
+	if len(input.Tags) > 0 {
+		metadata["tags"] = input.Tags
+	}
+
+	// Track review history (for multi-reviewer scenarios and prior reviews)
+	reviewHistoryEntry := map[string]interface{}{
+		"reviewer_id":      reviewerID,
+		"reviewer_name":    reviewerName,
+		"scores":           input.Scores,
+		"notes":            input.Notes,
+		"total_score":      totalScore,
+		"overall_comments": input.OverallComments,
+		"submitted_at":     time.Now(),
+		"is_draft":         input.IsDraft,
+	}
+
+	reviewHistory := []interface{}{}
+	if existingHistory, ok := metadata["review_history"].([]interface{}); ok {
+		// Check if this reviewer already has an entry and update it
+		found := false
+		for i, entry := range existingHistory {
+			if entryMap, ok := entry.(map[string]interface{}); ok {
+				if entryReviewerID, ok := entryMap["reviewer_id"].(string); ok && entryReviewerID == reviewerID {
+					existingHistory[i] = reviewHistoryEntry
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			existingHistory = append(existingHistory, reviewHistoryEntry)
+		}
+		reviewHistory = existingHistory
+	} else {
+		reviewHistory = append(reviewHistory, reviewHistoryEntry)
+	}
+	metadata["review_history"] = reviewHistory
 
 	row.Metadata = mapToJSON(metadata)
 
@@ -876,8 +1213,58 @@ func SubmitExternalReview(c *gin.Context) {
 		return
 	}
 
-	// Update reviewer stats in table settings
-	if reviewerID != "" {
+	// Evaluate workflow logic rules if this is not a draft
+	if !input.IsDraft {
+		// Get stage_id from metadata or find from reviewer_type_id
+		stageID := ""
+		if sid, ok := metadata["stage_id"].(string); ok {
+			stageID = sid
+		} else if sid, ok := metadata["current_stage_id"].(string); ok {
+			stageID = sid
+		}
+
+		// If we don't have a stage_id, try to find it from the reviewer's config
+		reviewerTypeID := ""
+		var settings map[string]interface{}
+		if err := json.Unmarshal(table.Settings, &settings); err == nil {
+			if reviewers, ok := settings["reviewers"].([]interface{}); ok {
+				for _, r := range reviewers {
+					if rMap, ok := r.(map[string]interface{}); ok {
+						if id, ok := rMap["id"].(string); ok && id == reviewerID {
+							if rtID, ok := rMap["reviewer_type_id"].(string); ok {
+								reviewerTypeID = rtID
+							}
+							break
+						}
+					}
+				}
+			}
+		}
+
+		// Find stage from reviewer_type_id if we don't have it
+		if stageID == "" && reviewerTypeID != "" {
+			var stageConfig models.StageReviewerConfig
+			if err := database.DB.Where("reviewer_type_id = ?", reviewerTypeID).First(&stageConfig).Error; err == nil {
+				stageID = stageConfig.StageID.String()
+			}
+		}
+
+		// Evaluate and apply workflow logic
+		if stageID != "" {
+			workflowResult, err := EvaluateWorkflowLogic(metadata, stageID, reviewerTypeID)
+			if err == nil && (workflowResult.ShouldAdvance || workflowResult.ShouldReject) {
+				// Re-parse metadata since we saved the row
+				json.Unmarshal(row.Metadata, &metadata)
+				if err := ApplyWorkflowAction(&row, metadata, workflowResult); err != nil {
+					// Log error but don't fail the request
+					fmt.Printf("Failed to apply workflow action: %v\n", err)
+				}
+			}
+		}
+	}
+
+	// Update reviewer stats in table settings (only for non-draft submissions)
+	if reviewerID != "" && !input.IsDraft {
 		var settings map[string]interface{}
 		if err := json.Unmarshal(table.Settings, &settings); err == nil {
 			if reviewers, ok := settings["reviewers"].([]interface{}); ok {
@@ -908,4 +1295,278 @@ func SubmitExternalReview(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, row)
+}
+
+// ========== Workflow Assignment Handlers ==========
+
+type AssignWorkflowInput struct {
+	WorkflowID string `json:"workflow_id"`
+	StageID    string `json:"stage_id"`
+}
+
+// AssignSubmissionWorkflow assigns a submission to a specific workflow and stage
+func AssignSubmissionWorkflow(c *gin.Context) {
+	formID := c.Param("id")
+	submissionID := c.Param("submission_id")
+
+	var input AssignWorkflowInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Find the submission (row)
+	var row models.Row
+	if err := database.DB.Where("table_id = ? AND id = ?", formID, submissionID).First(&row).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
+		return
+	}
+
+	// Get or create metadata
+	var metadata map[string]interface{}
+	if len(row.Metadata) > 0 {
+		json.Unmarshal(row.Metadata, &metadata)
+	} else {
+		metadata = make(map[string]interface{})
+	}
+
+	// Update workflow assignment
+	metadata["assigned_workflow_id"] = input.WorkflowID
+	metadata["current_stage_id"] = input.StageID
+	metadata["workflow_assigned_at"] = time.Now()
+
+	// Initialize review tracking if not exists
+	if _, ok := metadata["stage_history"]; !ok {
+		metadata["stage_history"] = []map[string]interface{}{}
+	}
+
+	// Add to stage history
+	stageHistory := metadata["stage_history"].([]map[string]interface{})
+	stageHistory = append(stageHistory, map[string]interface{}{
+		"stage_id":   input.StageID,
+		"entered_at": time.Now(),
+		"action":     "assigned",
+	})
+	metadata["stage_history"] = stageHistory
+
+	row.Metadata = mapToJSON(metadata)
+
+	if err := database.DB.Save(&row).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, row)
+}
+
+type MoveToStageInput struct {
+	StageID string `json:"stage_id"`
+	Reason  string `json:"reason,omitempty"`
+}
+
+// MoveSubmissionToStage moves a submission to a different stage
+func MoveSubmissionToStage(c *gin.Context) {
+	formID := c.Param("id")
+	submissionID := c.Param("submission_id")
+
+	var input MoveToStageInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Find the submission
+	var row models.Row
+	if err := database.DB.Where("table_id = ? AND id = ?", formID, submissionID).First(&row).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
+		return
+	}
+
+	// Get metadata
+	var metadata map[string]interface{}
+	if len(row.Metadata) > 0 {
+		json.Unmarshal(row.Metadata, &metadata)
+	} else {
+		metadata = make(map[string]interface{})
+	}
+
+	// Get previous stage for history
+	previousStageID := ""
+	if val, ok := metadata["current_stage_id"].(string); ok {
+		previousStageID = val
+	}
+
+	// Update current stage
+	metadata["current_stage_id"] = input.StageID
+	metadata["stage_updated_at"] = time.Now()
+
+	// Get or create stage history
+	var stageHistory []interface{}
+	if val, ok := metadata["stage_history"].([]interface{}); ok {
+		stageHistory = val
+	} else {
+		stageHistory = []interface{}{}
+	}
+
+	// Add to history
+	historyEntry := map[string]interface{}{
+		"from_stage_id": previousStageID,
+		"to_stage_id":   input.StageID,
+		"moved_at":      time.Now(),
+		"reason":        input.Reason,
+	}
+	stageHistory = append(stageHistory, historyEntry)
+	metadata["stage_history"] = stageHistory
+
+	row.Metadata = mapToJSON(metadata)
+
+	if err := database.DB.Save(&row).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, row)
+}
+
+type UpdateReviewDataInput struct {
+	Scores       map[string]interface{} `json:"scores,omitempty"`
+	Comments     string                 `json:"comments,omitempty"`
+	Status       string                 `json:"status,omitempty"`
+	Tags         []string               `json:"tags,omitempty"`
+	Flagged      bool                   `json:"flagged,omitempty"`
+	Decision     string                 `json:"decision,omitempty"`
+	ReviewerID   string                 `json:"reviewer_id,omitempty"`
+	ReviewerName string                 `json:"reviewer_name,omitempty"`
+}
+
+// UpdateSubmissionReviewData updates the review data for a submission
+func UpdateSubmissionReviewData(c *gin.Context) {
+	formID := c.Param("id")
+	submissionID := c.Param("submission_id")
+
+	var input UpdateReviewDataInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Find the submission
+	var row models.Row
+	if err := database.DB.Where("table_id = ? AND id = ?", formID, submissionID).First(&row).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
+		return
+	}
+
+	// Get metadata
+	var metadata map[string]interface{}
+	if len(row.Metadata) > 0 {
+		json.Unmarshal(row.Metadata, &metadata)
+	} else {
+		metadata = make(map[string]interface{})
+	}
+
+	// Update review data
+	if input.Scores != nil {
+		metadata["scores"] = input.Scores
+		// Calculate total score
+		totalScore := 0.0
+		for _, v := range input.Scores {
+			if num, ok := v.(float64); ok {
+				totalScore += num
+			}
+		}
+		metadata["total_score"] = totalScore
+	}
+
+	if input.Comments != "" {
+		metadata["comments"] = input.Comments
+	}
+
+	if input.Status != "" {
+		metadata["status"] = input.Status
+		metadata["status_updated_at"] = time.Now()
+	}
+
+	if input.Tags != nil {
+		metadata["tags"] = input.Tags
+	}
+
+	metadata["flagged"] = input.Flagged
+
+	if input.Decision != "" {
+		metadata["decision"] = input.Decision
+		metadata["decision_at"] = time.Now()
+	}
+
+	// Track reviewer activity
+	if input.ReviewerID != "" {
+		reviewHistory := []interface{}{}
+		if val, ok := metadata["review_history"].([]interface{}); ok {
+			reviewHistory = val
+		}
+		reviewHistory = append(reviewHistory, map[string]interface{}{
+			"reviewer_id":   input.ReviewerID,
+			"reviewer_name": input.ReviewerName,
+			"reviewed_at":   time.Now(),
+			"scores":        input.Scores,
+		})
+		metadata["review_history"] = reviewHistory
+		metadata["review_count"] = len(reviewHistory)
+	}
+
+	row.Metadata = mapToJSON(metadata)
+
+	if err := database.DB.Save(&row).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, row)
+}
+
+// BulkAssignWorkflow assigns multiple submissions to a workflow
+func BulkAssignWorkflow(c *gin.Context) {
+	formID := c.Param("id")
+
+	var input struct {
+		SubmissionIDs []string `json:"submission_ids"`
+		WorkflowID    string   `json:"workflow_id"`
+		StageID       string   `json:"stage_id"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(input.SubmissionIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No submission IDs provided"})
+		return
+	}
+
+	count := 0
+	for _, subID := range input.SubmissionIDs {
+		var row models.Row
+		if err := database.DB.Where("table_id = ? AND id = ?", formID, subID).First(&row).Error; err != nil {
+			continue
+		}
+
+		var metadata map[string]interface{}
+		if len(row.Metadata) > 0 {
+			json.Unmarshal(row.Metadata, &metadata)
+		} else {
+			metadata = make(map[string]interface{})
+		}
+
+		metadata["assigned_workflow_id"] = input.WorkflowID
+		metadata["current_stage_id"] = input.StageID
+		metadata["workflow_assigned_at"] = time.Now()
+
+		row.Metadata = mapToJSON(metadata)
+		if err := database.DB.Save(&row).Error; err == nil {
+			count++
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Workflow assigned", "count": count})
 }
