@@ -455,6 +455,59 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
                               </button>
                             </div>
                           </div>
+                          
+                          {/* Assigned Applications List */}
+                          {submissions.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-gray-200">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-sm font-medium text-gray-700">Assigned Applications</h4>
+                                <span className="text-xs text-gray-500">{submissions.filter(s => s.metadata?.assigned_reviewers?.includes(reviewer.id)).length} applications</span>
+                              </div>
+                              <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-white divide-y divide-gray-100">
+                                {submissions.filter(s => s.metadata?.assigned_reviewers?.includes(reviewer.id)).length === 0 ? (
+                                  <div className="p-3 text-center text-gray-500 text-sm">No applications assigned yet</div>
+                                ) : (
+                                  submissions.filter(s => s.metadata?.assigned_reviewers?.includes(reviewer.id)).map(sub => {
+                                    const data = typeof sub.data === 'string' ? JSON.parse(sub.data) : sub.data
+                                    const name = data.personal?.firstName 
+                                      ? `${data.personal.firstName} ${data.personal.lastName}` 
+                                      : data['First Name'] 
+                                        ? `${data['First Name']} ${data['Last Name'] || ''}`
+                                        : `Applicant ${sub.id.substring(0, 6)}`
+                                    const isReviewed = sub.metadata?.review_history?.some((r: any) => r.reviewer_id === reviewer.id)
+                                    const reviewerScore = sub.metadata?.review_history?.find((r: any) => r.reviewer_id === reviewer.id)?.total_score
+                                    
+                                    return (
+                                      <div key={sub.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                          <div className={cn(
+                                            "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-medium",
+                                            isReviewed ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-600"
+                                          )}>
+                                            {name.charAt(0).toUpperCase()}
+                                          </div>
+                                          <div className="min-w-0">
+                                            <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
+                                            <p className="text-xs text-gray-500">ID: {sub.id.substring(0, 8)}</p>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {isReviewed ? (
+                                            <span className="flex items-center gap-1 text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
+                                              <CheckCircle className="w-3 h-3" />
+                                              {reviewerScore !== undefined ? `${reviewerScore} pts` : 'Reviewed'}
+                                            </span>
+                                          ) : (
+                                            <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full">Pending</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )
+                                  })
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}

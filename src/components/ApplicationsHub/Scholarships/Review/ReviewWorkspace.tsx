@@ -31,6 +31,108 @@ interface ReviewWorkspaceProps {
   formId: string | null
 }
 
+// Helper function to render nested data (groups, repeaters, objects) nicely
+function renderFieldValue(key: string, value: any, depth: number = 0): React.ReactNode {
+  if (value === null || value === undefined || value === '') {
+    return <span className="text-gray-400 italic">Not provided</span>
+  }
+  
+  if (typeof value === 'boolean') {
+    return <span className={value ? 'text-green-600' : 'text-gray-500'}>{value ? 'Yes' : 'No'}</span>
+  }
+  
+  if (typeof value === 'number') {
+    return <span className="font-medium">{value}</span>
+  }
+  
+  if (typeof value === 'string') {
+    // Check if it's a long text
+    if (value.length > 200) {
+      return <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{value}</p>
+    }
+    return <span className="text-gray-900">{value}</span>
+  }
+  
+  // Handle arrays (repeaters)
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return <span className="text-gray-400 italic">None</span>
+    }
+    
+    // Check if it's an array of primitives
+    if (value.every(v => typeof v !== 'object')) {
+      return <span className="text-gray-900">{value.join(', ')}</span>
+    }
+    
+    // Array of objects (repeater items)
+    return (
+      <div className="space-y-3 mt-2">
+        {value.map((item, idx) => (
+          <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div className="text-xs font-medium text-gray-500 uppercase mb-2">Item {idx + 1}</div>
+            <div className="grid gap-2">
+              {typeof item === 'object' && item !== null ? (
+                Object.entries(item).map(([k, v]) => (
+                  <div key={k} className="flex flex-wrap gap-x-2">
+                    <span className="text-xs font-medium text-gray-500 min-w-[80px]">{k.replace(/_/g, ' ')}:</span>
+                    <span className="text-sm text-gray-900">{renderFieldValue(k, v, depth + 1)}</span>
+                  </div>
+                ))
+              ) : (
+                <span className="text-sm text-gray-900">{String(item)}</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  
+  // Handle objects (groups)
+  if (typeof value === 'object') {
+    const entries = Object.entries(value).filter(([k]) => !k.startsWith('_'))
+    
+    if (entries.length === 0) {
+      return <span className="text-gray-400 italic">Empty</span>
+    }
+    
+    // Check if all values are simple (no nested objects)
+    const allSimple = entries.every(([, v]) => typeof v !== 'object' || v === null)
+    
+    if (allSimple && entries.length <= 4) {
+      // Render inline for simple groups with few fields
+      return (
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {entries.map(([k, v]) => (
+            <span key={k} className="text-sm">
+              <span className="text-gray-500">{k.replace(/_/g, ' ')}:</span>{' '}
+              <span className="text-gray-900 font-medium">{v === null || v === '' ? '-' : String(v)}</span>
+            </span>
+          ))}
+        </div>
+      )
+    }
+    
+    // Render as nested card for complex groups
+    return (
+      <div className={cn("mt-2 rounded-lg border border-gray-200 overflow-hidden", depth === 0 ? "bg-white" : "bg-gray-50")}>
+        <div className="divide-y divide-gray-100">
+          {entries.map(([k, v]) => (
+            <div key={k} className="px-3 py-2">
+              <div className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">
+                {k.replace(/_/g, ' ')}
+              </div>
+              <div className="text-gray-900">{renderFieldValue(k, v, depth + 1)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+  
+  return <span className="text-gray-900">{String(value)}</span>
+}
+
 interface ApplicationData {
   id: string
   name: string
@@ -86,6 +188,8 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
   const [filterReviewed, setFilterReviewed] = useState<string>('all') // 'all', 'reviewed', 'unreviewed'
   const [showWorkflowSelector, setShowWorkflowSelector] = useState(false)
   const [selectedAppsForBulk, setSelectedAppsForBulk] = useState<string[]>([])
+  const [showOnlyUnassigned, setShowOnlyUnassigned] = useState(false)
+  const [isAssigningUnassigned, setIsAssigningUnassigned] = useState(false)
   
   // Scoring state
   const [editingScores, setEditingScores] = useState<Record<string, number>>({})
@@ -264,6 +368,11 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
 
   const stageApps = useMemo(() => {
     return applications.filter(app => {
+      // If showing only unassigned, filter to apps without workflowId
+      if (showOnlyUnassigned) {
+        return !app.workflowId
+      }
+      
       const matchesStage = selectedStageId === 'all' || app.stageId === selectedStageId
       const matchesWorkflow = !workflow || app.workflowId === workflow.id || !app.workflowId // Include unassigned
       const matchesSearch = !searchQuery || 
@@ -287,7 +396,7 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
       return matchesStage && matchesWorkflow && matchesSearch && matchesStatus && 
              matchesScoreMin && matchesScoreMax && matchesTags && matchesReviewed
     })
-  }, [applications, selectedStageId, workflow, searchQuery, filterStatus, filterScoreMin, filterScoreMax, filterTags, filterReviewed])
+  }, [applications, selectedStageId, workflow, searchQuery, filterStatus, filterScoreMin, filterScoreMax, filterTags, filterReviewed, showOnlyUnassigned])
 
   // Current application
   const currentApp = stageApps[selectedAppIndex] || null
@@ -397,6 +506,34 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
       setSelectedAppsForBulk([])
     } catch (error) {
       console.error('Failed to bulk assign workflow:', error)
+    }
+  }
+
+  // Assign all unassigned applications to the first stage of the current workflow
+  const handleAssignAllUnassigned = async () => {
+    if (!formId || !workflow || stages.length === 0) return
+    
+    const firstStage = stages[0]
+    const unassignedApps = applications.filter(a => !a.workflowId)
+    
+    if (unassignedApps.length === 0) return
+    
+    setIsAssigningUnassigned(true)
+    try {
+      const unassignedIds = unassignedApps.map(a => a.id)
+      await workflowsClient.bulkAssignWorkflow(formId, unassignedIds, workflow.id, firstStage.id)
+      
+      setApplications(prev => prev.map(app => 
+        !app.workflowId
+          ? { ...app, workflowId: workflow.id, stageId: firstStage.id, stageName: firstStage.name }
+          : app
+      ))
+      
+      setShowOnlyUnassigned(false)
+    } catch (error) {
+      console.error('Failed to assign unassigned applications:', error)
+    } finally {
+      setIsAssigningUnassigned(false)
     }
   }
 
@@ -774,10 +911,11 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
               onClick={() => {
                 setSelectedStageId('all')
                 setSelectedAppIndex(0)
+                setShowOnlyUnassigned(false)
               }}
               className={cn(
                 "w-full text-left px-3 py-3 rounded-lg mb-2 transition-all group",
-                selectedStageId === 'all' 
+                selectedStageId === 'all' && !showOnlyUnassigned
                   ? "bg-blue-50 border border-blue-200" 
                   : "hover:bg-gray-50 border border-transparent"
               )}
@@ -792,7 +930,7 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
                 <div className="flex-1 min-w-0">
                   <p className={cn(
                     "font-medium",
-                    selectedStageId === 'all' ? "text-gray-900" : "text-gray-700"
+                    selectedStageId === 'all' && !showOnlyUnassigned ? "text-gray-900" : "text-gray-700"
                   )}>All Applications</p>
                   <p className="text-xs text-gray-400">View all stages</p>
                 </div>
@@ -804,16 +942,46 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
 
             {/* Unassigned Applications */}
             {stats.unassigned > 0 && (
-              <div className="px-3 py-2 mb-2 bg-amber-50 border border-amber-200 rounded-lg">
-                <div className="flex items-center justify-between">
+              <div className={cn(
+                "px-3 py-2 mb-2 rounded-lg border transition-all",
+                showOnlyUnassigned 
+                  ? "bg-amber-100 border-amber-300" 
+                  : "bg-amber-50 border-amber-200 hover:bg-amber-100 cursor-pointer"
+              )}>
+                <button
+                  onClick={() => {
+                    setShowOnlyUnassigned(!showOnlyUnassigned)
+                    setSelectedStageId('all')
+                    setSelectedAppIndex(0)
+                  }}
+                  className="w-full flex items-center justify-between"
+                >
                   <div className="flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 text-amber-600" />
-                    <span className="text-sm font-medium text-amber-800">Unassigned</span>
+                    <span className="text-sm font-medium text-amber-800">
+                      {showOnlyUnassigned ? 'Showing Unassigned' : 'Unassigned'}
+                    </span>
                   </div>
                   <Badge className="bg-amber-100 text-amber-700 border-amber-200">
                     {stats.unassigned}
                   </Badge>
-                </div>
+                </button>
+                {showOnlyUnassigned && workflow && stages.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-amber-200">
+                    <button
+                      onClick={handleAssignAllUnassigned}
+                      disabled={isAssigningUnassigned}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded-lg disabled:opacity-50"
+                    >
+                      {isAssigningUnassigned ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Zap className="w-3 h-3" />
+                      )}
+                      Assign All to {stages[0]?.name || 'First Stage'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -821,7 +989,7 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
             
             {stages.map((stage, idx) => {
               const count = applications.filter(a => a.stageId === stage.id).length
-              const isActive = stage.id === selectedStageId
+              const isActive = stage.id === selectedStageId && !showOnlyUnassigned
               
               return (
                 <button
@@ -829,6 +997,7 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
                   onClick={() => {
                     setSelectedStageId(stage.id)
                     setSelectedAppIndex(0)
+                    setShowOnlyUnassigned(false)
                   }}
                   className={cn(
                     "w-full text-left px-3 py-3 rounded-lg mb-1 transition-all group",
@@ -1087,31 +1256,24 @@ function QueueView({
             {/* Application Data Preview */}
             <div className="flex-1 overflow-y-auto p-6">
               <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Application Data</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-4">
                 {Object.entries(currentApp.raw_data).map(([key, value]) => {
                   // Skip internal fields
                   if (key.startsWith('_') || key === 'id') return null
                   
-                  // Handle different value types
-                  let displayValue: React.ReactNode
-                  if (value === null || value === undefined) {
-                    displayValue = <span className="text-gray-400 italic">Not provided</span>
-                  } else if (Array.isArray(value)) {
-                    displayValue = value.length > 0 
-                      ? value.map((v, i) => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(', ')
-                      : <span className="text-gray-400 italic">None</span>
-                  } else if (typeof value === 'object') {
-                    displayValue = <pre className="text-xs overflow-auto max-h-20">{JSON.stringify(value, null, 2)}</pre>
-                  } else if (typeof value === 'boolean') {
-                    displayValue = value ? 'Yes' : 'No'
-                  } else {
-                    displayValue = String(value)
-                  }
+                  // Check if this is a complex field (object or array with objects)
+                  const isComplex = (typeof value === 'object' && value !== null) || 
+                                   (Array.isArray(value) && value.some(v => typeof v === 'object'))
                   
                   return (
-                    <div key={key} className="bg-white rounded-lg p-4 border border-gray-200">
-                      <p className="text-xs font-medium text-gray-400 uppercase mb-1">{key.replace(/_/g, ' ')}</p>
-                      <p className="text-gray-900 break-words">{displayValue}</p>
+                    <div key={key} className={cn(
+                      "bg-white rounded-lg p-4 border border-gray-200",
+                      isComplex && "col-span-2"
+                    )}>
+                      <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">
+                        {key.replace(/_/g, ' ')}
+                      </p>
+                      <div className="text-gray-900">{renderFieldValue(key, value)}</div>
                     </div>
                   )
                 })}
@@ -1253,31 +1415,10 @@ function FocusReviewMode({
                 // Skip internal fields
                 if (key.startsWith('_') || key === 'id') return null
                 
-                // Handle different value types
-                let displayValue: React.ReactNode
-                const isLongText = typeof value === 'string' && value.length > 100
-                
-                if (value === null || value === undefined) {
-                  displayValue = <span className="text-gray-400 italic">Not provided</span>
-                } else if (Array.isArray(value)) {
-                  displayValue = value.length > 0 
-                    ? value.map((v, i) => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(', ')
-                    : <span className="text-gray-400 italic">None</span>
-                } else if (typeof value === 'object') {
-                  displayValue = <pre className="text-xs overflow-auto max-h-32 bg-gray-100 p-2 rounded">{JSON.stringify(value, null, 2)}</pre>
-                } else if (typeof value === 'boolean') {
-                  displayValue = value ? 'Yes' : 'No'
-                } else {
-                  displayValue = String(value)
-                }
-                
                 return (
                   <div key={key} className="border-b border-gray-200 pb-4">
                     <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">{key.replace(/_/g, ' ')}</p>
-                    <p className={cn(
-                      "text-gray-700",
-                      isLongText && "text-sm leading-relaxed"
-                    )}>{displayValue}</p>
+                    <div className="text-gray-700">{renderFieldValue(key, value)}</div>
                   </div>
                 )
               })}

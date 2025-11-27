@@ -818,7 +818,7 @@ func AssignReviewerApplications(c *gin.Context) {
 		if !exists {
 			assignedReviewers = append(assignedReviewers, reviewerID)
 			metadata["assigned_reviewers"] = assignedReviewers
-			
+
 			// Set workflow and stage if we found them and not already set
 			if workflowID != "" && metadata["assigned_workflow_id"] == nil {
 				metadata["assigned_workflow_id"] = workflowID
@@ -827,7 +827,7 @@ func AssignReviewerApplications(c *gin.Context) {
 				metadata["current_stage_id"] = stageID
 				metadata["stage_name"] = stageName
 			}
-			
+
 			row.Metadata = mapToJSON(metadata)
 			database.DB.Save(&row)
 			count++

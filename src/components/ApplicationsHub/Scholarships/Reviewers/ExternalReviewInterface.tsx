@@ -125,6 +125,116 @@ function normalizeRubricCategory(cat: RubricCategory): { id: string; name: strin
   }
 }
 
+// Helper function to render field values nicely (groups, repeaters, nested objects)
+function renderExternalFieldValue(value: any, fieldType?: string): React.ReactNode {
+  // Handle null/undefined/empty
+  if (value === null || value === undefined || value === '') {
+    return <span className="text-gray-400 italic">Not provided</span>
+  }
+  
+  // Handle booleans
+  if (typeof value === 'boolean') {
+    return <span className={value ? 'text-green-600 font-medium' : 'text-gray-500'}>{value ? 'Yes' : 'No'}</span>
+  }
+  
+  // Handle long text (essays, textareas)
+  if (fieldType === 'textarea' || fieldType === 'long_text' || fieldType === 'essay') {
+    return <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{value || 'No content provided.'}</p>
+  }
+  
+  // Handle files
+  if (fieldType === 'file' || fieldType === 'upload') {
+    return (
+      <div className="flex items-center gap-2 text-blue-600">
+        <FileText className="w-4 h-4" />
+        <span className="text-sm">File uploaded</span>
+      </div>
+    )
+  }
+  
+  // Handle arrays (repeaters)
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return <span className="text-gray-400 italic">None</span>
+    }
+    
+    // Check if it's an array of primitives
+    if (value.every(v => typeof v !== 'object' || v === null)) {
+      return <span className="text-gray-900 font-medium">{value.join(', ')}</span>
+    }
+    
+    // Array of objects (repeater items)
+    return (
+      <div className="space-y-2 mt-1">
+        {value.map((item: any, i: number) => (
+          <div key={i} className="bg-white rounded-lg border border-gray-200 p-3">
+            <div className="text-xs font-medium text-gray-500 uppercase mb-2">Item {i + 1}</div>
+            {typeof item === 'object' && item !== null ? (
+              <div className="grid gap-2">
+                {Object.entries(item).filter(([k]) => !k.startsWith('_')).map(([k, v]) => (
+                  <div key={k} className="flex flex-wrap gap-x-2">
+                    <span className="text-xs font-medium text-gray-500 min-w-[80px]">{k.replace(/_/g, ' ')}:</span>
+                    <span className="text-sm text-gray-900">
+                      {v === null || v === undefined || v === '' ? '-' : String(v)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="text-sm text-gray-900">{String(item)}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    )
+  }
+  
+  // Handle objects (groups)
+  if (typeof value === 'object' && value !== null) {
+    const entries = Object.entries(value).filter(([k]) => !k.startsWith('_'))
+    
+    if (entries.length === 0) {
+      return <span className="text-gray-400 italic">Empty</span>
+    }
+    
+    // Check if all values are simple (no nested objects)
+    const allSimple = entries.every(([, v]) => typeof v !== 'object' || v === null)
+    
+    if (allSimple && entries.length <= 4) {
+      // Render inline for simple groups with few fields
+      return (
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {entries.map(([k, v]) => (
+            <span key={k} className="text-sm">
+              <span className="text-gray-500">{k.replace(/_/g, ' ')}:</span>{' '}
+              <span className="text-gray-900 font-medium">{v === null || v === '' ? '-' : String(v)}</span>
+            </span>
+          ))}
+        </div>
+      )
+    }
+    
+    // Render as nested card for complex groups
+    return (
+      <div className="mt-1 bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="divide-y divide-gray-100">
+          {entries.map(([k, v]) => (
+            <div key={k} className="px-3 py-2">
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                {k.replace(/_/g, ' ')}
+              </div>
+              <div className="text-gray-900">{renderExternalFieldValue(v)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+  
+  // Default: render as string
+  return <span className="font-medium text-gray-900">{String(value)}</span>
+}
+
 const DEFAULT_RUBRIC: RubricCategory[] = [
   { 
     id: 'academic', 
@@ -613,32 +723,9 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
                           <h4 className="text-gray-900 font-semibold mb-3">{section.title}</h4>
                           {section.fields.map(field => (
                             <div key={field.id} className="bg-gray-50 rounded-lg p-4">
-                              <p className="text-xs text-gray-500 mb-1">{field.label}</p>
-                              {/* Render based on field type */}
-                              {field.type === 'textarea' || field.type === 'long_text' || field.type === 'essay' ? (
-                                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{field.value || 'No content provided.'}</p>
-                              ) : field.type === 'repeater' || Array.isArray(field.value) ? (
-                                <div className="space-y-2 mt-2">
-                                  {(Array.isArray(field.value) ? field.value : []).map((item: any, i: number) => (
-                                    <div key={i} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                                      <div>
-                                        <p className="font-medium text-gray-900">{item.role || item.title || item.name || JSON.stringify(item)}</p>
-                                        <p className="text-sm text-gray-500">{item.org || item.organization || item.description || ''}</p>
-                                      </div>
-                                      {(item.duration || item.years) && (
-                                        <span className="text-sm text-gray-500 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">{item.duration || item.years}</span>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : field.type === 'file' || field.type === 'upload' ? (
-                                <div className="flex items-center gap-2 text-blue-600">
-                                  <FileText className="w-4 h-4" />
-                                  <span className="text-sm">File uploaded</span>
-                                </div>
-                              ) : (
-                                <p className="font-medium text-gray-900">{String(field.value || 'N/A')}</p>
-                              )}
+                              <p className="text-xs text-blue-600 font-medium uppercase tracking-wide mb-2">{field.label}</p>
+                              {/* Render based on field type and value */}
+                              {renderExternalFieldValue(field.value, field.type)}
                             </div>
                           ))}
                           {section.fields.length === 0 && (
