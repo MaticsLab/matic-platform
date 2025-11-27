@@ -95,6 +95,12 @@ export function ReviewerManagement({ formId }: ReviewerManagementProps) {
     setNewReviewerEmail('')
   }
 
+  const handleDeleteReviewer = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this reviewer?')) return
+    const updated = reviewers.filter(r => r.id !== id)
+    await saveReviewers(updated)
+  }
+
   const copyLink = (id: string, token: string) => {
     const url = `${window.location.origin}/external-review/${token}`
     navigator.clipboard.writeText(url)
@@ -292,8 +298,11 @@ export function ReviewerManagement({ formId }: ReviewerManagementProps) {
                         {copiedId === reviewer.id ? 'Copied!' : 'Copy'}
                       </button>
                     </div>
-                    <button className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-                      Edit
+                    <button 
+                      onClick={() => handleDeleteReviewer(reviewer.id)}
+                      className="px-3 py-2 text-sm font-medium text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      Remove
                     </button>
                   </div>
                 </div>

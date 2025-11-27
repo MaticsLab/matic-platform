@@ -5,7 +5,7 @@ import { DndProvider } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { 
   Layout, Settings, FileText, Plus, Save, Eye, 
-  ChevronLeft, Monitor, Smartphone, Palette, Lock, Loader2
+  ChevronLeft, Monitor, Smartphone, Palette, Lock, Loader2, X
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -16,11 +16,13 @@ import { FormBuilder } from './FormBuilder'
 import { PortalSettings } from './PortalSettings'
 import { SectionList } from './SectionList'
 import { FieldToolbox } from './FieldToolbox'
+import { FieldSettingsPanel } from './FieldSettingsPanel'
 import { DynamicApplicationForm } from '@/components/ApplicationsHub/Scholarships/ApplicantPortal/DynamicApplicationForm'
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { formsClient } from '@/lib/api/forms-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { toast } from 'sonner'
+import { SettingsModal } from './SettingsModal'
 
 const INITIAL_CONFIG: PortalConfig = {
   sections: [
@@ -60,8 +62,19 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [formId, setFormId] = useState<string | null>(initialFormId || null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  
+  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
+  const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
+  const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
 
   const activeSection = config.sections.find(s => s.id === activeSectionId)
+
+  useEffect(() => {
+    if (selectedFieldId) {
+      setRightSidebarTab('settings')
+    }
+  }, [selectedFieldId])
 
   useEffect(() => {
     const loadForm = async () => {
@@ -230,6 +243,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     }))
   }
 
+  const handleUpdateField = (fieldId: string, updates: Partial<Field>) => {
+    if (!activeSection) return
+    const updatedFields = updateFieldRecursive(activeSection.fields, fieldId, updates)
+    handleUpdateSection(activeSection.id, { fields: updatedFields })
+  }
+
   const handleAddSection = () => {
     const newSection: Section = {
       id: Date.now().toString(),
@@ -252,6 +271,45 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     handleUpdateSection(activeSection.id, { fields: [...activeSection.fields, newField] })
   }
 
+  // Helper functions for recursive updates
+  function updateFieldRecursive(fields: Field[], targetId: string, updates: Partial<Field>): Field[] {
+    return fields.map(field => {
+      if (field.id === targetId) {
+        return { ...field, ...updates }
+      }
+      if (field.children) {
+        return { ...field, children: updateFieldRecursive(field.children, targetId, updates) }
+      }
+      return field
+    })
+  }
+
+  function findFieldRecursive(fields: Field[], targetId: string | null): Field | undefined {
+    if (!targetId) return undefined
+    for (const field of fields) {
+      if (field.id === targetId) return field
+      if (field.children) {
+        const found = findFieldRecursive(field.children, targetId)
+        if (found) return found
+      }
+    }
+    return undefined
+  }
+
+  const getAllFields = () => {
+    const fields: Field[] = []
+    config.sections.forEach(section => {
+      const traverse = (nodes: Field[]) => {
+        nodes.forEach(node => {
+          fields.push(node)
+          if (node.children) traverse(node.children)
+        })
+      }
+      traverse(section.fields)
+    })
+    return fields
+  }
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center bg-gray-50">
@@ -262,25 +320,112 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="flex h-full bg-gray-50">
-        {/* Left Sidebar - Navigation */}
-        <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex items-center gap-2 font-semibold text-gray-900">
-              <Layout className="w-5 h-5 text-blue-600" />
-              Portal Builder
+      <div className="flex flex-col h-full bg-gray-100">
+        {/* Top Bar - Full Width */}
+        <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm z-20 shrink-0">
+            <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 font-semibold text-gray-900 mr-4">
+                  <Layout className="w-5 h-5 text-blue-600" />
+                  Portal Builder
+                </div>
+                <div className="h-6 w-px bg-gray-200" />
+                <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className={cn("h-7 px-2", viewMode === 'desktop' && "bg-white shadow-sm")}
+                    onClick={() => setViewMode('desktop')}
+                  >
+                    <Monitor className="w-4 h-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className={cn("h-7 px-2", viewMode === 'mobile' && "bg-white shadow-sm")}
+                    onClick={() => setViewMode('mobile')}
+                  >
+                    <Smartphone className="w-4 h-4" />
+                  </Button>
+                </div>
             </div>
-          </div>
-          
-          <Tabs defaultValue="structure" className="flex-1 flex flex-col">
-            <div className="px-4 pt-4">
-              <TabsList className="w-full grid grid-cols-2">
-                <TabsTrigger value="structure">Structure</TabsTrigger>
-                <TabsTrigger value="settings">Settings</TabsTrigger>
+
+            <div className="flex items-center justify-center bg-gray-100 p-1 rounded-full">
+               <button 
+                 onClick={() => setActiveTopTab('edit')}
+                 className={cn(
+                   "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
+                   activeTopTab === 'edit' ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
+                 )}
+               >
+                 Edit
+               </button>
+               <button 
+                 onClick={() => setActiveTopTab('integrate')}
+                 className={cn(
+                   "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
+                   activeTopTab === 'integrate' ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
+                 )}
+               >
+                 Integrate
+               </button>
+               <button 
+                 onClick={() => setActiveTopTab('share')}
+                 className={cn(
+                   "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
+                   activeTopTab === 'share' ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
+                 )}
+               >
+                 Share
+               </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setIsSettingsOpen(true)}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Settings
+              </Button>
+              <Button 
+                variant={isPreview ? "default" : "outline"} 
+                size="sm"
+                onClick={() => setIsPreview(!isPreview)}
+              >
+                <Eye className="w-4 h-4 mr-2" /> 
+                {isPreview ? 'Edit Mode' : 'Preview'}
+              </Button>
+              <Button 
+                size="sm" 
+                className="bg-gray-900 hover:bg-gray-800 text-white"
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                Publish
+              </Button>
+            </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex overflow-hidden">
+            {/* Left Sidebar - Navigation */}
+            <div className="w-80 bg-white border-r border-gray-200 flex flex-col shadow-sm z-10">
+          <Tabs defaultValue="elements" className="flex-1 flex flex-col gap-0 min-h-0">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <TabsList className="w-full grid grid-cols-3 bg-gray-100 p-1 rounded-full h-auto">
+                <TabsTrigger value="elements" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Fields</TabsTrigger>
+                <TabsTrigger value="structure" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Pages</TabsTrigger>
+                <TabsTrigger value="theme" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Theme</TabsTrigger>
               </TabsList>
             </div>
 
-            <TabsContent value="structure" className="flex-1 flex flex-col mt-0">
+            <TabsContent value="elements" className="flex-1 mt-0 overflow-hidden data-[state=active]:flex flex-col min-h-0">
+               <FieldToolbox onAddField={handleAddField} />
+            </TabsContent>
+
+            <TabsContent value="structure" className="flex-1 data-[state=active]:flex flex-col mt-0 min-h-0 overflow-hidden">
               <div className="p-4 pb-2 flex justify-between items-center">
                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sections</span>
                 <Button variant="ghost" size="sm" onClick={handleAddSection}>
@@ -297,100 +442,72 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
               </ScrollArea>
             </TabsContent>
 
-            <TabsContent value="settings" className="flex-1 p-4">
-              <div className="space-y-1">
-                <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => setActiveSectionId('branding')}>
-                  <Palette className="w-4 h-4" /> Branding
-                </Button>
-                <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => setActiveSectionId('auth')}>
-                  <Lock className="w-4 h-4" /> Login & Signup
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        {/* Main Content - Editor */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Toolbar */}
-          <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4">
-            <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className={cn("h-7 px-2", viewMode === 'desktop' && "bg-white shadow-sm")}
-                onClick={() => setViewMode('desktop')}
-              >
-                <Monitor className="w-4 h-4" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className={cn("h-7 px-2", viewMode === 'mobile' && "bg-white shadow-sm")}
-                onClick={() => setViewMode('mobile')}
-              >
-                <Smartphone className="w-4 h-4" />
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button 
-                variant={isPreview ? "default" : "outline"} 
-                size="sm"
-                onClick={() => setIsPreview(!isPreview)}
-              >
-                <Eye className="w-4 h-4 mr-2" /> 
-                {isPreview ? 'Edit Mode' : 'Preview'}
-              </Button>
-              <Button 
-                size="sm" 
-                className="bg-blue-600 hover:bg-blue-700"
-                onClick={handleSave}
-                disabled={isSaving}
-              >
-                {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                Save Changes
-              </Button>
-            </div>
-          </div>
-
-          {/* Canvas */}
-          <div className="flex-1 overflow-y-auto p-8 bg-gray-50/50">
-            <div className={cn(
-              "mx-auto bg-white shadow-sm border border-gray-200 rounded-xl transition-all duration-300 min-h-[600px]",
-              viewMode === 'mobile' ? "max-w-[375px]" : "max-w-4xl"
-            )}>
-              {isPreview ? (
-                <div className="p-4">
-                  <DynamicApplicationForm config={config} isExternal={true} />
-                </div>
-              ) : activeSectionId === 'branding' || activeSectionId === 'auth' ? (
-                <PortalSettings 
-                  type={activeSectionId} 
+            <TabsContent value="theme" className="flex-1 overflow-y-auto min-h-0">
+               <PortalSettings 
+                  type="branding" 
                   settings={config.settings} 
                   onUpdate={(updates: Partial<PortalConfig['settings']>) => setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))} 
                 />
-              ) : activeSection ? (
-                <FormBuilder 
-                  section={activeSection} 
-                  onUpdate={(updates: Partial<Section>) => handleUpdateSection(activeSection.id, updates)} 
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full text-gray-400">
-                  Select a section to edit
-                </div>
-              )}
+            </TabsContent>
+          </Tabs>
             </div>
-          </div>
-        </div>
 
-        {/* Right Sidebar - Field Toolbox */}
-        {!isPreview && activeSection && activeSectionId !== 'branding' && activeSectionId !== 'auth' && (
-          <div className="w-64 bg-white border-l border-gray-200 flex flex-col">
-            <FieldToolbox onAddField={handleAddField} />
-          </div>
-        )}
+            {/* Canvas */}
+            <div className="flex-1 overflow-y-auto p-4 bg-gray-100 flex justify-center relative">
+                <div className={cn(
+                  "bg-white shadow-lg border border-gray-200 rounded-xl transition-all duration-300 min-h-[800px]",
+                  viewMode === 'mobile' ? "w-[375px]" : "w-full max-w-3xl"
+                )}>
+                  {isPreview ? (
+                    <div className="p-4">
+                      <DynamicApplicationForm config={config} isExternal={true} />
+                    </div>
+                  ) : activeSection ? (
+                    <FormBuilder 
+                      section={activeSection} 
+                      onUpdate={(updates: Partial<Section>) => handleUpdateSection(activeSection.id, updates)} 
+                      selectedFieldId={selectedFieldId}
+                      onSelectField={setSelectedFieldId}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-400">
+                      Select a section to edit
+                    </div>
+                  )}
+                </div>
+            </div>
+
+            {/* Right Sidebar - Settings */}
+            <div className={cn(
+               "bg-white border-l border-gray-200 flex flex-col shadow-sm z-10 transition-all duration-300 ease-in-out",
+               selectedFieldId ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
+            )}>
+               <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                  <span className="font-semibold text-sm">Field Settings</span>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setSelectedFieldId(null)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+               </div>
+               <div className="flex-1 overflow-hidden">
+                   {selectedFieldId && (
+                      <FieldSettingsPanel 
+                        selectedField={activeSection ? findFieldRecursive(activeSection.fields, selectedFieldId) : null}
+                        onUpdate={handleUpdateField}
+                        onClose={() => setSelectedFieldId(null)}
+                        allFields={getAllFields()}
+                      />
+                   )}
+               </div>
+            </div>
+        </div>
       </div>
+
+      <SettingsModal 
+        open={isSettingsOpen} 
+        onOpenChange={setIsSettingsOpen}
+        config={config}
+        onUpdate={(updates) => setConfig(prev => ({ ...prev, ...updates }))}
+      />
     </DndProvider>
   )
 }

@@ -11,7 +11,7 @@ export default function PortalEditorPage() {
   const formId = searchParams.get('formId')
 
   return (
-    <div className="h-[calc(100vh-4rem)]">
+    <div className="h-screen w-full overflow-hidden">
       <PortalEditor workspaceSlug={workspaceSlug} initialFormId={formId} />
     </div>
   )

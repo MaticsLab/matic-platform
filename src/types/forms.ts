@@ -29,6 +29,29 @@ export type FieldType =
 
 export type FieldWidth = 'full' | 'half' | 'third' | 'quarter'
 
+export interface LogicRule {
+  id: string
+  fieldId: string
+  operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'is_empty' | 'is_not_empty'
+  value: string
+  action: 'show' | 'hide' | 'require'
+}
+
+export interface DashboardTile {
+  id: string
+  title: string
+  type: 'stat' | 'folder'
+  filter?: LogicRule[]
+  icon?: string
+  color?: string
+  aggregation?: 'count' | 'sum' | 'avg'
+  fieldId?: string
+}
+
+export interface DashboardConfig {
+  tiles: DashboardTile[]
+}
+
 export interface FormField {
   id: string
   form_id: string // This might be table_id in backend

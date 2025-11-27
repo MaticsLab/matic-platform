@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { Mail, Send, Clock, FileText, Users, ChevronRight, Plus, Search } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Mail, Send, Clock, FileText, Users, ChevronRight, Plus, Search, Tag } from 'lucide-react'
+import { goClient } from '@/lib/api/go-client'
+import { Form, FormField, FormSubmission } from '@/types/forms'
 
 interface CommunicationsCenterProps {
   workspaceId: string
@@ -10,6 +12,41 @@ interface CommunicationsCenterProps {
 
 export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCenterProps) {
   const [activeView, setActiveView] = useState<'compose' | 'templates' | 'history'>('compose')
+  const [fields, setFields] = useState<FormField[]>([])
+  const [submissions, setSubmissions] = useState<FormSubmission[]>([])
+  const [recipientFilter, setRecipientFilter] = useState<'all' | 'submitted' | 'draft' | 'approved' | 'rejected'>('all')
+  const [messageBody, setMessageBody] = useState('')
+  const [subject, setSubject] = useState('')
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!formId) return
+      try {
+        const form = await goClient.get<Form>(`/forms/${formId}`)
+        setFields(form.fields || [])
+        
+        const subs = await goClient.get<FormSubmission[]>(`/forms/${formId}/submissions`)
+        setSubmissions(subs || [])
+      } catch (error) {
+        console.error('Failed to fetch data:', error)
+      }
+    }
+    fetchData()
+  }, [formId])
+
+  const getRecipientCount = () => {
+    if (recipientFilter === 'all') return submissions.length
+    return submissions.filter(s => s.status === recipientFilter).length
+  }
+
+  const insertMergeTag = (tagName: string) => {
+    setMessageBody(prev => prev + ` {${tagName}} `)
+  }
+
+  const handleSend = () => {
+    alert(`Simulating sending email to ${getRecipientCount()} recipients.\n\nSubject: ${subject}\nBody: ${messageBody}`)
+    // In a real app, this would call an API endpoint
+  }
 
   const templates = [
     { id: 1, name: 'Application Received', subject: 'We received your application', type: 'Automated' },
@@ -77,7 +114,10 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
               <h2 className="text-lg font-semibold text-gray-900">New Message</h2>
               <div className="flex gap-2">
                 <button className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium">Save Draft</button>
-                <button className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg text-sm font-medium flex items-center gap-2">
+                <button 
+                  onClick={handleSend}
+                  className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg text-sm font-medium flex items-center gap-2"
+                >
                   <Send className="w-4 h-4" />
                   Send
                 </button>
@@ -90,19 +130,34 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
                 <div className="bg-white rounded-lg border border-gray-200 p-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Recipients</label>
                   <div className="flex flex-wrap gap-2">
-                    <button className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-100 flex items-center gap-1">
+                    <button 
+                      onClick={() => setRecipientFilter('all')}
+                      className={`px-3 py-1 rounded-full text-sm font-medium border flex items-center gap-1 transition-colors ${
+                        recipientFilter === 'all' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
                       <Users className="w-3 h-3" />
-                      All Applicants (142)
+                      All Applicants
                     </button>
-                    <button className="px-3 py-1 bg-white text-gray-600 rounded-full text-sm font-medium border border-gray-200 hover:bg-gray-50">
-                      Submitted Only (89)
+                    <button 
+                      onClick={() => setRecipientFilter('submitted')}
+                      className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+                        recipientFilter === 'submitted' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      Submitted Only
                     </button>
-                    <button className="px-3 py-1 bg-white text-gray-600 rounded-full text-sm font-medium border border-gray-200 hover:bg-gray-50">
-                      Draft Status (53)
+                    <button 
+                      onClick={() => setRecipientFilter('approved')}
+                      className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+                        recipientFilter === 'approved' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      Finalists (Approved)
                     </button>
-                    <button className="px-3 py-1 bg-white text-gray-600 rounded-full text-sm font-medium border border-gray-200 hover:bg-gray-50">
-                      + Custom Filter
-                    </button>
+                    <div className="ml-auto text-sm text-gray-500 font-medium self-center">
+                      Targeting {getRecipientCount()} recipients
+                    </div>
                   </div>
                 </div>
 
@@ -113,6 +168,8 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
                     type="text" 
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Enter email subject..."
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
                   />
                 </div>
 
@@ -120,21 +177,37 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
                 <div className="flex-1 flex flex-col">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
                   <div className="border border-gray-300 rounded-lg overflow-hidden flex-1 min-h-[300px] flex flex-col">
-                    <div className="bg-gray-50 border-b border-gray-300 px-4 py-2 flex gap-2">
-                      <button className="p-1 hover:bg-gray-200 rounded text-sm font-bold">B</button>
-                      <button className="p-1 hover:bg-gray-200 rounded text-sm italic">I</button>
-                      <button className="p-1 hover:bg-gray-200 rounded text-sm underline">U</button>
+                    <div className="bg-gray-50 border-b border-gray-300 px-4 py-2 flex flex-wrap gap-2 items-center">
+                      <button className="p-1 hover:bg-gray-200 rounded text-sm font-bold w-8">B</button>
+                      <button className="p-1 hover:bg-gray-200 rounded text-sm italic w-8">I</button>
+                      <button className="p-1 hover:bg-gray-200 rounded text-sm underline w-8">U</button>
                       <div className="w-px h-4 bg-gray-300 mx-1 self-center"></div>
-                      <button className="px-2 py-1 hover:bg-gray-200 rounded text-xs bg-white border border-gray-300">
-                        {'{First Name}'}
-                      </button>
-                      <button className="px-2 py-1 hover:bg-gray-200 rounded text-xs bg-white border border-gray-300">
-                        {'{Application Status}'}
-                      </button>
+                      <span className="text-xs font-medium text-gray-500 mr-1">Merge Tags:</span>
+                      <div className="flex gap-2 overflow-x-auto max-w-[400px] pb-1">
+                        <button 
+                          onClick={() => insertMergeTag('First Name')}
+                          className="px-2 py-1 hover:bg-gray-200 rounded text-xs bg-white border border-gray-300 whitespace-nowrap flex items-center gap-1"
+                        >
+                          <Tag className="w-3 h-3 text-blue-500" />
+                          {'{First Name}'}
+                        </button>
+                        {fields.slice(0, 5).map(field => (
+                          <button 
+                            key={field.id}
+                            onClick={() => insertMergeTag(field.label)}
+                            className="px-2 py-1 hover:bg-gray-200 rounded text-xs bg-white border border-gray-300 whitespace-nowrap flex items-center gap-1"
+                          >
+                            <Tag className="w-3 h-3 text-gray-400" />
+                            {`{${field.label}}`}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     <textarea 
-                      className="flex-1 p-4 focus:outline-none resize-none"
+                      className="flex-1 p-4 focus:outline-none resize-none font-mono text-sm"
                       placeholder="Type your message here..."
+                      value={messageBody}
+                      onChange={(e) => setMessageBody(e.target.value)}
                     ></textarea>
                   </div>
                 </div>

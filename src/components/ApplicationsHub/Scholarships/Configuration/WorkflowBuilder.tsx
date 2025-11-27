@@ -1,13 +1,26 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, GripVertical, ChevronRight, Settings, Save, ChevronDown, ChevronUp, Info, CheckCircle2, Users, Bot, Gavel, Calendar, Clock, Loader2 } from 'lucide-react'
+import { Plus, Trash2, GripVertical, ChevronRight, Settings, Save, ChevronDown, ChevronUp, Info, CheckCircle2, Users, Bot, Gavel, Calendar, Clock, Loader2, Filter, Eye, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { goClient } from '@/lib/api/go-client'
-import { Form } from '@/types/forms'
+import { Form, FormField } from '@/types/forms'
 
 interface WorkflowBuilderProps {
   formId: string | null
+}
+
+interface EntryCriterion {
+  id: string
+  fieldId: string
+  operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'is_empty' | 'is_not_empty'
+  value: string
+}
+
+interface ExitAction {
+  id: string
+  type: 'advance' | 'reject' | 'waitlist' | 'tag' | 'email'
+  config: Record<string, any>
 }
 
 interface RubricGuideline {
@@ -34,6 +47,9 @@ interface Phase {
   startDate?: string
   endDate?: string
   deadlineType?: 'hard' | 'soft'
+  entryCriteria?: EntryCriterion[]
+  exitActions?: ExitAction[]
+  visibleFields?: string[] // IDs of fields visible to reviewers in this stage
 }
 
 const DEFAULT_PHASES: Phase[] = [
@@ -125,6 +141,7 @@ const PHASE_TYPE_CONFIG = {
 
 export function WorkflowBuilder({ formId }: WorkflowBuilderProps) {
   const [phases, setPhases] = useState<Phase[]>(DEFAULT_PHASES)
+  const [availableFields, setAvailableFields] = useState<FormField[]>([])
   const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(DEFAULT_PHASES[0].id)
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -134,7 +151,9 @@ export function WorkflowBuilder({ formId }: WorkflowBuilderProps) {
     settings: true,
     rubric: true,
     timeline: true,
-    automation: false
+    automation: false,
+    views: false,
+    criteria: false
   })
 
   useEffect(() => {
@@ -144,6 +163,9 @@ export function WorkflowBuilder({ formId }: WorkflowBuilderProps) {
       setIsLoading(true)
       try {
         const form = await goClient.get<Form>(`/forms/${formId}`)
+        if (form.fields) {
+          setAvailableFields(form.fields)
+        }
         if (form.settings && (form.settings as any).workflow) {
           const workflow = (form.settings as any).workflow
           if (workflow.phases && Array.isArray(workflow.phases) && workflow.phases.length > 0) {
@@ -213,6 +235,50 @@ export function WorkflowBuilder({ formId }: WorkflowBuilderProps) {
 
   const updatePhase = (id: string, updates: Partial<Phase>) => {
     setPhases(phases.map(p => p.id === id ? { ...p, ...updates } : p))
+  }
+
+  const addEntryCriterion = (phaseId: string) => {
+    const phase = phases.find(p => p.id === phaseId)
+    if (!phase) return
+    
+    const newCriterion: EntryCriterion = {
+      id: `ec${Date.now()}`,
+      fieldId: availableFields[0]?.id || '',
+      operator: 'equals',
+      value: ''
+    }
+    
+    updatePhase(phaseId, {
+      entryCriteria: [...(phase.entryCriteria || []), newCriterion]
+    })
+  }
+
+  const updateEntryCriterion = (phaseId: string, criterionId: string, updates: Partial<EntryCriterion>) => {
+    const phase = phases.find(p => p.id === phaseId)
+    if (!phase) return
+    
+    const newCriteria = (phase.entryCriteria || []).map(c => c.id === criterionId ? { ...c, ...updates } : c)
+    updatePhase(phaseId, { entryCriteria: newCriteria })
+  }
+
+  const removeEntryCriterion = (phaseId: string, criterionId: string) => {
+    const phase = phases.find(p => p.id === phaseId)
+    if (!phase) return
+    
+    const newCriteria = (phase.entryCriteria || []).filter(c => c.id !== criterionId)
+    updatePhase(phaseId, { entryCriteria: newCriteria })
+  }
+
+  const toggleVisibleField = (phaseId: string, fieldId: string) => {
+    const phase = phases.find(p => p.id === phaseId)
+    if (!phase) return
+    
+    const currentFields = phase.visibleFields || []
+    const newFields = currentFields.includes(fieldId)
+      ? currentFields.filter(id => id !== fieldId)
+      : [...currentFields, fieldId]
+      
+    updatePhase(phaseId, { visibleFields: newFields })
   }
 
   const addRubricCategory = (phaseId: string) => {
@@ -506,6 +572,114 @@ export function WorkflowBuilder({ formId }: WorkflowBuilderProps) {
                           </div>
                         </label>
                       </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Collapsible: Entry Criteria */}
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <button 
+                  onClick={() => toggleSection('criteria')}
+                  className="w-full px-6 py-4 flex items-center justify-between bg-gray-50/50 hover:bg-gray-50 transition-colors border-b border-gray-100"
+                >
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <Filter className="w-5 h-5 text-gray-400" />
+                    Entry Criteria
+                  </h3>
+                  {openSections.criteria ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                </button>
+                
+                {openSections.criteria && (
+                  <div className="p-6 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                    <p className="text-sm text-gray-500">Define conditions that applications must meet to enter this stage.</p>
+                    
+                    {selectedPhase.entryCriteria?.map((criterion) => (
+                      <div key={criterion.id} className="flex gap-2 items-center">
+                        <select 
+                          value={criterion.fieldId}
+                          onChange={(e) => updateEntryCriterion(selectedPhase.id, criterion.id, { fieldId: e.target.value })}
+                          className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
+                        >
+                          <option value="">Select Field</option>
+                          {availableFields.map(f => (
+                            <option key={f.id} value={f.id}>{f.label}</option>
+                          ))}
+                        </select>
+                        <select 
+                          value={criterion.operator}
+                          onChange={(e) => updateEntryCriterion(selectedPhase.id, criterion.id, { operator: e.target.value as any })}
+                          className="w-32 p-2 border border-gray-300 rounded-lg text-sm"
+                        >
+                          <option value="equals">Equals</option>
+                          <option value="not_equals">Not Equals</option>
+                          <option value="contains">Contains</option>
+                          <option value="greater_than">Greater Than</option>
+                          <option value="less_than">Less Than</option>
+                          <option value="is_empty">Is Empty</option>
+                          <option value="is_not_empty">Is Not Empty</option>
+                        </select>
+                        <input 
+                          type="text" 
+                          value={criterion.value}
+                          onChange={(e) => updateEntryCriterion(selectedPhase.id, criterion.id, { value: e.target.value })}
+                          className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
+                          placeholder="Value"
+                        />
+                        <button 
+                          onClick={() => removeEntryCriterion(selectedPhase.id, criterion.id)}
+                          className="p-2 text-gray-400 hover:text-red-500"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    
+                    <button 
+                      onClick={() => addEntryCriterion(selectedPhase.id)}
+                      className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Condition
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Collapsible: Stage Views */}
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <button 
+                  onClick={() => toggleSection('views')}
+                  className="w-full px-6 py-4 flex items-center justify-between bg-gray-50/50 hover:bg-gray-50 transition-colors border-b border-gray-100"
+                >
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <Eye className="w-5 h-5 text-gray-400" />
+                    Reviewer View
+                  </h3>
+                  {openSections.views ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                </button>
+                
+                {openSections.views && (
+                  <div className="p-6 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                    <p className="text-sm text-gray-500">Select which fields are visible to reviewers during this stage.</p>
+                    
+                    <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto p-2 border border-gray-200 rounded-lg">
+                      {availableFields.map((field) => (
+                        <label key={field.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                          <input 
+                            type="checkbox"
+                            checked={(selectedPhase.visibleFields || []).includes(field.id)}
+                            onChange={() => toggleVisibleField(selectedPhase.id, field.id)}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700 truncate">{field.label}</span>
+                        </label>
+                      ))}
+                      {availableFields.length === 0 && (
+                        <div className="col-span-2 text-center text-gray-400 text-sm py-4">
+                          No fields found in this form.
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

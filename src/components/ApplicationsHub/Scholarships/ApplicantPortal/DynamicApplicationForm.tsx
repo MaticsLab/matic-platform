@@ -303,7 +303,7 @@ function FieldRenderer({ field, value, onChange, themeColor }: { field: Field, v
       )}
 
       {/* Selection */}
-      {field.type === 'select' && (
+      {(field.type === 'select' || field.type === 'rank') && (
         <Select value={value} onValueChange={onChange}>
           <SelectTrigger className="h-11">
             <SelectValue placeholder={field.placeholder || "Select an option"} />

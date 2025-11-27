@@ -1,11 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { BarChart3, Users, FileText, AlertCircle, Download, Filter, Clock, ArrowUpRight, Calendar, CheckCircle2, Loader2 } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { BarChart3, Users, FileText, AlertCircle, Download, Filter, Clock, ArrowUpRight, Calendar, CheckCircle2, Loader2, Settings } from 'lucide-react'
 import { goClient } from '@/lib/api/go-client'
-import { FormSubmission, Form } from '@/types/forms'
+import { FormSubmission, Form, DashboardConfig, DashboardTile, LogicRule } from '@/types/forms'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/ui-components/dialog'
+import { Button } from '@/ui-components/button'
 
 interface ScholarshipDashboardProps {
+// ... existing code ...
   workspaceId: string
   formId: string | null
 }
@@ -14,6 +17,9 @@ export function ScholarshipDashboard({ workspaceId, formId }: ScholarshipDashboa
   const [submissions, setSubmissions] = useState<FormSubmission[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [formSettings, setFormSettings] = useState<any>({})
+  const [dashboardConfig, setDashboardConfig] = useState<DashboardConfig | null>(null)
+  const [isConfigOpen, setIsConfigOpen] = useState(false)
+  const [configJson, setConfigJson] = useState('')
 
   useEffect(() => {
     const fetchData = async () => {
@@ -22,6 +28,7 @@ export function ScholarshipDashboard({ workspaceId, formId }: ScholarshipDashboa
         setIsLoading(true)
         const form = await goClient.get<Form>(`/forms/${formId}`)
         setFormSettings(form.settings || {})
+        setDashboardConfig(form.settings?.dashboardConfig || null)
         
         const data = await goClient.get<FormSubmission[]>(`/forms/${formId}/submissions`)
         setSubmissions(data || [])
@@ -34,43 +41,75 @@ export function ScholarshipDashboard({ workspaceId, formId }: ScholarshipDashboa
     fetchData()
   }, [formId])
 
-  // Calculate stats
-  const totalApps = submissions.length
-  const inScreening = submissions.filter(s => s.status === 'submitted' || s.status === 'reviewed').length
-  const approved = submissions.filter(s => s.status === 'approved').length
-  const rejected = submissions.filter(s => s.status === 'rejected').length
+  const evaluateRule = (rule: LogicRule, data: any): boolean => {
+    const value = data?.[rule.fieldId]
+    const numValue = parseFloat(value)
+    const ruleValue = rule.value
+    const numRuleValue = parseFloat(ruleValue)
 
-  const stats = [
-    { label: 'Total Applications', value: totalApps.toString(), subtext: 'Phase 1: Open', icon: FileText, color: 'blue' },
-    { label: 'In Screening', value: inScreening.toString(), subtext: 'Phase 2: Review', icon: Users, color: 'yellow' },
-    { label: 'Finalists', value: approved.toString(), subtext: 'Phase 3: Interview', icon: CheckCircle2, color: 'purple' },
-    { label: 'Awarded', value: '0', subtext: 'Phase 4: Selection', icon: BarChart3, color: 'green' },
-  ]
+    switch (rule.operator) {
+      case 'equals': return value == ruleValue
+      case 'not_equals': return value != ruleValue
+      case 'contains': return String(value).toLowerCase().includes(String(ruleValue).toLowerCase())
+      case 'greater_than': return !isNaN(numValue) && !isNaN(numRuleValue) && numValue > numRuleValue
+      case 'less_than': return !isNaN(numValue) && !isNaN(numRuleValue) && numValue < numRuleValue
+      case 'is_empty': return !value || value === ''
+      case 'is_not_empty': return !!value && value !== ''
+      default: return false
+    }
+  }
 
-  const mappings = formSettings.mappings || {}
+  const calculateTileValue = (tile: DashboardTile, submissions: FormSubmission[]) => {
+    const filtered = submissions.filter(sub => {
+      if (!tile.filter || tile.filter.length === 0) return true
+      // Check if it's a status check (special case for now until we have full field mapping)
+      const statusRule = tile.filter.find(r => r.fieldId === 'status')
+      if (statusRule) {
+        if (statusRule.operator === 'equals' && sub.status !== statusRule.value) return false
+      }
 
-  const smartFolders = [
-    { name: 'Ready for Committee', count: submissions.filter(s => s.status === 'reviewed').length, color: 'bg-green-100 text-green-700' },
-    { 
-      name: 'High Need Gap (>$10k)', 
-      count: submissions.filter(s => {
-        const efcField = mappings.efc
-        const efcVal = efcField ? s.data[efcField] : (s.data?.efc || s.data?.EFC || 0)
-        return (parseFloat(efcVal) || 0) < 5000
-      }).length, 
-      color: 'bg-blue-100 text-blue-700' 
-    },
-    { name: 'Missing Documents', count: 0, color: 'bg-orange-100 text-orange-700' },
-    { 
-      name: 'Ineligible (GPA < 2.7)', 
-      count: submissions.filter(s => {
-        const gpaField = mappings.gpa
-        const gpaVal = gpaField ? s.data[gpaField] : (s.data?.gpa || s.data?.GPA || 0)
-        return (parseFloat(gpaVal) || 0) < 2.7
-      }).length, 
-      color: 'bg-red-100 text-red-700' 
-    },
-  ]
+      // Check data fields
+      const dataRules = tile.filter.filter(r => r.fieldId !== 'status')
+      return dataRules.every(rule => evaluateRule(rule, sub.data))
+    })
+    
+    if (tile.aggregation === 'sum' && tile.fieldId) {
+      const fieldId = tile.fieldId
+      return filtered.reduce((acc, sub) => acc + (parseFloat(sub.data[fieldId]) || 0), 0).toString()
+    }
+    
+    return filtered.length.toString()
+  }
+
+  // Default configuration if none exists
+  const defaultConfig: DashboardConfig = {
+    tiles: [
+      { id: '1', title: 'Total Applications', type: 'stat', icon: 'FileText', color: 'blue', filter: [] },
+      { id: '2', title: 'In Screening', type: 'stat', icon: 'Users', color: 'yellow', filter: [{ id: 'f1', fieldId: 'status', operator: 'equals', value: 'submitted', action: 'show' }] }, // Simplified status check
+      { id: '3', title: 'Finalists', type: 'stat', icon: 'CheckCircle2', color: 'purple', filter: [{ id: 'f2', fieldId: 'status', operator: 'equals', value: 'approved', action: 'show' }] },
+      { id: '4', title: 'Awarded', type: 'stat', icon: 'BarChart3', color: 'green', filter: [{ id: 'f3', fieldId: 'status', operator: 'equals', value: 'awarded', action: 'show' }] },
+      
+      // Smart Folders
+      { id: '5', title: 'Ready for Committee', type: 'folder', color: 'green', filter: [{ id: 'f4', fieldId: 'status', operator: 'equals', value: 'reviewed', action: 'show' }] },
+      { id: '6', title: 'High Need Gap (<$5k EFC)', type: 'folder', color: 'blue', filter: [{ id: 'f5', fieldId: 'efc', operator: 'less_than', value: '5000', action: 'show' }] },
+      { id: '7', title: 'Ineligible (GPA < 2.7)', type: 'folder', color: 'red', filter: [{ id: 'f6', fieldId: 'gpa', operator: 'less_than', value: '2.7', action: 'show' }] },
+    ]
+  }
+
+  const activeConfig = dashboardConfig || defaultConfig
+
+  const statsTiles = activeConfig.tiles.filter(t => t.type === 'stat')
+  const folderTiles = activeConfig.tiles.filter(t => t.type === 'folder')
+
+  const getIcon = (iconName?: string) => {
+    switch (iconName) {
+      case 'FileText': return FileText
+      case 'Users': return Users
+      case 'CheckCircle2': return CheckCircle2
+      case 'BarChart3': return BarChart3
+      default: return FileText
+    }
+  }
 
   const upcomingDeadlines = [
     { event: 'Application Deadline', date: 'Jan 30', daysLeft: 5, type: 'critical' },
@@ -80,7 +119,7 @@ export function ScholarshipDashboard({ workspaceId, formId }: ScholarshipDashboa
   ]
 
   const recentActivity = submissions.slice(0, 5).map(sub => {
-    const nameField = mappings.name
+    const nameField = formSettings.mappings?.name
     const name = nameField ? sub.data[nameField] : (sub.data?.studentName || sub.data?.['Full Name'] || 'Unknown Applicant')
     
     return {
@@ -99,139 +138,69 @@ export function ScholarshipDashboard({ workspaceId, formId }: ScholarshipDashboa
     )
   }
 
+  const handleOpenConfig = () => {
+    setConfigJson(JSON.stringify(activeConfig, null, 2))
+    setIsConfigOpen(true)
+  }
+
+  const handleSaveConfig = async () => {
+    try {
+      const newConfig = JSON.parse(configJson)
+      setDashboardConfig(newConfig)
+      
+      // Save to backend
+      if (formId) {
+        const currentSettings = formSettings || {}
+        await goClient.patch(`/forms/${formId}`, {
+          settings: {
+            ...currentSettings,
+            dashboardConfig: newConfig
+          }
+        })
+      }
+      setIsConfigOpen(false)
+    } catch (e) {
+      alert('Invalid JSON')
+    }
+  }
+
   return (
     <div className="h-full overflow-auto p-6">
-      {/* Top Actions */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Scholarship Program Dashboard</h2>
-          <p className="text-sm text-gray-500 mt-1">Current Phase: <span className="font-medium text-blue-600">Phase 1 - Application Period</span> (Ends Jan 30)</p>
-        </div>
-        <div className="flex gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
-            <Filter className="w-4 h-4" />
-            Filter View
+      {/* ... existing code ... */}
+      <div className="flex gap-3">
+          <button 
+            onClick={handleOpenConfig}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <Settings className="w-4 h-4" />
+            Configure Dashboard
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
-            <Download className="w-4 h-4" />
-            Export CSV
-          </button>
-        </div>
+          {/* ... existing buttons ... */}
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {stats.map((stat, index) => (
-          <div key={index} className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <div className="flex justify-between items-start mb-4">
-              <div className={`p-3 rounded-lg bg-${stat.color}-50`}>
-                <stat.icon className={`w-6 h-6 text-${stat.color}-600`} />
-              </div>
-              <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                {stat.subtext}
-              </span>
-            </div>
-            <h3 className="text-3xl font-bold text-gray-900 mb-1">{stat.value}</h3>
-            <p className="text-sm text-gray-600">{stat.label}</p>
-          </div>
-        ))}
-      </div>
+      {/* ... existing grid ... */}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content Column */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* Smart Folders */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Priority Queues</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {smartFolders.map((folder, index) => (
-                <div key={index} className="flex items-center justify-between p-4 rounded-lg border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all cursor-pointer group">
-                  <span className="font-medium text-gray-700 group-hover:text-blue-700">{folder.name}</span>
-                  <span className={`px-2 py-1 rounded-md text-xs font-bold ${folder.color}`}>
-                    {folder.count}
-                  </span>
-                </div>
-              ))}
-            </div>
+      <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Dashboard Configuration</DialogTitle>
+            <DialogDescription>
+              Edit the JSON configuration to customize dashboard tiles.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <textarea
+              className="w-full h-96 font-mono text-sm p-4 border rounded-md bg-gray-50"
+              value={configJson}
+              onChange={(e) => setConfigJson(e.target.value)}
+            />
           </div>
-
-          {/* Timeline */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">Phase Timeline</h3>
-            <div className="relative">
-              <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-200"></div>
-              <div className="space-y-6">
-                {upcomingDeadlines.map((item, i) => (
-                  <div key={i} className="relative flex items-start gap-6 group">
-                    <div className={`absolute left-8 w-3 h-3 rounded-full border-2 border-white transform -translate-x-1.5 mt-1.5 ${
-                      item.type === 'critical' ? 'bg-red-500 ring-4 ring-red-100' : 'bg-blue-500 ring-4 ring-blue-100'
-                    }`}></div>
-                    <div className="w-16 text-sm font-medium text-gray-500 pt-1">{item.date}</div>
-                    <div className="flex-1 bg-gray-50 rounded-lg p-3 border border-gray-100 group-hover:border-blue-200 transition-colors">
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium text-gray-900">{item.event}</span>
-                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                          item.type === 'critical' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
-                        }`}>
-                          {item.daysLeft} days left
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Sidebar Column */}
-        <div className="space-y-8">
-          {/* Recent Activity */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
-              <button className="text-sm text-blue-600 hover:text-blue-700">View All</button>
-            </div>
-            <div className="space-y-6">
-              {recentActivity.map((activity, index) => (
-                <div key={index} className="flex gap-3">
-                  <div className="mt-1">
-                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-900">
-                      <span className="font-medium">{activity.user}</span> {activity.action}
-                    </p>
-                    <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                      <Clock className="w-3 h-3" />
-                      {activity.time}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-            <div className="space-y-3">
-              <button className="w-full text-left px-4 py-3 bg-white rounded-lg border border-blue-100 shadow-sm hover:shadow-md transition-all flex justify-between items-center group">
-                <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700">Review Pending Apps</span>
-                <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
-              </button>
-              <button className="w-full text-left px-4 py-3 bg-white rounded-lg border border-blue-100 shadow-sm hover:shadow-md transition-all flex justify-between items-center group">
-                <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700">Send Reminders</span>
-                <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
-              </button>
-              <button className="w-full text-left px-4 py-3 bg-white rounded-lg border border-blue-100 shadow-sm hover:shadow-md transition-all flex justify-between items-center group">
-                <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700">Edit Rubric</span>
-                <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsConfigOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveConfig}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

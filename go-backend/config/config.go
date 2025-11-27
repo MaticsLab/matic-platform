@@ -6,13 +6,13 @@ import (
 )
 
 type Config struct {
-	DatabaseURL           string
-	Port                  string
-	GinMode               string
-	AllowedOrigins        []string
-	JWTSecret             string
-	SupabaseURL           string
-	SupabaseKey           string
+	DatabaseURL            string
+	Port                   string
+	GinMode                string
+	AllowedOrigins         []string
+	JWTSecret              string
+	SupabaseURL            string
+	SupabaseKey            string
 	SupabaseServiceRoleKey string
 }
 

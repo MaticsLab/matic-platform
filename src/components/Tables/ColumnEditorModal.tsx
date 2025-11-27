@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, GripVertical, Type, Hash, Mail, Phone, Calendar, CheckSquare, Link as LinkIcon, List, Image, Link2 } from 'lucide-react'
+import { X, Plus, Trash2, GripVertical, Type, Hash, Mail, Phone, Calendar, CheckSquare, Link as LinkIcon, List, Image, Link2, Search, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface Column {
@@ -70,6 +70,8 @@ export function ColumnEditorModal({ isOpen, onClose, onSubmit, column, mode, wor
     }
     return []
   })
+  const [typeSearch, setTypeSearch] = useState('')
+  const [enableRichText, setEnableRichText] = useState(column?.settings?.richText || false)
 
   // Update state when column prop changes (for edit mode)
   useEffect(() => {
@@ -80,6 +82,7 @@ export function ColumnEditorModal({ isOpen, onClose, onSubmit, column, mode, wor
       setSelectedType(COLUMN_TYPES.find(t => t.value === column.column_type) || COLUMN_TYPES[0])
       setSelectOptions(column.settings?.options || [])
       setLinkedTableId(column.linked_table_id || '')
+      setEnableRichText(column.settings?.richText || false)
     } else {
       // Reset for create mode
       setLabel('')
@@ -88,6 +91,7 @@ export function ColumnEditorModal({ isOpen, onClose, onSubmit, column, mode, wor
       setSelectedType(COLUMN_TYPES[0])
       setSelectOptions(['Option 1'])
       setLinkedTableId('')
+      setEnableRichText(false)
     }
   }, [column])
 
@@ -193,6 +197,12 @@ export function ColumnEditorModal({ isOpen, onClose, onSubmit, column, mode, wor
       }
     }
 
+    if (columnType === 'textarea') {
+      columnData.settings = {
+        richText: enableRichText
+      }
+    }
+
     // Add linked table for link type
     if (columnType === 'link') {
       if (!linkedTableId) {
@@ -285,9 +295,26 @@ export function ColumnEditorModal({ isOpen, onClose, onSubmit, column, mode, wor
               <label className="block text-sm font-medium text-gray-700 mb-3">
                 Field Type *
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                {COLUMN_TYPES.map((type) => {
+              
+              {/* Type Search */}
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Find a field type"
+                  value={typeSearch}
+                  onChange={(e) => setTypeSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="border border-gray-200 rounded-lg overflow-hidden max-h-60 overflow-y-auto">
+                {COLUMN_TYPES.filter(t => 
+                  t.label.toLowerCase().includes(typeSearch.toLowerCase()) || 
+                  t.description.toLowerCase().includes(typeSearch.toLowerCase())
+                ).map((type) => {
                   const Icon = type.icon
+                  const isSelected = columnType === type.value
                   return (
                     <button
                       key={type.value}
@@ -296,26 +323,50 @@ export function ColumnEditorModal({ isOpen, onClose, onSubmit, column, mode, wor
                         setColumnType(type.value)
                         setSelectedType(type)
                       }}
-                      className={`flex items-start gap-2 sm:gap-3 p-2.5 sm:p-3 border rounded-lg transition-all text-left ${
-                        columnType === type.value
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-300 hover:border-gray-400'
+                      className={`w-full flex items-center gap-3 p-3 text-left transition-colors border-b border-gray-100 last:border-0 ${
+                        isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
                       }`}
                     >
-                      <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                      <div className={`p-2 rounded-lg ${isSelected ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm text-gray-900">
+                        <div className={`font-medium text-sm ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>
                           {type.label}
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">
                           {type.description}
                         </div>
                       </div>
+                      {isSelected && <div className="w-2 h-2 rounded-full bg-blue-500" />}
                     </button>
                   )
                 })}
               </div>
             </div>
+
+            {/* Rich Text Toggle for Long Text */}
+            {columnType === 'textarea' && (
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div>
+                  <div className="text-sm font-medium text-gray-900">Formatting</div>
+                  <div className="text-xs text-gray-500">Enable rich text formatting</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEnableRichText(!enableRichText)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                    enableRichText ? 'bg-blue-600' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      enableRichText ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
 
             {/* Type-specific settings */}
             {(columnType === 'select' || columnType === 'multiselect') && (

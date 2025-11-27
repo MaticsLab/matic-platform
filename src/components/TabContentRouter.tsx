@@ -403,7 +403,7 @@ function EnrolledViewWrapper({ workspaceId }: { workspaceId: string }) {
 }
 
 export function TabContentRouter({ tab: propTab, workspaceId }: TabContentRouterProps) {
-  const { activeTab } = useTabContext()
+  const { activeTab, tabManager } = useTabContext()
   
   // Use prop tab or context active tab
   const tab = propTab !== undefined ? propTab : activeTab
@@ -439,7 +439,17 @@ export function TabContentRouter({ tab: propTab, workspaceId }: TabContentRouter
       // Individual table view - extract tableId from URL or metadata
       const tableId = tab.metadata?.tableId || tab.url?.split('/tables/')[1]
       if (tableId) {
-        return <TableGridView tableId={tableId} workspaceId={workspaceId} />
+        return (
+          <TableGridView 
+            tableId={tableId} 
+            workspaceId={workspaceId} 
+            onTableNameChange={(newName) => {
+              if (tabManager && tab.id) {
+                tabManager.updateTab(tab.id, { title: newName })
+              }
+            }}
+          />
+        )
       }
       // Fallback
       return (

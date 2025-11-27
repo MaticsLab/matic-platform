@@ -1,21 +1,22 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Plus, ChevronDown, Trash2, Copy, Settings, EyeOff, Grid3x3, Kanban, Calendar as CalendarIcon, Image as ImageIcon, List, Search, BarChart3, Filter, Download, MoreHorizontal } from 'lucide-react'
+import { Plus, ChevronDown, Trash2, Copy, Settings, EyeOff, Eye, Grid3x3, Kanban, Calendar as CalendarIcon, Image as ImageIcon, List, Search, BarChart3, Filter, MoreHorizontal, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, AlignJustify, Rows, Maximize2 } from 'lucide-react'
 import { ColumnEditorModal } from './ColumnEditorModal'
 import { LinkField } from './LinkField'
-import { EnablePulseButton } from '@/components/Pulse/EnablePulseButton'
 import { pulseSupabase } from '@/lib/api/pulse-supabase'
 import type { PulseEnabledTable } from '@/lib/api/pulse-client'
 import { tablesGoClient } from '@/lib/api/tables-go-client'
-import { getCurrentUser } from '@/lib/supabase'
-import { useTableRealtime } from '@/hooks/useTableRealtime'
+import { getCurrentUser, supabase } from '@/lib/supabase'
 import type { TableRow } from '@/types/data-tables'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow as TableRowComponent } from '@/ui-components/table'
 import { Badge } from '@/ui-components/badge'
 import { Input } from '@/ui-components/input'
 import { Button } from '@/ui-components/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/ui-components/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from '@/ui-components/dropdown-menu'
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui-components/popover'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/ui-components/sheet'
+import { Textarea } from '@/ui-components/textarea'
 import { toast } from 'sonner'
 
 interface Column {
@@ -42,6 +43,16 @@ interface Row {
 interface TableGridViewProps {
   tableId: string
   workspaceId: string
+  onTableNameChange?: (newName: string) => void
+}
+
+type RowHeight = 'short' | 'medium' | 'tall' | 'extra-tall'
+
+const ROW_HEIGHTS: Record<RowHeight, string> = {
+  short: 'h-10',
+  medium: 'h-16',
+  tall: 'h-24',
+  'extra-tall': 'h-32'
 }
 
 const VIEW_OPTIONS = [
@@ -52,16 +63,18 @@ const VIEW_OPTIONS = [
   { value: 'list', label: 'List', icon: List, description: 'Compact list view' },
 ]
 
-export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
+export function TableGridView({ tableId, workspaceId, onTableNameChange }: TableGridViewProps) {
   const [columns, setColumns] = useState<Column[]>([])
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCell, setSelectedCell] = useState<{ rowId: string; columnId: string } | null>(null)
   const [editingCell, setEditingCell] = useState<{ rowId: string; columnId: string } | null>(null)
+  const [expandedCell, setExpandedCell] = useState<{ rowId: string; columnId: string; value: string; columnName: string } | null>(null)
   const [activeColumnMenu, setActiveColumnMenu] = useState<string | null>(null)
   const [tableName, setTableName] = useState('')
   const [isColumnEditorOpen, setIsColumnEditorOpen] = useState(false)
   const [editingColumn, setEditingColumn] = useState<Column | null>(null)
+  const [targetColumnPosition, setTargetColumnPosition] = useState<number | null>(null)
   const [currentView, setCurrentView] = useState<'grid' | 'kanban' | 'calendar' | 'gallery' | 'list'>('grid')
   const [showViewMenu, setShowViewMenu] = useState(false)
   const [multiselectSearch, setMultiselectSearch] = useState<string>('')
@@ -79,49 +92,221 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
   const [pulseConfig, setPulseConfig] = useState<PulseEnabledTable | null>(null)
   const [isPulseEnabled, setIsPulseEnabled] = useState(false)
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
+  const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
+  const [resizingColumn, setResizingColumn] = useState<{ id: string; startX: number; startWidth: number } | null>(null)
+  const [rowHeight, setRowHeight] = useState<RowHeight>('short')
+  const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(null)
+  const [filterConfig, setFilterConfig] = useState<{ columnId: string; operator: string; value: string } | null>(null)
   
   const gridRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const tableNameInputRef = useRef<HTMLInputElement>(null)
+  const columnsRef = useRef<Column[]>([])
 
-  // WebSocket for real-time updates
-  const handleRealtimeUpdate = useCallback((update: any) => {
-    console.log('Received real-time update:', update)
-    
-    if (update.type === 'row_updated') {
-      setRows(prevRows => 
-        prevRows.map(row => 
-          row.id === update.row_id 
-            ? { ...row, data: update.data }
-            : row
-        )
-      )
-    } else if (update.type === 'scan_highlight') {
-      // Handle scan highlights from other users
-      console.log('🔄 Received scan highlight from collaborator:', update)
+  // Keep columns ref in sync
+  useEffect(() => {
+    columnsRef.current = columns
+  }, [columns])
+
+  // Column resizing logic
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!resizingColumn) return
       
-      const rowId = update.rowId
-      if (rowId) {
-        setHighlightedRows(prev => new Set([...prev, rowId]))
-        
-        // Auto-clear highlight after 3 seconds for collaborative highlights
-        setTimeout(() => {
-          setHighlightedRows(prev => {
-            const newSet = new Set(prev)
-            newSet.delete(rowId)
-            return newSet
-          })
-        }, 3000)
+      const diff = e.clientX - resizingColumn.startX
+      const newWidth = Math.max(100, resizingColumn.startWidth + diff) // Min width 100px
+      
+      setColumns(prev => prev.map(col => 
+        col.id === resizingColumn.id ? { ...col, width: newWidth } : col
+      ))
+    }
+
+    const handleMouseUp = async () => {
+      if (resizingColumn) {
+        // Find the column to save
+        const column = columns.find(c => c.id === resizingColumn.id)
+        if (column) {
+          try {
+            const { tablesGoClient } = await import('@/lib/api/tables-go-client')
+            await tablesGoClient.updateColumn(tableId, column.id, { width: column.width })
+          } catch (error) {
+            console.error('Failed to save column width:', error)
+          }
+        }
+        setResizingColumn(null)
       }
     }
-  }, [])
 
-  const { send: broadcastUpdate, isConnected, connectionStatus } = useTableRealtime(tableId, handleRealtimeUpdate)
+    if (resizingColumn) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = 'col-resize'
+    }
 
-  // Debug logging
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+    }
+  }, [resizingColumn, columns, tableId])
+
+  // Real-time subscription for table rows and columns
   useEffect(() => {
-    console.log('TableGridView: WebSocket connection status changed:', connectionStatus)
-  }, [connectionStatus])
+    if (!tableId) return
+
+    console.log('🔌 Setting up Supabase Realtime subscription for table:', tableId)
+    setRealtimeStatus('connecting')
+
+    const channel = supabase
+      .channel(`table-realtime-${tableId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'table_rows',
+          filter: `table_id=eq.${tableId}`
+        },
+        (payload) => {
+          console.log('🔄 Realtime row update:', payload)
+          
+          if (payload.eventType === 'INSERT') {
+            const newRow = payload.new as any
+            // Ensure data is an object
+            if (typeof newRow.data === 'string') {
+              try {
+                newRow.data = JSON.parse(newRow.data)
+              } catch (e) {
+                console.error('Failed to parse row data:', e)
+                newRow.data = {}
+              }
+            }
+
+            setRows(prev => {
+              // Check if row already exists (to avoid duplicates from optimistic updates or double events)
+              if (prev.some(r => r.id === newRow.id)) return prev
+              
+              // For new rows, we might need to fetch linked records if they exist
+              // But usually new rows start empty or with basic data
+              return [...prev, {
+                id: newRow.id,
+                data: newRow.data || {},
+                position: newRow.position || 0
+              }]
+            })
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedRow = payload.new as any
+            // Ensure data is an object
+            if (typeof updatedRow.data === 'string') {
+              try {
+                updatedRow.data = JSON.parse(updatedRow.data)
+              } catch (e) {
+                console.error('Failed to parse row data:', e)
+                updatedRow.data = {}
+              }
+            }
+            
+            setRows(prev => prev.map(row => {
+              if (row.id === updatedRow.id) {
+                // We need to preserve client-side only data (like linked records)
+                // which are stored in row.data but not in the DB's data column
+                const currentData = { ...row.data }
+                const newData = { ...updatedRow.data }
+                
+                // Use the ref to get current columns since we're in a closure
+                const currentColumns = columnsRef.current
+                
+                // Restore values for link columns from the current state
+                currentColumns.forEach(col => {
+                  if (col.column_type === 'link' && currentData[col.name]) {
+                    // Only restore if the new data doesn't have it (it shouldn't)
+                    if (newData[col.name] === undefined) {
+                      newData[col.name] = currentData[col.name]
+                    }
+                  }
+                })
+
+                return { 
+                  ...row, 
+                  data: newData, 
+                  position: updatedRow.position 
+                }
+              }
+              return row
+            }))
+          } else if (payload.eventType === 'DELETE') {
+            const deletedRowId = payload.old.id
+            setRows(prev => prev.filter(row => row.id !== deletedRowId))
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'table_columns',
+          filter: `table_id=eq.${tableId}`
+        },
+        (payload) => {
+          console.log('🔄 Realtime column update:', payload)
+          // Reload table data to refresh columns
+          loadTableData()
+        }
+      )
+      .on(
+        'broadcast',
+        { event: 'table_update' },
+        (payload) => {
+          console.log('📡 Received broadcast update:', payload)
+          const { type, row } = payload.payload
+          
+          if (type === 'UPDATE' && row) {
+             setRows(prev => prev.map(r => {
+              if (r.id === row.id) {
+                // Merge data similar to DB update
+                const currentData = { ...r.data }
+                const newData = { ...row.data }
+                
+                const currentColumns = columnsRef.current
+                currentColumns.forEach(col => {
+                  if (col.column_type === 'link' && currentData[col.name]) {
+                    if (newData[col.name] === undefined) {
+                      newData[col.name] = currentData[col.name]
+                    }
+                  }
+                })
+
+                return { ...r, data: newData }
+              }
+              return r
+            }))
+          } else if (type === 'INSERT' && row) {
+             setRows(prev => {
+              if (prev.some(r => r.id === row.id)) return prev
+              return [...prev, {
+                id: row.id,
+                data: row.data || {},
+                position: row.position || 0
+              }]
+            })
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('🔌 Supabase Realtime status:', status)
+        if (status === 'SUBSCRIBED') {
+          setRealtimeStatus('connected')
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          setRealtimeStatus('disconnected')
+        }
+      })
+
+    return () => {
+      console.log('🔌 Cleaning up Supabase Realtime subscription')
+      supabase.removeChannel(channel)
+    }
+  }, [tableId])
 
   useEffect(() => {
     loadTableData()
@@ -235,35 +420,56 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
     }
   }
 
-  // Filter rows based on search term
+  // Filter and sort rows
   const filteredRows = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return rows
+    let result = rows
+
+    // Filter
+    if (searchTerm.trim()) {
+      const lowerSearch = searchTerm.toLowerCase()
+      result = result.filter(row => {
+        // Search across all visible columns
+        return columns.some(column => {
+          if (!column.is_visible) return false
+          
+          const value = row.data[column.name]
+          if (value == null) return false
+
+          // Convert value to searchable string
+          let searchableValue = ''
+          if (Array.isArray(value)) {
+            searchableValue = value.join(' ')
+          } else if (typeof value === 'object') {
+            searchableValue = JSON.stringify(value)
+          } else {
+            searchableValue = String(value)
+          }
+
+          return searchableValue.toLowerCase().includes(lowerSearch)
+        })
+      })
     }
 
-    const lowerSearch = searchTerm.toLowerCase()
-    return rows.filter(row => {
-      // Search across all visible columns
-      return columns.some(column => {
-        if (!column.is_visible) return false
-        
-        const value = row.data[column.name]
-        if (value == null) return false
+    // Sort
+    if (sortConfig) {
+      const column = columns.find(c => c.id === sortConfig.columnId)
+      if (column) {
+        result = [...result].sort((a, b) => {
+          const aValue = a.data[column.name]
+          const bValue = b.data[column.name]
 
-        // Convert value to searchable string
-        let searchableValue = ''
-        if (Array.isArray(value)) {
-          searchableValue = value.join(' ')
-        } else if (typeof value === 'object') {
-          searchableValue = JSON.stringify(value)
-        } else {
-          searchableValue = String(value)
-        }
+          if (aValue === bValue) return 0
+          if (aValue === null || aValue === undefined) return 1
+          if (bValue === null || bValue === undefined) return -1
 
-        return searchableValue.toLowerCase().includes(lowerSearch)
-      })
-    })
-  }, [rows, searchTerm, columns])
+          const comparison = aValue < bValue ? -1 : 1
+          return sortConfig.direction === 'asc' ? comparison : -comparison
+        })
+      }
+    }
+
+    return result
+  }, [rows, searchTerm, columns, sortConfig])
 
   // Preload linked records when columns change
   useEffect(() => {
@@ -452,12 +658,21 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
       await tablesGoClient.updateTable(tableId, { name: tempTableName })
       setTableName(tempTableName)
       setIsEditingTableName(false)
+      if (onTableNameChange) {
+        onTableNameChange(tempTableName)
+      }
       toast.success('Table name updated')
     } catch (error: any) {
       console.error('Error updating table name:', error)
       toast.error('Failed to update table name')
       setIsEditingTableName(false)
     }
+  }
+
+  const handleResizeStart = (e: React.MouseEvent, columnId: string, currentWidth: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setResizingColumn({ id: columnId, startX: e.clientX, startWidth: currentWidth })
   }
 
   const loadLinkedRecords = async (linkedTableId: string) => {
@@ -522,10 +737,6 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
       console.error('Error adding row:', error)
       alert(`Failed to add row: ${error.message || 'Unknown error'}`)
     }
-  }
-
-  const handleExport = () => {
-    toast.info('Export feature coming soon! You will be able to export to CSV, Excel, and PDF.')
   }
 
   const handleFilter = () => {
@@ -613,16 +824,6 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
     // Reload table data to refresh links
     await loadTableData()
     
-    // Broadcast update to other clients
-    broadcastUpdate({
-      type: 'row_updated',
-      table_id: tableId,
-      row_id: rowId,
-      data: { ...row.data, [columnName]: newLinkedIds },
-      updated_by: null,
-      optimistic: false
-    })
-    
     // Also notify the linked table to refresh (if it's open)
     // This is a best-effort notification - the other table's subscription will catch it
     console.log(`✅ Links updated for row ${rowId}, column ${columnName}. Linked table ${column.linked_table_id} should refresh.`)
@@ -650,16 +851,6 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
           r.id === rowId ? { ...r, data: updatedData } : r
         )
       )
-
-      // Broadcast to other clients immediately
-      broadcastUpdate({
-        type: 'row_updated',
-        table_id: tableId,
-        row_id: rowId,
-        data: updatedData,
-        updated_by: null,
-        optimistic: true
-      })
 
       // Update via Go API
       const { goClient } = await import('@/lib/api/go-client')
@@ -752,8 +943,9 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
     }
   }
 
-  const handleAddColumn = () => {
+  const handleAddColumn = (position?: number) => {
     setEditingColumn(null)
+    setTargetColumnPosition(typeof position === 'number' ? position : null)
     setIsColumnEditorOpen(true)
     setActiveColumnMenu(null)
   }
@@ -761,6 +953,42 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
   const handleEditColumn = (column: Column) => {
     setEditingColumn(column)
     setIsColumnEditorOpen(true)
+    setActiveColumnMenu(null)
+  }
+
+  const handleDuplicateColumn = async (column: Column) => {
+    try {
+      const { tablesGoClient } = await import('@/lib/api/tables-go-client')
+      const newColumn = {
+        ...column,
+        name: `${column.name}_copy_${Date.now()}`, // Ensure unique name
+        label: `${column.label} copy`,
+        position: column.position + 1,
+        is_primary: false
+      }
+      // Remove id to create new
+      const { id, ...columnToCreate } = newColumn
+      
+      await tablesGoClient.createColumn(tableId, columnToCreate as any)
+      await loadTableData()
+      toast.success('Field duplicated')
+    } catch (error: any) {
+      console.error('Error duplicating column:', error)
+      toast.error('Failed to duplicate field')
+    }
+    setActiveColumnMenu(null)
+  }
+
+  const handleHideColumn = async (column: Column) => {
+    try {
+      const { tablesGoClient } = await import('@/lib/api/tables-go-client')
+      await tablesGoClient.updateColumn(tableId, column.id, { is_visible: false })
+      await loadTableData()
+      toast.success('Field hidden')
+    } catch (error: any) {
+      console.error('Error hiding column:', error)
+      toast.error('Failed to hide field')
+    }
     setActiveColumnMenu(null)
   }
 
@@ -794,7 +1022,13 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
         toast.success('Column updated')
       } else {
         // Create new column
-        const payload = { ...columnData, position: columns.length }
+        // If targetColumnPosition is set, use it. Otherwise append to end.
+        // We might need to shift other columns if inserting in middle, but for now let's just set position
+        // The backend or next load should handle order. 
+        // Ideally we should shift positions of other columns here or in backend.
+        // For simplicity, we'll just set the position.
+        const position = targetColumnPosition !== null ? targetColumnPosition : columns.length
+        const payload = { ...columnData, position }
         await tablesGoClient.createColumn(tableId, payload)
         toast.success('Column created')
       }
@@ -804,9 +1038,28 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
       
       setIsColumnEditorOpen(false)
       setEditingColumn(null)
+      setTargetColumnPosition(null)
     } catch (error: any) {
       console.error('Error saving column:', error)
       toast.error(`Failed to save column: ${error.message}`)
+    }
+  }
+
+  const handleToggleColumnVisibility = async (columnId: string, isVisible: boolean) => {
+    try {
+      const { tablesGoClient } = await import('@/lib/api/tables-go-client')
+      
+      // Optimistic update
+      setColumns(prev => prev.map(col => 
+        col.id === columnId ? { ...col, is_visible: isVisible } : col
+      ))
+
+      await tablesGoClient.updateColumn(tableId, columnId, { is_visible: isVisible })
+    } catch (error) {
+      console.error('Error updating column visibility:', error)
+      toast.error('Failed to update field visibility')
+      // Revert on error
+      loadTableData()
     }
   }
 
@@ -1036,7 +1289,7 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
       return (
         <input
           type="text"
-          defaultValue={value || ''}
+          defaultValue={typeof value === 'object' ? JSON.stringify(value) : (value || '')}
           autoFocus
           onBlur={(e) => {
             handleCellEdit(row.id, column.name, e.target.value)
@@ -1055,13 +1308,71 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
       )
     }
 
+    // Helper to safely render values
+    const renderValue = () => {
+      if (value === null || value === undefined || value === '') {
+        return <span className="text-gray-400">Empty</span>
+      }
+      
+      if (typeof value === 'boolean') {
+        return value ? 'Yes' : 'No'
+      }
+      
+      if (typeof value === 'object') {
+        if (Array.isArray(value)) {
+          if (value.length === 0) return <span className="text-gray-400">Empty</span>
+          // Render array items joined by comma
+          return (
+            <span className="truncate block" title={JSON.stringify(value)}>
+              {value.map(v => {
+                if (typeof v === 'object' && v !== null) {
+                  // Try to find a meaningful string representation
+                  return Object.values(v).filter(val => typeof val !== 'object').join(' ') || JSON.stringify(v)
+                }
+                return String(v)
+              }).join(', ')}
+            </span>
+          )
+        }
+        // Render object as string
+        return (
+          <span className="truncate block" title={JSON.stringify(value)}>
+            {Object.values(value).filter(val => typeof val !== 'object').join(' ') || JSON.stringify(value)}
+          </span>
+        )
+      }
+      
+      return String(value)
+    }
+
     return (
       <div
-        className={`px-3 py-2 cursor-pointer hover:bg-blue-50 ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+        className={`px-3 py-2 cursor-pointer hover:bg-blue-50 relative group/cell h-full ${isSelected ? 'ring-2 ring-inset ring-blue-500 bg-blue-50' : ''}`}
         onClick={() => setSelectedCell({ rowId: row.id, columnId: column.id })}
         onDoubleClick={() => setEditingCell({ rowId: row.id, columnId: column.id })}
       >
-        {value || <span className="text-gray-400">Empty</span>}
+        <div className={`${isSelected ? 'line-clamp-2 whitespace-normal' : 'truncate whitespace-nowrap'}`}>
+          {renderValue()}
+        </div>
+        
+        {isSelected && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-1 top-1 h-6 w-6 bg-white shadow-sm border border-gray-200 opacity-0 group-hover/cell:opacity-100 transition-opacity z-10"
+            onClick={(e) => {
+              e.stopPropagation()
+              setExpandedCell({
+                rowId: row.id,
+                columnId: column.id,
+                value: String(value || ''),
+                columnName: column.name
+              })
+            }}
+          >
+            <Maximize2 className="h-3 w-3 text-gray-500" />
+          </Button>
+        )}
       </div>
     )
   }
@@ -1160,8 +1471,8 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* Page Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white border-b border-gray-200 px-6 py-2">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {isEditingTableName ? (
               <input
@@ -1182,25 +1493,174 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
               </h1>
             )}
             <Badge variant="outline" className="gap-1.5 bg-green-50 text-green-700 border-green-200">
-              <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
-              {connectionStatus === 'connected' ? 'Live' : 
-               connectionStatus === 'connecting' ? 'Connecting...' :
-               connectionStatus === 'error' ? 'Error' : 'Live'}
+              <div className={`h-1.5 w-1.5 rounded-full ${realtimeStatus === 'connected' ? 'bg-green-500' : 'bg-yellow-500'}`} />
+              {realtimeStatus === 'connected' ? 'Live' : 'Connecting...'}
             </Badge>
+
+            <div className="h-6 w-px bg-gray-200 mx-2" />
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  {(() => {
+                    const currentViewOption = VIEW_OPTIONS.find(v => v.value === currentView)
+                    const Icon = currentViewOption?.icon || Grid3x3
+                    return (
+                      <>
+                        <Icon className="h-4 w-4 mr-2" />
+                        {currentViewOption?.label || 'Grid view'}
+                      </>
+                    )
+                  })()}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {VIEW_OPTIONS.map((view) => {
+                  const Icon = view.icon
+                  return (
+                    <DropdownMenuItem
+                      key={view.value}
+                      onClick={() => setCurrentView(view.value as any)}
+                    >
+                      <Icon className="h-4 w-4 mr-2" />
+                      {view.label}
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button variant="outline" size="sm" onClick={handleFilter}>
+              <Filter className="h-4 w-4 mr-2" />
+              Filter
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className={sortConfig ? 'bg-blue-50 border-blue-200 text-blue-700' : ''}>
+                  {sortConfig ? (
+                    sortConfig.direction === 'asc' ? <ArrowUp className="h-4 w-4 mr-2" /> : <ArrowDown className="h-4 w-4 mr-2" />
+                  ) : (
+                    <ArrowUp className="h-4 w-4 mr-2" />
+                  )}
+                  Sort
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="p-2 text-xs font-medium text-gray-500">Sort by</div>
+                <div className="max-h-64 overflow-y-auto">
+                  {columns.filter(c => c.is_visible).map(column => (
+                    <DropdownMenuItem 
+                      key={column.id}
+                      onClick={() => setSortConfig({ columnId: column.id, direction: 'asc' })}
+                      className="justify-between"
+                    >
+                      <span className="truncate">{column.label}</span>
+                      {sortConfig?.columnId === column.id && (
+                        <span className="text-xs text-blue-600 ml-2">
+                          {sortConfig.direction === 'asc' ? 'A → Z' : 'Z → A'}
+                        </span>
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+                {sortConfig && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => setSortConfig(null)}
+                      className="text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Clear sort
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <EyeOff className="h-4 w-4 mr-2" />
+                  Hide fields
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 p-0">
+                <div className="p-3 border-b border-gray-100">
+                  <div className="text-sm font-medium">Fields</div>
+                  <div className="text-xs text-gray-500">Toggle visibility</div>
+                </div>
+                <div className="max-h-80 overflow-y-auto p-2">
+                  {columns.map(column => (
+                    <div 
+                      key={column.id} 
+                      className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded-md cursor-pointer"
+                      onClick={() => handleToggleColumnVisibility(column.id, !column.is_visible)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={column.is_visible}
+                        onChange={() => {}} // Handled by parent div
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className={`text-sm flex-1 truncate ${!column.is_visible ? 'text-gray-400' : 'text-gray-700'}`}>
+                        {column.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-2 border-t border-gray-100 bg-gray-50">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="w-full h-8 text-xs"
+                    onClick={() => {
+                      columns.forEach(c => {
+                        if (!c.is_visible) handleToggleColumnVisibility(c.id, true)
+                      })
+                    }}
+                  >
+                    Show all
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="px-2">
+                  <Rows className="h-4 w-4 mr-2" />
+                  Row height
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setRowHeight('short')}>
+                  <AlignJustify className="h-4 w-4 mr-2 rotate-90" />
+                  Short
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setRowHeight('medium')}>
+                  <AlignJustify className="h-4 w-4 mr-2 rotate-90" />
+                  Medium
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setRowHeight('tall')}>
+                  <AlignJustify className="h-4 w-4 mr-2 rotate-90" />
+                  Tall
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setRowHeight('extra-tall')}>
+                  <AlignJustify className="h-4 w-4 mr-2 rotate-90" />
+                  Extra Tall
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-            <EnablePulseButton tableId={tableId} workspaceId={workspaceId} />
-          </div>
+
         </div>
 
         {/* Toolbar */}
-        <div className="flex items-center gap-3">
-          {selectedRows.size > 0 && (
+        {selectedRows.size > 0 && (
+          <div className="flex items-center gap-3 mt-2">
             <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
               <span className="text-sm font-medium text-blue-700">
                 {selectedRows.size} row{selectedRows.size > 1 ? 's' : ''} selected
@@ -1215,92 +1675,48 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
                 Delete
               </Button>
             </div>
-          )}
-          
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder={`Search ${tableName.toLowerCase()}...`}
-              className="pl-9 h-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
           </div>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                {(() => {
-                  const currentViewOption = VIEW_OPTIONS.find(v => v.value === currentView)
-                  const Icon = currentViewOption?.icon || Grid3x3
-                  return (
-                    <>
-                      <Icon className="h-4 w-4 mr-2" />
-                      {currentViewOption?.label || 'Grid view'}
-                    </>
-                  )
-                })()}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {VIEW_OPTIONS.map((view) => {
-                const Icon = view.icon
-                return (
-                  <DropdownMenuItem
-                    key={view.value}
-                    onClick={() => setCurrentView(view.value as any)}
-                  >
-                    <Icon className="h-4 w-4 mr-2" />
-                    {view.label}
-                  </DropdownMenuItem>
-                )
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button variant="outline" size="sm" onClick={handleFilter}>
-            <Filter className="h-4 w-4 mr-2" />
-            Filter
-          </Button>
-        </div>
+        )}
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto px-6 py-6">
-        {/* Table */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRowComponent className="bg-gray-50">
-                <TableHead className="w-12 text-center">
+      <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-auto relative">
+          <table className="w-full caption-bottom text-sm border-collapse">
+            <thead className="sticky top-0 z-30 bg-gray-50 shadow-sm">
+              <tr className="border-b border-gray-200">
+                <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap border-r border-gray-200 w-14 text-center sticky left-0 z-40 bg-gray-50">
                   <input
                     type="checkbox"
                     checked={selectedRows.size > 0 && selectedRows.size === filteredRows.length}
                     onChange={toggleAllRows}
                     className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                   />
-                </TableHead>
-                <TableHead className="w-12 text-center">#</TableHead>
+                </th>
                 {columns.filter(c => c.is_visible).map((column) => (
-                  <TableHead key={column.id} style={{ minWidth: column.width }} className="relative">
-                    <div className="flex items-center justify-between group/column">
-                      <span className="flex-1 min-w-0 truncate pr-2">{column.label}</span>
-                      <div className="relative">
+                  <th 
+                    key={column.id} 
+                    style={{ width: column.width, minWidth: column.width, maxWidth: column.width }} 
+                    className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap border-r border-gray-200 relative group/column"
+                  >
+                    <div className="flex items-center justify-between h-full">
+                      <span className="flex-1 min-w-0 truncate pr-2 text-xs uppercase tracking-wider text-gray-600">{column.label}</span>
+                      <div className="relative flex items-center">
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          className="h-7 w-7 opacity-100 hover:bg-gray-100 transition-all flex-shrink-0 cursor-pointer"
+                          className="h-6 w-6 opacity-0 group-hover/column:opacity-100 transition-all flex-shrink-0 cursor-pointer hover:bg-gray-200 rounded-md"
                           onClick={(e) => {
                             e.stopPropagation()
                             setActiveColumnMenu(activeColumnMenu === column.id ? null : column.id)
                           }}
                           type="button"
                         >
-                          <MoreHorizontal className="h-4 w-4 text-gray-600" />
+                          <MoreHorizontal className="h-3.5 w-3.5 text-gray-500" />
                         </Button>
                         {activeColumnMenu === column.id && (
                           <div 
-                            className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
+                            className="absolute right-0 top-full mt-1 w-60 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <button
@@ -1317,6 +1733,73 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
+                                handleDuplicateColumn(column)
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                            >
+                              <Copy className="h-4 w-4" />
+                              Duplicate field
+                            </button>
+                            <div className="h-px bg-gray-200 my-1" />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleAddColumn(column.position)
+                                setActiveColumnMenu(null)
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                            >
+                              <ArrowLeft className="h-4 w-4" />
+                              Insert left
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleAddColumn(column.position + 1)
+                                setActiveColumnMenu(null)
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                            >
+                              <ArrowRight className="h-4 w-4" />
+                              Insert right
+                            </button>
+                            <div className="h-px bg-gray-200 my-1" />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSortConfig({ columnId: column.id, direction: 'asc' })
+                                setActiveColumnMenu(null)
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                            >
+                              <ArrowUp className="h-4 w-4" />
+                              Sort First → Last
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSortConfig({ columnId: column.id, direction: 'desc' })
+                                setActiveColumnMenu(null)
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                            >
+                              <ArrowDown className="h-4 w-4" />
+                              Sort Last → First
+                            </button>
+                            <div className="h-px bg-gray-200 my-1" />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleHideColumn(column)
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                            >
+                              <EyeOff className="h-4 w-4" />
+                              Hide field
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
                                 handleDeleteColumn(column.id)
                                 setActiveColumnMenu(null)
                               }}
@@ -1329,82 +1812,94 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
                         )}
                       </div>
                     </div>
-                  </TableHead>
+                    
+                    {/* Resize Handle */}
+                    <div
+                      className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 z-50"
+                      onMouseDown={(e) => handleResizeStart(e, column.id, column.width)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </th>
                 ))}
-                <TableHead className="w-12">
+                <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap w-12 bg-gray-50">
                   <Button 
                     variant="ghost" 
                     size="icon"
                     className="h-6 w-6"
-                    onClick={handleAddColumn}
+                    onClick={() => handleAddColumn()}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
-                </TableHead>
-              </TableRowComponent>
-            </TableHeader>
-            <TableBody>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
               {filteredRows.map((row, rowIndex) => {
                 const isHighlighted = highlightedRows.has(row.id)
                 const isSelected = selectedRows.has(row.id)
                 return (
-                  <TableRowComponent 
+                  <tr 
                     key={row.id}
-                    className={`${isHighlighted ? 'bg-green-100 border-green-300' : ''} ${isSelected ? 'bg-blue-50' : ''}`}
+                    className={`group/row border-b border-gray-200 transition-colors ${ROW_HEIGHTS[rowHeight]} ${isHighlighted ? 'bg-green-50' : ''} ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
                   >
-                    <TableCell className="text-center">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleRowSelection(row.id)}
-                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      />
-                    </TableCell>
-                    <TableCell className="text-center text-gray-500 text-sm">
-                      {rowIndex + 1}
-                    </TableCell>
+                    <td className={`p-2 align-middle whitespace-nowrap border-r border-gray-200 text-center sticky left-0 z-20 w-14 ${isSelected ? 'bg-blue-50' : 'bg-white group-hover/row:bg-gray-50'}`}>
+                      <div className="relative flex items-center justify-center h-full w-full">
+                        <span className={`text-gray-500 text-sm ${isSelected ? 'hidden' : 'group-hover/row:hidden'}`}>
+                          {rowIndex + 1}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleRowSelection(row.id)}
+                          className={`w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer absolute ${isSelected ? 'block' : 'hidden group-hover/row:block'}`}
+                        />
+                      </div>
+                    </td>
                     {columns.filter(c => c.is_visible).map((column) => (
-                      <TableCell 
+                      <td 
                         key={column.id}
-                        style={{ minWidth: column.width }}
+                        style={{ width: column.width, minWidth: column.width, maxWidth: column.width }}
+                        className="p-0 align-middle whitespace-nowrap border-r border-gray-200 relative"
                       >
                         {renderCell(row, column)}
-                      </TableCell>
+                      </td>
                     ))}
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleDuplicateRow(row.id)}>
-                            <Copy className="h-4 w-4 mr-2" />
-                            Duplicate
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDeleteRow(row.id)}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRowComponent>
+                    <td className="p-0 align-middle whitespace-nowrap w-12">
+                      <div className="flex items-center justify-center h-full">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                            >
+                              <MoreHorizontal className="h-4 w-4 text-gray-400" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleDuplicateRow(row.id)}>
+                              <Copy className="h-4 w-4 mr-2" />
+                              Duplicate
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteRow(row.id)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </td>
+                  </tr>
                 )
               })}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
 
           {/* Empty State for Add Row */}
-          <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/50">
+          <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/50 sticky left-0">
             <Button
               variant="ghost"
               size="sm"
@@ -1418,9 +1913,11 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
         </div>
 
         {/* Footer Info */}
-        <div className="mt-4 text-sm text-gray-500">
-          Showing {filteredRows.length} {filteredRows.length === 1 ? 'row' : 'rows'}
-          {searchTerm && ` (filtered from ${rows.length} total)`}
+        <div className="px-6 py-2 border-t border-gray-200 bg-white text-xs text-gray-500 flex justify-between items-center">
+          <span>
+            {filteredRows.length} {filteredRows.length === 1 ? 'row' : 'rows'}
+            {searchTerm && ` (filtered from ${rows.length} total)`}
+          </span>
         </div>
       </div>
 
@@ -1436,6 +1933,33 @@ export function TableGridView({ tableId, workspaceId }: TableGridViewProps) {
         workspaceId={workspaceId}
         currentTableId={tableId}
       />
+
+      <Sheet open={!!expandedCell} onOpenChange={(open) => !open && setExpandedCell(null)}>
+        <SheetContent className="w-[400px] sm:w-[540px]">
+          <SheetHeader>
+            <SheetTitle>Edit Cell</SheetTitle>
+            <SheetDescription>
+              Make changes to the cell content here. Click save when you're done.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="py-4 h-[calc(100vh-200px)]">
+            <Textarea
+              className="h-full resize-none font-mono text-sm"
+              value={expandedCell?.value || ''}
+              onChange={(e) => setExpandedCell(prev => prev ? { ...prev, value: e.target.value } : null)}
+            />
+          </div>
+          <SheetFooter>
+            <Button variant="outline" onClick={() => setExpandedCell(null)}>Cancel</Button>
+            <Button onClick={() => {
+              if (expandedCell) {
+                handleCellEdit(expandedCell.rowId, expandedCell.columnName, expandedCell.value)
+                setExpandedCell(null)
+              }
+            }}>Save changes</Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

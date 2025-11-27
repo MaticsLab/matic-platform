@@ -2,7 +2,7 @@ export type FieldType =
   | 'text' | 'textarea' | 'email' | 'phone' | 'number' | 'url' 
   | 'select' | 'multiselect' | 'radio' | 'checkbox' 
   | 'date' | 'datetime' | 'time' 
-  | 'file' | 'image' | 'signature' | 'rating'
+  | 'file' | 'image' | 'signature' | 'rating' | 'rank'
   | 'divider' | 'heading' | 'paragraph'
   | 'group' | 'repeater'
 
@@ -17,6 +17,11 @@ export type Field = {
   sectionId?: string
   children?: Field[] // For groups and repeaters
   validation?: Record<string, any>
+  config?: {
+    sourceField?: string
+    sourceKey?: string
+    [key: string]: any
+  }
 }
 
 export type Section = {
@@ -41,5 +46,12 @@ export type PortalConfig = {
     privacyUrl?: string
     loginFields: Field[]
     signupFields: Field[]
+    language?: {
+      default: string
+      enabled: boolean
+      supported: string[]
+      rightToLeft?: boolean
+    }
   }
+  translations?: Record<string, Record<string, string>> // langCode -> fieldId/key -> text
 }

@@ -14,6 +14,7 @@ export function PublicPortal({ slug }: { slug: string }) {
   const [email, setEmail] = useState('')
   const [isLogin, setIsLogin] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
+  const [isFormLoading, setIsFormLoading] = useState(true)
   const [form, setForm] = useState<Form | null>(null)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [initialData, setInitialData] = useState<any>(null)
@@ -29,6 +30,8 @@ export function PublicPortal({ slug }: { slug: string }) {
         }
       } catch (error) {
         console.error('Failed to fetch form:', error)
+      } finally {
+        setIsFormLoading(false)
       }
     }
     fetchForm()
@@ -42,10 +45,14 @@ export function PublicPortal({ slug }: { slug: string }) {
     if (form?.id) {
       try {
         const baseUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8000/api/v1'
+        console.log('Fetching submission for:', form.id, email)
         const res = await fetch(`${baseUrl}/forms/${form.id}/submission?email=${encodeURIComponent(email)}`)
         if (res.ok) {
           const data = await res.json()
+          console.log('Submission data received:', data)
           setInitialData(data)
+        } else {
+          console.log('No submission found or error:', res.status)
         }
       } catch (err) {
         console.error("Failed to fetch submission", err)
@@ -118,12 +125,20 @@ export function PublicPortal({ slug }: { slug: string }) {
           <div className="w-16 h-16 bg-white rounded-xl shadow-sm border border-gray-200 mx-auto flex items-center justify-center text-3xl">
             🎓
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-            {form?.name || slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-          </h1>
-          <p className="text-gray-500 text-lg">
-            {form?.description || (isLogin ? 'Please log in to continue your application.' : 'Please sign up to continue your application.')}
-          </p>
+          {isFormLoading ? (
+            <div className="h-10 bg-gray-200 rounded-lg w-3/4 mx-auto animate-pulse" />
+          ) : (
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+              {form?.name || slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+            </h1>
+          )}
+          {isFormLoading ? (
+            <div className="h-6 bg-gray-200 rounded-lg w-1/2 mx-auto animate-pulse" />
+          ) : (
+            <p className="text-gray-500 text-lg">
+              {form?.description || (isLogin ? 'Please log in to continue your application.' : 'Please sign up to continue your application.')}
+            </p>
+          )}
         </div>
 
         {/* Auth Card */}
@@ -162,7 +177,7 @@ export function PublicPortal({ slug }: { slug: string }) {
             <Button 
               type="submit" 
               className="w-full h-10 text-base font-medium bg-gray-900 hover:bg-gray-800 text-white transition-all"
-              disabled={isLoading}
+              disabled={isLoading || isFormLoading}
             >
               {isLoading ? (
                 <motion.div 

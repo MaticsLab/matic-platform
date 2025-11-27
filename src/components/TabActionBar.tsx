@@ -1,10 +1,13 @@
 'use client'
 
-import { ClipboardList, Activity, FileText, BarChart3, Plus, Settings, Download, Share2, ChevronLeft, ChevronRight, Users } from 'lucide-react'
+import { ClipboardList, Activity, FileText, BarChart3, Settings, Download, Share2, ChevronLeft, ChevronRight, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TabData } from '@/lib/tab-manager'
 import { useRouter } from 'next/navigation'
 import { useTabContext, TabAction } from './WorkspaceTabProvider'
+import { tablesGoClient } from '@/lib/api/tables-go-client'
+import { toast } from 'sonner'
+
 
 interface TabActionBarProps {
   activeTab: TabData | null
@@ -23,6 +26,11 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
   const canGoBack = currentTabIndex > 0
   const canGoForward = currentTabIndex >= 0 && currentTabIndex < tabs.length - 1
 
+  // Extract tableId if active tab is a table
+  const tableId = activeTab?.type === 'table' 
+    ? (activeTab.metadata?.tableId || activeTab.url?.split('/tables/')[1])
+    : null
+
   const handleBack = () => {
     if (canGoBack) {
       onNavigate?.('back')
@@ -32,6 +40,71 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
   const handleForward = () => {
     if (canGoForward) {
       onNavigate?.('forward')
+    }
+  }
+
+  const handleExportTable = async () => {
+    if (!tableId) return
+
+    try {
+      toast.info('Preparing export...')
+      
+      // Fetch table data
+      const [table, rows] = await Promise.all([
+        tablesGoClient.getTableById(tableId),
+        tablesGoClient.getRowsByTable(tableId)
+      ])
+
+      if (!table || !rows) {
+        toast.error('Failed to fetch table data')
+        return
+      }
+
+      // Prepare CSV content
+      const columns = table.columns || []
+      const visibleColumns = columns.filter(col => col.is_visible !== false)
+      
+      // Header row
+      const headers = visibleColumns.map(col => `"${col.label || col.name}"`).join(',')
+      
+      // Data rows
+      const csvRows = rows.map(row => {
+        return visibleColumns.map(col => {
+          const value = row.data[col.name]
+          
+          if (value === null || value === undefined) {
+            return '""'
+          }
+          
+          if (typeof value === 'object') {
+            // Handle arrays and objects
+            const strValue = JSON.stringify(value).replace(/"/g, '""')
+            return `"${strValue}"`
+          }
+          
+          // Handle strings and numbers
+          const strValue = String(value).replace(/"/g, '""')
+          return `"${strValue}"`
+        }).join(',')
+      })
+      
+      const csvContent = [headers, ...csvRows].join('\n')
+      
+      // Create download link
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.setAttribute('href', url)
+      link.setAttribute('download', `${table.name || 'export'}_${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      toast.success('Table exported successfully')
+    } catch (error) {
+      console.error('Export failed:', error)
+      toast.error('Failed to export table')
     }
   }
 
@@ -125,14 +198,9 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
     if (activeTab?.type === 'table') {
       return [
         {
-          icon: Plus,
-          label: 'Add Row',
-          onClick: () => console.log('Add row')
-        },
-        {
           icon: Download,
           label: 'Export',
-          onClick: () => console.log('Export table')
+          onClick: handleExportTable
         },
         {
           icon: Share2,
@@ -210,6 +278,8 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
 
       {/* Right side - Action buttons */}
       <div className="flex items-center gap-2">
+
+
         {actions.map((action, index) => {
           const Icon = action.icon
           const isOutline = action.variant === 'outline'

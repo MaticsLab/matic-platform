@@ -23,6 +23,8 @@ import { Progress } from '@/ui-components/progress'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui-components/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/ui-components/dialog'
 import { Form, FormField } from '@/types/forms'
+import { goClient } from '@/lib/api/go-client'
+import { supabase } from '@/lib/supabase'
 
 // Types
 type TabId = string
@@ -201,11 +203,19 @@ export function ApplicationForm({
   formDefinition?: Form | null,
   userEmail?: string
 }) {
-  const dynamicSections = (formDefinition?.settings?.sections as any[]) || []
-  const hasDynamicStructure = dynamicSections.length > 0 && (formDefinition?.fields?.length || 0) > 0
+  const rawSections = (formDefinition?.settings?.sections as any[]) || []
+  const hasFields = (formDefinition?.fields?.length || 0) > 0
+  
+  // If formDefinition is provided, we treat it as dynamic.
+  // If no sections defined but fields exist, create a default section.
+  const sections = rawSections.length > 0 
+    ? rawSections 
+    : (hasFields ? [{ id: 'default', title: 'Form', icon: 'FileText' }] : [])
 
-  const TABS = hasDynamicStructure
-    ? dynamicSections.map(s => ({ id: s.id, label: s.title, icon: FileText }))
+  const isDynamic = !!formDefinition
+
+  const TABS = isDynamic && sections.length > 0
+    ? sections.map(s => ({ id: s.id, label: s.title, icon: FileText }))
     : [
         { id: 'personal', label: 'Personal Info', icon: User },
         { id: 'academic', label: 'Academic Info', icon: GraduationCap },
@@ -216,7 +226,7 @@ export function ApplicationForm({
       ]
 
   const [activeTab, setActiveTab] = useState<TabId>(TABS[0]?.id || 'personal')
-  const [formData, setFormData] = useState<any>(initialData || (hasDynamicStructure ? {} : EMPTY_APPLICATION_STATE))
+  const [formData, setFormData] = useState<any>(initialData || (isDynamic ? {} : EMPTY_APPLICATION_STATE))
   const [lastSaved, setLastSaved] = useState<Date>(new Date())
   const [isSaving, setIsSaving] = useState(false)
 
@@ -238,15 +248,29 @@ export function ApplicationForm({
     
     if (formDefinition?.id) {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8000/api/v1'
-        await fetch(`${baseUrl}/forms/${formDefinition.id}/submit`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            data: formData,
-            email: userEmail 
-          })
+        const response = await goClient.post(`/forms/${formDefinition.id}/submit`, {
+          data: formData,
+          email: userEmail 
         })
+        
+        // Broadcast update to table view
+        if (response) {
+          const channel = supabase.channel(`table-realtime-${formDefinition.id}`)
+          channel.subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              channel.send({
+                type: 'broadcast',
+                event: 'table_update',
+                payload: {
+                  type: 'UPDATE',
+                  row: response
+                }
+              })
+              // Cleanup channel after sending
+              setTimeout(() => supabase.removeChannel(channel), 1000)
+            }
+          })
+        }
       } catch (error) {
         console.error('Failed to save:', error)
       }
@@ -268,7 +292,7 @@ export function ApplicationForm({
   }
 
   const updateField = (section: string, field: string, value: any) => {
-    if (hasDynamicStructure) {
+    if (isDynamic) {
       setFormData((prev: any) => ({
         ...prev,
         [field]: value
@@ -285,7 +309,7 @@ export function ApplicationForm({
   }
 
   const calculateProgress = () => {
-    if (hasDynamicStructure && formDefinition?.fields) {
+    if (isDynamic && formDefinition?.fields) {
       const requiredFields = formDefinition.fields.filter(f => (f.config as any)?.is_required)
       if (requiredFields.length === 0) return 100
       
@@ -320,10 +344,10 @@ export function ApplicationForm({
             {isExternal ? (
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center text-white font-bold">M</div>
-                <span className="font-semibold text-gray-900">Scholarship Application</span>
+                <span className="font-semibold text-gray-900">{formDefinition?.name || 'Scholarship Application'}</span>
               </div>
             ) : (
-              <h1 className="font-semibold text-gray-900">Scholarship Application</h1>
+              <h1 className="font-semibold text-gray-900">{formDefinition?.name || 'Scholarship Application'}</h1>
             )}
           </div>
           
@@ -388,12 +412,15 @@ export function ApplicationForm({
                   <CardDescription>Please fill out all required fields.</CardDescription>
                 </CardHeader>
                 <CardContent className={cn("space-y-8", isExternal ? "px-0" : "")}>
-                  {hasDynamicStructure ? (
+                  {isDynamic ? (
                     <DynamicSection
                       fields={formDefinition!.fields!.filter(f => {
                         const config = f.config as any
+                        // If we are using the synthesized default section, show all fields
+                        if (sections.length === 1 && sections[0].id === 'default') return true
                         return config?.section_id === activeTab
                       })}
+                      allFields={formDefinition?.fields || []}
                       data={formData}
                       onChange={(field, value) => updateField(activeTab, field, value)}
                     />
@@ -444,10 +471,12 @@ export function ApplicationForm({
 
 // Section Components
 
-function DynamicSection({ fields, data, onChange }: { fields: any[], data: any, onChange: (field: string, value: any) => void }) {
+function DynamicSection({ fields, allFields = [], data, onChange }: { fields: any[], allFields?: any[], data: any, onChange: (field: string, value: any) => void }) {
   return (
     <div className="space-y-6">
-      {fields.map((field) => {
+      {fields.map((rawField) => {
+        // Ensure name exists (fallback to label for nested fields from config)
+        const field = { ...rawField, name: rawField.name || rawField.label }
         const config = field.config || {}
         const isRequired = config.is_required
         
@@ -458,6 +487,7 @@ function DynamicSection({ fields, data, onChange }: { fields: any[], data: any, 
                {config.description && <p className="text-sm text-gray-500">{config.description}</p>}
                <DynamicSection 
                  fields={config.children || []} 
+                 allFields={allFields}
                  data={data} 
                  onChange={onChange} 
                />
@@ -507,6 +537,7 @@ function DynamicSection({ fields, data, onChange }: { fields: any[], data: any, 
                    <CardContent className="pt-6">
                      <DynamicSection 
                        fields={config.children || []}
+                       allFields={allFields}
                        data={item}
                        onChange={(childField, childValue) => {
                          const newItems = [...items]
@@ -580,18 +611,51 @@ function DynamicSection({ fields, data, onChange }: { fields: any[], data: any, 
               </div>
             )}
             
-            {field.type === 'select' && (
-              <Select value={data[field.name]} onValueChange={v => onChange(field.name, v)}>
-                <SelectTrigger className="h-11">
-                  <SelectValue placeholder={config.placeholder || "Select..."} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(config.items || []).map((opt: string) => (
-                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            {field.type === 'select' && (() => {
+              let options = (config.items || []) as string[]
+              
+              // Support fetching options from another field (e.g. repeater)
+              if (config.sourceField) {
+                let sourceData = data[config.sourceField]
+                
+                // If not found by key, try to find field by ID and use its name
+                if (!sourceData && allFields) {
+                   const sourceFieldDef = allFields.find((f: any) => f.id === config.sourceField)
+                   if (sourceFieldDef) {
+                       sourceData = data[sourceFieldDef.name || sourceFieldDef.label]
+                   }
+                }
+
+                if (sourceData && Array.isArray(sourceData)) {
+                  const key = config.sourceKey || 'name'
+                  const dynamicOptions = sourceData
+                    .map((item: any) => {
+                      if (typeof item === 'object' && item !== null) {
+                        return item[key]
+                      }
+                      return String(item)
+                    })
+                    .filter((val: string) => val && val.trim() !== '')
+                  
+                  if (dynamicOptions.length > 0) {
+                    options = dynamicOptions
+                  }
+                }
+              }
+
+              return (
+                <Select value={data[field.name]} onValueChange={v => onChange(field.name, v)}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder={config.placeholder || "Select..."} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {options.map((opt: string) => (
+                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )
+            })()}
 
             {field.type === 'url' && (
               <Input 
@@ -626,16 +690,128 @@ function DynamicSection({ fields, data, onChange }: { fields: any[], data: any, 
                </div>
             )}
 
-            {field.type === 'radio' && (
-               <RadioGroup value={data[field.name]} onValueChange={(val) => onChange(field.name, val)} className="space-y-2">
-                 {(config.items || []).map((item: string) => (
-                   <div key={item} className="flex items-center space-x-2">
-                     <RadioGroupItem value={item} id={`${field.id}-${item}`} />
-                     <Label htmlFor={`${field.id}-${item}`} className="cursor-pointer">{item}</Label>
-                   </div>
-                 ))}
-               </RadioGroup>
-            )}
+            {field.type === 'radio' && (() => {
+               let options = (config.items || []) as string[]
+               
+               if (config.sourceField) {
+                 let sourceData = data[config.sourceField]
+                 
+                 // If not found by key, try to find field by ID and use its name
+                 if (!sourceData && allFields) {
+                    const sourceFieldDef = allFields.find((f: any) => f.id === config.sourceField)
+                    if (sourceFieldDef) {
+                        sourceData = data[sourceFieldDef.name || sourceFieldDef.label]
+                    }
+                 }
+
+                 if (sourceData && Array.isArray(sourceData)) {
+                   const key = config.sourceKey || 'name'
+                   const dynamicOptions = sourceData
+                     .map((item: any) => {
+                       if (typeof item === 'object' && item !== null) {
+                         return item[key]
+                       }
+                       return String(item)
+                     })
+                     .filter((val: string) => val && val.trim() !== '')
+                   
+                   if (dynamicOptions.length > 0) {
+                     options = dynamicOptions
+                   }
+                 }
+               }
+
+               return (
+                 <RadioGroup value={data[field.name]} onValueChange={(val) => onChange(field.name, val)} className="space-y-2">
+                   {options.map((item: string) => (
+                     <div key={item} className="flex items-center space-x-2">
+                       <RadioGroupItem value={item} id={`${field.id}-${item}`} />
+                       <Label htmlFor={`${field.id}-${item}`} className="cursor-pointer">{item}</Label>
+                     </div>
+                   ))}
+                 </RadioGroup>
+               )
+            })()}
+
+            {field.type === 'rank' && (() => {
+               let options = (config.items || []) as string[]
+               
+               if (config.sourceField) {
+                 let sourceData = data[config.sourceField]
+                 
+                 // If not found by key, try to find field by ID and use its name
+                 if (!sourceData && allFields) {
+                    const sourceFieldDef = allFields.find((f: any) => f.id === config.sourceField)
+                    if (sourceFieldDef) {
+                        sourceData = data[sourceFieldDef.name || sourceFieldDef.label]
+                    }
+                 }
+
+                 if (sourceData && Array.isArray(sourceData)) {
+                   const key = config.sourceKey || 'name'
+                   const dynamicOptions = sourceData
+                     .map((item: any) => {
+                       if (typeof item === 'object' && item !== null) {
+                         // Try to find the value using the key, or fallback to first string property
+                         if (item[key]) return item[key]
+                         const firstString = Object.values(item).find(v => typeof v === 'string')
+                         return firstString || JSON.stringify(item)
+                       }
+                       return String(item)
+                     })
+                     .filter((val: string) => val && val.trim() !== '')
+                   
+                   if (dynamicOptions.length > 0) {
+                     options = dynamicOptions
+                   }
+                 }
+               }
+
+               const maxSelections = config.maxSelections || 3
+               const currentValues = (Array.isArray(data[field.name]) ? data[field.name] : []) as string[]
+
+               return (
+                 <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {Array.from({ length: maxSelections }).map((_, index) => (
+                        <div key={index} className="space-y-3 relative group">
+                          <div className="absolute -left-3 -top-3 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold text-sm z-10 shadow-sm border-2 border-white">
+                            {index + 1}
+                          </div>
+                          <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 pt-6 group-hover:border-gray-300 transition-colors">
+                            <Label className="text-xs text-gray-500 uppercase font-semibold mb-2 block">Choice #{index + 1}</Label>
+                            <Select 
+                              value={currentValues[index] || ''} 
+                              onValueChange={v => {
+                                const newValues = [...currentValues]
+                                // Fill empty slots if needed
+                                while (newValues.length < maxSelections) newValues.push('')
+                                newValues[index] = v
+                                onChange(field.name, newValues)
+                              }}
+                            >
+                              <SelectTrigger className="bg-white border-gray-200">
+                                <SelectValue placeholder="Select option" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {options.map((opt: string) => (
+                                  <SelectItem 
+                                    key={opt} 
+                                    value={opt} 
+                                    disabled={currentValues.includes(opt) && currentValues[index] !== opt}
+                                  >
+                                    {opt}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                 </div>
+               )
+            })()}
             
             {/* Add more field types as needed */}
           </div>

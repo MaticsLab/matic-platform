@@ -3,16 +3,18 @@
 import { useState, useEffect } from 'react'
 import { CheckCircle, Clock, FileText, Upload, Calendar, Mail, ChevronRight, AlertCircle, Download, Send, ArrowLeft, Settings, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { goClient } from '@/lib/api/go-client'
+import { getCurrentUser } from '@/lib/supabase'
 
-// Mock Applicant Data
+// Mock Applicant Data (Fallback)
 const MOCK_APPLICANT = {
   id: 'APP-2025-101',
-  name: 'Alex Rivera',
-  email: 'alex.rivera@example.com',
+  name: 'Guest User',
+  email: 'guest@example.com',
   program: 'Future Leaders Scholarship 2025'
 }
 
-import { ApplicationForm, MOCK_APPLICATION_STATE } from './ApplicationForm'
+import { ApplicationForm, MOCK_APPLICATION_STATE, EMPTY_APPLICATION_STATE } from './ApplicationForm'
 
 type ApplicationStatus = 'draft' | 'submitted' | 'under_review' | 'phase_2_screening' | 'interview' | 'decision'
 type ViewState = 'dashboard' | 'application_form'
@@ -23,6 +25,12 @@ export function ApplicantDashboard() {
   const [showConfetti, setShowConfetti] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
   
+  // Real Data State
+  const [user, setUser] = useState<any>(null)
+  const [formDef, setFormDef] = useState<any>(null)
+  const [submission, setSubmission] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
   // Form Data
   const [tasks, setTasks] = useState({
     application: 'pending',
@@ -35,10 +43,87 @@ export function ApplicantDashboard() {
     { id: 2, name: 'Financial Aid Report', status: 'pending' }
   ])
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const currentUser = await getCurrentUser()
+        if (currentUser) {
+          setUser(currentUser)
+        }
+
+        // 1. Get Form Definition
+        // Try to find the scholarship form by slug first, then fallback to search
+        let scholarshipForm = null
+        try {
+          scholarshipForm = await goClient.get<any>('/forms/by-slug/scholarship-application')
+        } catch (e) {
+          // Fallback: Search through all forms
+          const forms = await goClient.get<any[]>('/forms')
+          scholarshipForm = forms.find(f => f.name.toLowerCase().includes('scholarship')) || forms[0]
+        }
+
+        if (scholarshipForm) {
+          setFormDef(scholarshipForm)
+
+          // 2. Get Submission
+          if (currentUser?.email) {
+            try {
+              const subData = await goClient.get<any>(`/forms/${scholarshipForm.id}/submission`, { email: currentUser.email })
+              if (subData) {
+                setSubmission(subData)
+                
+                // Restore status from submission data
+                if (subData.applicationStatus) {
+                  setStatus(subData.applicationStatus as ApplicationStatus)
+                }
+                
+                // Update tasks based on data presence
+                if (subData.personal && subData.academic) {
+                   setTasks(prev => ({ ...prev, application: 'completed' }))
+                }
+                if (subData.termsAccepted) {
+                   setTasks(prev => ({ ...prev, terms: 'completed' }))
+                }
+              }
+            } catch (e) {
+              // No submission found, that's fine - stay in draft
+              console.log('No existing submission found')
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error loading dashboard:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadData()
+  }, [])
+
+  const handleSubmit = async () => {
     setStatus('submitted')
     setShowConfetti(true)
     
+    // Save status to backend
+    if (formDef && user?.email) {
+      try {
+        const updatedData = {
+          ...(submission || {}),
+          applicationStatus: 'submitted',
+          submittedAt: new Date().toISOString()
+        }
+        
+        await goClient.post(`/forms/${formDef.id}/submit`, {
+          data: updatedData,
+          email: user.email
+        })
+        
+        setSubmission(updatedData)
+      } catch (error) {
+        console.error("Failed to submit application status:", error)
+      }
+    }
+
     // Simulate Email Sending
     setTimeout(() => {
       setEmailSent(true)
@@ -63,8 +148,38 @@ export function ApplicantDashboard() {
     setTimeout(() => setEmailSent(false), 3000)
   }
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  const displayUser = user ? {
+    name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Applicant',
+    email: user.email,
+    id: user.id.substring(0, 8).toUpperCase()
+  } : MOCK_APPLICANT
+
   if (view === 'application_form') {
-    return <ApplicationForm onBack={() => setView('dashboard')} initialData={MOCK_APPLICATION_STATE} />
+    return (
+      <ApplicationForm 
+        onBack={() => {
+          setView('dashboard')
+          // Reload data to update progress
+          window.location.reload() 
+        }} 
+        initialData={submission || EMPTY_APPLICATION_STATE}
+        formDefinition={formDef}
+        userEmail={user?.email}
+        onSave={() => {
+           setView('dashboard')
+           // Ideally we'd just re-fetch here instead of reload
+           window.location.reload()
+        }}
+      />
+    )
   }
 
   return (
@@ -78,11 +193,11 @@ export function ApplicantDashboard() {
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <div className="text-sm font-medium text-gray-900">{MOCK_APPLICANT.name}</div>
-              <div className="text-xs text-gray-500">{MOCK_APPLICANT.id}</div>
+              <div className="text-sm font-medium text-gray-900">{displayUser.name}</div>
+              <div className="text-xs text-gray-500">{displayUser.email}</div>
             </div>
             <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-medium">
-              {MOCK_APPLICANT.name.charAt(0)}
+              {displayUser.name.charAt(0).toUpperCase()}
             </div>
           </div>
         </div>
@@ -94,7 +209,7 @@ export function ApplicantDashboard() {
         <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 relative overflow-hidden">
           <div className="relative z-10">
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              {status === 'draft' && `Welcome back, ${MOCK_APPLICANT.name.split(' ')[0]}!`}
+              {status === 'draft' && `Welcome back, ${displayUser.name.split(' ')[0]}!`}
               {status === 'submitted' && 'Application Submitted!'}
               {status === 'under_review' && 'Application Under Review'}
               {status === 'phase_2_screening' && 'Action Required: Phase 2 Unlocked'}
@@ -119,7 +234,7 @@ export function ApplicantDashboard() {
             <Mail className="w-5 h-5 text-green-400" />
             <div>
               <p className="font-medium text-sm">Email Notification Sent</p>
-              <p className="text-xs text-gray-400">To: {MOCK_APPLICANT.email}</p>
+              <p className="text-xs text-gray-400">To: {displayUser.email}</p>
             </div>
           </div>
         )}
@@ -182,7 +297,16 @@ export function ApplicantDashboard() {
                   <TaskItem 
                     title="Sign Terms & Conditions" 
                     status={tasks.terms as 'pending' | 'completed'} 
-                    onClick={() => setTasks(prev => ({ ...prev, terms: 'completed' }))} // Mock completion
+                    onClick={() => {
+                       setTasks(prev => ({ ...prev, terms: 'completed' }))
+                       // Save terms acceptance
+                       if (formDef && user?.email) {
+                         goClient.post(`/forms/${formDef.id}/submit`, {
+                           data: { ...(submission || {}), termsAccepted: true },
+                           email: user.email
+                         })
+                       }
+                    }} 
                   />
                 </div>
                 <div className="mt-6 pt-6 border-t border-gray-100">

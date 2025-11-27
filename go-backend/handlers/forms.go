@@ -593,15 +593,80 @@ func GetExternalReviewData(c *gin.Context) {
 	token := c.Param("token")
 
 	// Find form with this review token in settings
-	// Note: This is a JSONB query. Syntax depends on GORM/Postgres driver.
-	// We'll fetch all forms and filter in memory for simplicity if JSON query is complex,
-	// but better to use database query.
-	// Postgres: settings->>'review_token' = ?
-
+	// Check both the single 'review_token' field (legacy) and the 'reviewers' array
 	var table models.Table
-	if err := database.DB.Where("settings->>'review_token' = ?", token).First(&table).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Invalid review token"})
-		return
+
+	// Try finding in reviewers array first
+	if err := database.DB.Where("settings->'reviewers' @> ?", fmt.Sprintf(`[{"token": "%s"}]`, token)).First(&table).Error; err != nil {
+		// Fallback to single token check
+		if err := database.DB.Where("settings->>'review_token' = ?", token).First(&table).Error; err != nil {
+			// Mock data for demo token
+			if token == "rev_yfn7vv" {
+				mockSettings := map[string]interface{}{
+					"rubric": []map[string]interface{}{
+						{
+							"id":          "academic",
+							"category":    "Academic Performance",
+							"max":         20,
+							"description": "GPA, Course Rigor",
+						},
+						{
+							"id":          "financial",
+							"category":    "Financial Need",
+							"max":         30,
+							"description": "Gap amount, Circumstances",
+						},
+					},
+				}
+
+				c.JSON(http.StatusOK, ExternalReviewDTO{
+					Form: FormDTO{
+						ID:          uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+						Name:        "Demo Scholarship Application",
+						Settings:    mockSettings,
+						Description: "This is a demo application for external reviewers.",
+					},
+					Submissions: []models.Row{
+						{
+							BaseModel: models.BaseModel{
+								ID: uuid.MustParse("22222222-2222-2222-2222-222222222222"),
+							},
+							Data: mapToJSON(map[string]interface{}{
+								"name":               "Alice Student",
+								"gpa":                "3.8",
+								"school":             "Lincoln High",
+								"major":              "Computer Science",
+								"efc":                "0",
+								"pell_eligible":      "yes",
+								"personal_statement": "I want to study CS because...",
+								"challenge_essay":    "I overcame...",
+							}),
+							Metadata: mapToJSON(map[string]interface{}{}),
+						},
+						{
+							BaseModel: models.BaseModel{
+								ID: uuid.MustParse("33333333-3333-3333-3333-333333333333"),
+							},
+							Data: mapToJSON(map[string]interface{}{
+								"name":               "Bob Scholar",
+								"gpa":                "3.5",
+								"school":             "Washington High",
+								"major":              "Engineering",
+								"efc":                "5000",
+								"pell_eligible":      "no",
+								"personal_statement": "Engineering is my passion...",
+								"challenge_essay":    "My biggest challenge was...",
+							}),
+							Metadata: mapToJSON(map[string]interface{}{}),
+						},
+					},
+				})
+				return
+			}
+
+			c.JSON(http.StatusNotFound, gin.H{"error": "Invalid review token"})
+			return
+		}
 	}
 
 	// Get Form Details (reuse GetForm logic)
@@ -637,19 +702,43 @@ func GetExternalReviewData(c *gin.Context) {
 }
 
 type SubmitReviewInput struct {
-	Scores   map[string]int            `json:"scores"`
-	Notes    map[string]string         `json:"notes"`
-	Comments map[string]string         `json:"comments"`
-	Status   string                    `json:"status"` // 'approved', 'rejected', 'reviewed'
+	Scores   map[string]int    `json:"scores"`
+	Notes    map[string]string `json:"notes"`
+	Comments map[string]string `json:"comments"`
+	Status   string            `json:"status"` // 'approved', 'rejected', 'reviewed'
 }
 
 func SubmitExternalReview(c *gin.Context) {
 	token := c.Param("token")
 	submissionID := c.Param("submission_id")
 
-	// Verify token
+	// Verify token and get reviewer info
 	var table models.Table
-	if err := database.DB.Where("settings->>'review_token' = ?", token).First(&table).Error; err != nil {
+	var reviewerName = "External Reviewer"
+	var reviewerID string
+
+	// Try finding in reviewers array first
+	if err := database.DB.Where("settings->'reviewers' @> ?", fmt.Sprintf(`[{"token": "%s"}]`, token)).First(&table).Error; err == nil {
+		// Found in reviewers array, extract name
+		var settings map[string]interface{}
+		if err := json.Unmarshal(table.Settings, &settings); err == nil {
+			if reviewers, ok := settings["reviewers"].([]interface{}); ok {
+				for _, r := range reviewers {
+					if rMap, ok := r.(map[string]interface{}); ok {
+						if t, ok := rMap["token"].(string); ok && t == token {
+							if name, ok := rMap["name"].(string); ok {
+								reviewerName = name
+							}
+							if id, ok := rMap["id"].(string); ok {
+								reviewerID = id
+							}
+							break
+						}
+					}
+				}
+			}
+		}
+	} else if err := database.DB.Where("settings->>'review_token' = ?", token).First(&table).Error; err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Invalid review token"})
 		return
 	}
@@ -681,7 +770,8 @@ func SubmitExternalReview(c *gin.Context) {
 		"notes":       input.Notes,
 		"comments":    input.Comments,
 		"reviewed_at": time.Now(),
-		"reviewer":    "External Reviewer", // Could be passed in input if we had reviewer names
+		"reviewer":    reviewerName,
+		"reviewer_id": reviewerID,
 	}
 
 	// Append to reviews array or overwrite? Let's overwrite for single reviewer for now,
@@ -699,6 +789,37 @@ func SubmitExternalReview(c *gin.Context) {
 	if err := database.DB.Save(&row).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Update reviewer stats in table settings
+	if reviewerID != "" {
+		var settings map[string]interface{}
+		if err := json.Unmarshal(table.Settings, &settings); err == nil {
+			if reviewers, ok := settings["reviewers"].([]interface{}); ok {
+				updated := false
+				for i, r := range reviewers {
+					if rMap, ok := r.(map[string]interface{}); ok {
+						if id, ok := rMap["id"].(string); ok && id == reviewerID {
+							// Increment completed count
+							if count, ok := rMap["completedCount"].(float64); ok {
+								rMap["completedCount"] = count + 1
+							} else {
+								rMap["completedCount"] = 1
+							}
+							rMap["lastActive"] = "Just now"
+							reviewers[i] = rMap
+							updated = true
+							break
+						}
+					}
+				}
+				if updated {
+					settings["reviewers"] = reviewers
+					table.Settings = mapToJSON(settings)
+					database.DB.Save(&table)
+				}
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, row)

@@ -23,15 +23,15 @@ export function PortalSettings({ type, settings, onUpdate }: PortalSettingsProps
 
   if (type === 'branding') {
     return (
-      <div className="p-8 space-y-8">
+      <div className="p-4 space-y-6">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Branding & Appearance</h2>
-          <p className="text-gray-500 mt-1">Customize how your portal looks to applicants.</p>
+          <h2 className="text-lg font-bold text-gray-900">Branding</h2>
+          <p className="text-xs text-gray-500 mt-1">Customize portal appearance.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="space-y-6">
-            <div className="space-y-3">
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
               <Label>Portal Name</Label>
               <Input 
                 value={settings.name} 
@@ -40,7 +40,7 @@ export function PortalSettings({ type, settings, onUpdate }: PortalSettingsProps
               />
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2">
               <Label>Brand Color</Label>
               <div className="flex items-center gap-3">
                 <div 
@@ -50,13 +50,13 @@ export function PortalSettings({ type, settings, onUpdate }: PortalSettingsProps
                 <Input 
                   value={settings.themeColor} 
                   onChange={(e) => onUpdate({ themeColor: e.target.value })}
-                  className="w-32 font-mono"
+                  className="flex-1 font-mono"
                   placeholder="#000000"
                 />
               </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2">
               <Label>Typography</Label>
               <Select 
                 value={settings.font || 'inter'} 
@@ -74,15 +74,15 @@ export function PortalSettings({ type, settings, onUpdate }: PortalSettingsProps
               </Select>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2">
               <Label>Button Style</Label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {['rounded', 'pill', 'sharp'].map((style) => (
                   <button
                     key={style}
                     onClick={() => onUpdate({ buttonStyle: style as any })}
                     className={cn(
-                      "px-4 py-2 border rounded-md text-sm font-medium transition-all",
+                      "px-3 py-1.5 border rounded-md text-xs font-medium transition-all",
                       settings.buttonStyle === style 
                         ? "border-blue-500 bg-blue-50 text-blue-700" 
                         : "border-gray-200 hover:border-gray-300 text-gray-600"
@@ -95,12 +95,12 @@ export function PortalSettings({ type, settings, onUpdate }: PortalSettingsProps
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div className="space-y-3">
+          <div className="space-y-4">
+            <div className="space-y-2">
               <Label>Logo</Label>
-              <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:bg-gray-50 transition-colors cursor-pointer group">
+              <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer group">
                 {settings.logoUrl ? (
-                   <div className="relative w-32 h-32 mx-auto">
+                   <div className="relative w-20 h-20 mx-auto">
                       <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-contain" />
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
                         <span className="text-white text-xs">Change</span>
@@ -108,11 +108,10 @@ export function PortalSettings({ type, settings, onUpdate }: PortalSettingsProps
                    </div>
                 ) : (
                   <>
-                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-white transition-colors">
-                      <Upload className="w-6 h-6 text-gray-400" />
+                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2 group-hover:bg-white transition-colors">
+                      <Upload className="w-4 h-4 text-gray-400" />
                     </div>
-                    <p className="text-sm font-medium text-gray-900">Click to upload logo</p>
-                    <p className="text-xs text-gray-500 mt-1">SVG, PNG, JPG (max. 2MB)</p>
+                    <p className="text-xs font-medium text-gray-900">Upload logo</p>
                   </>
                 )}
               </div>
@@ -124,15 +123,16 @@ export function PortalSettings({ type, settings, onUpdate }: PortalSettingsProps
               />
             </div>
 
-            <div className="space-y-3">
-              <Label>Background Image (Login Page)</Label>
+            <div className="space-y-2">
+              <Label>Background Image</Label>
               <div className="flex gap-2">
                 <Input 
                   value={settings.backgroundImageUrl || ''} 
                   onChange={(e) => onUpdate({ backgroundImageUrl: e.target.value })}
                   placeholder="https://..."
+                  className="text-xs"
                 />
-                <Button variant="outline" size="icon">
+                <Button variant="outline" size="icon" className="h-9 w-9 shrink-0">
                   <ImageIcon className="w-4 h-4" />
                 </Button>
               </div>
