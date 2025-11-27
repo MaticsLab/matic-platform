@@ -772,6 +772,21 @@ func AssignReviewerApplications(c *gin.Context) {
 		return
 	}
 
+	// Try to find workflow and stage info from reviewer_type_id
+	var workflowID, stageID, stageName string
+	if input.ReviewerTypeID != "" {
+		var stageConfig models.StageReviewerConfig
+		if err := database.DB.Where("reviewer_type_id = ?", input.ReviewerTypeID).First(&stageConfig).Error; err == nil {
+			stageID = stageConfig.StageID.String()
+			// Get stage name
+			var stage models.ApplicationStage
+			if err := database.DB.First(&stage, "id = ?", stageConfig.StageID).Error; err == nil {
+				stageName = stage.Name
+				workflowID = stage.ReviewWorkflowID.String()
+			}
+		}
+	}
+
 	// Update rows
 	count := 0
 	for _, row := range rowsToAssign {
@@ -803,6 +818,16 @@ func AssignReviewerApplications(c *gin.Context) {
 		if !exists {
 			assignedReviewers = append(assignedReviewers, reviewerID)
 			metadata["assigned_reviewers"] = assignedReviewers
+			
+			// Set workflow and stage if we found them and not already set
+			if workflowID != "" && metadata["assigned_workflow_id"] == nil {
+				metadata["assigned_workflow_id"] = workflowID
+			}
+			if stageID != "" && metadata["current_stage_id"] == nil {
+				metadata["current_stage_id"] = stageID
+				metadata["stage_name"] = stageName
+			}
+			
 			row.Metadata = mapToJSON(metadata)
 			database.DB.Save(&row)
 			count++

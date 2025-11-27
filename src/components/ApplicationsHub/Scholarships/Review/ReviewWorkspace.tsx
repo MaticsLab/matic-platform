@@ -1088,12 +1088,30 @@ function QueueView({
             <div className="flex-1 overflow-y-auto p-6">
               <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Application Data</h3>
               <div className="grid grid-cols-2 gap-4">
-                {Object.entries(currentApp.raw_data).slice(0, 8).map(([key, value]) => {
-                  if (typeof value === 'object') return null
+                {Object.entries(currentApp.raw_data).map(([key, value]) => {
+                  // Skip internal fields
+                  if (key.startsWith('_') || key === 'id') return null
+                  
+                  // Handle different value types
+                  let displayValue: React.ReactNode
+                  if (value === null || value === undefined) {
+                    displayValue = <span className="text-gray-400 italic">Not provided</span>
+                  } else if (Array.isArray(value)) {
+                    displayValue = value.length > 0 
+                      ? value.map((v, i) => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(', ')
+                      : <span className="text-gray-400 italic">None</span>
+                  } else if (typeof value === 'object') {
+                    displayValue = <pre className="text-xs overflow-auto max-h-20">{JSON.stringify(value, null, 2)}</pre>
+                  } else if (typeof value === 'boolean') {
+                    displayValue = value ? 'Yes' : 'No'
+                  } else {
+                    displayValue = String(value)
+                  }
+                  
                   return (
                     <div key={key} className="bg-white rounded-lg p-4 border border-gray-200">
-                      <p className="text-xs font-medium text-gray-400 uppercase mb-1">{key}</p>
-                      <p className="text-gray-900 truncate">{String(value)}</p>
+                      <p className="text-xs font-medium text-gray-400 uppercase mb-1">{key.replace(/_/g, ' ')}</p>
+                      <p className="text-gray-900 break-words">{displayValue}</p>
                     </div>
                   )
                 })}
@@ -1232,17 +1250,34 @@ function FocusReviewMode({
 
             <div className="space-y-6">
               {Object.entries(app.raw_data).map(([key, value]) => {
-                if (typeof value === 'object') return null
-                const strValue = String(value)
-                const isLongText = strValue.length > 100
+                // Skip internal fields
+                if (key.startsWith('_') || key === 'id') return null
+                
+                // Handle different value types
+                let displayValue: React.ReactNode
+                const isLongText = typeof value === 'string' && value.length > 100
+                
+                if (value === null || value === undefined) {
+                  displayValue = <span className="text-gray-400 italic">Not provided</span>
+                } else if (Array.isArray(value)) {
+                  displayValue = value.length > 0 
+                    ? value.map((v, i) => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(', ')
+                    : <span className="text-gray-400 italic">None</span>
+                } else if (typeof value === 'object') {
+                  displayValue = <pre className="text-xs overflow-auto max-h-32 bg-gray-100 p-2 rounded">{JSON.stringify(value, null, 2)}</pre>
+                } else if (typeof value === 'boolean') {
+                  displayValue = value ? 'Yes' : 'No'
+                } else {
+                  displayValue = String(value)
+                }
                 
                 return (
                   <div key={key} className="border-b border-gray-200 pb-4">
-                    <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">{key}</p>
+                    <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">{key.replace(/_/g, ' ')}</p>
                     <p className={cn(
                       "text-gray-700",
                       isLongText && "text-sm leading-relaxed"
-                    )}>{strValue}</p>
+                    )}>{displayValue}</p>
                   </div>
                 )
               })}

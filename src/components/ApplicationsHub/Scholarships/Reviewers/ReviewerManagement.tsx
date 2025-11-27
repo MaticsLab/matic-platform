@@ -216,13 +216,15 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
         const response = await goClient.post<{count: number}>(`/forms/${formId}/reviewers/${assignToExistingReviewer.id}/assign`, {
           strategy: 'random', 
           count: assignmentCount, 
-          only_unassigned: onlyUnassigned
+          only_unassigned: onlyUnassigned,
+          reviewer_type_id: assignToExistingReviewer.reviewer_type_id
         })
         newAssignedCount = response.count
       } else if (assignmentStrategy === 'manual' && selectedSubmissionIds.length > 0) {
         const response = await goClient.post<{count: number}>(`/forms/${formId}/reviewers/${assignToExistingReviewer.id}/assign`, {
           strategy: 'manual', 
-          submission_ids: selectedSubmissionIds
+          submission_ids: selectedSubmissionIds,
+          reviewer_type_id: assignToExistingReviewer.reviewer_type_id
         })
         newAssignedCount = response.count
       }
