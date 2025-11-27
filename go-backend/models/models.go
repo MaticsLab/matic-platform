@@ -107,6 +107,7 @@ type Table struct {
 	Description string         `json:"description"`
 	Icon        string         `gorm:"default:'table'" json:"icon"`
 	Color       string         `gorm:"default:'#10B981'" json:"color"`
+	HubType     string         `gorm:"default:'data'" json:"hub_type"` // activities, applications, data
 	Settings    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
 	RowCount    int            `gorm:"default:0" json:"row_count"`
 	CreatedBy   uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`

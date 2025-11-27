@@ -3,6 +3,8 @@
  * These types align with the backend Pydantic schemas
  */
 
+import type { HubType } from './modules';
+
 export type ColumnType =
   | 'text'
   | 'number'
@@ -89,6 +91,7 @@ export interface DataTable {
   description?: string;
   icon: string;
   color: string;
+  hub_type?: HubType; // 'activities' | 'applications' | 'data'
   settings?: Record<string, any>;
   import_source?: ImportSource;
   import_metadata?: Record<string, any>;
