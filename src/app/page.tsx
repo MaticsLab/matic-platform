@@ -23,14 +23,14 @@ export default function Home() {
       const lastWorkspace = getLastWorkspace()
       
       if (lastWorkspace) {
-        router.push(`/workspace/${lastWorkspace}/activities-hubs`)
+        router.push(`/workspace/${lastWorkspace}`)
       } else {
-        // Get first workspace and redirect to its activities hub
+        // Get first workspace and redirect to it
         const user = await getCurrentUser()
         if (user) {
           const workspaces = await workspacesSupabase.getWorkspacesForUser(user.id)
           if (workspaces && workspaces.length > 0) {
-            router.push(`/workspace/${workspaces[0].slug}/activities-hubs`)
+            router.push(`/workspace/${workspaces[0].slug}`)
           } else {
             // No workspaces - redirect to Webflow homepage
             window.location.href = 'https://www.maticslab.com'

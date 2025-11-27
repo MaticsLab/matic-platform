@@ -56,6 +56,11 @@ func AutoMigrate() error {
 		&models.ActivitiesHub{},
 		&models.ActivitiesHubTab{},
 		&models.SearchHistory{},
+		&models.ReviewWorkflow{},
+		&models.ApplicationStage{},
+		&models.ReviewerType{},
+		&models.Rubric{},
+		&models.StageReviewerConfig{},
 	)
 
 	if err != nil {

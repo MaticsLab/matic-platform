@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink } from 'lucide-react'
-import { ScholarshipDashboard } from './Dashboard/ScholarshipDashboard'
+import { FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink } from 'lucide-react'
 import { ReviewWorkspace } from './Review/ReviewWorkspace'
 import { CommunicationsCenter } from './Communications/CommunicationsCenter'
 import { ReviewerManagement } from './Reviewers/ReviewerManagement'
@@ -23,14 +22,14 @@ interface ScholarshipManagerProps {
   formId: string | null
 }
 
-type Tab = 'dashboard' | 'review' | 'communications' | 'builder' | 'reviewers' | 'settings' | 'workflows'
+type Tab = 'review' | 'communications' | 'builder' | 'reviewers' | 'settings' | 'workflows'
 
 export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerProps) {
   const { tabs, tabManager, setTabActions } = useTabContext()
   const hubUrl = `/workspace/${workspaceId}/applications`
   const hubTab = tabs.find(t => t.url === hubUrl)
   
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard')
+  const [activeTab, setActiveTab] = useState<Tab>('review')
   const [isInitialized, setIsInitialized] = useState(false)
   const [form, setForm] = useState<Form | null>(null)
   const [workspaceSlug, setWorkspaceSlug] = useState<string>('')
@@ -117,12 +116,6 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
         icon: Share2,
         onClick: () => setIsShareOpen(true),
         variant: 'outline'
-      },
-      {
-        label: 'Settings',
-        icon: Settings,
-        onClick: () => setActiveTab('settings'),
-        variant: 'ghost'
       }
     ])
 
@@ -132,7 +125,7 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
   // Initialize state from metadata
   useEffect(() => {
     if (hubTab && !isInitialized) {
-      const savedTab = (hubTab.metadata?.scholarshipActiveTab as Tab) || 'dashboard'
+      const savedTab = (hubTab.metadata?.scholarshipActiveTab as Tab) || 'review'
       setActiveTab(savedTab)
       setIsInitialized(true)
     }
@@ -162,15 +155,6 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
           <div className="h-6 w-px bg-gray-200 mx-2 shrink-0" />
 
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${
-                activeTab === 'dashboard' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              Dashboard
-            </button>
             <button
               onClick={() => setActiveTab('review')}
               className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${
@@ -285,7 +269,6 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
 
       {/* Content Area */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'dashboard' && <ScholarshipDashboard workspaceId={workspaceId} formId={formId} />}
         {activeTab === 'review' && <ReviewWorkspace workspaceId={workspaceId} formId={formId} />}
         {activeTab === 'communications' && <CommunicationsCenter workspaceId={workspaceId} formId={formId} />}
         {activeTab === 'reviewers' && <ReviewerManagement formId={formId} />}

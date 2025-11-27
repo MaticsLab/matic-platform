@@ -1,11 +1,9 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { BarChart3, Users, FileText, AlertCircle, Download, Filter, Clock, ArrowUpRight, Calendar, CheckCircle2, Loader2, Settings } from 'lucide-react'
+import { BarChart3, Users, FileText, AlertCircle, Download, Filter, Clock, ArrowUpRight, Calendar, CheckCircle2, Loader2 } from 'lucide-react'
 import { goClient } from '@/lib/api/go-client'
 import { FormSubmission, Form, DashboardConfig, DashboardTile, LogicRule } from '@/types/forms'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/ui-components/dialog'
-import { Button } from '@/ui-components/button'
 
 interface ScholarshipDashboardProps {
 // ... existing code ...
@@ -18,8 +16,6 @@ export function ScholarshipDashboard({ workspaceId, formId }: ScholarshipDashboa
   const [isLoading, setIsLoading] = useState(true)
   const [formSettings, setFormSettings] = useState<any>({})
   const [dashboardConfig, setDashboardConfig] = useState<DashboardConfig | null>(null)
-  const [isConfigOpen, setIsConfigOpen] = useState(false)
-  const [configJson, setConfigJson] = useState('')
 
   useEffect(() => {
     const fetchData = async () => {
@@ -138,69 +134,17 @@ export function ScholarshipDashboard({ workspaceId, formId }: ScholarshipDashboa
     )
   }
 
-  const handleOpenConfig = () => {
-    setConfigJson(JSON.stringify(activeConfig, null, 2))
-    setIsConfigOpen(true)
-  }
-
-  const handleSaveConfig = async () => {
-    try {
-      const newConfig = JSON.parse(configJson)
-      setDashboardConfig(newConfig)
-      
-      // Save to backend
-      if (formId) {
-        const currentSettings = formSettings || {}
-        await goClient.patch(`/forms/${formId}`, {
-          settings: {
-            ...currentSettings,
-            dashboardConfig: newConfig
-          }
-        })
-      }
-      setIsConfigOpen(false)
-    } catch (e) {
-      alert('Invalid JSON')
-    }
-  }
-
   return (
     <div className="h-full overflow-auto p-6">
       {/* ... existing code ... */}
       <div className="flex gap-3">
-          <button 
-            onClick={handleOpenConfig}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            <Settings className="w-4 h-4" />
-            Configure Dashboard
-          </button>
+
           {/* ... existing buttons ... */}
       </div>
 
       {/* ... existing grid ... */}
 
-      <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Dashboard Configuration</DialogTitle>
-            <DialogDescription>
-              Edit the JSON configuration to customize dashboard tiles.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <textarea
-              className="w-full h-96 font-mono text-sm p-4 border rounded-md bg-gray-50"
-              value={configJson}
-              onChange={(e) => setConfigJson(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsConfigOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveConfig}>Save Changes</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
     </div>
   )
 }

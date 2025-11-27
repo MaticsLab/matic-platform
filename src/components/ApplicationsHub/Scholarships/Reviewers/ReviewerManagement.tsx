@@ -32,12 +32,47 @@ export function ReviewerManagement({ formId }: ReviewerManagementProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed'>('all')
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  
+  // Assignment State
+  const [assignmentStrategy, setAssignmentStrategy] = useState<'random' | 'manual'>('random')
+  const [assignmentCount, setAssignmentCount] = useState(10)
+  const [isAssigning, setIsAssigning] = useState(false)
+  const [submissions, setSubmissions] = useState<any[]>([])
+  const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<string[]>([])
+  const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(false)
 
   useEffect(() => {
+    console.log('ReviewerManagement mounted with formId:', formId)
     if (formId) {
       fetchReviewers()
     }
   }, [formId])
+
+  useEffect(() => {
+    if (assignmentStrategy === 'manual' && formId && submissions.length === 0) {
+      fetchSubmissions()
+    }
+  }, [assignmentStrategy, formId])
+
+  const fetchSubmissions = async () => {
+    setIsLoadingSubmissions(true)
+    try {
+      console.log(`Fetching submissions for form ${formId}...`)
+      const data = await goClient.get<any[]>(`/forms/${formId}/submissions`)
+      console.log('Fetched submissions:', data)
+      if (Array.isArray(data)) {
+        setSubmissions(data)
+      } else {
+        console.error('Submissions data is not an array:', data)
+        setSubmissions([])
+      }
+    } catch (error) {
+      console.error('Failed to fetch submissions:', error)
+      // alert('Failed to fetch submissions. Check console.')
+    } finally {
+      setIsLoadingSubmissions(false)
+    }
+  }
 
   const fetchReviewers = async () => {
     setIsLoading(true)
@@ -77,22 +112,65 @@ export function ReviewerManagement({ formId }: ReviewerManagementProps) {
   const generateToken = () => 'rev_' + Math.random().toString(36).substr(2, 6)
 
   const handleCreateReviewer = async () => {
-    const newReviewer: Reviewer = {
-      id: Date.now().toString(),
-      name: newReviewerName,
-      email: newReviewerEmail,
-      token: generateToken(),
-      assignedCount: 10, // Default assignment
-      completedCount: 0,
-      status: 'active',
-      lastActive: 'Just now',
-      role: 'External Reviewer'
+    if (!formId) return
+    setIsAssigning(true)
+    
+    try {
+      const reviewerId = Date.now().toString()
+      const newReviewer: Reviewer = {
+        id: reviewerId,
+        name: newReviewerName,
+        email: newReviewerEmail,
+        token: generateToken(),
+        assignedCount: 0, // Will be updated by backend
+        completedCount: 0,
+        status: 'active',
+        lastActive: 'Just now',
+        role: 'External Reviewer'
+      }
+      
+      // 1. Save reviewer to settings first
+      const updated = [...reviewers, newReviewer]
+      await saveReviewers(updated)
+      
+      // 2. Call assignment API
+      if (assignmentStrategy === 'random') {
+        const response = await goClient.post<{count: number}>(`/forms/${formId}/reviewers/${reviewerId}/assign`, {
+          strategy: 'random',
+          count: assignmentCount
+        })
+        
+        // Update local state with correct count
+        const finalReviewers = updated.map(r => 
+          r.id === reviewerId ? { ...r, assignedCount: response.count } : r
+        )
+        setReviewers(finalReviewers)
+        await fetchReviewers()
+      } else if (assignmentStrategy === 'manual') {
+        const response = await goClient.post<{count: number}>(`/forms/${formId}/reviewers/${reviewerId}/assign`, {
+          strategy: 'manual',
+          submission_ids: selectedSubmissionIds
+        })
+        
+        const finalReviewers = updated.map(r => 
+          r.id === reviewerId ? { ...r, assignedCount: response.count } : r
+        )
+        setReviewers(finalReviewers)
+        await fetchReviewers()
+      }
+
+      setShowInviteModal(false)
+      setNewReviewerName('')
+      setNewReviewerEmail('')
+      setAssignmentStrategy('random')
+      setAssignmentCount(10)
+      setSelectedSubmissionIds([])
+    } catch (error) {
+      console.error('Failed to create reviewer:', error)
+      alert('Failed to create reviewer')
+    } finally {
+      setIsAssigning(false)
     }
-    const updated = [...reviewers, newReviewer]
-    await saveReviewers(updated)
-    setShowInviteModal(false)
-    setNewReviewerName('')
-    setNewReviewerEmail('')
   }
 
   const handleDeleteReviewer = async (id: string) => {
@@ -267,14 +345,14 @@ export function ReviewerManagement({ formId }: ReviewerManagementProps) {
                   <div>
                     <div className="flex justify-between text-sm mb-2">
                       <span className="font-medium text-gray-700">Review Progress</span>
-                      <span className="text-gray-500">{Math.round((reviewer.completedCount / reviewer.assignedCount) * 100)}% Complete</span>
+                      <span className="text-gray-500">{Math.round((reviewer.completedCount / (reviewer.assignedCount || 1)) * 100)}% Complete</span>
                     </div>
                     <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
                       <div 
                         className={cn("h-full rounded-full transition-all duration-500", 
                           reviewer.completedCount === reviewer.assignedCount ? "bg-green-500" : "bg-blue-600"
                         )}
-                        style={{ width: `${(reviewer.completedCount / reviewer.assignedCount) * 100}%` }}
+                        style={{ width: `${(reviewer.completedCount / (reviewer.assignedCount || 1)) * 100}%` }}
                       />
                     </div>
                     <p className="text-xs text-gray-500 mt-2">
@@ -359,15 +437,82 @@ export function ReviewerManagement({ formId }: ReviewerManagementProps) {
               <div className="pt-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Assignment Strategy</label>
                 <div className="grid grid-cols-2 gap-3">
-                  <button className="p-3 border border-blue-200 bg-blue-50 rounded-lg text-left hover:border-blue-300 transition-colors">
-                    <span className="block text-sm font-semibold text-blue-900">Random Batch</span>
-                    <span className="text-xs text-blue-700">Assign 10 random apps</span>
+                  <button 
+                    onClick={() => setAssignmentStrategy('random')}
+                    className={cn("p-3 border rounded-lg text-left transition-colors", 
+                      assignmentStrategy === 'random' ? "border-blue-200 bg-blue-50" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    )}
+                  >
+                    <span className={cn("block text-sm font-semibold", assignmentStrategy === 'random' ? "text-blue-900" : "text-gray-900")}>Random Batch</span>
+                    <span className={cn("text-xs", assignmentStrategy === 'random' ? "text-blue-700" : "text-gray-500")}>Assign random apps</span>
                   </button>
-                  <button className="p-3 border border-gray-200 rounded-lg text-left hover:border-gray-300 hover:bg-gray-50 transition-colors">
-                    <span className="block text-sm font-semibold text-gray-900">Manual Select</span>
-                    <span className="text-xs text-gray-500">Choose specific apps</span>
+                  <button 
+                    onClick={() => setAssignmentStrategy('manual')}
+                    className={cn("p-3 border rounded-lg text-left transition-colors", 
+                      assignmentStrategy === 'manual' ? "border-blue-200 bg-blue-50" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    )}
+                  >
+                    <span className={cn("block text-sm font-semibold", assignmentStrategy === 'manual' ? "text-blue-900" : "text-gray-900")}>Manual Select</span>
+                    <span className={cn("text-xs", assignmentStrategy === 'manual' ? "text-blue-700" : "text-gray-500")}>Choose specific apps</span>
                   </button>
                 </div>
+                
+                {assignmentStrategy === 'random' && (
+                  <div className="mt-3">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Number of Applications</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      max="100"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      value={assignmentCount}
+                      onChange={(e) => setAssignmentCount(parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                )}
+
+                {assignmentStrategy === 'manual' && (
+                  <div className="mt-3">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Select Applications ({selectedSubmissionIds.length})</label>
+                    <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto bg-gray-50">
+                      {isLoadingSubmissions ? (
+                        <div className="p-4 text-center text-gray-500 text-xs">Loading submissions...</div>
+                      ) : submissions.length === 0 ? (
+                        <div className="p-4 text-center text-gray-500 text-xs">No submissions found.</div>
+                      ) : (
+                        <div className="divide-y divide-gray-100">
+                          {submissions.map(sub => {
+                            const data = typeof sub.data === 'string' ? JSON.parse(sub.data) : sub.data
+                            const name = data.personal?.firstName ? `${data.personal.firstName} ${data.personal.lastName}` : `Submission #${sub.id.substring(0, 8)}`
+                            const isSelected = selectedSubmissionIds.includes(sub.id)
+                            
+                            return (
+                              <div 
+                                key={sub.id} 
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedSubmissionIds(prev => prev.filter(id => id !== sub.id))
+                                  } else {
+                                    setSelectedSubmissionIds(prev => [...prev, sub.id])
+                                  }
+                                }}
+                                className={cn("p-2 flex items-center gap-3 cursor-pointer hover:bg-white transition-colors", isSelected && "bg-blue-50")}
+                              >
+                                <div className={cn("w-4 h-4 rounded border flex items-center justify-center transition-colors", isSelected ? "bg-blue-600 border-blue-600" : "border-gray-300 bg-white")}>
+                                  {isSelected && <CheckCircle className="w-3 h-3 text-white" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium text-gray-900 truncate">{name}</div>
+                                  <div className="text-xs text-gray-500 truncate">{sub.id}</div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100">
@@ -388,9 +533,10 @@ export function ReviewerManagement({ formId }: ReviewerManagementProps) {
               </button>
               <button 
                 onClick={handleCreateReviewer}
-                disabled={!newReviewerName}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all"
+                disabled={!newReviewerName || isAssigning}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all flex items-center gap-2"
               >
+                {isAssigning && <RefreshCw className="w-4 h-4 animate-spin" />}
                 Generate Invite Link
               </button>
             </div>

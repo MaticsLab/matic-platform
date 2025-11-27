@@ -23,7 +23,7 @@ interface RequestOptions extends RequestInit {
 /**
  * Base fetch wrapper with error handling
  */
-async function goFetch<T>(
+export async function goFetch<T>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<T> {

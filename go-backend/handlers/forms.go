@@ -320,12 +320,15 @@ func DeleteForm(c *gin.Context) {
 
 func ListFormSubmissions(c *gin.Context) {
 	formID := c.Param("id")
+	fmt.Printf("Listing submissions for form: %s\n", formID)
 
 	var rows []models.Row
 	if err := database.DB.Where("table_id = ?", formID).Order("created_at DESC").Find(&rows).Error; err != nil {
+		fmt.Printf("Error fetching submissions: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	fmt.Printf("Found %d submissions for form %s\n", len(rows), formID)
 
 	c.JSON(http.StatusOK, rows)
 }
@@ -595,78 +598,29 @@ func GetExternalReviewData(c *gin.Context) {
 	// Find form with this review token in settings
 	// Check both the single 'review_token' field (legacy) and the 'reviewers' array
 	var table models.Table
+	var reviewerID string
 
 	// Try finding in reviewers array first
-	if err := database.DB.Where("settings->'reviewers' @> ?", fmt.Sprintf(`[{"token": "%s"}]`, token)).First(&table).Error; err != nil {
-		// Fallback to single token check
-		if err := database.DB.Where("settings->>'review_token' = ?", token).First(&table).Error; err != nil {
-			// Mock data for demo token
-			if token == "rev_yfn7vv" {
-				mockSettings := map[string]interface{}{
-					"rubric": []map[string]interface{}{
-						{
-							"id":          "academic",
-							"category":    "Academic Performance",
-							"max":         20,
-							"description": "GPA, Course Rigor",
-						},
-						{
-							"id":          "financial",
-							"category":    "Financial Need",
-							"max":         30,
-							"description": "Gap amount, Circumstances",
-						},
-					},
+	if err := database.DB.Where("settings->'reviewers' @> ?", fmt.Sprintf(`[{"token": "%s"}]`, token)).First(&table).Error; err == nil {
+		// Found in reviewers array, extract ID
+		var settings map[string]interface{}
+		if err := json.Unmarshal(table.Settings, &settings); err == nil {
+			if reviewers, ok := settings["reviewers"].([]interface{}); ok {
+				for _, r := range reviewers {
+					if rMap, ok := r.(map[string]interface{}); ok {
+						if t, ok := rMap["token"].(string); ok && t == token {
+							if id, ok := rMap["id"].(string); ok {
+								reviewerID = id
+							}
+							break
+						}
+					}
 				}
-
-				c.JSON(http.StatusOK, ExternalReviewDTO{
-					Form: FormDTO{
-						ID:          uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-						Name:        "Demo Scholarship Application",
-						Settings:    mockSettings,
-						Description: "This is a demo application for external reviewers.",
-					},
-					Submissions: []models.Row{
-						{
-							BaseModel: models.BaseModel{
-								ID: uuid.MustParse("22222222-2222-2222-2222-222222222222"),
-							},
-							Data: mapToJSON(map[string]interface{}{
-								"name":               "Alice Student",
-								"gpa":                "3.8",
-								"school":             "Lincoln High",
-								"major":              "Computer Science",
-								"efc":                "0",
-								"pell_eligible":      "yes",
-								"personal_statement": "I want to study CS because...",
-								"challenge_essay":    "I overcame...",
-							}),
-							Metadata: mapToJSON(map[string]interface{}{}),
-						},
-						{
-							BaseModel: models.BaseModel{
-								ID: uuid.MustParse("33333333-3333-3333-3333-333333333333"),
-							},
-							Data: mapToJSON(map[string]interface{}{
-								"name":               "Bob Scholar",
-								"gpa":                "3.5",
-								"school":             "Washington High",
-								"major":              "Engineering",
-								"efc":                "5000",
-								"pell_eligible":      "no",
-								"personal_statement": "Engineering is my passion...",
-								"challenge_essay":    "My biggest challenge was...",
-							}),
-							Metadata: mapToJSON(map[string]interface{}{}),
-						},
-					},
-				})
-				return
 			}
-
-			c.JSON(http.StatusNotFound, gin.H{"error": "Invalid review token"})
-			return
 		}
+	} else if err := database.DB.Where("settings->>'review_token' = ?", token).First(&table).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Invalid review token"})
+		return
 	}
 
 	// Get Form Details (reuse GetForm logic)
@@ -690,7 +644,17 @@ func GetExternalReviewData(c *gin.Context) {
 
 	// Get Submissions
 	var rows []models.Row
-	if err := database.DB.Where("table_id = ?", table.ID).Order("created_at DESC").Find(&rows).Error; err != nil {
+	query := database.DB.Where("table_id = ?", table.ID)
+
+	// If we have a specific reviewer ID, filter by assignment
+	if reviewerID != "" {
+		// Check if metadata->'assigned_reviewers' contains reviewerID
+		// Postgres JSONB operator: @>
+		// We need to construct a JSON array string: '["reviewerID"]'
+		query = query.Where("metadata->'assigned_reviewers' @> ?", fmt.Sprintf(`["%s"]`, reviewerID))
+	}
+
+	if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -699,6 +663,127 @@ func GetExternalReviewData(c *gin.Context) {
 		Form:        formDTO,
 		Submissions: rows,
 	})
+}
+
+type AssignReviewerInput struct {
+	Strategy      string   `json:"strategy"` // 'random' or 'manual'
+	Count         int      `json:"count"`
+	SubmissionIDs []string `json:"submission_ids"`
+}
+
+func AssignReviewerApplications(c *gin.Context) {
+	formID := c.Param("id")
+	reviewerID := c.Param("reviewer_id")
+
+	var input AssignReviewerInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Verify form exists
+	var table models.Table
+	if err := database.DB.First(&table, "id = ?", formID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
+		return
+	}
+
+	var rowsToAssign []models.Row
+
+	if input.Strategy == "manual" {
+		if len(input.SubmissionIDs) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "No submissions selected"})
+			return
+		}
+		if err := database.DB.Where("table_id = ? AND id IN ?", formID, input.SubmissionIDs).Find(&rowsToAssign).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else if input.Strategy == "random" {
+		if input.Count <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Count must be greater than 0"})
+			return
+		}
+		// Find unassigned rows or rows not assigned to this reviewer
+		// For simplicity, let's just pick random rows that are NOT already assigned to this reviewer
+		// Query: NOT (metadata->'assigned_reviewers' @> '["reviewerID"]')
+		if err := database.DB.Where("table_id = ? AND (metadata->'assigned_reviewers' IS NULL OR NOT (metadata->'assigned_reviewers' @> ?))",
+			formID, fmt.Sprintf(`["%s"]`, reviewerID)).
+			Order("RANDOM()").Limit(input.Count).Find(&rowsToAssign).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid strategy"})
+		return
+	}
+
+	// Update rows
+	count := 0
+	for _, row := range rowsToAssign {
+		var metadata map[string]interface{}
+		if len(row.Metadata) > 0 {
+			json.Unmarshal(row.Metadata, &metadata)
+		} else {
+			metadata = make(map[string]interface{})
+		}
+
+		var assignedReviewers []string
+		if val, ok := metadata["assigned_reviewers"].([]interface{}); ok {
+			for _, v := range val {
+				if s, ok := v.(string); ok {
+					assignedReviewers = append(assignedReviewers, s)
+				}
+			}
+		}
+
+		// Check if already assigned (shouldn't happen for random due to query, but good for manual)
+		exists := false
+		for _, id := range assignedReviewers {
+			if id == reviewerID {
+				exists = true
+				break
+			}
+		}
+
+		if !exists {
+			assignedReviewers = append(assignedReviewers, reviewerID)
+			metadata["assigned_reviewers"] = assignedReviewers
+			row.Metadata = mapToJSON(metadata)
+			database.DB.Save(&row)
+			count++
+		}
+	}
+
+	// Update reviewer stats
+	var settings map[string]interface{}
+	if err := json.Unmarshal(table.Settings, &settings); err == nil {
+		if reviewers, ok := settings["reviewers"].([]interface{}); ok {
+			updated := false
+			for i, r := range reviewers {
+				if rMap, ok := r.(map[string]interface{}); ok {
+					if id, ok := rMap["id"].(string); ok && id == reviewerID {
+						// Update assigned count
+						currentAssigned := 0.0
+						if val, ok := rMap["assignedCount"].(float64); ok {
+							currentAssigned = val
+						}
+						rMap["assignedCount"] = currentAssigned + float64(count)
+						reviewers[i] = rMap
+						updated = true
+						break
+					}
+				}
+			}
+			if updated {
+				settings["reviewers"] = reviewers
+				table.Settings = mapToJSON(settings)
+				database.DB.Save(&table)
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Applications assigned", "count": count})
 }
 
 type SubmitReviewInput struct {

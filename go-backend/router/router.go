@@ -281,6 +281,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 				// Form search
 				forms.GET("/:id/search", handlers.SearchFormSubmissions)
+
+				// Reviewer Assignment
+				forms.POST("/:id/reviewers/:reviewer_id/assign", handlers.AssignReviewerApplications)
 			}
 
 			// Search
@@ -295,6 +298,55 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				search.POST("/history", handlers.SaveSearchHistory)
 				search.GET("/popular", handlers.GetPopularSearches)
 				search.DELETE("/history/:workspace_id", handlers.ClearSearchHistory)
+			}
+
+			// Workflows
+			workflows := protected.Group("/workflows")
+			{
+				workflows.GET("", handlers.ListReviewWorkflows)
+				workflows.POST("", handlers.CreateReviewWorkflow)
+				workflows.GET("/:id", handlers.GetReviewWorkflow)
+				workflows.PATCH("/:id", handlers.UpdateReviewWorkflow)
+				workflows.DELETE("/:id", handlers.DeleteReviewWorkflow)
+			}
+
+			// Application Stages
+			stages := protected.Group("/stages")
+			{
+				stages.GET("", handlers.ListApplicationStages)
+				stages.POST("", handlers.CreateApplicationStage)
+				stages.GET("/:id", handlers.GetApplicationStage)
+				stages.PATCH("/:id", handlers.UpdateApplicationStage)
+				stages.DELETE("/:id", handlers.DeleteApplicationStage)
+			}
+
+			// Reviewer Types
+			reviewerTypes := protected.Group("/reviewer-types")
+			{
+				reviewerTypes.GET("", handlers.ListReviewerTypes)
+				reviewerTypes.POST("", handlers.CreateReviewerType)
+				reviewerTypes.GET("/:id", handlers.GetReviewerType)
+				reviewerTypes.PATCH("/:id", handlers.UpdateReviewerType)
+				reviewerTypes.DELETE("/:id", handlers.DeleteReviewerType)
+			}
+
+			// Rubrics
+			rubrics := protected.Group("/rubrics")
+			{
+				rubrics.GET("", handlers.ListRubrics)
+				rubrics.POST("", handlers.CreateRubric)
+				rubrics.GET("/:id", handlers.GetRubric)
+				rubrics.PATCH("/:id", handlers.UpdateRubric)
+				rubrics.DELETE("/:id", handlers.DeleteRubric)
+			}
+
+			// Stage Reviewer Configs
+			stageConfigs := protected.Group("/stage-reviewer-configs")
+			{
+				stageConfigs.GET("", handlers.ListStageReviewerConfigs)
+				stageConfigs.POST("", handlers.CreateStageReviewerConfig)
+				stageConfigs.PATCH("/:id", handlers.UpdateStageReviewerConfig)
+				stageConfigs.DELETE("/:id", handlers.DeleteStageReviewerConfig)
 			}
 		}
 	}
