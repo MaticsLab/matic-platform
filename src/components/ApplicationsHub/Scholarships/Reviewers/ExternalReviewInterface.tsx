@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { 
   CheckCircle, ChevronRight, AlertCircle, FileText, DollarSign, 
   GraduationCap, Info, X, Edit2, MessageSquare, Loader2,
@@ -1336,11 +1336,12 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
                                       </div>
                                     ) : null
                                   })}
-                              </div>
-                            )}
-                            <p className="text-xs text-gray-400 mt-2">
-                              Submitted {new Date(review.submitted_at).toLocaleDateString()}
-                            </p>
+                                </div>
+                              )}
+                              <p className="text-xs text-gray-400 mt-2">
+                                Submitted {new Date(review.submitted_at).toLocaleDateString()}
+                              </p>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1721,7 +1722,6 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
           </div>
         </div>
       )}
-      </div>
     </div>
   )
 }
