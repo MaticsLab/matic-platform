@@ -16,18 +16,27 @@ func ListWorkspaces(c *gin.Context) {
 	organizationID := c.Query("organization_id")
 	includeArchived := c.Query("include_archived") == "true"
 
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	var workspaces []models.Workspace
-	query := database.DB
+	query := database.DB.
+		Joins("JOIN workspace_members ON workspace_members.workspace_id = workspaces.id").
+		Where("workspace_members.user_id = ?", userID)
 
 	if organizationID != "" {
-		query = query.Where("organization_id = ?", organizationID)
+		query = query.Where("workspaces.organization_id = ?", organizationID)
 	}
 
 	if !includeArchived {
-		query = query.Where("is_archived = ?", false)
+		query = query.Where("workspaces.is_archived = ?", false)
 	}
 
-	if err := query.Preload("Members").Order("created_at DESC").Find(&workspaces).Error; err != nil {
+	if err := query.Preload("Members").Order("workspaces.created_at DESC").Find(&workspaces).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -38,12 +47,23 @@ func ListWorkspaces(c *gin.Context) {
 func GetWorkspace(c *gin.Context) {
 	id := c.Param("id")
 
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	var workspace models.Workspace
-	if err := database.DB.Preload("Members").
+	// Verify user is a member of this workspace
+	if err := database.DB.
+		Joins("JOIN workspace_members ON workspace_members.workspace_id = workspaces.id").
+		Where("workspaces.id = ? AND workspace_members.user_id = ?", id, userID).
+		Preload("Members").
 		Preload("Tables").
 		Preload("ActivitiesHubs").
-		First(&workspace, "id = ?", id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Workspace not found"})
+		First(&workspace).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Workspace not found or access denied"})
 		return
 	}
 
@@ -108,10 +128,29 @@ func CreateWorkspace(c *gin.Context) {
 		CreatedBy:      parsedUserID,
 	}
 
-	if err := database.DB.Create(&workspace).Error; err != nil {
+	// Begin transaction to create workspace and add creator as member
+	tx := database.DB.Begin()
+
+	if err := tx.Create(&workspace).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Add creator as admin member
+	member := models.WorkspaceMember{
+		WorkspaceID: workspace.ID,
+		UserID:      parsedUserID,
+		Role:        "admin",
+	}
+
+	if err := tx.Create(&member).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add user as workspace member"})
+		return
+	}
+
+	tx.Commit()
 
 	c.JSON(http.StatusCreated, workspace)
 }

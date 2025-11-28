@@ -195,6 +195,16 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware(cfg))
 		{
+			// Organizations
+			organizations := protected.Group("/organizations")
+			{
+				organizations.GET("", handlers.ListOrganizations)
+				organizations.POST("", handlers.CreateOrganization)
+				organizations.GET("/:id", handlers.GetOrganization)
+				organizations.PATCH("/:id", handlers.UpdateOrganization)
+				organizations.DELETE("/:id", handlers.DeleteOrganization)
+			}
+
 			// Workspaces
 			workspaces := protected.Group("/workspaces")
 			{

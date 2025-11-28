@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { organizationsClient } from '@/lib/api/organizations-client'
+import { workspacesClient } from '@/lib/api/workspaces-client'
 import { Loader2 } from 'lucide-react'
 
 export default function SignUpPage() {
@@ -61,49 +63,43 @@ export default function SignUpPage() {
 
       console.log('Token obtained:', token ? 'Yes' : 'No')
 
-      // 3. Create the user's first workspace
-      const slug = formData.workspaceName
+      // 3. Create organization for the user
+      const orgSlug = formData.workspaceName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') + '-org'
+
+      console.log('Creating organization:', { name: `${formData.workspaceName} Organization`, slug: orgSlug })
+
+      const organization = await organizationsClient.create({
+        name: `${formData.workspaceName} Organization`,
+        slug: orgSlug,
+        description: `Organization for ${formData.workspaceName}`
+      })
+
+      console.log('Organization created:', organization.id)
+
+      // 4. Create the user's first workspace within the organization
+      const workspaceSlug = formData.workspaceName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')
 
-      console.log('Creating workspace:', { name: formData.workspaceName, slug, userId: authData.user.id })
-
-      const workspaceResponse = await fetch('/api/workspaces', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          name: formData.workspaceName,
-          slug: slug,
-          owner_id: authData.user.id
-        })
+      console.log('Creating workspace:', { 
+        name: formData.workspaceName, 
+        slug: workspaceSlug, 
+        organizationId: organization.id 
       })
 
-      console.log('Workspace response status:', workspaceResponse.status)
+      const workspace = await workspacesClient.create({
+        organization_id: organization.id,
+        name: formData.workspaceName,
+        slug: workspaceSlug
+      })
 
-      if (!workspaceResponse.ok) {
-        const contentType = workspaceResponse.headers.get('content-type')
-        let errorMessage = 'Failed to create workspace'
-        
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await workspaceResponse.json()
-          errorMessage = errorData.detail || errorMessage
-        } else {
-          // Got HTML or plain text error instead of JSON
-          const errorText = await workspaceResponse.text()
-          console.error('Non-JSON error response:', errorText)
-          errorMessage = `Server error (${workspaceResponse.status}). Is the backend running on port 8000?`
-        }
-        
-        throw new Error(errorMessage)
-      }
+      console.log('Workspace created:', workspace.id)
 
-      const workspace = await workspaceResponse.json()
-
-      // 4. Redirect to the new workspace
+      // 5. Redirect to the new workspace
       router.push(`/workspace/${workspace.slug}`)
     } catch (err: any) {
       console.error('Signup error:', err)
