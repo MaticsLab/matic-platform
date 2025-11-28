@@ -1,0 +1,168 @@
+                                                          Table "public.organizations"
+      Column       |           Type           | Collation | Nullable |      Default       | Storage  | Compression | Stats target | Description 
+-------------------+--------------------------+-----------+----------+--------------------+----------+-------------+--------------+-------------
+ id                | uuid                     |           | not null | uuid_generate_v4() | plain    |             |              | 
+ name              | text                     |           | not null |                    | extended |             |              | 
+ slug              | text                     |           | not null |                    | extended |             |              | 
+ description       | text                     |           |          |                    | extended |             |              | 
+ logo_url          | text                     |           |          |                    | extended |             |              | 
+ settings          | jsonb                    |           |          | '{}'::jsonb        | extended |             |              | 
+ subscription_tier | text                     |           |          | 'free'::text       | extended |             |              | 
+ created_at        | timestamp with time zone |           |          | now()              | plain    |             |              | 
+ updated_at        | timestamp with time zone |           |          | now()              | plain    |             |              | 
+ deleted_at        | timestamp with time zone |           |          |                    | plain    |             |              | 
+Indexes:
+    "organizations_pkey" PRIMARY KEY, btree (id)
+    "idx_organizations_slug" btree (slug)
+    "organizations_slug_key" UNIQUE CONSTRAINT, btree (slug)
+Check constraints:
+    "organizations_subscription_tier_check" CHECK (subscription_tier = ANY (ARRAY['free'::text, 'pro'::text, 'enterprise'::text]))
+Referenced by:
+    TABLE "organization_members" CONSTRAINT "organization_members_organization_id_fkey" FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+    TABLE "workspaces" CONSTRAINT "workspaces_organization_id_fkey" FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+Policies:
+    POLICY "Users can view their organizations" FOR SELECT
+      USING ((id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid()))))
+Triggers:
+    update_organizations_updated_at BEFORE UPDATE ON organizations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+Access method: heap
+
+                                                     Table "public.organization_members"
+     Column      |           Type           | Collation | Nullable |      Default       | Storage  | Compression | Stats target | Description 
+-----------------+--------------------------+-----------+----------+--------------------+----------+-------------+--------------+-------------
+ id              | uuid                     |           | not null | uuid_generate_v4() | plain    |             |              | 
+ organization_id | uuid                     |           | not null |                    | plain    |             |              | 
+ user_id         | uuid                     |           | not null |                    | plain    |             |              | 
+ role            | text                     |           | not null | 'member'::text     | extended |             |              | 
+ permissions     | jsonb                    |           |          | '{}'::jsonb        | extended |             |              | 
+ joined_at       | timestamp with time zone |           |          | now()              | plain    |             |              | 
+ updated_at      | timestamp with time zone |           |          | now()              | plain    |             |              | 
+Indexes:
+    "organization_members_pkey" PRIMARY KEY, btree (id)
+    "organization_members_organization_id_user_id_key" UNIQUE CONSTRAINT, btree (organization_id, user_id)
+Check constraints:
+    "organization_members_role_check" CHECK (role = ANY (ARRAY['owner'::text, 'admin'::text, 'editor'::text, 'member'::text]))
+Foreign-key constraints:
+    "organization_members_organization_id_fkey" FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+    "organization_members_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+Policies:
+    POLICY "Admins can add organization members" FOR INSERT
+      WITH CHECK ((EXISTS ( SELECT 1
+   FROM organization_members organization_members_1
+  WHERE ((organization_members_1.organization_id = organization_members_1.organization_id) AND (organization_members_1.user_id = auth.uid()) AND (organization_members_1.role = ANY (ARRAY['owner'::text, 'admin'::text]))))))
+    POLICY "Admins can update organization members" FOR UPDATE
+      USING ((EXISTS ( SELECT 1
+   FROM organization_members om
+  WHERE ((om.organization_id = organization_members.organization_id) AND (om.user_id = auth.uid()) AND (om.role = ANY (ARRAY['owner'::text, 'admin'::text]))))))
+    POLICY "Owners can remove organization members" FOR DELETE
+      USING ((EXISTS ( SELECT 1
+   FROM organization_members om
+  WHERE ((om.organization_id = organization_members.organization_id) AND (om.user_id = auth.uid()) AND (om.role = 'owner'::text)))))
+    POLICY "Service role can insert organization members" FOR INSERT
+      WITH CHECK (true)
+    POLICY "Users can view their organization memberships" FOR SELECT
+      USING ((user_id = auth.uid()))
+Triggers:
+    update_organization_members_updated_at BEFORE UPDATE ON organization_members FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+Access method: heap
+
+                                                                                               Table "public.workspaces"
+     Column      |           Type           | Collation | Nullable |      Default       | Storage  | Compression | Stats target |                                      Description                                      
+-----------------+--------------------------+-----------+----------+--------------------+----------+-------------+--------------+---------------------------------------------------------------------------------------
+ id              | uuid                     |           | not null | uuid_generate_v4() | plain    |             |              | 
+ organization_id | uuid                     |           | not null |                    | plain    |             |              | 
+ name            | text                     |           | not null |                    | extended |             |              | 
+ slug            | text                     |           | not null |                    | extended |             |              | 
+ description     | text                     |           |          |                    | extended |             |              | 
+ color           | text                     |           |          | '#3B82F6'::text    | extended |             |              | 
+ icon            | text                     |           |          | 'folder'::text     | extended |             |              | 
+ settings        | jsonb                    |           |          | '{}'::jsonb        | extended |             |              | 
+ is_archived     | boolean                  |           |          | false              | plain    |             |              | 
+ created_by      | uuid                     |           | not null |                    | plain    |             |              | 
+ created_at      | timestamp with time zone |           |          | now()              | plain    |             |              | 
+ updated_at      | timestamp with time zone |           |          | now()              | plain    |             |              | 
+ logo_url        | text                     |           |          |                    | extended |             |              | Public URL of the workspace logo stored in Supabase Storage (workspace-assets bucket)
+ ai_description  | text                     |           |          |                    | extended |             |              | Natural language description of what this workspace contains, for AI context.
+ data_summary    | jsonb                    |           |          | '{}'::jsonb        | extended |             |              | 
+Indexes:
+    "workspaces_pkey" PRIMARY KEY, btree (id)
+    "idx_workspaces_org_slug" btree (organization_id, slug)
+    "workspaces_organization_id_slug_key" UNIQUE CONSTRAINT, btree (organization_id, slug)
+Foreign-key constraints:
+    "workspaces_created_by_fkey" FOREIGN KEY (created_by) REFERENCES auth.users(id)
+    "workspaces_organization_id_fkey" FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+Referenced by:
+    TABLE "ai_field_suggestions" CONSTRAINT "ai_field_suggestions_workspace_id_fkey" FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    TABLE "application_stages" CONSTRAINT "application_stages_workspace_id_fkey" FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    TABLE "batch_operations" CONSTRAINT "batch_operations_workspace_id_fkey" FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    TABLE "data_tables" CONSTRAINT "data_tables_workspace_id_fkey" FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    TABLE "review_workflows" CONSTRAINT "review_workflows_workspace_id_fkey" FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    TABLE "reviewer_types" CONSTRAINT "reviewer_types_workspace_id_fkey" FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    TABLE "rubrics" CONSTRAINT "rubrics_workspace_id_fkey" FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    TABLE "search_analytics" CONSTRAINT "search_analytics_workspace_id_fkey" FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    TABLE "search_index" CONSTRAINT "search_index_workspace_id_fkey" FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    TABLE "workspace_members" CONSTRAINT "workspace_members_workspace_id_fkey" FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+Policies:
+    POLICY "Guest scanner can view workspaces" FOR SELECT
+      TO anon
+      USING (true)
+    POLICY "Users can create workspaces in their organizations" FOR INSERT
+      WITH CHECK ((organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE ((organization_members.user_id = auth.uid()) AND (organization_members.role = ANY (ARRAY['owner'::text, 'admin'::text, 'editor'::text]))))))
+    POLICY "Users can update workspaces they have access to" FOR UPDATE
+      USING ((id IN ( SELECT workspace_members.workspace_id
+   FROM workspace_members
+  WHERE ((workspace_members.user_id = auth.uid()) AND (workspace_members.role = ANY (ARRAY['admin'::text, 'editor'::text]))))))
+    POLICY "Users can view their workspaces" FOR SELECT
+      USING ((id IN ( SELECT workspace_members.workspace_id
+   FROM workspace_members
+  WHERE (workspace_members.user_id = auth.uid()))))
+    POLICY "Users can view workspaces in their organizations" FOR SELECT
+      USING ((organization_id IN ( SELECT organization_members.organization_id
+   FROM organization_members
+  WHERE (organization_members.user_id = auth.uid()))))
+Triggers:
+    update_workspaces_updated_at BEFORE UPDATE ON workspaces FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+Access method: heap
+
+                                                     Table "public.workspace_members"
+    Column    |           Type           | Collation | Nullable |      Default       | Storage  | Compression | Stats target | Description 
+--------------+--------------------------+-----------+----------+--------------------+----------+-------------+--------------+-------------
+ id           | uuid                     |           | not null | uuid_generate_v4() | plain    |             |              | 
+ workspace_id | uuid                     |           | not null |                    | plain    |             |              | 
+ user_id      | uuid                     |           | not null |                    | plain    |             |              | 
+ role         | text                     |           | not null | 'editor'::text     | extended |             |              | 
+ permissions  | jsonb                    |           |          | '{}'::jsonb        | extended |             |              | 
+ added_at     | timestamp with time zone |           |          | now()              | plain    |             |              | 
+Indexes:
+    "workspace_members_pkey" PRIMARY KEY, btree (id)
+    "idx_workspace_members_user" btree (user_id)
+    "idx_workspace_members_workspace" btree (workspace_id)
+    "workspace_members_workspace_id_user_id_key" UNIQUE CONSTRAINT, btree (workspace_id, user_id)
+Check constraints:
+    "workspace_members_role_check" CHECK (role = ANY (ARRAY['admin'::text, 'editor'::text, 'viewer'::text]))
+Foreign-key constraints:
+    "workspace_members_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+    "workspace_members_workspace_id_fkey" FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+Policies:
+    POLICY "Service role can insert workspace members" FOR INSERT
+      WITH CHECK (true)
+    POLICY "Users can view their workspace memberships" FOR SELECT
+      USING ((user_id = auth.uid()))
+    POLICY "Workspace admins can add members" FOR INSERT
+      WITH CHECK ((EXISTS ( SELECT 1
+   FROM workspace_members workspace_members_1
+  WHERE ((workspace_members_1.workspace_id = workspace_members_1.workspace_id) AND (workspace_members_1.user_id = auth.uid()) AND (workspace_members_1.role = 'admin'::text)))))
+    POLICY "Workspace admins can remove members" FOR DELETE
+      USING ((EXISTS ( SELECT 1
+   FROM workspace_members wm
+  WHERE ((wm.workspace_id = workspace_members.workspace_id) AND (wm.user_id = auth.uid()) AND (wm.role = 'admin'::text)))))
+    POLICY "Workspace admins can update members" FOR UPDATE
+      USING ((EXISTS ( SELECT 1
+   FROM workspace_members wm
+  WHERE ((wm.workspace_id = workspace_members.workspace_id) AND (wm.user_id = auth.uid()) AND (wm.role = 'admin'::text)))))
+Access method: heap
+

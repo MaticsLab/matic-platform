@@ -35,11 +35,21 @@ type Organization struct {
 }
 
 type OrganizationMember struct {
-	BaseModel
+	ID             uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
 	OrganizationID uuid.UUID      `gorm:"type:uuid;not null;index" json:"organization_id"`
 	UserID         uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"`
 	Role           string         `gorm:"type:varchar(50);default:'member'" json:"role"`
 	Permissions    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"permissions"`
+	JoinedAt       time.Time      `gorm:"autoCreateTime" json:"joined_at"`
+	UpdatedAt      time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+// BeforeCreate hook for OrganizationMember
+func (m *OrganizationMember) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == uuid.Nil {
+		m.ID = uuid.New()
+	}
+	return nil
 }
 
 // Workspace model
@@ -59,12 +69,20 @@ type Workspace struct {
 }
 
 type WorkspaceMember struct {
-	BaseModel
+	ID          uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
 	WorkspaceID uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
 	UserID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"`
 	Role        string         `gorm:"type:varchar(50);default:'editor'" json:"role"`
 	Permissions datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"permissions"`
 	AddedAt     time.Time      `gorm:"autoCreateTime" json:"added_at"`
+}
+
+// BeforeCreate hook for WorkspaceMember
+func (m *WorkspaceMember) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == uuid.Nil {
+		m.ID = uuid.New()
+	}
+	return nil
 }
 
 // Table (Consolidated DataTable)

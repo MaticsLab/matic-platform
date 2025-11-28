@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/Jsanchez767/matic-platform/database"
@@ -117,9 +118,13 @@ func CreateOrganization(c *gin.Context) {
 		Role:           "owner",
 	}
 
+	// Log the attempt for debugging
+	fmt.Printf("Attempting to add member: OrgID=%s, UserID=%s, Role=%s\n", organization.ID, parsedUserID, member.Role)
+
 	if err := tx.Create(&member).Error; err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add user as owner"})
+		fmt.Printf("Error adding member: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add user as owner", "details": err.Error()})
 		return
 	}
 

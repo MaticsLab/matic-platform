@@ -16,6 +16,8 @@ import { RequestHubListPage } from './RequestHub/RequestHubListPage'
 import { ApplicationsHub } from './ApplicationsHub/ApplicationsHub'
 import { useState, useEffect } from 'react'
 import { activitiesSupabase } from '@/lib/api/activities-supabase'
+import { getWorkspaceStats } from '@/lib/api/reports-client'
+import { workspacesClient } from '@/lib/api/workspaces-client'
 import type { Activity } from '@/types/activities-hubs'
 import type { Participant, CreateParticipantInput, UpdateParticipantInput } from '@/types/participants'
 
@@ -772,6 +774,47 @@ function SearchResultsView({
 // Workspace Dashboard Component
 function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
   const { tabManager } = useTabContext()
+  const [stats, setStats] = useState<any>(null)
+  const [activityFeed, setActivityFeed] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        setLoading(true)
+        const [statsData, activityData] = await Promise.all([
+          getWorkspaceStats(workspaceId).catch(() => null),
+          workspacesClient.getActivity(workspaceId).catch(() => [])
+        ])
+        
+        if (statsData) {
+          setStats(statsData.stats)
+        }
+        if (activityData) {
+          // Handle both array and object response formats
+          const activities = Array.isArray(activityData) ? activityData : (activityData as any).activities || []
+          
+          // Map backend activity format to frontend display format
+          const mappedActivities = activities.map((a: any) => ({
+            user_name: 'User', // We only have UUID (a.changed_by) for now
+            action: a.summary || a.type.replace('_', ' '),
+            entity_name: 'Item', // We only have UUID (a.entity_id) for now
+            entity_type: a.entity_type || 'row',
+            created_at: a.timestamp,
+            hub: 'Data Hub' // Default to Data Hub as these are row changes
+          }))
+          
+          setActivityFeed(mappedActivities)
+        }
+      } catch (error) {
+        console.error('Failed to load dashboard data', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadDashboardData()
+  }, [workspaceId])
 
   const handleNavigate = (hub: string) => {
     if (!tabManager) return
@@ -822,22 +865,46 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
           metadata: { hub: 'people' }
         })
         break
-      case 'settings':
-        // Settings usually opens a modal, but we can have a tab too
-        console.log('Open settings')
-        break
     }
   }
 
-  // Mock data for stats
-  const stats = [
-    { label: 'Active Programs', value: '12', subtext: '+2 this week', icon: ActivityIcon, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Pending Requests', value: '8', subtext: '3 high priority', icon: Inbox, color: 'text-orange-600', bg: 'bg-orange-50' },
-    { label: 'Apps in Review', value: '45', subtext: '12 due today', icon: GraduationCap, color: 'text-green-600', bg: 'bg-green-50' },
-    { label: 'Attendance Rate', value: '94%', subtext: 'Last 7 days', icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
+  // Map stats to display format
+  const displayStats = [
+    { 
+      label: 'Total Rows', 
+      value: stats?.rows || '0', 
+      subtext: 'Across all tables', 
+      icon: Database, 
+      color: 'text-blue-600', 
+      bg: 'bg-blue-50' 
+    },
+    { 
+      label: 'Active Tables', 
+      value: stats?.tables || '0', 
+      subtext: 'Data collections', 
+      icon: LayoutGrid, 
+      color: 'text-orange-600', 
+      bg: 'bg-orange-50' 
+    },
+    { 
+      label: 'Pending Reviews', 
+      value: stats?.pending_reviews || '0', 
+      subtext: 'Awaiting action', 
+      icon: Inbox, 
+      color: 'text-green-600', 
+      bg: 'bg-green-50' 
+    },
+    { 
+      label: 'Active Forms', 
+      value: stats?.forms || '0', 
+      subtext: 'Data collection points', 
+      icon: FileText, 
+      color: 'text-purple-600', 
+      bg: 'bg-purple-50' 
+    },
   ]
 
-  // Mock data for hubs with more details
+  // Hubs configuration
   const hubs = [
     { 
       id: 'activities', 
@@ -845,7 +912,6 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
       icon: ActivityIcon, 
       description: 'Manage programs, events, and attendance tracking.', 
       color: 'blue',
-      preview: '3 programs today',
       action: 'View Programs'
     },
     { 
@@ -854,7 +920,6 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
       icon: Inbox, 
       description: 'Centralize incoming requests and approvals.', 
       color: 'orange',
-      preview: '12 pending requests',
       action: 'Review Requests'
     },
     { 
@@ -863,7 +928,6 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
       icon: GraduationCap, 
       description: 'Manage scholarships, grants, and admissions.', 
       color: 'green',
-      preview: '5 new applications',
       action: 'Review Apps'
     },
     { 
@@ -872,7 +936,6 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
       icon: Database, 
       description: 'System tables, data management, and reporting.', 
       color: 'slate',
-      preview: '18 active tables',
       action: 'Manage Data'
     },
     { 
@@ -881,23 +944,28 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
       icon: Users, 
       description: 'Directory, profiles, and user management.', 
       color: 'purple',
-      preview: '128 total users',
       action: 'View Directory'
     },
   ]
 
-  // Mock activity feed
-  const activities = [
-    { user: 'Sarah Smith', action: 'submitted a field trip request', target: 'Science Museum Trip', time: '10 mins ago', hub: 'Request Hub' },
-    { user: 'John Doe', action: 'completed attendance for', target: 'Afternoon Arts Program', time: '1 hour ago', hub: 'Activities' },
-    { user: 'Maria Garcia', action: 'submitted new application', target: 'Fall Scholarship', time: '2 hours ago', hub: 'Applications' },
-    { user: 'System', action: 'generated weekly report', target: 'Attendance Summary', time: '5 hours ago', hub: 'Data Hub' },
-    { user: 'Alex Chen', action: 'updated profile', target: 'Emergency Contacts', time: '1 day ago', hub: 'People Hub' },
-  ]
+  // Helper for time ago
+  const timeAgo = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+    
+    if (seconds < 60) return 'just now'
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) return `${minutes}m ago`
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `${hours}h ago`
+    const days = Math.floor(hours / 24)
+    return `${days}d ago`
+  }
 
   return (
     <div className="max-w-7xl mx-auto p-8">
-      {/* Header with Customization */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -907,25 +975,22 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
             Welcome back! Here's what's happening in your workspace.
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
-          <Settings className="w-4 h-4" />
-          <span>Customize Dashboard</span>
-        </button>
       </div>
 
       {/* Quick Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-        {stats.map((stat, index) => (
+        {displayStats.map((stat, index) => (
           <div key={index} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between mb-4">
               <div className={`p-3 rounded-lg ${stat.bg}`}>
                 <stat.icon className={`w-6 h-6 ${stat.color}`} />
               </div>
-              {/* Optional trend indicator could go here */}
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500 mb-1">{stat.label}</p>
-              <h3 className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</h3>
+              <h3 className="text-2xl font-bold text-gray-900 mb-1">
+                {loading ? '...' : stat.value}
+              </h3>
               <p className="text-xs text-gray-500">{stat.subtext}</p>
             </div>
           </div>
@@ -937,7 +1002,6 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
         <div className="lg:col-span-2 space-y-8">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-gray-900">Your Hubs</h2>
-            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">Manage Hubs</button>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -950,20 +1014,12 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
                   <div className={`p-3 rounded-lg bg-${hub.color}-50 group-hover:bg-${hub.color}-100 transition-colors`}>
                     <hub.icon className={`w-6 h-6 text-${hub.color}-600`} />
                   </div>
-                  <button className="text-gray-400 hover:text-gray-600">
-                    <MoreHorizontal className="w-5 h-5" />
-                  </button>
                 </div>
                 
                 <h3 className="text-lg font-bold text-gray-900 mb-2">{hub.name}</h3>
                 <p className="text-gray-600 text-sm mb-6 flex-1">{hub.description}</p>
                 
                 <div className="pt-4 border-t border-gray-100">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">At a glance</span>
-                    <span className="text-xs font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded-full">{hub.preview}</span>
-                  </div>
-                  
                   <button 
                     onClick={() => handleNavigate(hub.id)}
                     className={`w-full py-2 px-4 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2 group-hover:border-${hub.color}-200 group-hover:text-${hub.color}-700 group-hover:bg-${hub.color}-50`}
@@ -981,49 +1037,36 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-gray-900">Activity Feed</h2>
-            <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
-              <Filter className="w-4 h-4" />
-            </button>
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="divide-y divide-gray-100">
-              {activities.map((activity, i) => (
-                <div key={i} className="p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-600 flex-shrink-0">
-                      {activity.user.charAt(0)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-900">
-                        <span className="font-semibold">{activity.user}</span> {activity.action} <span className="font-medium text-blue-600">{activity.target}</span>
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-gray-500">{activity.time}</span>
-                        <span className="text-xs text-gray-300">•</span>
-                        <span className="text-xs font-medium text-gray-500">{activity.hub}</span>
+            <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
+              {loading ? (
+                <div className="p-8 text-center text-gray-500">Loading activity...</div>
+              ) : activityFeed.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">No recent activity</div>
+              ) : (
+                activityFeed.map((activity, i) => (
+                  <div key={i} className="p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-600 flex-shrink-0">
+                        {(activity.user_name || 'U').charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-900">
+                          <span className="font-semibold">{activity.user_name || 'User'}</span> {activity.action} <span className="font-medium text-blue-600">{activity.entity_name}</span>
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-gray-500">{timeAgo(activity.created_at)}</span>
+                          <span className="text-xs text-gray-300">•</span>
+                          <span className="text-xs font-medium text-gray-500">{activity.entity_type}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
-            <div className="p-3 bg-gray-50 border-t border-gray-100 text-center">
-              <button className="text-sm text-blue-600 font-medium hover:text-blue-700">View all activity</button>
-            </div>
-          </div>
-
-          {/* Optional: Pinned Items or Quick Links could go here */}
-          <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl border border-blue-100 p-5">
-            <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-              <Pin className="w-4 h-4 text-blue-600" />
-              Quick Links
-            </h3>
-            <ul className="space-y-2">
-              <li><button className="text-sm text-gray-600 hover:text-blue-600 hover:underline">Weekly Attendance Report</button></li>
-              <li><button className="text-sm text-gray-600 hover:text-blue-600 hover:underline">Pending Approvals (3)</button></li>
-              <li><button className="text-sm text-gray-600 hover:text-blue-600 hover:underline">New Program Template</button></li>
-            </ul>
           </div>
         </div>
       </div>

@@ -22,5 +22,8 @@ export const workspacesClient = {
     // This assumes the user has access to the workspace
     const workspaces = await goClient.get<any[]>('/workspaces')
     return workspaces.find(w => w.slug === slug)
-  }
+  },
+
+  getActivity: (id: string) =>
+    goClient.get<any[]>(`/workspaces/${id}/activity`)
 }

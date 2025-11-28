@@ -140,56 +140,7 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
 
     // Overview tab - show main modules
     if (activeTab?.id === 'overview' || activeTab?.title === 'Overview') {
-      return [
-        {
-          icon: ClipboardList,
-          label: 'Attendance',
-          onClick: () => {
-            onAddTab?.({
-              title: 'Attendance',
-              url: `/w/${workspaceId}/attendance`,
-              type: 'custom',
-              workspaceId,
-            })
-          }
-        },
-        {
-          icon: Activity,
-          label: 'Pulse',
-          onClick: () => {
-            onAddTab?.({
-              title: 'Pulse',
-              url: `/w/${workspaceId}/pulse`,
-              type: 'custom',
-              workspaceId,
-            })
-          }
-        },
-        {
-          icon: FileText,
-          label: 'Documents',
-          onClick: () => {
-            onAddTab?.({
-              title: 'Documents',
-              url: `/w/${workspaceId}/documents`,
-              type: 'custom',
-              workspaceId,
-            })
-          }
-        },
-        {
-          icon: BarChart3,
-          label: 'Reports',
-          onClick: () => {
-            onAddTab?.({
-              title: 'Reports',
-              url: `/w/${workspaceId}/reports`,
-              type: 'custom',
-              workspaceId,
-            })
-          }
-        }
-      ]
+      return []
     }
 
     // Table tab - show table-specific actions
