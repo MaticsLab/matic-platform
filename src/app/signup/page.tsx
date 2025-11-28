@@ -48,7 +48,16 @@ export default function SignUpPage() {
         }
       })
 
-      if (signUpError) throw signUpError
+      if (signUpError) {
+        // Check if user already exists
+        if (signUpError.message.includes('already registered') || signUpError.message.includes('already exists')) {
+          setError('This email is already registered. Please login instead.')
+          setTimeout(() => router.push('/login'), 2000)
+          return
+        }
+        throw signUpError
+      }
+      
       if (!authData.user) throw new Error('Failed to create account')
       
       console.log('Auth data:', authData)
@@ -63,7 +72,19 @@ export default function SignUpPage() {
 
       console.log('Token obtained:', token ? 'Yes' : 'No')
 
-      // 3. Create organization for the user
+      // 3. Check if user already has workspaces (in case of partial signup)
+      try {
+        const existingWorkspaces = await workspacesClient.list()
+        if (existingWorkspaces && existingWorkspaces.length > 0) {
+          console.log('User already has workspaces, redirecting...')
+          router.push(`/workspace/${existingWorkspaces[0].slug}`)
+          return
+        }
+      } catch (err) {
+        console.log('No existing workspaces found, creating new ones...')
+      }
+
+      // 4. Create organization for the user
       const orgSlug = formData.workspaceName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
@@ -79,7 +100,7 @@ export default function SignUpPage() {
 
       console.log('Organization created:', organization.id)
 
-      // 4. Create the user's first workspace within the organization
+      // 5. Create the user's first workspace within the organization
       const workspaceSlug = formData.workspaceName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
@@ -99,11 +120,21 @@ export default function SignUpPage() {
 
       console.log('Workspace created:', workspace.id)
 
-      // 5. Redirect to the new workspace
+      // 6. Redirect to the new workspace
       router.push(`/workspace/${workspace.slug}`)
     } catch (err: any) {
       console.error('Signup error:', err)
-      setError(err.message || 'Failed to create account')
+      
+      // Provide more specific error messages
+      let errorMessage = err.message || 'Failed to create account'
+      
+      if (err.message?.includes('organization_id')) {
+        errorMessage = 'Failed to create organization. Please ensure the backend is running on port 8080.'
+      } else if (err.message?.includes('Failed to fetch')) {
+        errorMessage = 'Cannot connect to backend server. Please ensure it is running on port 8080.'
+      }
+      
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }

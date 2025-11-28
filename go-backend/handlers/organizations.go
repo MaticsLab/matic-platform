@@ -21,7 +21,7 @@ func ListOrganizations(c *gin.Context) {
 	}
 
 	var organizations []models.Organization
-	
+
 	// Get all organizations where the user is a member
 	if err := database.DB.
 		Joins("JOIN organization_members ON organization_members.organization_id = organizations.id").
@@ -45,7 +45,7 @@ func GetOrganization(c *gin.Context) {
 	}
 
 	var organization models.Organization
-	
+
 	// Verify user is a member of this organization
 	if err := database.DB.
 		Joins("JOIN organization_members ON organization_members.organization_id = organizations.id").
