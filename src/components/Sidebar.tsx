@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { 
   Home, Activity, Inbox, BarChart3, Users, Settings, 
-  GraduationCap, ChevronRight, PanelLeftClose, PanelLeftOpen 
+  GraduationCap, ChevronRight, PanelLeftClose, PanelLeftOpen
 } from 'lucide-react'
 import { useTabContext } from './WorkspaceTabProvider'
 import { cn } from '@/lib/utils'
@@ -103,8 +103,8 @@ export function Sidebar({ workspaceId }: SidebarProps) {
   return (
     <div 
       className={cn(
-        "bg-white border-r border-gray-200 flex flex-col h-full flex-shrink-0 transition-all duration-300 ease-in-out relative group/sidebar",
-        isCollapsed ? "w-16" : "w-64"
+        "bg-white border border-gray-200 flex flex-col h-full flex-shrink-0 transition-all duration-300 ease-in-out relative group/sidebar rounded-xl shadow-sm",
+        isCollapsed ? "w-16" : "w-56"
       )}
     >
       <div className="p-4 flex-1">

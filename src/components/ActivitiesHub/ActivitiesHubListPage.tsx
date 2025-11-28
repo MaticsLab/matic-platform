@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { activitiesSupabase } from '@/lib/api/activities-supabase';
 import { ActivityDetailPanel } from './ActivityDetailPanel';
+import { useTabContext } from '@/components/WorkspaceTabProvider';
 import type { Activity, ActivityStatus, CreateActivityInput } from '@/types/activities-hubs';
 
 // Helper function to format dates
@@ -292,6 +293,7 @@ interface ActivitiesHubListPageProps {
 
 export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: ActivitiesHubListPageProps) {
   const router = useRouter();
+  const { setTabActions, setTabHeaderContent } = useTabContext();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -347,6 +349,33 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
       setLoading(false);
     }
   };
+
+  // Register tab header content
+  useEffect(() => {
+    setTabHeaderContent({
+      title: 'Activities Hub',
+    });
+    return () => setTabHeaderContent(null);
+  }, [setTabHeaderContent]);
+
+  // Register tab actions
+  useEffect(() => {
+    setTabActions([
+      {
+        label: 'Tables',
+        icon: Database,
+        onClick: () => router.push(`/workspace/${workspaceId}/tables`),
+        variant: 'outline' as const
+      },
+      {
+        label: 'Add Activity',
+        icon: Plus,
+        onClick: () => setAddDialogOpen(true),
+        variant: 'default' as const
+      }
+    ]);
+    return () => setTabActions([]);
+  }, [workspaceId, router, setTabActions]);
 
   // Filter and search activities
   const filteredActivities = useMemo(() => {
@@ -425,120 +454,106 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
   }
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col">
-      {/* Header Section */}
-      <div className="bg-white border-b border-gray-200 px-6 md:px-8 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Activities Hub</h1>
-            <p className="text-sm text-gray-600">Manage and track all your activities and programs</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button 
-              variant="outline"
-              onClick={() => router.push(`/workspace/${workspaceId}/tables`)}
-              className="hidden sm:flex items-center gap-2"
-            >
-              <Database className="h-4 w-4" />
-              Tables
-            </Button>
-            <Button 
-              onClick={() => setAddDialogOpen(true)}
-              className="bg-violet-600 hover:bg-violet-700 text-white flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Add Activity
-            </Button>
-          </div>
-        </div>
-
-        {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
+    <div className="h-full flex">
+      {/* Left Sidebar - Filters */}
+      <div className="w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+        {/* Search */}
+        <div className="p-4 border-b border-gray-100">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               type="text"
-              placeholder="Search activities by name, category, or description..."
+              placeholder="Search activities..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-11"
+              className="pl-9 h-9 text-sm"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-2 rounded transition-colors ${
-                  viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'
-                }`}
-              >
-                <Grid3x3 className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-2 rounded transition-colors ${
-                  viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'
-                }`}
-              >
-                <ListIcon className="h-4 w-4" />
-              </button>
-            </div>
+        </div>
+
+        {/* View Mode Toggle */}
+        <div className="px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded text-sm font-medium transition-colors ${
+                viewMode === 'grid' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <Grid3x3 className="h-4 w-4" />
+              Grid
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded text-sm font-medium transition-colors ${
+                viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <ListIcon className="h-4 w-4" />
+              List
+            </button>
+          </div>
+        </div>
+
+        {/* Status Filters */}
+        <div className="flex-1 overflow-y-auto p-3">
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 px-2">Status</div>
+          <div className="space-y-1">
+            <button
+              onClick={() => setFilterStatus('all')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
+                filterStatus === 'all'
+                  ? 'bg-violet-50 text-violet-700 font-medium'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <span>All Activities</span>
+              <span className={`text-xs ${filterStatus === 'all' ? 'text-violet-600' : 'text-gray-400'}`}>{stats.total}</span>
+            </button>
+            <button
+              onClick={() => setFilterStatus('active')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
+                filterStatus === 'active'
+                  ? 'bg-emerald-50 text-emerald-700 font-medium'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <span>Active</span>
+              <span className={`text-xs ${filterStatus === 'active' ? 'text-emerald-600' : 'text-gray-400'}`}>{stats.active}</span>
+            </button>
+            <button
+              onClick={() => setFilterStatus('upcoming')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
+                filterStatus === 'upcoming'
+                  ? 'bg-blue-50 text-blue-700 font-medium'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <span>Upcoming</span>
+              <span className={`text-xs ${filterStatus === 'upcoming' ? 'text-blue-600' : 'text-gray-400'}`}>{stats.upcoming}</span>
+            </button>
+            <button
+              onClick={() => setFilterStatus('completed')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
+                filterStatus === 'completed'
+                  ? 'bg-gray-100 text-gray-700 font-medium'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <span>Completed</span>
+              <span className={`text-xs ${filterStatus === 'completed' ? 'text-gray-600' : 'text-gray-400'}`}>{stats.completed}</span>
+            </button>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 flex overflow-hidden relative bg-white rounded-tl-xl rounded-bl-xl border-l border-gray-200">
         {/* Activities List */}
         <div className={`transition-all duration-300 overflow-auto ${
           selectedActivity && !isFullScreen ? 'md:w-2/3 w-full' : 'w-full'
         }`}>
-          <div className="p-6 md:p-8">
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-3 mb-8 overflow-x-auto scrollbar-hide pb-2">
-              <button
-                onClick={() => setFilterStatus('all')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                  filterStatus === 'all'
-                    ? 'bg-violet-600 text-white shadow-sm'
-                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                }`}
-              >
-                All ({stats.total})
-              </button>
-              <button
-                onClick={() => setFilterStatus('active')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                  filterStatus === 'active'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                }`}
-              >
-                Active ({stats.active})
-              </button>
-              <button
-                onClick={() => setFilterStatus('upcoming')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                  filterStatus === 'upcoming'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                }`}
-              >
-                Upcoming ({stats.upcoming})
-              </button>
-              <button
-                onClick={() => setFilterStatus('completed')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                  filterStatus === 'completed'
-                    ? 'bg-gray-600 text-white shadow-sm'
-                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                }`}
-              >
-                Completed ({stats.completed})
-              </button>
-            </div>
-
-            {/* Activities Grid/List */}
+          <div className="p-6">
             {filteredActivities.length === 0 ? (
               <div className="text-center py-16">
                 <ActivityIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
@@ -610,16 +625,11 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
             />
             
             <div className={`
-              transition-all duration-300 bg-white z-50
-              md:relative md:border-l md:border-gray-200
-              fixed bottom-0 left-0 right-0 rounded-t-3xl md:rounded-none
-              max-h-[85vh] md:max-h-none
-              ${isFullScreen ? 'md:w-full' : 'md:w-1/3'}
+              fixed md:absolute transition-all duration-300 z-50
+              right-2 top-2 bottom-2 bg-white border border-gray-200 rounded-xl shadow-lg
+              w-[calc(100%-1rem)] md:w-[420px]
+              ${isFullScreen ? 'md:w-[600px]' : ''}
             `}>
-              <div className="md:hidden flex justify-center pt-3 pb-2">
-                <div className="w-12 h-1 bg-gray-300 rounded-full" />
-              </div>
-
               <ActivityDetailPanel
                 activity={selectedActivity}
                 isFullScreen={isFullScreen}

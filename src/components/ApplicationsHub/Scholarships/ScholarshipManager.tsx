@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink, LayoutDashboard, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle } from 'lucide-react'
+import { FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink, LayoutDashboard, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search } from 'lucide-react'
 import { ReviewWorkspace } from './Review/ReviewWorkspace'
 import { CommunicationsCenter } from './Communications/CommunicationsCenter'
 import { ReviewerManagement } from './Reviewers/ReviewerManagement'
 import { WorkflowBuilder } from './Configuration/WorkflowBuilder'
 import { SettingsModal } from './Configuration/SettingsModal'
 import { useTabContext } from '@/components/WorkspaceTabProvider'
+import { useSearch, HubSearchContext } from '@/components/Search'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/ui-components/dialog'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
@@ -24,7 +25,7 @@ interface ScholarshipManagerProps {
   formId: string | null
 }
 
-type Tab = 'overview' | 'review' | 'communications' | 'builder' | 'reviewers' | 'settings' | 'workflows'
+type Tab = 'overview' | 'review' | 'communications' | 'builder' | 'settings' | 'workflows'
 
 interface Stats {
   totalSubmissions: number
@@ -36,15 +37,15 @@ interface Stats {
 }
 
 const tabConfig = [
-  { id: 'overview' as Tab, label: 'Overview', icon: LayoutDashboard, color: 'purple' },
-  { id: 'review' as Tab, label: 'Review', icon: FileCheck, color: 'blue' },
-  { id: 'communications' as Tab, label: 'Communications', icon: Mail, color: 'green' },
-  { id: 'reviewers' as Tab, label: 'Reviewers', icon: Users, color: 'orange' },
-  { id: 'workflows' as Tab, label: 'Workflows', icon: GitMerge, color: 'indigo' },
+  { id: 'overview' as Tab, label: 'Overview', icon: LayoutDashboard, color: 'purple', subModule: 'Overview' },
+  { id: 'review' as Tab, label: 'Review', icon: FileCheck, color: 'blue', subModule: 'Review Center' },
+  { id: 'communications' as Tab, label: 'Communications', icon: Mail, color: 'green', subModule: 'Communications' },
+  { id: 'workflows' as Tab, label: 'Workflows', icon: GitMerge, color: 'indigo', subModule: 'Workflow Builder' },
 ]
 
 export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerProps) {
-  const { tabs, tabManager, setTabActions } = useTabContext()
+  const { tabs, tabManager, setTabActions, setTabHeaderContent } = useTabContext()
+  const { setHubContext } = useSearch()
   const hubUrl = `/workspace/${workspaceId}/applications`
   const hubTab = tabs.find(t => t.url === hubUrl)
   
@@ -71,6 +72,7 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
   const [isEditingSlug, setIsEditingSlug] = useState(false)
   const [tempSlug, setTempSlug] = useState('')
   const [copied, setCopied] = useState(false)
+  const [showReviewersPanel, setShowReviewersPanel] = useState(false)
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://maticslab.com'
   const fullUrl = `${baseUrl}/apply/${applicationSlug}`
@@ -159,25 +161,60 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
     }
   }
 
-  // Register tab actions
+  // Register tab actions - Team button shown when on Review tab
   useEffect(() => {
-    setTabActions([
+    const actions = []
+    
+    // Add Team button when on Review tab
+    if (activeTab === 'review') {
+      actions.push({
+        label: 'Team',
+        icon: Users,
+        onClick: () => setShowReviewersPanel(!showReviewersPanel),
+        variant: 'outline' as const
+      })
+    }
+    
+    actions.push(
       {
         label: 'Portal Editor',
         icon: FileText,
         onClick: () => window.open(`/workspace/${workspaceSlug || workspaceId}/portal-editor?formId=${formId}`, '_blank'),
-        variant: 'outline'
+        variant: 'outline' as const
       },
       {
         label: 'Share',
         icon: Share2,
         onClick: () => setIsShareOpen(true),
-        variant: 'outline'
+        variant: 'outline' as const
       }
-    ])
+    )
+    
+    setTabActions(actions)
 
     return () => setTabActions([])
-  }, [workspaceId, workspaceSlug, formId, setTabActions])
+  }, [workspaceId, workspaceSlug, formId, setTabActions, activeTab, showReviewersPanel])
+
+  // Register tab header content with navigation
+  useEffect(() => {
+    const currentTab = tabConfig.find(t => t.id === activeTab)
+    
+    setTabHeaderContent({
+      title: form?.name || 'Loading...',
+      subModule: currentTab?.subModule,
+      navItems: tabConfig.map(tab => ({
+        id: tab.id,
+        label: tab.label,
+        icon: tab.icon,
+        badge: tab.id === 'review' ? stats.pendingReview : undefined,
+        badgeColor: tab.id === 'review' ? 'blue' : undefined
+      })),
+      activeNavId: activeTab,
+      onNavChange: (id) => setActiveTab(id as Tab)
+    })
+
+    return () => setTabHeaderContent(null)
+  }, [form?.name, stats, activeTab, setTabHeaderContent])
 
   // Initialize state from metadata
   useEffect(() => {
@@ -202,59 +239,66 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
     }
   }, [activeTab, hubTab, tabManager, isInitialized])
 
+  // Register search context based on active tab
+  // Note: 'review' tab handles its own search context in ReviewWorkspace
+  useEffect(() => {
+    if (activeTab === 'review') {
+      // Let ReviewWorkspace handle its own search context
+      return
+    }
+
+    const searchContextByTab: Record<string, HubSearchContext> = {
+      overview: {
+        hubType: 'applications',
+        hubId: formId || '',
+        hubName: form?.name || 'Application',
+        placeholder: 'Search applications, stats...',
+        actions: [
+          { label: 'View All Applications', action: () => setActiveTab('review') },
+          { label: 'Configure Workflows', action: () => setActiveTab('workflows') }
+        ]
+      },
+      communications: {
+        hubType: 'applications',
+        hubId: formId || '',
+        hubName: form?.name || 'Application',
+        placeholder: 'Search templates, messages...',
+        actions: [
+          { label: 'New Template', action: () => {} },
+          { label: 'Send Message', action: () => {} }
+        ]
+      },
+      workflows: {
+        hubType: 'applications',
+        hubId: formId || '',
+        hubName: form?.name || 'Application',
+        placeholder: 'Search workflows, stages...',
+        actions: [
+          { label: 'New Workflow', action: () => {} },
+          { label: 'New Stage', action: () => {} }
+        ]
+      },
+      reviewers: {
+        hubType: 'applications',
+        hubId: formId || '',
+        hubName: form?.name || 'Application',
+        placeholder: 'Search reviewers...',
+        actions: [
+          { label: 'Add Reviewer', action: () => setShowReviewersPanel(true) }
+        ]
+      }
+    }
+
+    const context = searchContextByTab[activeTab]
+    if (context) {
+      setHubContext(context)
+    }
+
+    return () => setHubContext(null)
+  }, [activeTab, formId, form?.name, setHubContext])
+
   return (
     <div className="h-full flex flex-col bg-gray-50">
-      {/* Modern Header with Gradient Navigation */}
-      <div className="bg-white border-b border-gray-200">
-        {/* Top Bar */}
-        <div className="px-6 py-3 flex items-center justify-between gap-4 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">{form?.name || 'Loading...'}</h1>
-              <p className="text-xs text-gray-500">{stats.totalSubmissions} submissions • {stats.workflowsConfigured} workflow{stats.workflowsConfigured !== 1 ? 's' : ''}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation Tabs */}
-        <div className="px-6 py-2 flex items-center gap-1">
-          {tabConfig.map((tab) => {
-            const Icon = tab.icon
-            const isActive = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "relative px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all",
-                  isActive 
-                    ? "bg-gray-900 text-white shadow-sm" 
-                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                )}
-              >
-                <Icon className="w-4 h-4" />
-                {tab.label}
-                {tab.id === 'review' && stats.pendingReview > 0 && (
-                  <span className={cn(
-                    "ml-1 px-1.5 py-0.5 text-xs rounded-full font-medium",
-                    isActive ? "bg-white/20 text-white" : "bg-blue-100 text-blue-700"
-                  )}>
-                    {stats.pendingReview}
-                  </span>
-                )}
-                {tab.id === 'reviewers' && stats.reviewersActive > 0 && (
-                  <span className={cn(
-                    "ml-1 px-1.5 py-0.5 text-xs rounded-full font-medium",
-                    isActive ? "bg-white/20 text-white" : "bg-green-100 text-green-700"
-                  )}>
-                    {stats.reviewersActive}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      </div>
 
       {/* Share Dialog */}
       <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>
@@ -480,9 +524,15 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
             </div>
           </div>
         )}
-        {activeTab === 'review' && <ReviewWorkspace workspaceId={workspaceId} formId={formId} />}
+        {activeTab === 'review' && (
+          <ReviewWorkspace 
+            workspaceId={workspaceId} 
+            formId={formId} 
+            showReviewersPanel={showReviewersPanel}
+            onToggleReviewersPanel={() => setShowReviewersPanel(!showReviewersPanel)}
+          />
+        )}
         {activeTab === 'communications' && <CommunicationsCenter workspaceId={workspaceId} formId={formId} />}
-        {activeTab === 'reviewers' && <ReviewerManagement formId={formId} workspaceId={workspaceId} />}
         {activeTab === 'workflows' && <WorkflowBuilder workspaceId={workspaceId} formId={formId} />}
         {activeTab === 'settings' && (
           <div className="p-8 text-center text-gray-500">

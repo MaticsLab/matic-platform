@@ -36,9 +36,139 @@ type SearchResponse struct {
 	Query       string         `json:"query"`
 	Took        int            `json:"took"` // milliseconds
 	Suggestions []string       `json:"suggestions,omitempty"`
+	UsedFuzzy   bool           `json:"used_fuzzy,omitempty"`
 }
 
-// SearchWorkspace searches across all entities in a workspace
+// SmartSearch uses the database smart_search() function for AI-optimized search
+func SmartSearch(c *gin.Context) {
+	startTime := time.Now()
+
+	query := c.Query("q")
+	workspaceID := c.Query("workspace_id")
+
+	if query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Query parameter 'q' is required"})
+		return
+	}
+
+	if workspaceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Query parameter 'workspace_id' is required"})
+		return
+	}
+
+	workspaceUUID, err := uuid.Parse(workspaceID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace_id"})
+		return
+	}
+
+	// Build filters JSON
+	filters := map[string]interface{}{}
+	if hubType := c.Query("hub_type"); hubType != "" {
+		filters["hub_type"] = hubType
+	}
+	if entityType := c.Query("entity_type"); entityType != "" {
+		filters["entity_type"] = entityType
+	}
+	if status := c.Query("status"); status != "" {
+		filters["status"] = status
+	}
+	filtersJSON, _ := json.Marshal(filters)
+
+	limit := 50
+	if limitParam := c.Query("limit"); limitParam != "" {
+		fmt.Sscanf(limitParam, "%d", &limit)
+	}
+
+	// Get workspace for URL generation
+	var workspace models.Workspace
+	if err := database.DB.Where("id = ?", workspaceUUID).First(&workspace).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Workspace not found"})
+		return
+	}
+
+	// Try smart_search first (full-text)
+	var smartResults []models.SmartSearchResult
+	database.DB.Raw(`
+		SELECT * FROM smart_search($1, $2, $3::jsonb, $4)
+	`, workspaceUUID, query, string(filtersJSON), limit).Scan(&smartResults)
+
+	usedFuzzy := false
+
+	// If no results, try fuzzy search
+	if len(smartResults) == 0 {
+		database.DB.Raw(`
+			SELECT * FROM smart_search_fuzzy($1, $2, $3::jsonb, $4)
+		`, workspaceUUID, query, string(filtersJSON), limit).Scan(&smartResults)
+		usedFuzzy = len(smartResults) > 0
+	}
+
+	// Convert to SearchResult format
+	var results []SearchResult
+	for _, sr := range smartResults {
+		// Build URL based on entity type
+		var url, path string
+		switch sr.EntityType {
+		case "table":
+			url = fmt.Sprintf("/workspace/%s/table/%s", workspace.Slug, sr.EntityID)
+			path = fmt.Sprintf("Workspace / Tables / %s", sr.Title)
+		case "row":
+			if sr.TableID != nil {
+				url = fmt.Sprintf("/workspace/%s/table/%s?row=%s", workspace.Slug, sr.TableID, sr.EntityID)
+				path = fmt.Sprintf("Workspace / %s / Row", sr.Title)
+			}
+		case "form":
+			url = fmt.Sprintf("/workspace/%s/form/%s", workspace.Slug, sr.EntityID)
+			path = fmt.Sprintf("Workspace / Forms / %s", sr.Title)
+		default:
+			url = fmt.Sprintf("/workspace/%s", workspace.Slug)
+		}
+
+		// Parse metadata
+		var metadata map[string]interface{}
+		if sr.Metadata != nil {
+			json.Unmarshal(sr.Metadata, &metadata)
+		}
+
+		results = append(results, SearchResult{
+			ID:          sr.EntityID.String(),
+			Title:       sr.Title,
+			Subtitle:    sr.Subtitle,
+			Description: sr.ContentSnippet,
+			Type:        sr.EntityType,
+			URL:         url,
+			WorkspaceID: workspaceID,
+			Score:       sr.Score,
+			Metadata:    metadata,
+			Path:        path,
+			Highlights:  extractHighlights(sr.ContentSnippet),
+		})
+	}
+
+	took := int(time.Since(startTime).Milliseconds())
+
+	c.JSON(http.StatusOK, SearchResponse{
+		Results:   results,
+		Total:     len(results),
+		Query:     query,
+		Took:      took,
+		UsedFuzzy: usedFuzzy,
+	})
+}
+
+// extractHighlights extracts highlighted text from content snippet
+func extractHighlights(snippet string) []string {
+	var highlights []string
+	parts := strings.Split(snippet, "<mark>")
+	for i := 1; i < len(parts); i++ {
+		if idx := strings.Index(parts[i], "</mark>"); idx > 0 {
+			highlights = append(highlights, parts[i][:idx])
+		}
+	}
+	return highlights
+}
+
+// SearchWorkspace searches across all entities in a workspace (legacy, use SmartSearch)
 func SearchWorkspace(c *gin.Context) {
 	startTime := time.Now()
 
@@ -201,40 +331,41 @@ func searchForms(workspaceID uuid.UUID, workspaceSlug, query string) []SearchRes
 	return results
 }
 
-// searchActivitiesHubs searches for activities hubs
+// searchActivitiesHubs is deprecated - activities hubs are now data_tables with hub_type='activities'
+// This function now searches for tables with hub_type='activities'
 func searchActivitiesHubs(workspaceID uuid.UUID, workspaceSlug, query string) []SearchResult {
-	var hubs []models.ActivitiesHub
+	var tables []models.Table
 	searchPattern := "%" + strings.ToLower(query) + "%"
 
-	database.DB.Preload("Tabs").
-		Where("workspace_id = ? AND (LOWER(name) LIKE ? OR LOWER(description) LIKE ?)",
-			workspaceID, searchPattern, searchPattern).
+	database.DB.Where("workspace_id = ? AND hub_type = ? AND (LOWER(name) LIKE ? OR LOWER(description) LIKE ?)",
+		workspaceID, "activities", searchPattern, searchPattern).
 		Limit(20).
-		Find(&hubs)
+		Find(&tables)
 
 	var results []SearchResult
-	for _, hub := range hubs {
-		score := calculateScore(hub.Name, query)
-		if descScore := calculateScore(hub.Description, query); descScore > score {
+	for _, table := range tables {
+		score := calculateScore(table.Name, query)
+		if descScore := calculateScore(table.Description, query); descScore > score {
 			score = descScore
 		}
 
 		results = append(results, SearchResult{
-			ID:          hub.ID.String(),
-			Title:       hub.Name,
-			Subtitle:    hub.Description,
-			Description: hub.Description,
+			ID:          table.ID.String(),
+			Title:       table.Name,
+			Subtitle:    table.Description,
+			Description: table.Description,
 			Type:        "activities-hub",
-			URL:         fmt.Sprintf("/workspace/%s/activities-hub/%s", workspaceSlug, hub.Slug),
+			URL:         fmt.Sprintf("/workspace/%s/activities-hub/%s", workspaceSlug, table.Slug),
 			WorkspaceID: workspaceID.String(),
 			Score:       score,
 			Metadata: map[string]interface{}{
-				"tabCount":    len(hub.Tabs),
-				"active":      hub.IsActive,
-				"lastUpdated": hub.UpdatedAt,
-				"createdAt":   hub.CreatedAt,
+				"hubType":     table.HubType,
+				"entityType":  table.EntityType,
+				"rowCount":    table.RowCount,
+				"lastUpdated": table.UpdatedAt,
+				"createdAt":   table.CreatedAt,
 			},
-			Path: fmt.Sprintf("Workspace / Activities Hubs / %s", hub.Name),
+			Path: fmt.Sprintf("Workspace / Activities Hubs / %s", table.Name),
 		})
 	}
 

@@ -785,7 +785,7 @@ export default function PulseDashboard() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 500, opacity: 0 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="fixed right-0 top-0 bottom-0 w-[500px] bg-white shadow-2xl z-50 overflow-y-auto border-l border-gray-200">
+              className="fixed right-2 top-2 bottom-2 w-[500px] bg-white border border-gray-200 rounded-xl shadow-2xl z-50 overflow-y-auto">
               <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-gray-900">Check-in Details</h2>
                 <button

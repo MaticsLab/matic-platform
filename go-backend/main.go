@@ -6,7 +6,9 @@ import (
 
 	"github.com/Jsanchez767/matic-platform/config"
 	"github.com/Jsanchez767/matic-platform/database"
+	"github.com/Jsanchez767/matic-platform/handlers"
 	"github.com/Jsanchez767/matic-platform/router"
+	"github.com/Jsanchez767/matic-platform/services"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -32,6 +34,16 @@ func main() {
 
 	// Skip auto-migration since tables already exist in Supabase
 	log.Println("📝 Using existing database schema (managed by Supabase migrations)")
+
+	// Initialize AI services with Cohere API key
+	cohereAPIKey := os.Getenv("COHERE_API_KEY")
+	if cohereAPIKey != "" {
+		handlers.InitEmbeddingService(cohereAPIKey)
+		services.InitAIReports(cohereAPIKey)
+		log.Println("🧠 AI services initialized (embeddings + reports)")
+	} else {
+		log.Println("⚠️  COHERE_API_KEY not set - AI features disabled")
+	}
 
 	// Setup router
 	r := router.SetupRouter(cfg)

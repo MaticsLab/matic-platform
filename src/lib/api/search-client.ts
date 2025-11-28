@@ -1,4 +1,6 @@
 import { getSessionToken } from '../supabase'
+import { semanticSearchClient } from './semantic-search-client'
+import type { SemanticSearchResult } from '@/types/search'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_GO_API_URL || 'https://backend.maticslab.com/api/v1'
 
@@ -26,6 +28,10 @@ export interface SearchResult {
   highlights?: string[]
   score: number
   path?: string // e.g., "Workspace / Customers Table / Contact Info"
+  // Semantic search fields
+  keywordScore?: number
+  semanticScore?: number
+  isSemanticResult?: boolean
 }
 
 export interface SearchFilters {
@@ -199,6 +205,90 @@ class SearchClient {
     )
     
     return response.searches
+  }
+
+  /**
+   * Enhanced search with semantic capabilities
+   * Automatically uses AI-powered search when available
+   */
+  async smartSearch(
+    query: string,
+    workspaceId: string,
+    options?: {
+      useSemantics?: boolean
+      hubType?: string
+      entityType?: string
+      limit?: number
+    }
+  ): Promise<SearchResponse & { usedSemantic?: boolean }> {
+    const useSemantics = options?.useSemantics ?? true
+
+    if (useSemantics) {
+      try {
+        const response = await semanticSearchClient.hybridSearch(
+          workspaceId,
+          query,
+          {
+            hubType: options?.hubType,
+            entityType: options?.entityType as any,
+            limit: options?.limit || 50,
+          }
+        )
+
+        // Convert semantic results to SearchResult format
+        const results: SearchResult[] = response.results.map((r: SemanticSearchResult) => ({
+          id: r.entityId,
+          title: r.title,
+          subtitle: r.subtitle,
+          description: r.contentSnippet,
+          type: r.entityType as SearchResult['type'],
+          category: r.hubType || r.entityType,
+          url: this.buildUrlForEntity(r.entityId, r.entityType, r.tableId),
+          workspaceId,
+          metadata: r.metadata,
+          score: r.score,
+          keywordScore: r.keywordScore,
+          semanticScore: r.semanticScore,
+          isSemanticResult: true,
+          path: r.tags?.join(' / '),
+        }))
+
+        return {
+          results,
+          total: response.total,
+          query: response.query,
+          took: response.took_ms,
+          usedSemantic: response.used_semantic,
+        }
+      } catch (error) {
+        console.warn('Semantic search failed, falling back to keyword search:', error)
+      }
+    }
+
+    // Fallback to regular keyword search
+    return this.search(query, workspaceId)
+  }
+
+  /**
+   * Helper to build URL for an entity
+   */
+  private buildUrlForEntity(
+    entityId: string, 
+    entityType: string, 
+    tableId?: string
+  ): string {
+    switch (entityType) {
+      case 'table':
+        return `/table/${entityId}`
+      case 'row':
+        return tableId ? `/table/${tableId}?row=${entityId}` : `/row/${entityId}`
+      case 'form':
+        return `/form/${entityId}`
+      case 'submission':
+        return `/submissions/${entityId}`
+      default:
+        return `/${entityType}/${entityId}`
+    }
   }
 }
 

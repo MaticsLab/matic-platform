@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Settings, Plus } from "lucide-react";
+import { ArrowLeft, Settings, Plus, LayoutDashboard, User, ClipboardList, CheckSquare, BarChart3 } from "lucide-react";
 import { Button } from "@/ui-components/button";
 import { Badge } from "@/ui-components/badge";
 import { 
@@ -16,6 +16,7 @@ import { DynamicForm } from "./DynamicForm";
 import { ApprovalQueue } from "./ApprovalQueue";
 import { RequestsByTypeChart, StatusDistributionChart, RequestTrendsChart } from "./RequestsChart";
 import { SettingsPage } from "./SettingsPage";
+import { useTabContext } from "@/components/WorkspaceTabProvider";
 import type { Request, RequestUser, RequestDetail, FormTemplate, WorkflowTemplate, ApprovalAction } from "@/types/request";
 
 interface RequestHubViewerProps {
@@ -27,6 +28,19 @@ interface RequestHubViewerProps {
   onHubUpdate?: () => void;
 }
 
+// Tab icon mapping
+const getTabIcon = (type: string) => {
+  switch (type) {
+    case 'dashboard': return LayoutDashboard;
+    case 'my-requests': return User;
+    case 'new-request': return Plus;
+    case 'approvals': return CheckSquare;
+    case 'all-requests': return ClipboardList;
+    case 'analytics': return BarChart3;
+    default: return ClipboardList;
+  }
+};
+
 export function RequestHubViewer({
   hub: initialHub,
   hubId,
@@ -35,6 +49,7 @@ export function RequestHubViewer({
   onBack,
   onHubUpdate,
 }: RequestHubViewerProps) {
+  const { setTabActions, setTabHeaderContent } = useTabContext();
   const [hub, setHub] = useState<RequestHubWithTabs | null>(initialHub || null);
   const [loading, setLoading] = useState(!initialHub);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -51,6 +66,33 @@ export function RequestHubViewer({
       }
     }
   }, [hubId, hubSlug, workspaceId, initialHub]);
+
+  // Register tab header content
+  useEffect(() => {
+    if (hub) {
+      const activeTab = hub.tabs?.find((tab) => tab.id === activeTabId);
+      setTabHeaderContent({
+        title: hub.name,
+        subModule: activeTab?.name,
+      });
+    }
+    return () => setTabHeaderContent(null);
+  }, [hub, activeTabId, setTabHeaderContent]);
+
+  // Register tab actions
+  useEffect(() => {
+    if (hub) {
+      setTabActions([
+        {
+          label: 'Configure',
+          icon: Settings,
+          onClick: () => setShowSettings(true),
+          variant: 'outline' as const
+        }
+      ]);
+    }
+    return () => setTabActions([]);
+  }, [hub, setTabActions]);
 
   const loadHub = async () => {
     try {
@@ -132,107 +174,61 @@ export function RequestHubViewer({
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              {onBack && (
-                <Button variant="ghost" size="sm" onClick={onBack}>
-                  <ArrowLeft className="w-4 h-4" />
-                </Button>
-              )}
-              <div>
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold text-gray-900">
-                    {hub.name}
-                  </h1>
-                  <Badge variant={hub.is_active ? "default" : "secondary"}>
-                    {hub.is_active ? "Active" : "Inactive"}
-                  </Badge>
-                </div>
-                {hub.description && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    {hub.description}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setIsEditingTabs(!isEditingTabs)}
-              >
-                {isEditingTabs ? 'Done Editing' : 'Edit Tabs'}
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowSettings(true)}>
-                <Settings className="w-4 h-4 mr-2" />
-                Configure
-              </Button>
-            </div>
-          </div>
+    <div className="h-full flex">
+      {/* Left Sidebar - Tab Navigation */}
+      <div className="w-56 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+        {/* Hub Status */}
+        <div className="p-4 border-b border-gray-100">
+          <Badge variant={hub.is_active ? "default" : "secondary"} className="w-full justify-center">
+            {hub.is_active ? "Active" : "Inactive"}
+          </Badge>
         </div>
 
         {/* Tab Navigation */}
-        <div className="px-6">
-          <div className="flex items-center gap-1 overflow-x-auto pb-px">
+        <div className="flex-1 overflow-y-auto p-3">
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 px-2">Navigation</div>
+          <div className="space-y-1">
             {hub.tabs
               ?.sort((a, b) => a.position - b.position)
               .filter((tab) => tab.is_visible)
-              .map((tab) => (
-                <div key={tab.id} className="relative group">
+              .map((tab) => {
+                const IconComponent = getTabIcon(tab.type);
+                return (
                   <button
+                    key={tab.id}
                     onClick={() => setActiveTabId(tab.id)}
-                    className={`
-                      px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap
-                      ${
-                        activeTabId === tab.id
-                          ? "border-blue-600 text-blue-600 bg-blue-50/50"
-                          : "border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300 hover:bg-gray-50"
-                      }
-                    `}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                      activeTabId === tab.id
+                        ? 'bg-blue-50 text-blue-700 font-medium'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
                   >
-                    {tab.name}
+                    <IconComponent className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">{tab.name}</span>
                   </button>
-                  {isEditingTabs && (
-                    <div className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-5 w-5 p-0 bg-white border shadow-sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // TODO: Edit tab
-                        }}
-                      >
-                        <Settings className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            {isEditingTabs && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="ml-2 border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50"
-                onClick={() => {
-                  // TODO: Add new tab
-                  console.log('Add new tab');
-                }}
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Add Tab
-              </Button>
-            )}
+                );
+              })}
           </div>
         </div>
+
+        {/* Bottom Actions */}
+        {isEditingTabs && (
+          <div className="p-3 border-t border-gray-100">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50"
+              onClick={() => console.log('Add new tab')}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Tab
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* Tab Content */}
-      <div className="flex-1 overflow-auto">
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto bg-white rounded-tl-xl rounded-bl-xl border-l border-gray-200">
         {activeTab ? (
           <TabContent tab={activeTab} hub={hub} />
         ) : (

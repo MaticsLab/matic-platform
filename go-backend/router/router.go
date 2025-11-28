@@ -295,7 +295,22 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			// Search
 			search := protected.Group("/search")
 			{
-				// Universal workspace search
+				// AI-powered smart search (uses full-text + fuzzy)
+				search.GET("/smart", handlers.SmartSearch)
+
+				// Hybrid search with semantic embeddings
+				search.POST("/hybrid", handlers.HybridSearch)
+				search.GET("/hybrid", handlers.HybridSearch)
+
+				// Find similar items
+				search.GET("/similar/:entity_id", handlers.FindSimilar)
+
+				// Embedding management
+				search.POST("/embeddings/generate", handlers.GenerateEmbeddings)
+				search.GET("/embeddings/stats", handlers.GetEmbeddingStats)
+				search.POST("/embeddings/queue", handlers.QueueForEmbedding)
+
+				// Legacy universal workspace search
 				search.GET("", handlers.SearchWorkspace)
 
 				// Search utilities
@@ -353,6 +368,14 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				stageConfigs.POST("", handlers.CreateStageReviewerConfig)
 				stageConfigs.PATCH("/:id", handlers.UpdateStageReviewerConfig)
 				stageConfigs.DELETE("/:id", handlers.DeleteStageReviewerConfig)
+			}
+
+			// AI Reports
+			reports := protected.Group("/reports")
+			{
+				reports.POST("/generate", handlers.GenerateReport)
+				reports.GET("/stats", handlers.GetWorkspaceStats)
+				reports.GET("/is-report-query", handlers.IsReportQuery)
 			}
 		}
 	}

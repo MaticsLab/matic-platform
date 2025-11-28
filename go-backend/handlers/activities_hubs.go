@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -9,11 +10,16 @@ import (
 	"github.com/Jsanchez767/matic-platform/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 )
+
+// ============================================================
+// ACTIVITIES HUBS HANDLERS
+// Now using data_tables with hub_type='activities'
+// ============================================================
 
 // Helper function to parse date strings
 func parseDate(dateStr string) (time.Time, error) {
-	// Try parsing common date formats
 	formats := []string{
 		"2006-01-02",
 		"2006-01-02T15:04:05Z07:00",
@@ -27,7 +33,84 @@ func parseDate(dateStr string) (time.Time, error) {
 	return time.Time{}, nil
 }
 
-// Activities Hub Handlers
+// ActivitiesHubResponse wraps Table for backwards compatibility
+type ActivitiesHubResponse struct {
+	ID           uuid.UUID              `json:"id"`
+	WorkspaceID  uuid.UUID              `json:"workspace_id"`
+	Name         string                 `json:"name"`
+	Slug         string                 `json:"slug"`
+	Description  string                 `json:"description"`
+	Category     string                 `json:"category,omitempty"`
+	BeginDate    *time.Time             `json:"begin_date,omitempty"`
+	EndDate      *time.Time             `json:"end_date,omitempty"`
+	Status       string                 `json:"status"`
+	Participants int                    `json:"participants"`
+	Settings     map[string]interface{} `json:"settings"`
+	IsActive     bool                   `json:"is_active"`
+	CreatedBy    uuid.UUID              `json:"created_by"`
+	CreatedAt    time.Time              `json:"created_at"`
+	UpdatedAt    time.Time              `json:"updated_at"`
+	HubType      string                 `json:"hub_type"`
+	EntityType   string                 `json:"entity_type"`
+	RowCount     int                    `json:"row_count"`
+}
+
+// tableToActivitiesHub converts a Table to ActivitiesHubResponse
+func tableToActivitiesHub(table models.Table) ActivitiesHubResponse {
+	var settings map[string]interface{}
+	json.Unmarshal(table.Settings, &settings)
+	if settings == nil {
+		settings = map[string]interface{}{}
+	}
+
+	// Extract activities-specific fields from settings
+	category, _ := settings["category"].(string)
+	status, _ := settings["status"].(string)
+	if status == "" {
+		status = "upcoming"
+	}
+	participants := 0
+	if p, ok := settings["participants"].(float64); ok {
+		participants = int(p)
+	}
+	isActive := true
+	if ia, ok := settings["is_active"].(bool); ok {
+		isActive = ia
+	}
+
+	var beginDate, endDate *time.Time
+	if bd, ok := settings["begin_date"].(string); ok && bd != "" {
+		if t, err := parseDate(bd); err == nil {
+			beginDate = &t
+		}
+	}
+	if ed, ok := settings["end_date"].(string); ok && ed != "" {
+		if t, err := parseDate(ed); err == nil {
+			endDate = &t
+		}
+	}
+
+	return ActivitiesHubResponse{
+		ID:           table.ID,
+		WorkspaceID:  table.WorkspaceID,
+		Name:         table.Name,
+		Slug:         table.Slug,
+		Description:  table.Description,
+		Category:     category,
+		BeginDate:    beginDate,
+		EndDate:      endDate,
+		Status:       status,
+		Participants: participants,
+		Settings:     settings,
+		IsActive:     isActive,
+		CreatedBy:    table.CreatedBy,
+		CreatedAt:    table.CreatedAt,
+		UpdatedAt:    table.UpdatedAt,
+		HubType:      table.HubType,
+		EntityType:   table.EntityType,
+		RowCount:     table.RowCount,
+	}
+}
 
 func ListActivitiesHubs(c *gin.Context) {
 	workspaceID := c.Query("workspace_id")
@@ -37,16 +120,23 @@ func ListActivitiesHubs(c *gin.Context) {
 	}
 	includeInactive := c.Query("include_inactive") == "true"
 
-	var hubs []models.ActivitiesHub
-	query := database.DB.Where("workspace_id = ?", workspaceID)
+	var tables []models.Table
+	query := database.DB.Where("workspace_id = ? AND hub_type = ?", workspaceID, "activities")
 
 	if !includeInactive {
-		query = query.Where("is_active = ?", true)
+		// Check is_active in settings JSONB
+		query = query.Where("(settings->>'is_active')::boolean IS NOT FALSE")
 	}
 
-	if err := query.Order("created_at DESC").Find(&hubs).Error; err != nil {
+	if err := query.Order("created_at DESC").Find(&tables).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Convert to ActivitiesHubResponse
+	var hubs []ActivitiesHubResponse
+	for _, table := range tables {
+		hubs = append(hubs, tableToActivitiesHub(table))
 	}
 
 	c.JSON(http.StatusOK, hubs)
@@ -55,15 +145,15 @@ func ListActivitiesHubs(c *gin.Context) {
 func GetActivitiesHub(c *gin.Context) {
 	hubID := c.Param("hub_id")
 
-	var hub models.ActivitiesHub
-	if err := database.DB.Preload("Tabs").
-		Where("id = ?", hubID).
-		First(&hub).Error; err != nil {
+	var table models.Table
+	if err := database.DB.Preload("Fields").Preload("Views").
+		Where("id = ? AND hub_type = ?", hubID, "activities").
+		First(&table).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Activities hub not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, hub)
+	c.JSON(http.StatusOK, tableToActivitiesHub(table))
 }
 
 func GetActivitiesHubBySlug(c *gin.Context) {
@@ -74,15 +164,15 @@ func GetActivitiesHubBySlug(c *gin.Context) {
 	}
 	slug := c.Param("slug")
 
-	var hub models.ActivitiesHub
-	if err := database.DB.Preload("Tabs").
-		Where("slug = ? AND workspace_id = ?", slug, workspaceID).
-		First(&hub).Error; err != nil {
+	var table models.Table
+	if err := database.DB.Preload("Fields").Preload("Views").
+		Where("slug = ? AND workspace_id = ? AND hub_type = ?", slug, workspaceID, "activities").
+		First(&table).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Activities hub not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, hub)
+	c.JSON(http.StatusOK, tableToActivitiesHub(table))
 }
 
 type CreateActivitiesHubInput struct {
@@ -107,69 +197,66 @@ func CreateActivitiesHub(c *gin.Context) {
 	}
 
 	// Check for duplicate slug
-	var existing models.ActivitiesHub
+	var existing models.Table
 	if err := database.DB.Where("workspace_id = ? AND slug = ?", input.WorkspaceID, input.Slug).First(&existing).Error; err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "Activities hub with this slug already exists"})
 		return
 	}
 
-	isActive := true
-	if input.IsActive != nil {
-		isActive = *input.IsActive
-	}
-
-	status := "upcoming"
-	if input.Status != "" {
-		status = input.Status
-	}
-
-	// Get authenticated user ID from JWT token
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: user ID not found"})
 		return
 	}
-
 	parsedUserID, err := uuid.Parse(userID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
 		return
 	}
 
-	hub := models.ActivitiesHub{
-		WorkspaceID:  input.WorkspaceID,
-		Name:         input.Name,
-		Slug:         input.Slug,
-		Description:  input.Description,
-		Category:     input.Category,
-		Status:       status,
-		Participants: input.Participants,
-		Settings:     mapToJSON(input.Settings),
-		IsActive:     isActive,
-		CreatedBy:    parsedUserID,
+	// Build settings
+	settings := input.Settings
+	if settings == nil {
+		settings = map[string]interface{}{}
+	}
+	settings["category"] = input.Category
+	settings["status"] = input.Status
+	if settings["status"] == "" {
+		settings["status"] = "upcoming"
+	}
+	settings["participants"] = input.Participants
+	settings["is_active"] = true
+	if input.IsActive != nil {
+		settings["is_active"] = *input.IsActive
+	}
+	if input.BeginDate != nil {
+		settings["begin_date"] = *input.BeginDate
+	}
+	if input.EndDate != nil {
+		settings["end_date"] = *input.EndDate
 	}
 
-	// Parse dates if provided
-	if input.BeginDate != nil && *input.BeginDate != "" {
-		if beginDate, err := parseDate(*input.BeginDate); err == nil {
-			hub.BeginDate = &beginDate
-		}
-	}
-	if input.EndDate != nil && *input.EndDate != "" {
-		if endDate, err := parseDate(*input.EndDate); err == nil {
-			hub.EndDate = &endDate
-		}
+	settingsJSON, _ := json.Marshal(settings)
+
+	table := models.Table{
+		WorkspaceID: input.WorkspaceID,
+		Name:        input.Name,
+		Slug:        input.Slug,
+		Description: input.Description,
+		Icon:        "calendar",
+		Color:       "#10B981",
+		HubType:     "activities",
+		EntityType:  "event",
+		Settings:    datatypes.JSON(settingsJSON),
+		CreatedBy:   parsedUserID,
 	}
 
-	if err := database.DB.Create(&hub).Error; err != nil {
+	if err := database.DB.Create(&table).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Reload with tabs
-	database.DB.Preload("Tabs").First(&hub, hub.ID)
-
-	c.JSON(http.StatusCreated, hub)
+	c.JSON(http.StatusCreated, tableToActivitiesHub(table))
 }
 
 type UpdateActivitiesHubInput struct {
@@ -188,8 +275,8 @@ type UpdateActivitiesHubInput struct {
 func UpdateActivitiesHub(c *gin.Context) {
 	hubID := c.Param("hub_id")
 
-	var hub models.ActivitiesHub
-	if err := database.DB.Where("id = ?", hubID).First(&hub).Error; err != nil {
+	var table models.Table
+	if err := database.DB.Where("id = ? AND hub_type = ?", hubID, "activities").First(&table).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Activities hub not found"})
 		return
 	}
@@ -201,111 +288,162 @@ func UpdateActivitiesHub(c *gin.Context) {
 	}
 
 	// Check slug conflicts if updating
-	if input.Slug != nil && *input.Slug != hub.Slug {
-		var existing models.ActivitiesHub
-		if err := database.DB.Where("workspace_id = ? AND slug = ? AND id != ?", hub.WorkspaceID, *input.Slug, hubID).First(&existing).Error; err == nil {
+	if input.Slug != nil && *input.Slug != table.Slug {
+		var existing models.Table
+		if err := database.DB.Where("workspace_id = ? AND slug = ? AND id != ?", table.WorkspaceID, *input.Slug, hubID).First(&existing).Error; err == nil {
 			c.JSON(http.StatusConflict, gin.H{"error": "Activities hub with this slug already exists"})
 			return
 		}
+		table.Slug = *input.Slug
 	}
 
-	// Update fields
 	if input.Name != nil {
-		hub.Name = *input.Name
-	}
-	if input.Slug != nil {
-		hub.Slug = *input.Slug
+		table.Name = *input.Name
 	}
 	if input.Description != nil {
-		hub.Description = *input.Description
-	}
-	if input.Category != nil {
-		hub.Category = *input.Category
-	}
-	if input.Status != nil {
-		hub.Status = *input.Status
-	}
-	if input.Participants != nil {
-		hub.Participants = *input.Participants
-	}
-	if input.BeginDate != nil {
-		if *input.BeginDate == "" {
-			hub.BeginDate = nil
-		} else if beginDate, err := parseDate(*input.BeginDate); err == nil {
-			hub.BeginDate = &beginDate
-		}
-	}
-	if input.EndDate != nil {
-		if *input.EndDate == "" {
-			hub.EndDate = nil
-		} else if endDate, err := parseDate(*input.EndDate); err == nil {
-			hub.EndDate = &endDate
-		}
-	}
-	if input.Settings != nil {
-		hub.Settings = mapToJSON(*input.Settings)
-	}
-	if input.IsActive != nil {
-		hub.IsActive = *input.IsActive
+		table.Description = *input.Description
 	}
 
-	if err := database.DB.Save(&hub).Error; err != nil {
+	// Update settings
+	var settings map[string]interface{}
+	json.Unmarshal(table.Settings, &settings)
+	if settings == nil {
+		settings = map[string]interface{}{}
+	}
+
+	if input.Category != nil {
+		settings["category"] = *input.Category
+	}
+	if input.Status != nil {
+		settings["status"] = *input.Status
+	}
+	if input.Participants != nil {
+		settings["participants"] = *input.Participants
+	}
+	if input.IsActive != nil {
+		settings["is_active"] = *input.IsActive
+	}
+	if input.BeginDate != nil {
+		settings["begin_date"] = *input.BeginDate
+	}
+	if input.EndDate != nil {
+		settings["end_date"] = *input.EndDate
+	}
+	if input.Settings != nil {
+		for k, v := range *input.Settings {
+			settings[k] = v
+		}
+	}
+
+	settingsJSON, _ := json.Marshal(settings)
+	table.Settings = datatypes.JSON(settingsJSON)
+
+	if err := database.DB.Save(&table).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Reload with tabs
-	database.DB.Preload("Tabs").First(&hub, hub.ID)
-
-	c.JSON(http.StatusOK, hub)
+	c.JSON(http.StatusOK, tableToActivitiesHub(table))
 }
 
 func DeleteActivitiesHub(c *gin.Context) {
 	hubID := c.Param("hub_id")
 
-	var hub models.ActivitiesHub
-	if err := database.DB.Where("id = ?", hubID).First(&hub).Error; err != nil {
+	var table models.Table
+	if err := database.DB.Where("id = ? AND hub_type = ?", hubID, "activities").First(&table).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Activities hub not found"})
 		return
 	}
 
-	if err := database.DB.Delete(&hub).Error; err != nil {
+	if err := database.DB.Delete(&table).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.Status(http.StatusNoContent)
+	c.JSON(http.StatusOK, gin.H{"message": "Activities hub deleted successfully"})
 }
 
-// Activities Hub Tab Handlers
+// ============================================================
+// TABS - Now stored as Views with type='tab' on the table
+// ============================================================
+
+type TabResponse struct {
+	ID        uuid.UUID              `json:"id"`
+	HubID     uuid.UUID              `json:"hub_id"`
+	Name      string                 `json:"name"`
+	Slug      string                 `json:"slug"`
+	Type      string                 `json:"type"`
+	Icon      string                 `json:"icon"`
+	Position  int                    `json:"position"`
+	IsVisible bool                   `json:"is_visible"`
+	Config    map[string]interface{} `json:"config"`
+	CreatedAt time.Time              `json:"created_at"`
+	UpdatedAt time.Time              `json:"updated_at"`
+}
+
+func viewToTab(view models.View, hubID uuid.UUID) TabResponse {
+	var config map[string]interface{}
+	json.Unmarshal(view.Config, &config)
+	if config == nil {
+		config = map[string]interface{}{}
+	}
+
+	slug, _ := config["slug"].(string)
+	tabType, _ := config["tab_type"].(string)
+	icon, _ := config["icon"].(string)
+	position := 0
+	if p, ok := config["position"].(float64); ok {
+		position = int(p)
+	}
+	isVisible := true
+	if iv, ok := config["is_visible"].(bool); ok {
+		isVisible = iv
+	}
+
+	return TabResponse{
+		ID:        view.ID,
+		HubID:     hubID,
+		Name:      view.Name,
+		Slug:      slug,
+		Type:      tabType,
+		Icon:      icon,
+		Position:  position,
+		IsVisible: isVisible,
+		Config:    config,
+		CreatedAt: view.CreatedAt,
+		UpdatedAt: view.UpdatedAt,
+	}
+}
 
 func ListActivitiesHubTabs(c *gin.Context) {
 	hubID := c.Param("hub_id")
-	includeHidden := c.Query("include_hidden") == "true"
+
+	hubUUID, err := uuid.Parse(hubID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid hub ID"})
+		return
+	}
 
 	// Verify hub exists
-	var hub models.ActivitiesHub
-	if err := database.DB.Where("id = ?", hubID).First(&hub).Error; err != nil {
+	var table models.Table
+	if err := database.DB.Where("id = ? AND hub_type = ?", hubID, "activities").First(&table).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Activities hub not found"})
 		return
 	}
 
-	var tabs []models.ActivitiesHubTab
-	query := database.DB.Where("hub_id = ?", hubID)
+	// Get views with type='tab'
+	var views []models.View
+	database.DB.Where("table_id = ? AND type = ?", hubID, "tab").Order("name ASC").Find(&views)
 
-	if !includeHidden {
-		query = query.Where("is_visible = ?", true)
-	}
-
-	if err := query.Order("position ASC").Find(&tabs).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	var tabs []TabResponse
+	for _, view := range views {
+		tabs = append(tabs, viewToTab(view, hubUUID))
 	}
 
 	c.JSON(http.StatusOK, tabs)
 }
 
-type CreateActivitiesHubTabInput struct {
+type CreateTabInput struct {
 	Name      string                 `json:"name" binding:"required"`
 	Slug      string                 `json:"slug" binding:"required"`
 	Type      string                 `json:"type" binding:"required"`
@@ -318,166 +456,143 @@ type CreateActivitiesHubTabInput struct {
 func CreateActivitiesHubTab(c *gin.Context) {
 	hubID := c.Param("hub_id")
 
+	hubUUID, err := uuid.Parse(hubID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid hub ID"})
+		return
+	}
+
 	// Verify hub exists
-	var hub models.ActivitiesHub
-	if err := database.DB.Where("id = ?", hubID).First(&hub).Error; err != nil {
+	var table models.Table
+	if err := database.DB.Where("id = ? AND hub_type = ?", hubID, "activities").First(&table).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Activities hub not found"})
 		return
 	}
 
-	var input CreateActivitiesHubTabInput
+	var input CreateTabInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Check for duplicate slug
-	var existing models.ActivitiesHubTab
-	if err := database.DB.Where("hub_id = ? AND slug = ?", hubID, input.Slug).First(&existing).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Tab with this slug already exists"})
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
+	parsedUserID, _ := uuid.Parse(userID)
 
-	isVisible := true
+	// Build config
+	config := input.Config
+	if config == nil {
+		config = map[string]interface{}{}
+	}
+	config["slug"] = input.Slug
+	config["tab_type"] = input.Type
+	config["icon"] = input.Icon
+	config["position"] = input.Position
+	config["is_visible"] = true
 	if input.IsVisible != nil {
-		isVisible = *input.IsVisible
+		config["is_visible"] = *input.IsVisible
 	}
 
-	tab := models.ActivitiesHubTab{
-		HubID:     uuid.MustParse(hubID),
+	configJSON, _ := json.Marshal(config)
+
+	view := models.View{
+		TableID:   hubUUID,
 		Name:      input.Name,
-		Slug:      input.Slug,
-		Type:      input.Type,
-		Icon:      input.Icon,
-		Position:  input.Position,
-		IsVisible: isVisible,
-		Config:    mapToJSON(input.Config),
+		Type:      "tab",
+		Config:    datatypes.JSON(configJSON),
+		CreatedBy: parsedUserID,
 	}
 
-	if err := database.DB.Create(&tab).Error; err != nil {
+	if err := database.DB.Create(&view).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, tab)
-}
-
-type UpdateActivitiesHubTabInput struct {
-	Name      *string                 `json:"name"`
-	Slug      *string                 `json:"slug"`
-	Type      *string                 `json:"type"`
-	Icon      *string                 `json:"icon"`
-	Position  *int                    `json:"position"`
-	IsVisible *bool                   `json:"is_visible"`
-	Config    *map[string]interface{} `json:"config"`
+	c.JSON(http.StatusCreated, viewToTab(view, hubUUID))
 }
 
 func UpdateActivitiesHubTab(c *gin.Context) {
 	hubID := c.Param("hub_id")
 	tabID := c.Param("tab_id")
 
-	// Verify hub exists
-	var hub models.ActivitiesHub
-	if err := database.DB.Where("id = ?", hubID).First(&hub).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Activities hub not found"})
-		return
-	}
+	hubUUID, _ := uuid.Parse(hubID)
 
-	var tab models.ActivitiesHubTab
-	if err := database.DB.Where("id = ? AND hub_id = ?", tabID, hubID).First(&tab).Error; err != nil {
+	var view models.View
+	if err := database.DB.Where("id = ? AND table_id = ? AND type = ?", tabID, hubID, "tab").First(&view).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Tab not found"})
 		return
 	}
 
-	var input UpdateActivitiesHubTabInput
+	var input map[string]interface{}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Check slug conflicts if updating
-	if input.Slug != nil && *input.Slug != tab.Slug {
-		var existing models.ActivitiesHubTab
-		if err := database.DB.Where("hub_id = ? AND slug = ? AND id != ?", hubID, *input.Slug, tabID).First(&existing).Error; err == nil {
-			c.JSON(http.StatusConflict, gin.H{"error": "Tab with this slug already exists"})
-			return
+	if name, ok := input["name"].(string); ok {
+		view.Name = name
+	}
+
+	// Update config
+	var config map[string]interface{}
+	json.Unmarshal(view.Config, &config)
+	if config == nil {
+		config = map[string]interface{}{}
+	}
+
+	for _, key := range []string{"slug", "type", "icon", "position", "is_visible"} {
+		if val, ok := input[key]; ok {
+			if key == "type" {
+				config["tab_type"] = val
+			} else {
+				config[key] = val
+			}
+		}
+	}
+	if cfg, ok := input["config"].(map[string]interface{}); ok {
+		for k, v := range cfg {
+			config[k] = v
 		}
 	}
 
-	// Update fields
-	if input.Name != nil {
-		tab.Name = *input.Name
-	}
-	if input.Slug != nil {
-		tab.Slug = *input.Slug
-	}
-	if input.Type != nil {
-		tab.Type = *input.Type
-	}
-	if input.Icon != nil {
-		tab.Icon = *input.Icon
-	}
-	if input.Position != nil {
-		tab.Position = *input.Position
-	}
-	if input.IsVisible != nil {
-		tab.IsVisible = *input.IsVisible
-	}
-	if input.Config != nil {
-		tab.Config = mapToJSON(*input.Config)
-	}
+	configJSON, _ := json.Marshal(config)
+	view.Config = datatypes.JSON(configJSON)
 
-	if err := database.DB.Save(&tab).Error; err != nil {
+	if err := database.DB.Save(&view).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, tab)
+	c.JSON(http.StatusOK, viewToTab(view, hubUUID))
 }
 
 func DeleteActivitiesHubTab(c *gin.Context) {
 	hubID := c.Param("hub_id")
 	tabID := c.Param("tab_id")
 
-	// Verify hub exists
-	var hub models.ActivitiesHub
-	if err := database.DB.Where("id = ?", hubID).First(&hub).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Activities hub not found"})
-		return
-	}
-
-	var tab models.ActivitiesHubTab
-	if err := database.DB.Where("id = ? AND hub_id = ?", tabID, hubID).First(&tab).Error; err != nil {
+	var view models.View
+	if err := database.DB.Where("id = ? AND table_id = ? AND type = ?", tabID, hubID, "tab").First(&view).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Tab not found"})
 		return
 	}
 
-	if err := database.DB.Delete(&tab).Error; err != nil {
+	if err := database.DB.Delete(&view).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.Status(http.StatusNoContent)
-}
-
-type ReorderTabInput struct {
-	ID       uuid.UUID `json:"id" binding:"required"`
-	Position int       `json:"position" binding:"required"`
+	c.JSON(http.StatusOK, gin.H{"message": "Tab deleted successfully"})
 }
 
 type ReorderTabsInput struct {
-	Tabs []ReorderTabInput `json:"tabs" binding:"required"`
+	TabIDs []string `json:"tab_ids" binding:"required"`
 }
 
 func ReorderActivitiesHubTabs(c *gin.Context) {
 	hubID := c.Param("hub_id")
-
-	// Verify hub exists
-	var hub models.ActivitiesHub
-	if err := database.DB.Where("id = ?", hubID).First(&hub).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Activities hub not found"})
-		return
-	}
 
 	var input ReorderTabsInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -485,25 +600,20 @@ func ReorderActivitiesHubTabs(c *gin.Context) {
 		return
 	}
 
-	// Update positions in transaction
-	tx := database.DB.Begin()
-	for _, item := range input.Tabs {
-		if err := tx.Model(&models.ActivitiesHubTab{}).
-			Where("id = ? AND hub_id = ?", item.ID, hubID).
-			Update("position", item.Position).Error; err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
+	for i, tabID := range input.TabIDs {
+		var view models.View
+		if err := database.DB.Where("id = ? AND table_id = ?", tabID, hubID).First(&view).Error; err == nil {
+			var config map[string]interface{}
+			json.Unmarshal(view.Config, &config)
+			if config == nil {
+				config = map[string]interface{}{}
+			}
+			config["position"] = i
+			configJSON, _ := json.Marshal(config)
+			view.Config = datatypes.JSON(configJSON)
+			database.DB.Save(&view)
 		}
 	}
-	tx.Commit()
 
-	// Return updated tabs
-	var tabs []models.ActivitiesHubTab
-	if err := database.DB.Where("hub_id = ?", hubID).Order("position ASC").Find(&tabs).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, tabs)
+	c.JSON(http.StatusOK, gin.H{"message": "Tabs reordered successfully"})
 }

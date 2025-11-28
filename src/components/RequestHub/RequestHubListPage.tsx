@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Settings, Trash2, FolderOpen, Layout } from "lucide-react";
+import { Plus, Settings, Trash2, FolderOpen, Layout, Search } from "lucide-react";
 import { Button } from "@/ui-components/button";
 import { Card } from "@/ui-components/card";
 import { Badge } from "@/ui-components/badge";
@@ -29,7 +29,8 @@ export function RequestHubListPage({ workspaceId }: RequestHubListPageProps) {
   const [selectedHub, setSelectedHub] = useState<RequestHub | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const { tabManager } = useTabContext();
+  const [searchQuery, setSearchQuery] = useState("");
+  const { tabManager, setTabActions, setTabHeaderContent } = useTabContext();
   
   // Form state
   const [newHubName, setNewHubName] = useState("");
@@ -39,6 +40,27 @@ export function RequestHubListPage({ workspaceId }: RequestHubListPageProps) {
   useEffect(() => {
     loadHubs();
   }, [workspaceId]);
+
+  // Register tab header content
+  useEffect(() => {
+    setTabHeaderContent({
+      title: 'Request Hub',
+    });
+    return () => setTabHeaderContent(null);
+  }, [setTabHeaderContent]);
+
+  // Register tab actions
+  useEffect(() => {
+    setTabActions([
+      {
+        label: 'Create Hub',
+        icon: Plus,
+        onClick: () => setCreateDialogOpen(true),
+        variant: 'default' as const
+      }
+    ]);
+    return () => setTabActions([]);
+  }, [setTabActions]);
 
   // Auto-generate slug from name
   useEffect(() => {
@@ -185,6 +207,13 @@ export function RequestHubListPage({ workspaceId }: RequestHubListPageProps) {
     }
   };
 
+  // Filter hubs by search query
+  const filteredHubs = hubs.filter(hub => 
+    hub.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    hub.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    hub.slug.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -197,45 +226,68 @@ export function RequestHubListPage({ workspaceId }: RequestHubListPageProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Request Hubs</h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Manage customizable request management systems
-            </p>
+    <div className="h-full flex">
+      {/* Left Sidebar */}
+      <div className="w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+        {/* Search */}
+        <div className="p-4 border-b border-gray-100">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Search hubs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-9 text-sm"
+            />
           </div>
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Create Hub
-          </Button>
+        </div>
+
+        {/* Stats */}
+        <div className="flex-1 overflow-y-auto p-3">
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 px-2">Overview</div>
+          <div className="space-y-1">
+            <div className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm bg-blue-50 text-blue-700 font-medium">
+              <span>All Hubs</span>
+              <span className="text-xs text-blue-600">{hubs.length}</span>
+            </div>
+            <div className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-gray-600">
+              <span>Active</span>
+              <span className="text-xs text-gray-400">{hubs.filter(h => h.is_active).length}</span>
+            </div>
+            <div className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-gray-600">
+              <span>Inactive</span>
+              <span className="text-xs text-gray-400">{hubs.filter(h => !h.is_active).length}</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
-        {hubs.length === 0 ? (
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto p-6 bg-white rounded-tl-xl rounded-bl-xl border-l border-gray-200">
+        {filteredHubs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
             <div className="text-center max-w-md">
               <FolderOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                No Request Hubs Yet
+                {searchQuery ? 'No hubs found' : 'No Request Hubs Yet'}
               </h3>
               <p className="text-gray-600 mb-6">
-                Create your first request hub to start managing requests with
-                customizable workflows and forms.
+                {searchQuery 
+                  ? 'Try adjusting your search terms'
+                  : 'Create your first request hub to start managing requests with customizable workflows and forms.'}
               </p>
-              <Button onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Create Your First Hub
-              </Button>
+              {!searchQuery && (
+                <Button onClick={() => setCreateDialogOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Your First Hub
+                </Button>
+              )}
             </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {hubs.map((hub) => (
+            {filteredHubs.map((hub) => (
               <Card
                 key={hub.id}
                 className="p-6 hover:shadow-lg transition-shadow cursor-pointer"

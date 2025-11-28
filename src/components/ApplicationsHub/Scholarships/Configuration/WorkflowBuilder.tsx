@@ -257,71 +257,142 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
 
   return (
     <div className="h-full flex bg-gray-50">
+      {/* Left Sidebar - Workflow Selector */}
+      <div className="w-64 bg-white border-r border-gray-200 flex flex-col rounded-l-2xl">
+        {/* Workflow Selector */}
+        <div className="p-3 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Workflow</span>
+            <Button 
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+              onClick={() => setPanel({ type: 'workflow', mode: 'create' })}
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+          <Select 
+            value={selectedWorkflow?.id || ''} 
+            onValueChange={(id) => {
+              const wf = workflows.find(w => w.id === id)
+              if (wf) setSelectedWorkflow(wf)
+            }}
+          >
+            <SelectTrigger className="w-full bg-white text-sm">
+              <SelectValue placeholder="Select workflow" />
+            </SelectTrigger>
+            <SelectContent>
+              {workflows.map(wf => (
+                <SelectItem key={wf.id} value={wf.id}>
+                  <div className="flex items-center gap-2">
+                    <span className="truncate">{wf.name}</span>
+                    {wf.is_active && (
+                      <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 px-1 py-0">Active</Badge>
+                    )}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedWorkflow && (
+            <button 
+              onClick={() => setPanel({ type: 'workflow', mode: 'edit', data: selectedWorkflow })}
+              className="w-full mt-2 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              Settings
+            </button>
+          )}
+        </div>
+
+        {/* Quick Stats */}
+        {selectedWorkflow && (
+          <div className="p-3 border-b border-gray-200 space-y-2">
+            <button 
+              onClick={() => setPanel({ type: 'stage', mode: 'create' })}
+              className="w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg hover:bg-gray-50 transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-blue-600" />
+                <span className="text-gray-700">Stages</span>
+              </div>
+              <Badge className="bg-blue-100 text-blue-700 border-blue-200 group-hover:bg-blue-200">{stages.length}</Badge>
+            </button>
+            <button 
+              onClick={() => setPanel({ type: 'reviewer', mode: 'create' })}
+              className="w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg hover:bg-gray-50 transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-purple-600" />
+                <span className="text-gray-700">Reviewer Roles</span>
+              </div>
+              <Badge className="bg-purple-100 text-purple-700 border-purple-200 group-hover:bg-purple-200">{reviewerTypes.length}</Badge>
+            </button>
+            <button 
+              onClick={() => setPanel({ type: 'rubric', mode: 'create' })}
+              className="w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg hover:bg-gray-50 transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <Award className="w-4 h-4 text-amber-600" />
+                <span className="text-gray-700">Rubrics</span>
+              </div>
+              <Badge className="bg-amber-100 text-amber-700 border-amber-200 group-hover:bg-amber-200">{rubrics.length}</Badge>
+            </button>
+          </div>
+        )}
+
+        {/* Stages List */}
+        {selectedWorkflow && (
+          <div className="flex-1 overflow-y-auto p-2">
+            <div className="px-2 py-1.5 mb-1">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pipeline</span>
+            </div>
+            {sortedStages.map((stage, idx) => (
+              <button
+                key={stage.id}
+                onClick={() => {
+                  setSelectedStageId(stage.id)
+                  setPanel({ type: 'stage', mode: 'edit', data: stage })
+                }}
+                className={cn(
+                  "w-full text-left px-3 py-2 rounded-lg mb-1 transition-all",
+                  selectedStageId === stage.id 
+                    ? "bg-blue-50 border border-blue-200" 
+                    : "hover:bg-gray-50"
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={cn(
+                    "w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold",
+                    selectedStageId === stage.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
+                  )}>
+                    {idx + 1}
+                  </div>
+                  <span className="text-sm font-medium text-gray-900 truncate">{stage.name}</span>
+                </div>
+              </button>
+            ))}
+            {stages.length === 0 && (
+              <div className="text-center py-6">
+                <p className="text-xs text-gray-400">No stages yet</p>
+                <button 
+                  onClick={() => setPanel({ type: 'stage', mode: 'create' })}
+                  className="text-xs text-blue-600 hover:underline mt-1"
+                >
+                  Add first stage
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Main Content Area */}
       <div className={cn(
         "flex-1 flex flex-col transition-all duration-300",
         panel.type !== 'none' ? "mr-[420px]" : ""
       )}>
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl shadow-lg shadow-purple-200">
-                <Sparkles className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Workflow Builder</h1>
-                <p className="text-sm text-gray-500">Design review processes for your applications</p>
-              </div>
-            </div>
-
-            {/* Workflow Selector */}
-            <div className="flex items-center gap-3">
-              <Select 
-                value={selectedWorkflow?.id || ''} 
-                onValueChange={(id) => {
-                  const wf = workflows.find(w => w.id === id)
-                  if (wf) setSelectedWorkflow(wf)
-                }}
-              >
-                <SelectTrigger className="w-[250px] bg-white">
-                  <SelectValue placeholder="Select a workflow" />
-                </SelectTrigger>
-                <SelectContent>
-                  {workflows.map(wf => (
-                    <SelectItem key={wf.id} value={wf.id}>
-                      <div className="flex items-center gap-2">
-                        <span>{wf.name}</span>
-                        {wf.is_active && (
-                          <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">Active</Badge>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Button 
-                variant="outline"
-                onClick={() => setPanel({ type: 'workflow', mode: 'create' })}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                New
-              </Button>
-
-              {selectedWorkflow && (
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={() => setPanel({ type: 'workflow', mode: 'edit', data: selectedWorkflow })}
-                >
-                  <Settings className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           {isLoading && !selectedWorkflow ? (
@@ -332,37 +403,6 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
             <EmptyWorkflowState onCreate={() => setPanel({ type: 'workflow', mode: 'create' })} />
           ) : (
             <div className="p-6 space-y-8">
-              {/* Quick Stats */}
-              <div className="grid grid-cols-4 gap-4">
-                <StatCard 
-                  icon={Layers} 
-                  label="Stages" 
-                  value={stages.length} 
-                  color="blue"
-                  onClick={() => setPanel({ type: 'stage', mode: 'create' })}
-                />
-                <StatCard 
-                  icon={Users} 
-                  label="Reviewer Roles" 
-                  value={reviewerTypes.length} 
-                  color="purple"
-                  onClick={() => setPanel({ type: 'reviewer', mode: 'create' })}
-                />
-                <StatCard 
-                  icon={Award} 
-                  label="Rubrics" 
-                  value={rubrics.length} 
-                  color="amber"
-                  onClick={() => setPanel({ type: 'rubric', mode: 'create' })}
-                />
-                <StatCard 
-                  icon={Link2} 
-                  label="Configurations" 
-                  value={stageConfigs.length} 
-                  color="green"
-                />
-              </div>
-
               {/* Workflow Pipeline */}
               <section>
                 <div className="flex items-center justify-between mb-4">
@@ -799,7 +839,7 @@ function SidePanel({
   }
 
   return (
-    <div className="fixed right-0 top-0 bottom-0 w-[420px] bg-white border-l border-gray-200 shadow-xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
+    <div className="fixed right-2 top-2 bottom-2 w-[420px] bg-white border border-gray-200 rounded-xl shadow-xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
       {/* Panel Header */}
       <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
         <h2 className="text-lg font-semibold text-gray-900">{titles[panel.type]}</h2>

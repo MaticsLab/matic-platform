@@ -10,6 +10,23 @@ export interface TabAction {
   variant?: 'default' | 'outline' | 'ghost'
 }
 
+export interface TabNavItem {
+  id: string
+  label: string
+  icon: any
+  badge?: number
+  badgeColor?: string
+}
+
+export interface TabHeaderContent {
+  title: string
+  subtitle?: string
+  subModule?: string // e.g. "Review Center", "Communications"
+  navItems?: TabNavItem[]
+  activeNavId?: string
+  onNavChange?: (id: string) => void
+}
+
 interface TabContextType {
   tabManager: TabManager | null
   activeTab: TabData | null
@@ -18,6 +35,8 @@ interface TabContextType {
   triggerNavigation: (direction: 'back' | 'forward') => void
   tabActions: TabAction[]
   setTabActions: (actions: TabAction[]) => void
+  tabHeaderContent: TabHeaderContent | null
+  setTabHeaderContent: (content: TabHeaderContent | null) => void
 }
 
 const TabContext = createContext<TabContextType>({
@@ -27,7 +46,9 @@ const TabContext = createContext<TabContextType>({
   registerNavigationHandler: () => {},
   triggerNavigation: () => {},
   tabActions: [],
-  setTabActions: () => {}
+  setTabActions: () => {},
+  tabHeaderContent: null,
+  setTabHeaderContent: () => {}
 })
 
 export const useTabContext = () => useContext(TabContext)
@@ -43,6 +64,7 @@ export function WorkspaceTabProvider({ children, workspaceId }: WorkspaceTabProv
   const [tabs, setTabs] = useState<TabData[]>([])
   const [navigationHandler, setNavigationHandler] = useState<((direction: 'back' | 'forward') => boolean) | null>(null)
   const [tabActions, setTabActions] = useState<TabAction[]>([])
+  const [tabHeaderContent, setTabHeaderContent] = useState<TabHeaderContent | null>(null)
 
   const registerNavigationHandler = useCallback((handler: ((direction: 'back' | 'forward') => boolean) | null) => {
     setNavigationHandler(() => handler)
@@ -129,7 +151,9 @@ export function WorkspaceTabProvider({ children, workspaceId }: WorkspaceTabProv
     registerNavigationHandler,
     triggerNavigation,
     tabActions,
-    setTabActions
+    setTabActions,
+    tabHeaderContent,
+    setTabHeaderContent
   }
 
   return (

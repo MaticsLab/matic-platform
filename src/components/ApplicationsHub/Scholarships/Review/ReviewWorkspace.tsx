@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { 
-  Search, ChevronRight, ChevronLeft, Star, CheckCircle, 
+  ChevronRight, ChevronLeft, Star, CheckCircle, 
   FileText, Users, Award, Flag, 
   ThumbsUp, ThumbsDown, AlertCircle, Loader2, 
   Eye, Clock, User, MessageSquare,
@@ -10,7 +10,8 @@ import {
   X, Save, RefreshCw, Zap, Play, Pause,
   ChevronDown, Maximize2, Minimize2, Send,
   Target, TrendingUp, BarChart3, Layers,
-  UserCheck, UserPlus, ArrowUpRight, Inbox
+  UserCheck, UserPlus, ArrowUpRight, Inbox,
+  GraduationCap, Search, Settings2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { goClient } from '@/lib/api/go-client'
@@ -25,10 +26,14 @@ import {
 } from '@/lib/api/workflows-client'
 import { Button } from '@/ui-components/button'
 import { Badge } from '@/ui-components/badge'
+import { useSearch, HubSearchContext } from '@/components/Search'
+import { ReviewerManagement } from '../Reviewers/ReviewerManagement'
 
 interface ReviewWorkspaceProps {
   workspaceId: string
   formId: string | null
+  showReviewersPanel?: boolean
+  onToggleReviewersPanel?: () => void
 }
 
 // Helper function to render nested data (groups, repeaters, objects) nicely
@@ -162,7 +167,7 @@ interface StageWithConfig extends ApplicationStage {
 
 type ViewMode = 'focus' | 'queue' | 'analytics'
 
-export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
+export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: externalShowReviewersPanel, onToggleReviewersPanel }: ReviewWorkspaceProps) {
   // Core state
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -175,6 +180,11 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
   
   // UI state
   const [viewMode, setViewMode] = useState<ViewMode>('queue')
+  const [internalShowReviewersPanel, setInternalShowReviewersPanel] = useState(false)
+  
+  // Use external control if provided, otherwise use internal state
+  const showReviewersPanel = externalShowReviewersPanel !== undefined ? externalShowReviewersPanel : internalShowReviewersPanel
+  const setShowReviewersPanel = onToggleReviewersPanel || (() => setInternalShowReviewersPanel(!internalShowReviewersPanel))
   const [selectedStageId, setSelectedStageId] = useState<string>('all')
   const [selectedAppIndex, setSelectedAppIndex] = useState(0)
   const [isReviewMode, setIsReviewMode] = useState(false)
@@ -196,6 +206,14 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
   const [editingComments, setEditingComments] = useState('')
   const [reviewTimer, setReviewTimer] = useState(0)
   const [timerActive, setTimerActive] = useState(false)
+
+  // Get search context
+  const { setHubContext, query: globalSearchQuery } = useSearch()
+
+  // Sync global search with local search
+  useEffect(() => {
+    setSearchQuery(globalSearchQuery)
+  }, [globalSearchQuery])
 
   // Timer effect
   useEffect(() => {
@@ -397,6 +415,80 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
              matchesScoreMin && matchesScoreMax && matchesTags && matchesReviewed
     })
   }, [applications, selectedStageId, workflow, searchQuery, filterStatus, filterScoreMin, filterScoreMax, filterTags, filterReviewed, showOnlyUnassigned])
+
+  // Register hub context for applications hub (after stageApps is defined)
+  useEffect(() => {
+    const hubContext: HubSearchContext = {
+      hubType: 'applications',
+      hubId: formId || undefined,
+      hubName: 'Applications Hub',
+      placeholder: 'Search applicants by name or email...',
+      actions: [
+        {
+          id: 'filter-pending',
+          label: 'Show pending applications',
+          icon: Clock,
+          action: () => {
+            setFilterStatus('pending')
+            setShowFilters(true)
+          }
+        },
+        {
+          id: 'filter-approved',
+          label: 'Show approved applications',
+          icon: CheckCircle,
+          action: () => {
+            setFilterStatus('approved')
+            setShowFilters(true)
+          }
+        },
+        {
+          id: 'filter-unreviewed',
+          label: 'Show unreviewed only',
+          icon: Eye,
+          action: () => {
+            setFilterReviewed('unreviewed')
+            setShowFilters(true)
+          }
+        },
+        {
+          id: 'start-review',
+          label: 'Start reviewing',
+          icon: Play,
+          action: () => {
+            if (stageApps.length > 0) {
+              setSelectedAppIndex(0)
+              setIsReviewMode(true)
+              setTimerActive(true)
+            }
+          }
+        },
+        {
+          id: 'assign-reviewers',
+          label: 'Assign unassigned applications',
+          icon: UserPlus,
+          action: () => {
+            setShowOnlyUnassigned(true)
+          }
+        },
+        {
+          id: 'refresh',
+          label: 'Refresh applications',
+          icon: RefreshCw,
+          action: () => loadData()
+        }
+      ],
+      onSearch: (query) => {
+        setSearchQuery(query)
+      }
+    }
+
+    setHubContext(hubContext)
+    
+    return () => {
+      setHubContext(null)
+    }
+  }, [formId, setHubContext, stageApps.length])
 
   // Current application
   const currentApp = stageApps[selectedAppIndex] || null
@@ -673,121 +765,21 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
 
   return (
     <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
-      {/* Top Bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <h1 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <Eye className="w-5 h-5 text-blue-600" />
-              Review Center
-            </h1>
-            
-            {/* Workflow Selector */}
-            <div className="relative">
-              <button
-                onClick={() => setShowWorkflowSelector(!showWorkflowSelector)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
-              >
-                <Layers className="w-4 h-4 text-blue-600" />
-                <span className="font-medium text-blue-900">{workflow?.name || 'Select Workflow'}</span>
-                <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">
-                  {workflow?.is_active ? 'Active' : 'Draft'}
-                </Badge>
-                <ChevronDown className={cn("w-4 h-4 text-blue-600 transition-transform", showWorkflowSelector && "rotate-180")} />
-              </button>
-              
-              {showWorkflowSelector && (
-                <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
-                  <div className="p-3 border-b border-gray-100 bg-gray-50">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Available Workflows</p>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto p-2">
-                    {workflows.map(wf => (
-                      <button
-                        key={wf.id}
-                        onClick={() => handleSwitchWorkflow(wf)}
-                        className={cn(
-                          "w-full text-left p-3 rounded-lg flex items-center justify-between hover:bg-gray-50 transition-colors",
-                          workflow?.id === wf.id && "bg-blue-50 border border-blue-200"
-                        )}
-                      >
-                        <div>
-                          <p className="font-medium text-gray-900">{wf.name}</p>
-                          <p className="text-xs text-gray-500">{wf.description || 'No description'}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {wf.is_active && (
-                            <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">Active</Badge>
-                          )}
-                          {workflow?.id === wf.id && (
-                            <CheckCircle className="w-4 h-4 text-blue-600" />
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* View Mode Tabs */}
-            <div className="flex bg-gray-100 rounded-lg p-1">
-              {[
-                { id: 'queue' as const, icon: Inbox, label: 'Queue' },
-                { id: 'focus' as const, icon: Target, label: 'Focus' },
-                { id: 'analytics' as const, icon: BarChart3, label: 'Analytics' }
-              ].map(mode => (
-                <button
-                  key={mode.id}
-                  onClick={() => setViewMode(mode.id)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all",
-                    viewMode === mode.id 
-                      ? "bg-white text-blue-600 shadow-sm border border-gray-200" 
-                      : "text-gray-500 hover:text-gray-900"
-                  )}
-                >
-                  <mode.icon className="w-4 h-4" />
-                  {mode.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search applicants..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-2 w-64 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-              />
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setShowFilters(!showFilters)} 
-              className={cn(
-                "text-gray-500 hover:text-gray-900 hover:bg-gray-100",
-                showFilters && "bg-blue-50 text-blue-600"
-              )}
-            >
-              <Filter className="w-4 h-4" />
-              {(filterStatus !== 'all' || filterTags.length > 0 || filterScoreMin !== null || filterScoreMax !== null || filterReviewed !== 'all') && (
-                <span className="ml-1 w-2 h-2 bg-blue-500 rounded-full" />
-              )}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={loadData} className="text-gray-500 hover:text-gray-900 hover:bg-gray-100">
-              <RefreshCw className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-        
-        {/* Advanced Filters Panel */}
-        {showFilters && (
+      {/* Advanced Filters Panel - shown at top when active */}
+      {showFilters && (
           <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Filter className="w-4 h-4" />
+                Advanced Filters
+              </h4>
+              <button
+                onClick={() => setShowFilters(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
             <div className="flex flex-wrap items-end gap-4">
               {/* Status Filter */}
               <div className="w-40">
@@ -895,14 +887,91 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
             </div>
           </div>
         )}
-      </div>
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Stages */}
-        <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Workflow Stages</h3>
-            <p className="text-xs text-gray-400">{workflow.name}</p>
+        <div className="w-64 bg-white border-r border-gray-200 flex flex-col rounded-l-2xl">
+          {/* Workflow Selector */}
+          <div className="p-3 border-b border-gray-200">
+            <div className="relative">
+              <button
+                onClick={() => setShowWorkflowSelector(!showWorkflowSelector)}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Layers className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span className="font-medium text-blue-900 text-sm truncate">{workflow?.name || 'Select Workflow'}</span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px] px-1.5 py-0">
+                    {workflow?.is_active ? 'Active' : 'Draft'}
+                  </Badge>
+                  <ChevronDown className={cn("w-3.5 h-3.5 text-blue-600 transition-transform", showWorkflowSelector && "rotate-180")} />
+                </div>
+              </button>
+              
+              {showWorkflowSelector && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
+                  <div className="p-2 border-b border-gray-100 bg-gray-50">
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Workflows</p>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto p-1">
+                    {workflows.map(wf => (
+                      <button
+                        key={wf.id}
+                        onClick={() => handleSwitchWorkflow(wf)}
+                        className={cn(
+                          "w-full text-left p-2 rounded-md flex items-center justify-between hover:bg-gray-50 transition-colors",
+                          workflow?.id === wf.id && "bg-blue-50"
+                        )}
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 text-sm truncate">{wf.name}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {wf.is_active && (
+                            <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px] px-1 py-0">Active</Badge>
+                          )}
+                          {workflow?.id === wf.id && (
+                            <CheckCircle className="w-3.5 h-3.5 text-blue-600" />
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* View Mode Tabs */}
+          <div className="p-3 border-b border-gray-200">
+            <div className="flex bg-gray-100 rounded-lg p-0.5">
+              {[
+                { id: 'queue' as const, icon: Inbox, label: 'Queue' },
+                { id: 'focus' as const, icon: Target, label: 'Focus' },
+                { id: 'analytics' as const, icon: BarChart3, label: 'Analytics' }
+              ].map(mode => (
+                <button
+                  key={mode.id}
+                  onClick={() => setViewMode(mode.id)}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
+                    viewMode === mode.id 
+                      ? "bg-white text-blue-600 shadow-sm" 
+                      : "text-gray-500 hover:text-gray-900"
+                  )}
+                >
+                  <mode.icon className="w-3.5 h-3.5" />
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Stages Header */}
+          <div className="px-4 pt-3 pb-2">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Stages</h3>
           </div>
           
           <div className="flex-1 overflow-y-auto p-2">
@@ -1076,6 +1145,10 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
               currentApp={currentApp}
               stage={currentStage || undefined}
               rubric={currentRubric}
+              showFilters={showFilters}
+              onToggleFilters={() => setShowFilters(!showFilters)}
+              onRefresh={loadData}
+              hasActiveFilters={filterStatus !== 'all' || filterTags.length > 0 || filterScoreMin !== null || filterScoreMax !== null || filterReviewed !== 'all'}
             />
           )}
           
@@ -1112,6 +1185,44 @@ export function ReviewWorkspace({ workspaceId, formId }: ReviewWorkspaceProps) {
           )}
         </div>
       </div>
+
+      {/* Reviewers Slide-over Panel */}
+      {showReviewersPanel && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/30 transition-opacity" 
+            onClick={setShowReviewersPanel} 
+          />
+          
+          {/* Panel */}
+          <div className="absolute right-2 top-2 bottom-2 w-full max-w-2xl bg-white border border-gray-200 rounded-xl shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Users className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Team & Reviewers</h2>
+                  <p className="text-sm text-gray-500">Manage review team for this workflow</p>
+                </div>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={setShowReviewersPanel}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto">
+              <ReviewerManagement formId={formId} workspaceId={workspaceId} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1124,7 +1235,11 @@ function QueueView({
   onStartReview,
   currentApp,
   stage,
-  rubric
+  rubric,
+  showFilters,
+  onToggleFilters,
+  onRefresh,
+  hasActiveFilters
 }: {
   apps: ApplicationData[]
   selectedIndex: number
@@ -1133,28 +1248,125 @@ function QueueView({
   currentApp: ApplicationData | null
   stage?: StageWithConfig
   rubric: Rubric | null
+  showFilters?: boolean
+  onToggleFilters?: () => void
+  onRefresh?: () => void
+  hasActiveFilters?: boolean
 }) {
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false)
+  const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'highest' | 'lowest'>('recent')
+
+  const sortedApps = useMemo(() => {
+    const sorted = [...apps]
+    switch (sortBy) {
+      case 'recent':
+        return sorted.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+      case 'oldest':
+        return sorted.sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
+      case 'highest':
+        return sorted.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+      case 'lowest':
+        return sorted.sort((a, b) => (a.score ?? 0) - (b.score ?? 0))
+      default:
+        return sorted
+    }
+  }, [apps, sortBy])
+
+  const sortLabels = {
+    recent: 'Most Recent',
+    oldest: 'Oldest First',
+    highest: 'Highest Score',
+    lowest: 'Lowest Score'
+  }
+
   return (
     <div className="flex-1 flex overflow-hidden">
       {/* Application List */}
-      <div className="w-96 border-r border-gray-200 flex flex-col bg-white">
+      <div className="w-96 border-r border-gray-200 flex flex-col bg-white rounded-l-2xl">
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <h3 className="font-medium text-gray-900">{apps.length} Applications</h3>
-          <select className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700">
-            <option>Most Recent</option>
-            <option>Oldest First</option>
-            <option>Highest Score</option>
-          </select>
+          <div className="flex items-center gap-1">
+            {/* Sort & Filter Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors",
+                  hasActiveFilters 
+                    ? "bg-blue-50 border-blue-200 text-blue-700" 
+                    : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                )}
+              >
+                <Filter className="w-3.5 h-3.5" />
+                <span>{sortLabels[sortBy]}</span>
+                {hasActiveFilters && <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" />}
+                <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", sortDropdownOpen && "rotate-180")} />
+              </button>
+              
+              {sortDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
+                  <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
+                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">Sort by</div>
+                    {(['recent', 'oldest', 'highest', 'lowest'] as const).map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => {
+                          setSortBy(option)
+                          setSortDropdownOpen(false)
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between",
+                          sortBy === option && "text-blue-600 bg-blue-50"
+                        )}
+                      >
+                        {sortLabels[option]}
+                        {sortBy === option && <CheckCircle className="w-3.5 h-3.5" />}
+                      </button>
+                    ))}
+                    
+                    <div className="border-t border-gray-100 my-1" />
+                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">Filters</div>
+                    <button
+                      onClick={() => {
+                        onToggleFilters?.()
+                        setSortDropdownOpen(false)
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2",
+                        showFilters && "text-blue-600 bg-blue-50"
+                      )}
+                    >
+                      <Settings2 className="w-3.5 h-3.5" />
+                      Advanced Filters
+                      {hasActiveFilters && <span className="ml-auto w-1.5 h-1.5 bg-blue-500 rounded-full" />}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            
+            {/* Refresh Button */}
+            <button
+              onClick={onRefresh}
+              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
         
         <div className="flex-1 overflow-y-auto">
-          {apps.map((app, idx) => (
+          {sortedApps.map((app, idx) => {
+            const originalIdx = apps.findIndex(a => a.id === app.id)
+            return (
             <button
               key={app.id}
-              onClick={() => onSelect(idx)}
+              onClick={() => onSelect(originalIdx)}
               className={cn(
                 "w-full text-left px-4 py-4 border-b border-gray-100 transition-all",
-                idx === selectedIndex 
+                originalIdx === selectedIndex 
                   ? "bg-blue-50 border-l-2 border-l-blue-600" 
                   : "hover:bg-gray-50"
               )}
@@ -1195,9 +1407,9 @@ function QueueView({
                 </div>
               </div>
             </button>
-          ))}
+          )})}
           
-          {apps.length === 0 && (
+          {sortedApps.length === 0 && (
             <div className="p-8 text-center">
               <Inbox className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">No applications in this stage</p>

@@ -28,8 +28,13 @@ import {
   Database,
   CheckSquare,
   Calendar,
-  UserCircle2
+  UserCircle2,
+  Sparkles,
+  GitCompare,
+  Rows3
 } from 'lucide-react'
+import { performSemanticSearch } from '@/lib/api/semantic-search-client'
+import type { SemanticSearchResult } from '@/types/search'
 
 interface OmniSearchProps {
   isOpen: boolean
@@ -81,6 +86,8 @@ export const OmniSearch: React.FC<OmniSearchProps> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [results, setResults] = useState<SearchResult[]>([])
   const [recentSearches, setRecentSearches] = useState<string[]>([])
+  const [isSemanticEnabled, setIsSemanticEnabled] = useState(false)
+  const [searchTook, setSearchTook] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -105,66 +112,67 @@ export const OmniSearch: React.FC<OmniSearchProps> = ({
     if (!workspaceSlug) return []
 
     return [
-      // Quick Actions
+      // Quick Actions - Create
+      {
+        id: 'action-new-table',
+        title: 'Create New Table',
+        subtitle: 'Create a new data table',
+        icon: Table2,
+        type: 'action',
+        category: 'CREATE',
+        action: () => {
+          router.push(`/workspace/${workspaceSlug}?action=create-table`)
+          onClose()
+        },
+        shortcut: '⌘T',
+        keywords: ['create', 'new', 'table', 'database', 'data']
+      },
       {
         id: 'action-new-form',
         title: 'Create New Form',
-        subtitle: 'Start building a new form',
+        subtitle: 'Build a form to collect data',
         icon: FileText,
         type: 'action',
-        category: 'ACTIONS',
+        category: 'CREATE',
         action: () => {
           router.push(`/workspace/${workspaceSlug}?action=create-form`)
           onClose()
         },
-        shortcut: '⌘N',
-        keywords: ['create', 'new', 'form', 'survey']
+        shortcut: '⌘F',
+        keywords: ['create', 'new', 'form', 'survey', 'application']
       },
       {
-        id: 'action-new-document',
-        title: 'Create Document',
-        subtitle: 'Start a new collaborative document',
-        icon: FileText,
+        id: 'action-new-workflow',
+        title: 'Create Workflow',
+        subtitle: 'Set up a review workflow',
+        icon: GitCompare,
         type: 'action',
-        category: 'ACTIONS',
+        category: 'CREATE',
         action: () => {
-          router.push(`/workspace/${workspaceSlug}?action=create-document`)
+          router.push(`/workspace/${workspaceSlug}/workflows/new`)
           onClose()
         },
-        keywords: ['create', 'new', 'document', 'doc']
+        keywords: ['create', 'new', 'workflow', 'review', 'approval', 'stages']
       },
       {
-        id: 'action-calendar',
-        title: 'Open Calendar',
-        subtitle: 'View your schedule',
-        icon: Calendar,
+        id: 'action-new-hub',
+        title: 'Create Hub',
+        subtitle: 'Create an activities or request hub',
+        icon: Inbox,
         type: 'action',
-        category: 'ACTIONS',
+        category: 'CREATE',
         action: () => {
-          router.push(`/workspace/${workspaceSlug}/calendar`)
+          router.push(`/workspace/${workspaceSlug}?action=create-hub`)
           onClose()
         },
-        keywords: ['calendar', 'schedule', 'events']
-      },
-      {
-        id: 'action-team',
-        title: 'Team',
-        subtitle: 'Manage team members',
-        icon: UserCircle2,
-        type: 'action',
-        category: 'ACTIONS',
-        action: () => {
-          router.push(`/workspace/${workspaceSlug}/team`)
-          onClose()
-        },
-        keywords: ['team', 'members', 'people']
+        keywords: ['create', 'new', 'hub', 'activities', 'request', 'module']
       },
 
       // Navigation
       {
         id: 'nav-dashboard',
         title: 'Dashboard',
-        subtitle: 'Go to workspace dashboard',
+        subtitle: 'Go to workspace overview',
         icon: Layout,
         type: 'navigation',
         category: 'NAVIGATION',
@@ -172,12 +180,12 @@ export const OmniSearch: React.FC<OmniSearchProps> = ({
           router.push(`/workspace/${workspaceSlug}`)
           onClose()
         },
-        keywords: ['dashboard', 'overview', 'home']
+        keywords: ['dashboard', 'overview', 'home', 'main']
       },
       {
         id: 'nav-tables',
         title: 'All Tables',
-        subtitle: 'View all database tables',
+        subtitle: 'View and manage data tables',
         icon: Table2,
         type: 'navigation',
         category: 'NAVIGATION',
@@ -185,12 +193,12 @@ export const OmniSearch: React.FC<OmniSearchProps> = ({
           router.push(`/workspace/${workspaceSlug}/tables`)
           onClose()
         },
-        keywords: ['tables', 'databases', 'data']
+        keywords: ['tables', 'databases', 'data', 'rows', 'columns']
       },
       {
         id: 'nav-forms',
         title: 'All Forms',
-        subtitle: 'View all forms',
+        subtitle: 'View and manage forms',
         icon: FileText,
         type: 'navigation',
         category: 'NAVIGATION',
@@ -198,25 +206,51 @@ export const OmniSearch: React.FC<OmniSearchProps> = ({
           router.push(`/workspace/${workspaceSlug}/forms`)
           onClose()
         },
-        keywords: ['forms', 'surveys']
+        keywords: ['forms', 'surveys', 'applications', 'submissions']
       },
       {
-        id: 'nav-hubs',
-        title: 'Request Hubs',
-        subtitle: 'View all request hubs',
+        id: 'nav-workflows',
+        title: 'Workflows',
+        subtitle: 'Manage review workflows',
+        icon: GitCompare,
+        type: 'navigation',
+        category: 'NAVIGATION',
+        action: () => {
+          router.push(`/workspace/${workspaceSlug}/workflows`)
+          onClose()
+        },
+        keywords: ['workflows', 'review', 'approval', 'stages', 'rubrics']
+      },
+      {
+        id: 'nav-activities-hub',
+        title: 'Activities Hub',
+        subtitle: 'Manage programs and events',
+        icon: Calendar,
+        type: 'navigation',
+        category: 'NAVIGATION',
+        action: () => {
+          router.push(`/workspace/${workspaceSlug}/activities`)
+          onClose()
+        },
+        keywords: ['activities', 'programs', 'events', 'attendance', 'hub']
+      },
+      {
+        id: 'nav-request-hub',
+        title: 'Request Hub',
+        subtitle: 'Manage requests and approvals',
         icon: Inbox,
         type: 'navigation',
         category: 'NAVIGATION',
         action: () => {
-          router.push(`/workspace/${workspaceSlug}/request-hubs`)
+          router.push(`/workspace/${workspaceSlug}/request-hub`)
           onClose()
         },
-        keywords: ['hubs', 'requests', 'inbox']
+        keywords: ['requests', 'approvals', 'inbox', 'hub']
       },
       {
         id: 'nav-settings',
-        title: 'Settings',
-        subtitle: 'Workspace settings',
+        title: 'Workspace Settings',
+        subtitle: 'Configure workspace preferences',
         icon: Settings,
         type: 'navigation',
         category: 'NAVIGATION',
@@ -224,25 +258,204 @@ export const OmniSearch: React.FC<OmniSearchProps> = ({
           router.push(`/workspace/${workspaceSlug}/settings`)
           onClose()
         },
-        keywords: ['settings', 'preferences', 'configuration']
+        keywords: ['settings', 'preferences', 'configuration', 'workspace']
       }
     ]
   }, [workspaceSlug, router, onClose])
 
-  // Search function (to be enhanced with API calls)
+  // AI-powered action detection from natural language
+  const detectActionFromQuery = useCallback((query: string): SearchResult | null => {
+    const lowerQuery = query.toLowerCase()
+    
+    // Create actions
+    if (lowerQuery.match(/^(create|add|new|make)\s+(a\s+)?(table|data\s*table)/i)) {
+      return {
+        id: 'ai-action-create-table',
+        title: '✨ Create a new table',
+        subtitle: 'AI detected: You want to create a table',
+        icon: Zap,
+        type: 'action',
+        category: 'AI SUGGESTION',
+        action: () => {
+          router.push(`/workspace/${workspaceSlug}?action=create-table`)
+          onClose()
+        }
+      }
+    }
+    
+    if (lowerQuery.match(/^(create|add|new|make|build)\s+(a\s+)?(form|survey|application)/i)) {
+      return {
+        id: 'ai-action-create-form',
+        title: '✨ Create a new form',
+        subtitle: 'AI detected: You want to create a form',
+        icon: Zap,
+        type: 'action',
+        category: 'AI SUGGESTION',
+        action: () => {
+          router.push(`/workspace/${workspaceSlug}?action=create-form`)
+          onClose()
+        }
+      }
+    }
+    
+    if (lowerQuery.match(/^(create|add|new|set\s*up)\s+(a\s+)?(workflow|review|approval)/i)) {
+      return {
+        id: 'ai-action-create-workflow',
+        title: '✨ Create a review workflow',
+        subtitle: 'AI detected: You want to set up a workflow',
+        icon: Zap,
+        type: 'action',
+        category: 'AI SUGGESTION',
+        action: () => {
+          router.push(`/workspace/${workspaceSlug}/workflows/new`)
+          onClose()
+        }
+      }
+    }
+
+    // Show/View actions
+    if (lowerQuery.match(/^(show|view|see|find|list|get)\s+(me\s+)?(all\s+)?(my\s+)?(tables|data)/i)) {
+      return {
+        id: 'ai-action-show-tables',
+        title: '✨ Show all tables',
+        subtitle: 'AI detected: You want to see your tables',
+        icon: Zap,
+        type: 'action',
+        category: 'AI SUGGESTION',
+        action: () => {
+          router.push(`/workspace/${workspaceSlug}/tables`)
+          onClose()
+        }
+      }
+    }
+    
+    if (lowerQuery.match(/^(show|view|see|find|list|get)\s+(me\s+)?(all\s+)?(my\s+)?(forms|applications|surveys)/i)) {
+      return {
+        id: 'ai-action-show-forms',
+        title: '✨ Show all forms',
+        subtitle: 'AI detected: You want to see your forms',
+        icon: Zap,
+        type: 'action',
+        category: 'AI SUGGESTION',
+        action: () => {
+          router.push(`/workspace/${workspaceSlug}/forms`)
+          onClose()
+        }
+      }
+    }
+    
+    if (lowerQuery.match(/^(show|view|see|find|list|get)\s+(me\s+)?(all\s+)?(my\s+)?(submissions|responses|applications)/i)) {
+      return {
+        id: 'ai-action-show-submissions',
+        title: '✨ Show form submissions',
+        subtitle: 'AI detected: You want to see submissions',
+        icon: Zap,
+        type: 'action',
+        category: 'AI SUGGESTION',
+        action: () => {
+          router.push(`/workspace/${workspaceSlug}/forms`)
+          onClose()
+        }
+      }
+    }
+    
+    if (lowerQuery.match(/^(show|view|see|find|list|get)\s+(me\s+)?(all\s+)?(my\s+)?(workflows|reviews)/i)) {
+      return {
+        id: 'ai-action-show-workflows',
+        title: '✨ Show workflows',
+        subtitle: 'AI detected: You want to see your workflows',
+        icon: Zap,
+        type: 'action',
+        category: 'AI SUGGESTION',
+        action: () => {
+          router.push(`/workspace/${workspaceSlug}/workflows`)
+          onClose()
+        }
+      }
+    }
+    
+    if (lowerQuery.match(/^(show|view|see|find|go\s*to)\s+(me\s+)?(the\s+)?(activities|programs|events)/i)) {
+      return {
+        id: 'ai-action-show-activities',
+        title: '✨ Go to Activities Hub',
+        subtitle: 'AI detected: You want to see activities',
+        icon: Zap,
+        type: 'action',
+        category: 'AI SUGGESTION',
+        action: () => {
+          router.push(`/workspace/${workspaceSlug}/activities`)
+          onClose()
+        }
+      }
+    }
+    
+    if (lowerQuery.match(/^(show|view|see|find|go\s*to)\s+(me\s+)?(the\s+)?(requests|inbox)/i)) {
+      return {
+        id: 'ai-action-show-requests',
+        title: '✨ Go to Request Hub',
+        subtitle: 'AI detected: You want to see requests',
+        icon: Zap,
+        type: 'action',
+        category: 'AI SUGGESTION',
+        action: () => {
+          router.push(`/workspace/${workspaceSlug}/request-hub`)
+          onClose()
+        }
+      }
+    }
+
+    // Go to actions
+    if (lowerQuery.match(/^(go\s*to|open|navigate\s*to)\s+(the\s+)?(dashboard|home|overview)/i)) {
+      return {
+        id: 'ai-action-go-dashboard',
+        title: '✨ Go to Dashboard',
+        subtitle: 'AI detected: Navigate to dashboard',
+        icon: Zap,
+        type: 'action',
+        category: 'AI SUGGESTION',
+        action: () => {
+          router.push(`/workspace/${workspaceSlug}`)
+          onClose()
+        }
+      }
+    }
+    
+    if (lowerQuery.match(/^(go\s*to|open|navigate\s*to)\s+(the\s+)?settings/i)) {
+      return {
+        id: 'ai-action-go-settings',
+        title: '✨ Go to Settings',
+        subtitle: 'AI detected: Navigate to settings',
+        icon: Zap,
+        type: 'action',
+        category: 'AI SUGGESTION',
+        action: () => {
+          router.push(`/workspace/${workspaceSlug}/settings`)
+          onClose()
+        }
+      }
+    }
+
+    return null
+  }, [workspaceSlug, router, onClose])
+
+  // Search function with semantic search integration
   const performSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) {
       setResults(getDefaultResults())
+      setIsSemanticEnabled(false)
+      setSearchTook(0)
       return
     }
 
     setIsLoading(true)
     
     try {
-      // TODO: Replace with actual API call to search endpoint
-      // For now, filter default results
+      // Check for AI-detected action first
+      const aiAction = detectActionFromQuery(searchQuery)
+      
+      // Get default action/navigation results first
       const defaultResults = getDefaultResults()
-      const filtered = defaultResults.filter(result => {
+      const filteredDefaults = defaultResults.filter(result => {
         const searchTerms = searchQuery.toLowerCase().split(' ')
         const searchableText = [
           result.title,
@@ -255,14 +468,46 @@ export const OmniSearch: React.FC<OmniSearchProps> = ({
         return searchTerms.every(term => searchableText.includes(term))
       })
 
-      setResults(filtered)
-      
-      // TODO: Add API search results for:
-      // - Tables (search by name, description)
-      // - Forms (search by name, description)
-      // - Request Hubs (search by name)
-      // - Table Rows (search within row data)
-      // - Form Submissions (search within submission data)
+      // Perform semantic search if workspace is available
+      let semanticResults: SearchResult[] = []
+      if (workspaceId) {
+        try {
+          const { results: apiResults, isSemanticEnabled: semantic, took } = 
+            await performSemanticSearch(workspaceId, searchQuery, { limit: 20 })
+          
+          setIsSemanticEnabled(semantic)
+          setSearchTook(took)
+          
+          // Convert API results to OmniSearch format
+          semanticResults = apiResults.map((r: SemanticSearchResult) => ({
+            id: r.entityId,
+            title: r.title,
+            subtitle: r.subtitle || r.contentSnippet,
+            description: r.contentSnippet,
+            icon: getIconForType(r.entityType, r.hubType),
+            type: r.entityType as SearchResultType,
+            category: getCategoryForType(r.entityType, r.hubType),
+            action: () => {
+              navigateToResult(r)
+              onClose()
+            },
+            secondaryActions: getSecondaryActions(r),
+            badge: r.hubType,
+            path: r.tags?.join(' / '),
+          }))
+        } catch (error) {
+          console.warn('Semantic search unavailable, using local search only')
+          setIsSemanticEnabled(false)
+        }
+      }
+
+      // Combine results: AI action first, then semantic, then filtered defaults
+      const allResults = [
+        ...(aiAction ? [aiAction] : []),
+        ...semanticResults, 
+        ...filteredDefaults
+      ]
+      setResults(allResults)
       
     } catch (error) {
       console.error('Search error:', error)
@@ -270,7 +515,81 @@ export const OmniSearch: React.FC<OmniSearchProps> = ({
     } finally {
       setIsLoading(false)
     }
-  }, [getDefaultResults])
+  }, [getDefaultResults, workspaceId, onClose])
+
+  // Helper to get icon based on entity type
+  const getIconForType = (entityType: string, hubType?: string) => {
+    switch (entityType) {
+      case 'table': return Table2
+      case 'row': return Rows3
+      case 'form': return FileText
+      case 'submission': return CheckSquare
+      case 'column': return Database
+      case 'workflow': return GitCompare
+      default:
+        if (hubType === 'activities') return Calendar
+        if (hubType === 'request') return Inbox
+        return Database
+    }
+  }
+
+  // Helper to get category based on entity type
+  const getCategoryForType = (entityType: string, hubType?: string) => {
+    if (hubType) {
+      return hubType.toUpperCase() + ' HUB'
+    }
+    switch (entityType) {
+      case 'table': return 'TABLES'
+      case 'row': return 'TABLE DATA'
+      case 'form': return 'FORMS'
+      case 'submission': return 'SUBMISSIONS'
+      case 'workflow': return 'WORKFLOWS'
+      default: return 'RESULTS'
+    }
+  }
+
+  // Navigate to a search result
+  const navigateToResult = (r: SemanticSearchResult) => {
+    if (!workspaceSlug) return
+    
+    switch (r.entityType) {
+      case 'table':
+        router.push(`/workspace/${workspaceSlug}/table/${r.entityId}`)
+        break
+      case 'row':
+        if (r.tableId) {
+          router.push(`/workspace/${workspaceSlug}/table/${r.tableId}?row=${r.entityId}`)
+        }
+        break
+      case 'form':
+        router.push(`/workspace/${workspaceSlug}/form/${r.entityId}`)
+        break
+      case 'submission':
+        router.push(`/workspace/${workspaceSlug}/submissions/${r.entityId}`)
+        break
+      default:
+        console.log('Navigate to:', r.entityType, r.entityId)
+    }
+  }
+
+  // Get secondary actions for a result
+  const getSecondaryActions = (r: SemanticSearchResult) => {
+    const actions = []
+    
+    // Add "Find Similar" for items with embeddings
+    if (['row', 'submission'].includes(r.entityType)) {
+      actions.push({
+        label: 'Find Similar',
+        icon: Sparkles,
+        action: () => {
+          // This could open a "similar items" view
+          console.log('Find similar to:', r.entityId)
+        }
+      })
+    }
+    
+    return actions.length > 0 ? actions : undefined
+  }
 
   // Debounced search
   useEffect(() => {
@@ -491,9 +810,20 @@ export const OmniSearch: React.FC<OmniSearchProps> = ({
                   <span>Close</span>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
-                <Command className="w-3 h-3" />
-                <span>Command Palette</span>
+              <div className="flex items-center gap-3">
+                {isSemanticEnabled && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-purple-600">
+                    <Sparkles className="w-3 h-3" />
+                    <span>AI Search</span>
+                    {searchTook > 0 && (
+                      <span className="text-purple-400">({searchTook}ms)</span>
+                    )}
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+                  <Command className="w-3 h-3" />
+                  <span>Command Palette</span>
+                </div>
               </div>
             </div>
           </div>

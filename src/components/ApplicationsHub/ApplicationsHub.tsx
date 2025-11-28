@@ -1,13 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { GraduationCap, FileText, Layout, Plus, Search, MoreVertical, ArrowRight, Loader2 } from 'lucide-react'
+import { GraduationCap, FileText, Layout, Plus, Search, MoreVertical, ArrowRight, Loader2, Filter, CheckCircle, Clock } from 'lucide-react'
 import { ScholarshipManager } from './Scholarships/ScholarshipManager'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { useTabContext } from '@/components/WorkspaceTabProvider'
 import { goClient } from '@/lib/api/go-client'
 import { Form } from '@/types/forms'
+import { useSearch, HubSearchContext } from '@/components/Search'
+import { cn } from '@/lib/utils'
 
 interface ApplicationsHubProps {
   workspaceId: string
@@ -16,7 +18,8 @@ interface ApplicationsHubProps {
 type View = 'home' | 'scholarships' | 'create'
 
 export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
-  const { registerNavigationHandler, tabs, tabManager } = useTabContext()
+  const { registerNavigationHandler, tabs, tabManager, setTabActions, setTabHeaderContent } = useTabContext()
+  const { setHubContext, query: searchQuery } = useSearch()
   const hubUrl = `/workspace/${workspaceId}/applications`
   const hubTab = tabs.find(t => t.url === hubUrl)
   
@@ -25,7 +28,6 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
   const [isInitialized, setIsInitialized] = useState(false)
   const [forms, setForms] = useState<Form[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'draft'>('all')
 
   // Initialize state from metadata
@@ -74,6 +76,45 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
     }
   }, [currentView, selectedFormId, hubTab, tabManager, isInitialized])
 
+  // Set tab header and actions for home view
+  useEffect(() => {
+    if (currentView !== 'home') return
+
+    setTabHeaderContent({
+      title: 'Applications Hub'
+    })
+
+    setTabActions([
+      <Button key="new-app" size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700">
+        <Plus className="w-4 h-4" />
+        New Application
+      </Button>
+    ])
+
+    return () => {
+      setTabHeaderContent(null)
+      setTabActions([])
+    }
+  }, [currentView, setTabHeaderContent, setTabActions])
+
+  // Register search context for home view
+  useEffect(() => {
+    if (currentView !== 'home') return
+
+    const context: HubSearchContext = {
+      hubType: 'applications',
+      hubId: workspaceId,
+      hubName: 'Applications Hub',
+      placeholder: 'Search applications...',
+      actions: [
+        { label: 'New Application', action: () => {} }
+      ]
+    }
+
+    setHubContext(context)
+    return () => setHubContext(null)
+  }, [currentView, workspaceId, setHubContext])
+
   // Register navigation handler
   useEffect(() => {
     if (currentView === 'home') {
@@ -121,152 +162,150 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
   })
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-gray-50 via-white to-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-8 py-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <GraduationCap className="w-8 h-8 text-blue-600" />
-              Applications Hub
-            </h1>
-            <p className="text-gray-600 mt-2">Manage your application programs and review processes</p>
-          </div>
-          <Button className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all">
-            <Plus className="w-4 h-4" />
-            New Application
-          </Button>
+    <div className="h-full flex bg-gray-50/50">
+      {/* Left Sidebar */}
+      <div className="w-56 flex-shrink-0 bg-white border-r border-gray-200 p-3 flex flex-col gap-3">
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <Input 
+            placeholder="Filter applications..." 
+            className="pl-8 h-8 text-sm bg-gray-50/50 border-gray-200"
+          />
         </div>
 
-        {/* Search and Filter */}
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input 
-              placeholder="Search applications..." 
-              className="pl-9 bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-300 transition-colors"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+        {/* Stats */}
+        <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-600">Total</span>
+            <span className="font-semibold text-gray-900">{forms.length}</span>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant={filterStatus === 'all' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterStatus('all')}
-              className={filterStatus === 'all' ? 'bg-blue-600 hover:bg-blue-700' : ''}
-            >
-              All
-            </Button>
-            <Button
-              variant={filterStatus === 'active' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterStatus('active')}
-              className={filterStatus === 'active' ? 'bg-blue-600 hover:bg-blue-700' : ''}
-            >
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-600 flex items-center gap-1.5">
+              <CheckCircle className="w-3.5 h-3.5 text-green-500" />
               Active
-            </Button>
-            <Button
-              variant={filterStatus === 'draft' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilterStatus('draft')}
-              className={filterStatus === 'draft' ? 'bg-blue-600 hover:bg-blue-700' : ''}
-            >
+            </span>
+            <span className="font-semibold text-green-600">{forms.filter(f => f.is_public).length}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-600 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-gray-400" />
               Draft
-            </Button>
+            </span>
+            <span className="font-semibold text-gray-600">{forms.filter(f => !f.is_public).length}</span>
+          </div>
+        </div>
+
+        {/* Status Filter */}
+        <div className="space-y-1.5">
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide px-1">Status</span>
+          <div className="space-y-0.5">
+            {[
+              { value: 'all', label: 'All Applications' },
+              { value: 'active', label: 'Active' },
+              { value: 'draft', label: 'Draft' }
+            ].map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setFilterStatus(option.value as 'all' | 'active' | 'draft')}
+                className={cn(
+                  "w-full text-left px-2.5 py-1.5 rounded-md text-sm transition-colors",
+                  filterStatus === option.value
+                    ? "bg-blue-50 text-blue-700 font-medium"
+                    : "text-gray-600 hover:bg-gray-100"
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-64">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          </div>
-        ) : (
-          <div className="max-w-7xl mx-auto">
-            {filteredForms.length === 0 ? (
-              <div className="text-center py-16 bg-white rounded-xl border-2 border-dashed border-gray-300">
-                <GraduationCap className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  {searchQuery || filterStatus !== 'all' ? 'No matching applications' : 'No applications yet'}
-                </h3>
-                <p className="text-sm text-gray-500 mb-6">
-                  {searchQuery || filterStatus !== 'all' 
-                    ? 'Try adjusting your search or filters'
-                    : 'Create your first application to get started'}
-                </p>
-                {!searchQuery && filterStatus === 'all' && (
-                  <Button className="bg-blue-600 hover:bg-blue-700">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Application
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredForms.map((form) => (
-                  <div 
-                    key={form.id}
-                    onClick={() => handleFormClick(form.id)}
-                    className="group bg-white rounded-xl border-2 border-gray-200 p-6 hover:shadow-xl hover:border-blue-300 transition-all cursor-pointer flex flex-col transform hover:-translate-y-1"
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
-                        <GraduationCap className="w-7 h-7 text-blue-600" />
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto bg-white rounded-tl-xl rounded-bl-xl border-l border-gray-200">
+        <div className="p-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            </div>
+          ) : filteredForms.length === 0 ? (
+            <div className="text-center py-16">
+              <GraduationCap className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {searchQuery || filterStatus !== 'all' ? 'No matching applications' : 'No applications yet'}
+              </h3>
+              <p className="text-sm text-gray-500 mb-6">
+                {searchQuery || filterStatus !== 'all' 
+                  ? 'Try adjusting your search or filters'
+                  : 'Create your first application to get started'}
+              </p>
+              {!searchQuery && filterStatus === 'all' && (
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Application
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredForms.map((form) => (
+                <div 
+                  key={form.id}
+                  onClick={() => handleFormClick(form.id)}
+                  className="group bg-gray-50 rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg flex items-center justify-center">
+                          <GraduationCap className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <button 
+                          className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                          }}
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
                       </div>
-                      <button 
-                        className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          // TODO: Add context menu
-                        }}
-                      >
-                        <MoreVertical className="w-5 h-5" />
-                      </button>
-                    </div>
-                    
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-1">
-                      {form.name}
-                    </h3>
-                    <p className="text-gray-600 text-sm mb-6 flex-1 line-clamp-3 min-h-[3.75rem]">
-                      {form.description || 'No description provided.'}
-                    </p>
+                      
+                      <h3 className="text-base font-semibold text-gray-900 mb-1 group-hover:text-blue-600 line-clamp-1">
+                        {form.name}
+                      </h3>
+                      <p className="text-gray-500 text-sm mb-3 line-clamp-2 min-h-[2.5rem]">
+                        {form.description || 'No description provided.'}
+                      </p>
 
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2.5 h-2.5 rounded-full ${form.is_public ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
-                        <span className="text-sm font-medium text-gray-700">
-                          {form.is_public ? 'Active' : 'Draft'}
+                      <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full ${form.is_public ? 'bg-green-500' : 'bg-gray-300'}`} />
+                          <span className="text-xs font-medium text-gray-600">
+                            {form.is_public ? 'Active' : 'Draft'}
+                          </span>
+                        </div>
+                        <span className="text-xs font-medium text-blue-600 flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                          Open <ArrowRight className="w-3 h-3" />
                         </span>
                       </div>
-                      <span className="text-sm font-semibold text-blue-600 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        Open <ArrowRight className="w-4 h-4" />
-                      </span>
                     </div>
-                  </div>
-                ))}
+                  ))}
 
-                {/* Create New Card */}
-                <button 
-                  className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all min-h-[280px] group"
-                  onClick={() => {
-                    // TODO: Open create form dialog
-                  }}
-                >
-                  <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-4 group-hover:bg-blue-100 group-hover:scale-110 transition-all">
-                    <Plus className="w-7 h-7" />
-                  </div>
-                  <h3 className="font-semibold text-lg mb-1">Create Application</h3>
-                  <p className="text-sm text-center max-w-[200px]">
-                    Start a new application process from scratch or a template
-                  </p>
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+                  {/* Create New Card */}
+                  <button 
+                    className="border-2 border-dashed border-gray-200 rounded-lg p-4 flex flex-col items-center justify-center text-gray-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50/50 transition-all min-h-[180px]"
+                    onClick={() => {}}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                    <h3 className="font-medium text-sm mb-1">Create Application</h3>
+                    <p className="text-xs text-center max-w-[160px]">
+                      Start a new application process
+                    </p>
+                  </button>
+                </div>
+              )}
+        </div>
       </div>
     </div>
   )

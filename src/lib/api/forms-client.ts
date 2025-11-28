@@ -1,5 +1,6 @@
 import { goClient } from './go-client'
 import { PortalConfig } from '@/types/portal'
+import { semanticSearchClient } from './semantic-search-client'
 
 export const formsClient = {
   list: (workspaceId: string) => 
@@ -20,8 +21,16 @@ export const formsClient = {
   delete: (id: string) => 
     goClient.delete(`/forms/${id}`),
 
-  submit: (id: string, data: any) => 
-    goClient.post(`/forms/${id}/submit`, { data }),
+  submit: async (id: string, data: any) => {
+    const result = await goClient.post<{ id: string }>(`/forms/${id}/submit`, { data })
+    
+    // Queue submission for embedding (fire and forget)
+    if (result?.id) {
+      semanticSearchClient.queueForEmbedding(result.id, 'submission', 5).catch(() => {})
+    }
+    
+    return result
+  },
     
   getSubmissions: (id: string) => 
     goClient.get(`/forms/${id}/submissions`),

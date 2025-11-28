@@ -43,17 +43,17 @@ func (s *StringArray) Scan(value interface{}) error {
 		*s = nil
 		return nil
 	}
-	
+
 	bytes, ok := value.([]byte)
 	if !ok {
 		return errors.New("failed to scan StringArray: invalid type")
 	}
-	
+
 	// Try parsing as JSON array first (from GORM)
 	if err := json.Unmarshal(bytes, s); err == nil {
 		return nil
 	}
-	
+
 	// Try parsing as PostgreSQL array format: {value1,value2}
 	str := string(bytes)
 	if len(str) >= 2 && str[0] == '{' && str[len(str)-1] == '}' {
@@ -70,7 +70,7 @@ func (s *StringArray) Scan(value interface{}) error {
 		*s = result
 		return nil
 	}
-	
+
 	return errors.New("failed to scan StringArray: unknown format")
 }
 
@@ -177,9 +177,9 @@ type ModuleWithStatus struct {
 
 // HubModulesResponse is the API response for listing hub modules
 type HubModulesResponse struct {
-	TableID        uuid.UUID          `json:"table_id"`
-	HubType        string             `json:"hub_type"`
-	EnabledModules []ModuleWithStatus `json:"enabled_modules"`
+	TableID          uuid.UUID          `json:"table_id"`
+	HubType          string             `json:"hub_type"`
+	EnabledModules   []ModuleWithStatus `json:"enabled_modules"`
 	AvailableModules []ModuleWithStatus `json:"available_modules"`
 }
 

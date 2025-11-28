@@ -7,8 +7,6 @@ import { useRouter } from 'next/navigation'
 import { useTabContext, TabAction } from './WorkspaceTabProvider'
 import { tablesGoClient } from '@/lib/api/tables-go-client'
 import { toast } from 'sonner'
-
-
 interface TabActionBarProps {
   activeTab: TabData | null
   workspaceId: string
@@ -19,7 +17,7 @@ interface TabActionBarProps {
 
 export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigate }: TabActionBarProps) {
   const router = useRouter()
-  const { tabActions } = useTabContext()
+  const { tabActions, tabHeaderContent } = useTabContext()
 
   // Find current tab index for navigation
   const currentTabIndex = activeTab ? tabs.findIndex(tab => tab.id === activeTab.id) : -1
@@ -246,35 +244,89 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
 
   return (
     <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
-      {/* Left side - Navigation arrows */}
-      <div className="flex items-center gap-1">
-        <button
-          onClick={handleBack}
-          disabled={!canGoBack}
-          className={cn(
-            "p-1.5 rounded transition-colors",
-            canGoBack 
-              ? "text-gray-600 hover:text-gray-900 hover:bg-gray-100" 
-              : "text-gray-300 cursor-not-allowed"
-          )}
-          title="Go back"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <button
-          onClick={handleForward}
-          disabled={!canGoForward}
-          className={cn(
-            "p-1.5 rounded transition-colors",
-            canGoForward 
-              ? "text-gray-600 hover:text-gray-900 hover:bg-gray-100" 
-              : "text-gray-300 cursor-not-allowed"
-          )}
-          title="Go forward"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
+      {/* Left side - Navigation arrows + Title */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleBack}
+            disabled={!canGoBack}
+            className={cn(
+              "p-1.5 rounded transition-colors",
+              canGoBack 
+                ? "text-gray-600 hover:text-gray-900 hover:bg-gray-100" 
+                : "text-gray-300 cursor-not-allowed"
+            )}
+            title="Go back"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleForward}
+            disabled={!canGoForward}
+            className={cn(
+              "p-1.5 rounded transition-colors",
+              canGoForward 
+                ? "text-gray-600 hover:text-gray-900 hover:bg-gray-100" 
+                : "text-gray-300 cursor-not-allowed"
+            )}
+            title="Go forward"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+        
+        {/* Title info after arrows */}
+        {tabHeaderContent && (
+          <div className="pl-2 border-l border-gray-200 flex items-center gap-2">
+            <span className="text-sm font-semibold text-gray-900">{tabHeaderContent.title}</span>
+            {tabHeaderContent.subModule && (
+              <>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-sm font-medium text-gray-600">{tabHeaderContent.subModule}</span>
+              </>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Center - Tab Header Navigation (if available) */}
+      {tabHeaderContent && tabHeaderContent.navItems && tabHeaderContent.navItems.length > 0 && (
+        <div className="flex items-center justify-center">
+          <div className="flex items-center gap-0.5 px-1.5 py-1 bg-gray-100 rounded-full">
+            {tabHeaderContent.navItems.map((item) => {
+              const Icon = item.icon
+              const isActive = tabHeaderContent.activeNavId === item.id
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => tabHeaderContent.onNavChange?.(item.id)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 transition-all",
+                    isActive 
+                      ? "bg-white text-gray-900 shadow-sm" 
+                      : "text-gray-600 hover:text-gray-900"
+                  )}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {item.label}
+                  {item.badge !== undefined && item.badge > 0 && (
+                    <span className={cn(
+                      "ml-0.5 px-1.5 py-0.5 text-[10px] rounded-full font-medium",
+                      item.badgeColor === 'blue' 
+                        ? "bg-blue-100 text-blue-700"
+                        : item.badgeColor === 'green'
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-200 text-gray-700"
+                    )}>
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Right side - Action buttons */}
       <div className="flex items-center gap-2">

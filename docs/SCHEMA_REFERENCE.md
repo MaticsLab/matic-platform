@@ -16,14 +16,58 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                               WORKSPACES                                     │
 │  (Projects/teams within an organization)                                    │
+│  ai_description: Natural language summary for AI context                    │
 └─────────────────────────────────────────────────────────────────────────────┘
                     ┌───────────────┼───────────────┐
                     ▼               ▼               ▼
               ┌──────────┐    ┌──────────┐    ┌──────────┐
-              │  FORMS   │    │  TABLES  │    │ MODULES  │
-              │(intake)  │    │(data)    │    │(features)│
+              │  TABLES  │    │  SEARCH  │    │ MODULES  │
+              │(data)    │    │ (index)  │    │(features)│
               └──────────┘    └──────────┘    └──────────┘
+                    │               ▲
+                    └───────────────┘ (triggers auto-index)
 ```
+
+---
+
+## 🤖 AI Search Architecture
+
+The schema includes purpose-built features for AI-powered search and retrieval:
+
+### Search Pipeline
+```
+User Query → smart_search() → search_index (tsvector + GIN)
+                                    ↓
+                             Ranked Results with:
+                             - Full-text matching
+                             - Fuzzy similarity
+                             - Click-rate boosting
+                             - Entity type weighting
+```
+
+### Key AI Features
+
+| Feature | Table/Column | Purpose |
+|---------|--------------|---------|
+| **Full-Text Search** | `search_index.search_vector` | tsvector with weighted ranking (A=title, B=subtitle, C=content) |
+| **Fuzzy Search** | `search_index.title` + pg_trgm | Trigram similarity for typo tolerance |
+| **Entity Classification** | `data_tables.entity_type` | Semantic meaning (person, event, application) |
+| **Semantic Fields** | `table_fields.semantic_type` | Field meaning (email, status, date) |
+| **Search Learning** | `search_analytics` | Click tracking to improve relevance over time |
+| **Result Boosting** | `search_index.importance_score` | Manual + automatic ranking signals |
+
+### Entity Types
+Rows are classified by what they represent:
+
+| Entity Type | Description | Search Weight |
+|-------------|-------------|---------------|
+| `person` | Individual people (students, applicants) | 1.2x |
+| `application` | Submitted applications for review | 1.1x |
+| `event` | Activities, meetings, scheduled items | 1.0x |
+| `document` | Files, attachments, records | 0.9x |
+| `organization` | Companies, schools, groups | 1.0x |
+| `task` | To-do items, action items | 0.9x |
+| `generic` | Unclassified data | 0.5x |
 
 ---
 

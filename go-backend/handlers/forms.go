@@ -422,6 +422,16 @@ func SubmitForm(c *gin.Context) {
 		return
 	}
 
+	// Queue submission for semantic embedding (async, don't fail if this fails)
+	go func() {
+		database.DB.Exec(`
+			INSERT INTO embedding_queue (entity_id, entity_type, priority, status)
+			VALUES ($1, 'submission', 5, 'pending')
+			ON CONFLICT (entity_id, entity_type) 
+			DO UPDATE SET priority = 5, status = 'pending', created_at = NOW()
+		`, row.ID)
+	}()
+
 	c.JSON(http.StatusCreated, row)
 }
 

@@ -63,10 +63,10 @@ func GetSearchSuggestions(c *gin.Context) {
 		suggestions = append(suggestions, f.Name)
 	}
 
-	// Get hub name suggestions
+	// Get hub name suggestions (tables with hub_type='activities')
 	if len(suggestions) < limit {
-		var hubs []models.ActivitiesHub
-		database.DB.Where("workspace_id = ? AND LOWER(name) LIKE ?", workspaceUUID, searchPattern).
+		var hubs []models.Table
+		database.DB.Where("workspace_id = ? AND hub_type = 'activities' AND LOWER(name) LIKE ?", workspaceUUID, searchPattern).
 			Limit(limit - len(suggestions)).
 			Select("name").
 			Find(&hubs)

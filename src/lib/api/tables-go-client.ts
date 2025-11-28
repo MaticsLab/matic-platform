@@ -5,6 +5,7 @@
 
 import { goClient } from './go-client'
 import type { DataTable, TableColumn, TableRow, TableView } from '@/types/data-tables'
+import { semanticSearchClient } from './semantic-search-client'
 
 export interface CreateTableInput {
   workspace_id: string
@@ -168,18 +169,32 @@ export const tablesGoClient = {
    * Create a new row
    */
   async createRow(tableId: string, input: CreateRowInput, userId: string): Promise<TableRow> {
-    return goClient.post<TableRow>(
+    const row = await goClient.post<TableRow>(
       `/tables/${tableId}/rows`,
       input,
       { user_id: userId }
     )
+    
+    // Queue row for embedding (fire and forget)
+    if (row?.id) {
+      semanticSearchClient.queueForEmbedding(row.id, 'row', 5).catch(() => {})
+    }
+    
+    return row
   },
 
   /**
    * Update a row
    */
   async updateRow(tableId: string, rowId: string, input: UpdateRowInput): Promise<TableRow> {
-    return goClient.patch<TableRow>(`/tables/${tableId}/rows/${rowId}`, input)
+    const row = await goClient.patch<TableRow>(`/tables/${tableId}/rows/${rowId}`, input)
+    
+    // Queue row for re-embedding (fire and forget)
+    if (row?.id) {
+      semanticSearchClient.queueForEmbedding(row.id, 'row', 3).catch(() => {})
+    }
+    
+    return row
   },
 
   /**

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { ChevronDown, Settings, LogOut, Search, Building2, Bell, User } from 'lucide-react'
+import { ChevronDown, Settings, LogOut, Building2, Bell, User } from 'lucide-react'
 import { supabase, getCurrentUser } from '@/lib/supabase'
 import { clearLastWorkspace } from '@/lib/utils'
 import { useWorkspaceDiscovery } from '@/hooks/useWorkspaceDiscovery'
@@ -12,8 +12,8 @@ import { WorkspaceSettingsModal } from './WorkspaceSettingsModal'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { toast } from 'sonner'
 import type { Workspace } from '@/types/workspaces'
-import { OmniSearch } from './OmniSearch'
-import { useOmniSearch } from '@/hooks/useOmniSearch'
+import { SearchProvider, SearchBar, SearchPanel, useSearch } from './Search'
+import { useTabContext } from './WorkspaceTabProvider'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,7 +22,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui-components/dropdown-menu'
-import { Input } from '@/ui-components/input'
 
 interface NavigationLayoutProps {
   children: React.ReactNode
@@ -38,7 +37,6 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
   const [fullWorkspace, setFullWorkspace] = useState<Workspace | null>(null)
   
   const { workspaces, currentWorkspace, setCurrentWorkspaceBySlug } = useWorkspaceDiscovery()
-  const { isOpen, open, close } = useOmniSearch()
 
   useEffect(() => {
     const loadUser = async () => {
@@ -117,6 +115,64 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
   }
 
   return (
+    <SearchProvider>
+      <NavigationLayoutInner 
+        user={user}
+        currentWorkspace={currentWorkspace}
+        workspaces={workspaces}
+        showSettingsModal={showSettingsModal}
+        setShowSettingsModal={setShowSettingsModal}
+        fullWorkspace={fullWorkspace}
+        handleOpenSettings={handleOpenSettings}
+        handleSignOut={handleSignOut}
+        handleWorkspaceSwitch={handleWorkspaceSwitch}
+        handleWorkspaceUpdate={handleWorkspaceUpdate}
+        getWorkspaceColorClass={getWorkspaceColorClass}
+        getWorkspaceColorStyle={getWorkspaceColorStyle}
+        getUserName={getUserName}
+      >
+        {children}
+      </NavigationLayoutInner>
+    </SearchProvider>
+  )
+}
+
+// Inner component that can use the SearchProvider context
+function NavigationLayoutInner({
+  children,
+  user,
+  currentWorkspace,
+  workspaces,
+  showSettingsModal,
+  setShowSettingsModal,
+  fullWorkspace,
+  handleOpenSettings,
+  handleSignOut,
+  handleWorkspaceSwitch,
+  handleWorkspaceUpdate,
+  getWorkspaceColorClass,
+  getWorkspaceColorStyle,
+  getUserName,
+}: {
+  children: React.ReactNode
+  user: any
+  currentWorkspace: any
+  workspaces: any[]
+  showSettingsModal: boolean
+  setShowSettingsModal: (open: boolean) => void
+  fullWorkspace: Workspace | null
+  handleOpenSettings: () => void
+  handleSignOut: () => void
+  handleWorkspaceSwitch: (slug: string) => void
+  handleWorkspaceUpdate: (workspace: Workspace) => void
+  getWorkspaceColorClass: (workspace: any) => string
+  getWorkspaceColorStyle: (workspace: any) => React.CSSProperties
+  getUserName: (email: string | undefined) => string
+}) {
+  const { tabManager } = useTabContext()
+  const { expandToPanel } = useSearch()
+
+  return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Top Navigation Bar */}
       <nav className="bg-white border-b border-gray-200">
@@ -174,18 +230,12 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
           </div>
 
           {/* Center: Global Search */}
-          <div className="flex-1 max-w-xl">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Search activities, requests, staff..."
-                onClick={open}
-                readOnly
-                className="pl-10 h-10 bg-gray-50 border-gray-200 focus:bg-white cursor-pointer"
-              />
-            </div>
-          </div>
+          <SearchBar
+            workspaceId={currentWorkspace?.id}
+            workspaceSlug={currentWorkspace?.slug}
+            tabManager={tabManager}
+            onExpandToPanel={expandToPanel}
+          />
 
           {/* Right: Notifications & Account */}
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -241,31 +291,34 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
         </div>
       </nav>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden bg-gray-100">
         {/* Sidebar */}
         {currentWorkspace && (
-          <Sidebar workspaceId={currentWorkspace.id} />
+          <div className="pl-2 py-2 pr-1">
+            <Sidebar workspaceId={currentWorkspace.id} />
+          </div>
         )}
 
-        <div className="flex-1 flex flex-col min-w-0 bg-gray-50">
-          {/* Tab Navigation Bar */}
-          {currentWorkspace && (
-            <div className="bg-white border-b border-gray-200">
-              <TabNavigation workspaceId={currentWorkspace.id} />
-            </div>
-          )}
+        <div className="flex-1 flex flex-col min-w-0 p-2 pl-1">
+          <div className="flex-1 flex flex-col bg-white rounded-xl overflow-hidden shadow-sm">
+            {/* Tab Navigation Bar */}
+            {currentWorkspace && (
+              <div className="border-b border-gray-200">
+                <TabNavigation workspaceId={currentWorkspace.id} />
+              </div>
+            )}
 
-          {/* Main Content */}
-          <main className="flex-1 overflow-auto">{children}</main>
+            {/* Main Content */}
+            <main className="flex-1 overflow-auto bg-gray-50">{children}</main>
+          </div>
         </div>
       </div>
       
-      {/* OmniSearch Modal */}
-      <OmniSearch
-        isOpen={isOpen}
-        onClose={close}
+      {/* Search Panel (Slide-over) */}
+      <SearchPanel
         workspaceId={currentWorkspace?.id}
         workspaceSlug={currentWorkspace?.slug}
+        tabManager={tabManager}
       />
       
       {/* Workspace Settings Modal */}
@@ -277,7 +330,6 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
           onUpdate={handleWorkspaceUpdate}
         />
       )}
-      
     </div>
   )
 }

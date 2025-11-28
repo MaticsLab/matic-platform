@@ -1,143 +1,76 @@
 /**
  * Workspaces Supabase API Client
- * Temporary compatibility layer during migration to FastAPI
- * TODO: Migrate all usages to workspaces-client.ts
+ * Now uses Go backend for all operations
  */
 
-import { supabase } from '@/lib/supabase'
+import { goClient } from './go-client'
 
 export const workspacesSupabase = {
   /**
    * Get all workspaces for an organization
    */
   async getWorkspacesByOrganization(organizationId: string) {
-    const { data, error } = await supabase
-      .from('workspaces')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false })
-
-    if (error) throw error
-    return data
+    return goClient.get<any[]>('/workspaces', { organization_id: organizationId })
   },
 
   /**
    * Get all workspaces for current user
    */
-  async getWorkspacesForUser(userId: string) {
-    const { data, error } = await supabase
-      .from('workspaces')
-      .select(`
-        *,
-        organization:organizations(*)
-      `)
-      .eq('created_by', userId)
-      .order('created_at', { ascending: false })
-
-    if (error) throw error
-    return data
+  async getWorkspacesForUser(_userId: string) {
+    // Go backend uses JWT to determine user, no need to pass userId
+    return goClient.get<any[]>('/workspaces')
   },
 
   /**
    * Get a single workspace by ID
    */
   async getWorkspaceById(workspaceId: string) {
-    const { data, error } = await supabase
-      .from('workspaces')
-      .select(`
-        *,
-        organization:organizations(*),
-        tables:data_tables(count),
-        forms:forms(count)
-      `)
-      .eq('id', workspaceId)
-      .single()
-
-    if (error) throw error
-    return data
+    return goClient.get<any>(`/workspaces/${workspaceId}`)
   },
 
   /**
    * Get a workspace by slug
    */
   async getWorkspaceBySlug(slug: string) {
-    const { data, error } = await supabase
-      .from('workspaces')
-      .select(`
-        *,
-        organization:organizations(*),
-        tables:data_tables(*),
-        forms:forms(*)
-      `)
-      .eq('slug', slug)
-      .single()
-
-    if (error) throw error
-    return data
+    // List all workspaces and find by slug
+    const workspaces = await goClient.get<any[]>('/workspaces')
+    const workspace = workspaces?.find((w: any) => w.slug === slug)
+    if (!workspace) {
+      throw new Error('Workspace not found')
+    }
+    return workspace
   },
 
   /**
    * Create a new workspace
    */
   async createWorkspace(workspaceData: any) {
-    const { data, error } = await supabase
-      .from('workspaces')
-      .insert(workspaceData)
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
+    return goClient.post<any>('/workspaces', workspaceData)
   },
 
   /**
    * Update a workspace
    */
   async updateWorkspace(workspaceId: string, updates: any) {
-    const { data, error } = await supabase
-      .from('workspaces')
-      .update(updates)
-      .eq('id', workspaceId)
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
+    return goClient.patch<any>(`/workspaces/${workspaceId}`, updates)
   },
 
   /**
    * Delete a workspace
    */
   async deleteWorkspace(workspaceId: string) {
-    const { error } = await supabase
-      .from('workspaces')
-      .delete()
-      .eq('id', workspaceId)
-
-    if (error) throw error
+    return goClient.delete(`/workspaces/${workspaceId}`)
   },
 
   /**
    * Get workspace stats (tables, forms, etc.)
    */
   async getWorkspaceStats(workspaceId: string) {
-    const [tables, forms] = await Promise.all([
-      supabase
-        .from('data_tables')
-        .select('id', { count: 'exact', head: true })
-        .eq('workspace_id', workspaceId),
-      supabase
-        .from('forms')
-        .select('id', { count: 'exact', head: true })
-        .eq('workspace_id', workspaceId)
-    ])
-
-    if (tables.error) throw tables.error
-    if (forms.error) throw forms.error
-
+    // Get workspace with tables and forms from Go backend
+    const workspace = await goClient.get<any>(`/workspaces/${workspaceId}`)
     return {
-      tableCount: tables.count || 0,
-      formCount: forms.count || 0
+      tables: workspace?.tables?.length || 0,
+      forms: workspace?.forms?.length || 0,
     }
-  }
+  },
 }

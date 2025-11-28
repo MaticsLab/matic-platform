@@ -140,7 +140,7 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-5xl h-[750px] p-0 gap-0 overflow-hidden flex bg-white sm:rounded-2xl border-0 shadow-2xl">
         {/* Sidebar */}
-        <div className="w-64 border-r border-gray-100 flex flex-col py-6 bg-white shrink-0">
+        <div className="w-64 border-r border-gray-100 flex flex-col py-6 bg-white shrink-0 rounded-l-2xl">
           <div className="px-6 mb-6">
             <h2 className="font-semibold flex items-center gap-2 text-lg text-gray-900">
               <Settings className="w-5 h-5 text-blue-600" />

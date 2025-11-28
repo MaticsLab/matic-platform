@@ -64,13 +64,40 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
-  const { tabManager } = useTabContext()
+  const { tabManager, setTabActions, setTabHeaderContent } = useTabContext()
 
   useEffect(() => {
     if (workspaceId) {
       loadTables()
     }
   }, [workspaceId])
+
+  // Register tab header content
+  useEffect(() => {
+    setTabHeaderContent({
+      title: 'Data Hub',
+    })
+    return () => setTabHeaderContent(null)
+  }, [setTabHeaderContent])
+
+  // Register tab actions
+  useEffect(() => {
+    setTabActions([
+      {
+        label: 'Import CSV',
+        icon: Upload,
+        onClick: () => setIsImportModalOpen(true),
+        variant: 'outline' as const
+      },
+      {
+        label: 'New Table',
+        icon: Plus,
+        onClick: () => setIsCreateModalOpen(true),
+        variant: 'default' as const
+      }
+    ])
+    return () => setTabActions([])
+  }, [setTabActions])
 
   const loadTables = async () => {
     try {
@@ -231,36 +258,11 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
   }
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Tables</h1>
-            <p className="text-sm text-gray-600 mt-1">
-              {tables.length} {tables.length === 1 ? 'table' : 'tables'}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleImportCSV}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Upload className="w-4 h-4" />
-              <span>Import CSV</span>
-            </button>
-            <button
-              onClick={handleNewTable}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Table</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Search Bar */}
-        <div className="mt-4">
+    <div className="h-full flex">
+      {/* Left Sidebar */}
+      <div className="w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+        {/* Search */}
+        <div className="p-4 border-b border-gray-100">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
@@ -268,14 +270,33 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
               placeholder="Search tables..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="flex-1 overflow-y-auto p-3">
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 px-2">Overview</div>
+          <div className="space-y-1">
+            <div className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm bg-blue-50 text-blue-700 font-medium">
+              <span>All Tables</span>
+              <span className="text-xs text-blue-600">{tables.length}</span>
+            </div>
+            <div className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-gray-600">
+              <span>Total Rows</span>
+              <span className="text-xs text-gray-400">{tables.reduce((sum, t) => sum + (t.row_count || 0), 0)}</span>
+            </div>
+            <div className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-gray-600">
+              <span>Total Columns</span>
+              <span className="text-xs text-gray-400">{tables.reduce((sum, t) => sum + (t.columns?.length || 0), 0)}</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto p-6 bg-white rounded-tl-xl rounded-bl-xl border-l border-gray-200">
         {filteredTables.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center max-w-md">
