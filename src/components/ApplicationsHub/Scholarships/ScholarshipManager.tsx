@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink, LayoutDashboard, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search } from 'lucide-react'
+import { FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink, LayoutDashboard, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search, Plus, Eye, MessageSquare, Workflow, UserPlus } from 'lucide-react'
 import { ReviewWorkspace } from './Review/ReviewWorkspace'
 import { CommunicationsCenter } from './Communications/CommunicationsCenter'
 import { ReviewerManagement } from './Reviewers/ReviewerManagement'
@@ -25,7 +25,7 @@ interface ScholarshipManagerProps {
   formId: string | null
 }
 
-type Tab = 'overview' | 'review' | 'communications' | 'builder' | 'settings' | 'workflows'
+type Tab = 'overview' | 'review' | 'communications' | 'builder' | 'settings' | 'workflows' | 'reviewers'
 
 interface Stats {
   totalSubmissions: number
@@ -254,8 +254,8 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
         hubName: form?.name || 'Application',
         placeholder: 'Search applications, stats...',
         actions: [
-          { label: 'View All Applications', action: () => setActiveTab('review') },
-          { label: 'Configure Workflows', action: () => setActiveTab('workflows') }
+          { id: 'view-all', label: 'View All Applications', icon: Eye, action: () => setActiveTab('review') },
+          { id: 'config-workflows', label: 'Configure Workflows', icon: Workflow, action: () => setActiveTab('workflows') }
         ]
       },
       communications: {
@@ -264,8 +264,8 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
         hubName: form?.name || 'Application',
         placeholder: 'Search templates, messages...',
         actions: [
-          { label: 'New Template', action: () => {} },
-          { label: 'Send Message', action: () => {} }
+          { id: 'new-template', label: 'New Template', icon: Plus, action: () => {} },
+          { id: 'send-message', label: 'Send Message', icon: MessageSquare, action: () => {} }
         ]
       },
       workflows: {
@@ -274,8 +274,8 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
         hubName: form?.name || 'Application',
         placeholder: 'Search workflows, stages...',
         actions: [
-          { label: 'New Workflow', action: () => {} },
-          { label: 'New Stage', action: () => {} }
+          { id: 'new-workflow', label: 'New Workflow', icon: Plus, action: () => {} },
+          { id: 'new-stage', label: 'New Stage', icon: Plus, action: () => {} }
         ]
       },
       reviewers: {
@@ -284,7 +284,7 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
         hubName: form?.name || 'Application',
         placeholder: 'Search reviewers...',
         actions: [
-          { label: 'Add Reviewer', action: () => setShowReviewersPanel(true) }
+          { id: 'add-reviewer', label: 'Add Reviewer', icon: UserPlus, action: () => setShowReviewersPanel(true) }
         ]
       }
     }

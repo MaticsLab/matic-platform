@@ -85,10 +85,12 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
     })
 
     setTabActions([
-      <Button key="new-app" size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700">
-        <Plus className="w-4 h-4" />
-        New Application
-      </Button>
+      {
+        label: 'New Application',
+        icon: Plus,
+        onClick: () => {},
+        variant: 'default'
+      }
     ])
 
     return () => {
@@ -107,7 +109,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
       hubName: 'Applications Hub',
       placeholder: 'Search applications...',
       actions: [
-        { label: 'New Application', action: () => {} }
+        { id: 'new-app', label: 'New Application', icon: Plus, action: () => {} }
       ]
     }
 

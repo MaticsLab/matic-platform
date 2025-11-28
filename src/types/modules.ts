@@ -356,10 +356,10 @@ export function canEnableModule(
   moduleId: KnownModuleId,
   enabledModuleIds: string[]
 ): boolean {
-  const module = MODULE_REGISTRY[moduleId];
-  if (!module) return false;
+  const moduleConfig = MODULE_REGISTRY[moduleId];
+  if (!moduleConfig) return false;
   
-  return module.dependencies.every(dep => enabledModuleIds.includes(dep));
+  return moduleConfig.dependencies.every(dep => enabledModuleIds.includes(dep));
 }
 
 /**
@@ -369,10 +369,10 @@ export function getMissingDependencies(
   moduleId: KnownModuleId,
   enabledModuleIds: string[]
 ): string[] {
-  const module = MODULE_REGISTRY[moduleId];
-  if (!module) return [];
+  const moduleConfig = MODULE_REGISTRY[moduleId];
+  if (!moduleConfig) return [];
   
-  return module.dependencies.filter(dep => !enabledModuleIds.includes(dep));
+  return moduleConfig.dependencies.filter(dep => !enabledModuleIds.includes(dep));
 }
 
 /**
