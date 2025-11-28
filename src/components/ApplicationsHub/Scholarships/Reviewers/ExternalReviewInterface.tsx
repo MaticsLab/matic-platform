@@ -1721,6 +1721,7 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }
