@@ -446,6 +446,7 @@ type FieldInput struct {
 	Width       string                 `json:"width"`
 	Children    []FieldInput           `json:"children"`
 	Validation  map[string]interface{} `json:"validation"`
+	Config      map[string]interface{} `json:"config"` // Additional config like dynamicOptions, sourceField, etc.
 }
 
 type SectionInput struct {
@@ -519,8 +520,15 @@ func UpdateFormStructure(c *gin.Context) {
 
 	for _, section := range input.Sections {
 		for _, fieldInput := range section.Fields {
-			// Construct config JSON
+			// Construct config JSON - start with any config from the frontend
 			config := make(map[string]interface{})
+			if fieldInput.Config != nil {
+				for k, v := range fieldInput.Config {
+					config[k] = v
+				}
+			}
+
+			// Override/add specific fields
 			if len(fieldInput.Options) > 0 {
 				config["items"] = fieldInput.Options
 			}
@@ -529,7 +537,9 @@ func UpdateFormStructure(c *gin.Context) {
 			}
 			config["section_id"] = section.ID
 			config["is_required"] = fieldInput.IsRequired
-			config["placeholder"] = fieldInput.Placeholder
+			if fieldInput.Placeholder != "" {
+				config["placeholder"] = fieldInput.Placeholder
+			}
 
 			if len(fieldInput.Validation) > 0 {
 				config["validation"] = fieldInput.Validation
@@ -703,10 +713,20 @@ func GetExternalReviewData(c *gin.Context) {
 			}
 
 			// If the stage config has an assigned rubric, fetch it
+			// Priority: AssignedRubricID > RubricID > Workflow DefaultRubricID
 			rubricID := stageConfigs[0].AssignedRubricID
 			if rubricID == nil {
 				rubricID = stageConfigs[0].RubricID
 			}
+
+			// Fall back to workflow's default rubric if no stage-specific rubric
+			if rubricID == nil && stage.ReviewWorkflowID != uuid.Nil {
+				var workflow models.ReviewWorkflow
+				if err := database.DB.First(&workflow, "id = ?", stage.ReviewWorkflowID).Error; err == nil {
+					rubricID = workflow.DefaultRubricID
+				}
+			}
+
 			if rubricID != nil {
 				var rubric models.Rubric
 				if err := database.DB.First(&rubric, "id = ?", rubricID).Error; err == nil {

@@ -6,7 +6,7 @@ import {
   User, GraduationCap, DollarSign, FileText, Trophy, Upload, 
   CheckCircle2, AlertCircle, Save, ChevronRight, ArrowLeft, ArrowRight,
   Calendar as CalendarIcon, Plus, Trash2, GripVertical, Clock,
-  LayoutGrid, Mail
+  LayoutGrid, Mail, Star
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -481,12 +481,14 @@ function DynamicSection({ fields, allFields = [], data, onChange }: { fields: an
         const isRequired = config.is_required
         
         if (field.type === 'group') {
+           // Children can be in field.children (from portal editor) or config.children (from backend)
+           const children = field.children || config.children || []
            return (
              <div key={field.id} className="border border-gray-200 p-6 rounded-xl space-y-4 bg-gray-50/30">
                <h3 className="font-semibold text-lg text-gray-900">{field.label}</h3>
                {config.description && <p className="text-sm text-gray-500">{config.description}</p>}
                <DynamicSection 
-                 fields={config.children || []} 
+                 fields={children} 
                  allFields={allFields}
                  data={data} 
                  onChange={onChange} 
@@ -497,6 +499,8 @@ function DynamicSection({ fields, allFields = [], data, onChange }: { fields: an
 
         if (field.type === 'repeater') {
            const items = (data[field.name] as any[]) || []
+           // Children can be in field.children (from portal editor) or config.children (from backend)
+           const children = field.children || config.children || []
            return (
              <div key={field.id} className="space-y-4">
                <div className="flex justify-between items-center">
@@ -536,7 +540,7 @@ function DynamicSection({ fields, allFields = [], data, onChange }: { fields: an
                    </div>
                    <CardContent className="pt-6">
                      <DynamicSection 
-                       fields={config.children || []}
+                       fields={children}
                        allFields={allFields}
                        data={item}
                        onChange={(childField, childValue) => {
@@ -812,8 +816,161 @@ function DynamicSection({ fields, allFields = [], data, onChange }: { fields: an
                  </div>
                )
             })()}
-            
-            {/* Add more field types as needed */}
+
+            {/* Multiselect - Multiple options can be selected */}
+            {field.type === 'multiselect' && (() => {
+               let options = (config.items || []) as string[]
+               const currentValues = (Array.isArray(data[field.name]) ? data[field.name] : []) as string[]
+
+               return (
+                 <div className="space-y-2">
+                   {options.map((opt: string) => (
+                     <div key={opt} className="flex items-center space-x-2 p-2 border rounded-md hover:bg-gray-50">
+                       <Checkbox 
+                         id={`${field.id}-${opt}`}
+                         checked={currentValues.includes(opt)}
+                         onCheckedChange={(checked) => {
+                           if (checked) {
+                             onChange(field.name, [...currentValues, opt])
+                           } else {
+                             onChange(field.name, currentValues.filter(v => v !== opt))
+                           }
+                         }}
+                       />
+                       <label htmlFor={`${field.id}-${opt}`} className="text-sm font-medium leading-none cursor-pointer flex-1">
+                         {opt}
+                       </label>
+                     </div>
+                   ))}
+                 </div>
+               )
+            })()}
+
+            {/* Datetime - Combined date and time picker */}
+            {field.type === 'datetime' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="relative">
+                  <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Input 
+                    type="date"
+                    value={data[field.name]?.split('T')[0] || ''} 
+                    onChange={e => {
+                      const time = data[field.name]?.split('T')[1] || '00:00'
+                      onChange(field.name, `${e.target.value}T${time}`)
+                    }}
+                    className="pl-10 h-11"
+                  />
+                </div>
+                <div className="relative">
+                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Input 
+                    type="time"
+                    value={data[field.name]?.split('T')[1] || ''} 
+                    onChange={e => {
+                      const date = data[field.name]?.split('T')[0] || new Date().toISOString().split('T')[0]
+                      onChange(field.name, `${date}T${e.target.value}`)
+                    }}
+                    className="pl-10 h-11"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Time - Time only picker */}
+            {field.type === 'time' && (
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Input 
+                  type="time"
+                  value={data[field.name] || ''} 
+                  onChange={e => onChange(field.name, e.target.value)}
+                  className="pl-10 h-11"
+                />
+              </div>
+            )}
+
+            {/* File Upload */}
+            {(field.type === 'file' || field.type === 'image') && (
+              <div className="space-y-2">
+                <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-gray-300 transition-colors">
+                  <Upload className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500 mb-2">
+                    {field.type === 'image' ? 'Drag and drop an image, or click to browse' : 'Drag and drop a file, or click to browse'}
+                  </p>
+                  <Input 
+                    type="file"
+                    accept={field.type === 'image' ? 'image/*' : undefined}
+                    onChange={e => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        // For now, just store the file name - actual upload would need backend support
+                        onChange(field.name, { name: file.name, size: file.size, type: file.type })
+                      }
+                    }}
+                    className="hidden"
+                    id={`file-${field.id}`}
+                  />
+                  <label htmlFor={`file-${field.id}`}>
+                    <Button type="button" variant="outline" size="sm" className="cursor-pointer" asChild>
+                      <span>Choose File</span>
+                    </Button>
+                  </label>
+                </div>
+                {data[field.name]?.name && (
+                  <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                    <FileText className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-700 truncate">{data[field.name].name}</span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="ml-auto h-6 w-6 p-0 text-gray-400 hover:text-red-500"
+                      onClick={() => onChange(field.name, null)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Rating - Star rating */}
+            {field.type === 'rating' && (() => {
+               const maxRating = config.maxRating || 5
+               const currentValue = data[field.name] || 0
+
+               return (
+                 <div className="flex items-center gap-1">
+                   {Array.from({ length: maxRating }).map((_, idx) => (
+                     <button
+                       key={idx}
+                       type="button"
+                       onClick={() => onChange(field.name, idx + 1)}
+                       className="p-1 transition-colors"
+                     >
+                       <Star 
+                         className={`w-8 h-8 ${idx < currentValue ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} 
+                       />
+                     </button>
+                   ))}
+                   <span className="ml-2 text-sm text-gray-500">{currentValue} / {maxRating}</span>
+                 </div>
+               )
+            })()}
+
+            {/* Heading - Display only */}
+            {field.type === 'heading' && (
+              <h3 className="text-xl font-semibold text-gray-900">{field.label}</h3>
+            )}
+
+            {/* Paragraph - Display only */}
+            {field.type === 'paragraph' && (
+              <p className="text-gray-600">{config.content || field.label}</p>
+            )}
+
+            {/* Divider - Visual separator */}
+            {field.type === 'divider' && (
+              <hr className="border-gray-200 my-4" />
+            )}
           </div>
         )
       })}

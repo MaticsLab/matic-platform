@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { 
   CheckCircle, ChevronRight, AlertCircle, FileText, DollarSign, 
   GraduationCap, Info, X, Edit2, MessageSquare, Loader2,
   ChevronLeft, Star, Award, BookOpen, Users, Clock, Send,
-  Eye, EyeOff, Sparkles, Lock, Unlock, Tag, Save
+  Eye, EyeOff, Sparkles, Lock, Unlock, Tag, Save, User,
+  Play, Pause, Shield, ChevronUp, ChevronDown, Timer, MoreHorizontal,
+  Highlighter, Plus
 } from 'lucide-react'
 import { goClient } from '@/lib/api/go-client'
 import { Form, FormField } from '@/types/forms'
@@ -96,58 +98,234 @@ interface LegacyRubricCategory {
 // Union type for both formats
 type RubricCategory = NewRubricCategory | LegacyRubricCategory
 
-// Helper to normalize rubric categories to a consistent format
-function normalizeRubricCategory(cat: RubricCategory): { id: string; name: string; max: number; levels: Array<{ minScore: number; maxScore: number; description: string }> } {
-  if ('maxPoints' in cat && 'levels' in cat) {
-    // New format
-    return {
-      id: cat.id,
-      name: cat.name,
-      max: cat.maxPoints,
-      levels: cat.levels.map(l => ({
-        minScore: l.minScore,
-        maxScore: l.maxScore,
-        description: l.description || l.label || ''
-      }))
-    }
-  } else {
-    // Legacy format
-    const legacy = cat as LegacyRubricCategory
-    return {
-      id: legacy.id,
-      name: legacy.category,
-      max: legacy.max,
-      levels: legacy.criteria?.map(c => {
-        const [min, max] = c.range.split('-').map(n => parseInt(n.trim()))
-        return { minScore: min || 0, maxScore: max || legacy.max, description: c.desc }
-      }) || []
-    }
+// Helper to get config from field (handles both direct config and nested)
+function getFieldConfig(field: FormField): Record<string, any> {
+  if (field.config && typeof field.config === 'object') {
+    return field.config as Record<string, any>
   }
+  if (field.settings && typeof field.settings === 'object') {
+    return field.settings as Record<string, any>
+  }
+  return {}
 }
 
-// Helper function to render field values nicely (groups, repeaters, nested objects)
-function renderExternalFieldValue(value: any, fieldType?: string): React.ReactNode {
+// Helper to organize form fields into sections based on form.settings.sections
+interface FormSection {
+  id: string
+  name: string
+  description?: string
+  position: number
+  fields: FormField[]
+}
+
+interface GroupedFormData {
+  sections: FormSection[]
+  ungroupedFields: FormField[]
+}
+
+function groupFieldsBySections(fields: FormField[] | undefined, formSettings: Record<string, any> | undefined): GroupedFormData {
+  if (!fields || fields.length === 0) {
+    return { sections: [], ungroupedFields: [] }
+  }
+
+  const excludedFieldLabels = ['IP', '_user_agent', 'ip', 'user_agent', '_ip', 'id']
+  
+  // Filter out excluded fields and layout-only fields
+  const regularFields = fields.filter(f => 
+    f.type !== 'section' && 
+    f.type !== 'divider' && 
+    f.type !== 'heading' && 
+    f.type !== 'paragraph' &&
+    !excludedFieldLabels.includes(f.label) &&
+    !excludedFieldLabels.includes(f.name)
+  )
+
+  // If form has sections defined in settings, use those
+  if (formSettings?.sections && Array.isArray(formSettings.sections)) {
+    const sections: FormSection[] = formSettings.sections.map((section: any, index: number) => {
+      // Find fields that belong to this section via config.section_id
+      const sectionFields = regularFields
+        .filter(f => {
+          const config = getFieldConfig(f)
+          return config.section_id === section.id
+        })
+        .sort((a, b) => a.position - b.position)
+      
+      return {
+        id: section.id,
+        name: section.title || section.name || `Section ${index + 1}`,
+        description: section.description,
+        position: index,
+        fields: sectionFields
+      }
+    }).filter((s: FormSection) => s.fields.length > 0)
+    
+    // Find fields not assigned to any section
+    const assignedFieldIds = new Set(sections.flatMap(s => s.fields.map(f => f.id)))
+    const ungroupedFields = regularFields
+      .filter(f => !assignedFieldIds.has(f.id))
+      .sort((a, b) => a.position - b.position)
+    
+    return { sections, ungroupedFields }
+  }
+  
+  // Fallback: check if fields themselves have section type
+  const sectionFields = fields.filter(f => f.type === 'section')
+  
+  if (sectionFields.length > 0) {
+    const sections: FormSection[] = sectionFields.map(section => ({
+      id: section.id,
+      name: section.title || section.label || section.name || 'Untitled Section',
+      description: section.description,
+      position: section.position,
+      fields: regularFields
+        .filter(f => {
+          const config = getFieldConfig(f)
+          return config.section_id === section.id || (f as any).section_id === section.id
+        })
+        .sort((a, b) => a.position - b.position)
+    })).filter(s => s.fields.length > 0)
+
+    sections.sort((a, b) => a.position - b.position)
+    
+    const assignedFieldIds = new Set(sections.flatMap(s => s.fields.map(f => f.id)))
+    const ungroupedFields = regularFields
+      .filter(f => !assignedFieldIds.has(f.id))
+      .sort((a, b) => a.position - b.position)
+      
+    return { sections, ungroupedFields }
+  }
+  
+  // No sections at all - return all as ungrouped
+  return { sections: [], ungroupedFields: regularFields.sort((a, b) => a.position - b.position) }
+}
+
+// Helper to normalize rubric categories to a consistent format
+function normalizeRubricCategory(cat: any): { id: string; name: string; max: number; levels: Array<{ minScore: number; maxScore: number; description: string }> } {
+  // Handle various property name formats (camelCase vs snake_case)
+  const id = cat.id || ''
+  const name = cat.name || cat.category || 'Category'
+  const max = cat.max_points || cat.maxPoints || cat.max || 0
+  
+  // Handle levels/guidelines array
+  let levels: Array<{ minScore: number; maxScore: number; description: string }> = []
+  
+  if (cat.levels && Array.isArray(cat.levels)) {
+    levels = cat.levels.map((l: any) => ({
+      minScore: l.minScore || l.min_score || l.min_points || 0,
+      maxScore: l.maxScore || l.max_score || l.max_points || max,
+      description: l.description || l.label || ''
+    }))
+  } else if (cat.guidelines && Array.isArray(cat.guidelines)) {
+    levels = cat.guidelines.map((g: any) => ({
+      minScore: g.min_points || 0,
+      maxScore: g.max_points || max,
+      description: g.description || g.label || ''
+    }))
+  } else if (cat.criteria && Array.isArray(cat.criteria)) {
+    // Legacy format
+    levels = cat.criteria.map((c: any) => {
+      if (c.range) {
+        const [min, maxVal] = c.range.split('-').map((n: string) => parseInt(n.trim()))
+        return { minScore: min || 0, maxScore: maxVal || max, description: c.desc || c.description || '' }
+      }
+      return { minScore: 0, maxScore: max, description: c.desc || c.description || '' }
+    })
+  }
+  
+  return { id, name, max, levels }
+}
+
+// Helper to redact PII values from text - returns JSX with redacted spans
+function RedactedText({ text, piiValues }: { text: string, piiValues: string[] }): JSX.Element {
+  if (!text || piiValues.length === 0) return <>{text}</>
+  
+  // Build a regex that matches any of the PII values
+  const validPiiValues = piiValues.filter(v => v && v.length >= 2)
+  if (validPiiValues.length === 0) return <>{text}</>
+  
+  const pattern = validPiiValues
+    .map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|')
+  
+  const regex = new RegExp(`(${pattern})`, 'gi')
+  const parts = String(text).split(regex)
+  
+  return (
+    <>
+      {parts.map((part, i) => {
+        const isRedacted = validPiiValues.some(v => v.toLowerCase() === part.toLowerCase())
+        if (isRedacted) {
+          return (
+            <span 
+              key={i}
+              className="bg-gray-900 text-gray-900 rounded px-1 select-none cursor-help"
+              title="Hidden for privacy"
+            >
+              {part}
+            </span>
+          )
+        }
+        return <span key={i}>{part}</span>
+      })}
+    </>
+  )
+}
+
+// Collect PII values from hidden fields for inline redaction
+function collectPIIValues(rawData: Record<string, any>, hiddenPIIFields: string[]): string[] {
+  const values: string[] = []
+  hiddenPIIFields.forEach(fieldName => {
+    const value = rawData[fieldName]
+    if (value && typeof value === 'string' && value.trim().length >= 2) {
+      values.push(value.trim())
+      // Also split by common separators for names like "John Smith"
+      const parts = value.trim().split(/[\s,]+/)
+      parts.forEach(p => {
+        if (p.length >= 2) values.push(p)
+      })
+    }
+  })
+  return [...new Set(values)] // Remove duplicates
+}
+
+// Helper function to render field values with optional PII redaction
+function renderExternalFieldValue(value: any, fieldType?: string, piiValues?: string[]): React.ReactNode {
   // Handle null/undefined/empty
   if (value === null || value === undefined || value === '') {
-    return <span className="text-gray-400 italic">Not provided</span>
+    return <span className="text-gray-400/60 text-sm">—</span>
   }
   
   // Handle booleans
   if (typeof value === 'boolean') {
-    return <span className={value ? 'text-green-600 font-medium' : 'text-gray-500'}>{value ? 'Yes' : 'No'}</span>
+    return (
+      <span className={cn(
+        "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
+        value ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-600"
+      )}>
+        {value ? 'Yes' : 'No'}
+      </span>
+    )
   }
   
   // Handle long text (essays, textareas)
   if (fieldType === 'textarea' || fieldType === 'long_text' || fieldType === 'essay') {
-    return <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{value || 'No content provided.'}</p>
+    const textContent = value || 'No content provided.'
+    return (
+      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-[15px]">
+        {piiValues && piiValues.length > 0 ? (
+          <RedactedText text={String(textContent)} piiValues={piiValues} />
+        ) : textContent}
+      </p>
+    )
   }
   
   // Handle files
   if (fieldType === 'file' || fieldType === 'upload') {
     return (
-      <div className="flex items-center gap-2 text-blue-600">
+      <div className="inline-flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg">
         <FileText className="w-4 h-4" />
-        <span className="text-sm">File uploaded</span>
+        <span className="text-sm font-medium">File uploaded</span>
       </div>
     )
   }
@@ -155,27 +333,38 @@ function renderExternalFieldValue(value: any, fieldType?: string): React.ReactNo
   // Handle arrays (repeaters)
   if (Array.isArray(value)) {
     if (value.length === 0) {
-      return <span className="text-gray-400 italic">None</span>
+      return <span className="text-gray-400/60 text-sm">—</span>
     }
     
     // Check if it's an array of primitives
     if (value.every(v => typeof v !== 'object' || v === null)) {
-      return <span className="text-gray-900 font-medium">{value.join(', ')}</span>
+      const textContent = value.join(', ')
+      return (
+        <span className="text-gray-900">
+          {piiValues && piiValues.length > 0 ? (
+            <RedactedText text={textContent} piiValues={piiValues} />
+          ) : textContent}
+        </span>
+      )
     }
     
     // Array of objects (repeater items)
     return (
       <div className="space-y-2 mt-1">
         {value.map((item: any, i: number) => (
-          <div key={i} className="bg-white rounded-lg border border-gray-200 p-3">
-            <div className="text-xs font-medium text-gray-500 uppercase mb-2">Item {i + 1}</div>
+          <div key={i} className="bg-gray-50/50 rounded-lg border border-gray-100 p-3 hover:border-gray-200 transition-colors">
+            <div className="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-2">Entry {i + 1}</div>
             {typeof item === 'object' && item !== null ? (
-              <div className="grid gap-2">
+              <div className="grid gap-1.5">
                 {Object.entries(item).filter(([k]) => !k.startsWith('_')).map(([k, v]) => (
-                  <div key={k} className="flex flex-wrap gap-x-2">
-                    <span className="text-xs font-medium text-gray-500 min-w-[80px]">{k.replace(/_/g, ' ')}:</span>
-                    <span className="text-sm text-gray-900">
-                      {v === null || v === undefined || v === '' ? '-' : String(v)}
+                  <div key={k} className="flex flex-wrap gap-x-2 text-sm">
+                    <span className="text-gray-500 min-w-[80px]">{k.replace(/_/g, ' ')}:</span>
+                    <span className="text-gray-900 font-medium">
+                      {v === null || v === undefined || v === '' ? '—' : (
+                        piiValues && piiValues.length > 0 ? (
+                          <RedactedText text={String(v)} piiValues={piiValues} />
+                        ) : String(v)
+                      )}
                     </span>
                   </div>
                 ))}
@@ -194,7 +383,7 @@ function renderExternalFieldValue(value: any, fieldType?: string): React.ReactNo
     const entries = Object.entries(value).filter(([k]) => !k.startsWith('_'))
     
     if (entries.length === 0) {
-      return <span className="text-gray-400 italic">Empty</span>
+      return <span className="text-gray-400/60 text-sm">—</span>
     }
     
     // Check if all values are simple (no nested objects)
@@ -203,11 +392,17 @@ function renderExternalFieldValue(value: any, fieldType?: string): React.ReactNo
     if (allSimple && entries.length <= 4) {
       // Render inline for simple groups with few fields
       return (
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <div className="flex flex-wrap gap-3">
           {entries.map(([k, v]) => (
-            <span key={k} className="text-sm">
-              <span className="text-gray-500">{k.replace(/_/g, ' ')}:</span>{' '}
-              <span className="text-gray-900 font-medium">{v === null || v === '' ? '-' : String(v)}</span>
+            <span key={k} className="inline-flex items-center gap-1.5 text-sm bg-gray-50 px-2.5 py-1 rounded-md">
+              <span className="text-gray-500">{k.replace(/_/g, ' ')}:</span>
+              <span className="text-gray-900 font-medium">
+                {v === null || v === '' ? '—' : (
+                  piiValues && piiValues.length > 0 ? (
+                    <RedactedText text={String(v)} piiValues={piiValues} />
+                  ) : String(v)
+                )}
+              </span>
             </span>
           ))}
         </div>
@@ -216,14 +411,14 @@ function renderExternalFieldValue(value: any, fieldType?: string): React.ReactNo
     
     // Render as nested card for complex groups
     return (
-      <div className="mt-1 bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="mt-1 bg-gray-50/50 rounded-lg border border-gray-100 overflow-hidden">
         <div className="divide-y divide-gray-100">
           {entries.map(([k, v]) => (
-            <div key={k} className="px-3 py-2">
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+            <div key={k} className="px-3 py-2.5">
+              <div className="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">
                 {k.replace(/_/g, ' ')}
               </div>
-              <div className="text-gray-900">{renderExternalFieldValue(v)}</div>
+              <div className="text-gray-900">{renderExternalFieldValue(v, undefined, piiValues)}</div>
             </div>
           ))}
         </div>
@@ -231,63 +426,45 @@ function renderExternalFieldValue(value: any, fieldType?: string): React.ReactNo
     )
   }
   
-  // Default: render as string
-  return <span className="font-medium text-gray-900">{String(value)}</span>
+  // Default: render as string with PII redaction
+  const stringValue = String(value)
+  return (
+    <span className="text-gray-900">
+      {piiValues && piiValues.length > 0 ? (
+        <RedactedText text={stringValue} piiValues={piiValues} />
+      ) : stringValue}
+    </span>
+  )
 }
 
-const DEFAULT_RUBRIC: RubricCategory[] = [
-  { 
-    id: 'academic', 
-    name: 'Academic Performance', 
-    maxPoints: 20, 
-    levels: [
-      { id: '1', minScore: 18, maxScore: 20, description: 'GPA 3.5+, rigorous AP/IB workload, strong test scores' },
-      { id: '2', minScore: 14, maxScore: 17, description: 'GPA 3.0-3.4, solid college prep curriculum' },
-      { id: '3', minScore: 10, maxScore: 13, description: 'GPA 2.7-2.9, meets basic requirements' }
-    ]
-  },
-  { 
-    id: 'financial', 
-    name: 'Financial Need', 
-    maxPoints: 30, 
-    levels: [
-      { id: '1', minScore: 25, maxScore: 30, description: 'High gap (>$10k), Pell eligible, significant hardship' },
-      { id: '2', minScore: 15, maxScore: 24, description: 'Moderate gap ($5k-$10k), some family contribution' },
-      { id: '3', minScore: 0, maxScore: 14, description: 'Low gap (<$5k) or high family contribution' }
-    ]
-  },
-  { 
-    id: 'essays', 
-    name: 'Essay Quality', 
-    maxPoints: 25, 
-    levels: [
-      { id: '1', minScore: 21, maxScore: 25, description: 'Compelling narrative, clear goals, authentic voice' },
-      { id: '2', minScore: 15, maxScore: 20, description: 'Good writing, some unique insights' },
-      { id: '3', minScore: 0, maxScore: 14, description: 'Basic writing, limited depth' }
-    ]
-  },
-  { 
-    id: 'leadership', 
-    name: 'Leadership & Impact', 
-    maxPoints: 25, 
-    levels: [
-      { id: '1', minScore: 21, maxScore: 25, description: 'Founded organizations, significant community impact' },
-      { id: '2', minScore: 15, maxScore: 20, description: 'Active involvement, some leadership roles' },
-      { id: '3', minScore: 0, maxScore: 14, description: 'Minimal extracurricular engagement' }
-    ]
-  },
-]
+// Empty default - rubric should come from the backend
+const EMPTY_RUBRIC: RubricCategory[] = []
 
 export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewInterfaceProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [applications, setApplications] = useState<Application[]>([])
-  const [rubric, setRubric] = useState<RubricCategory[]>(DEFAULT_RUBRIC)
+  const [rubric, setRubric] = useState<RubricCategory[]>(EMPTY_RUBRIC)
+  const [hasRubric, setHasRubric] = useState(false) // Track if rubric was loaded from backend
   const [fieldVisibilityConfig, setFieldVisibilityConfig] = useState<FieldVisibilityConfig>({})
   const [canViewPriorScores, setCanViewPriorScores] = useState(false)
   const [canViewPriorComments, setCanViewPriorComments] = useState(false)
   const [formFields, setFormFields] = useState<FormField[]>([])
   const [formSections, setFormSections] = useState<FormField[]>([]) // Section-type FormFields
+  const [reviewerInfo, setReviewerInfo] = useState<{ id: string; name: string; email: string; type?: string } | null>(null)
+  const [reviewerPermissions, setReviewerPermissions] = useState<{
+    can_edit_score?: boolean
+    can_edit_status?: boolean
+    can_comment_only?: boolean
+    can_tag?: boolean
+  }>({})
+  const [hidePII, setHidePII] = useState(true) // External reviewers default to PII protected
+  const [hiddenPIIFields, setHiddenPIIFields] = useState<string[]>([])
+  const [piiValues, setPiiValues] = useState<string[]>([]) // Collected PII values for inline redaction
+  
+  // Timer state (like FocusReviewMode)
+  const [timer, setTimer] = useState(0)
+  const [timerActive, setTimerActive] = useState(true)
   
   const [currentIndex, setCurrentIndex] = useState(0)
   const [scores, setScores] = useState<Record<string, Record<string, number>>>({})
@@ -303,6 +480,77 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
   const [isSavingDraft, setIsSavingDraft] = useState(false)
   const [customStatuses, setCustomStatuses] = useState<string[]>([]) // Available statuses from stage
   const [customTags, setCustomTags] = useState<string[]>([]) // Available tags from stage
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
+  
+  // Section comments state (per application, per section)
+  const [sectionComments, setSectionComments] = useState<Record<string, Record<string, string>>>({})
+  
+  // Text highlight state
+  const [textHighlights, setTextHighlights] = useState<Record<string, Array<{
+    id: string
+    fieldName: string
+    text: string
+    comment: string
+  }>>>({})
+  const [selectedText, setSelectedText] = useState<{
+    text: string
+    fieldName: string
+    rect: DOMRect
+  } | null>(null)
+  const [highlightComment, setHighlightComment] = useState('')
+  const highlightInputRef = useRef<HTMLInputElement>(null)
+  
+  // Hover state for rubric category tooltips
+  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null)
+  
+  // Timer effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (timerActive) {
+      interval = setInterval(() => setTimer(t => t + 1), 1000)
+    }
+    return () => clearInterval(interval)
+  }, [timerActive])
+  
+  // Focus on highlight input when selection appears
+  useEffect(() => {
+    if (selectedText && highlightInputRef.current) {
+      highlightInputRef.current.focus()
+    }
+  }, [selectedText])
+  
+  // Dismiss selection popover on escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedText) {
+        setSelectedText(null)
+        setHighlightComment('')
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedText])
+  
+  // Format timer display
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
+  
+  // PII redaction helpers
+  const isFieldRedacted = useCallback((fieldName: string): boolean => {
+    return hidePII && hiddenPIIFields.includes(fieldName)
+  }, [hidePII, hiddenPIIFields])
+  
+  const redactValue = useCallback((fieldName: string, value: any): any => {
+    if (!hidePII || !hiddenPIIFields.includes(fieldName)) return value
+    return '████████████████'
+  }, [hidePII, hiddenPIIFields])
+  
+  // Get display title - uses Application # when PII mode is on
+  const getDisplayTitle = useCallback((app: Application, index: number): string => {
+    if (hidePII) {
+      return `Application #${index + 1}`
+    }
+    return app.redactedName
+  }, [hidePII])
 
   // Helper to check if a field is visible based on visibility config
   const isFieldVisible = (fieldId: string): boolean => {
@@ -326,6 +574,16 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
         const { form, submissions, stage_config, rubric: stageRubric, reviewer, stage } = response
         const settings = form.settings || {}
         
+        // Store reviewer info
+        if (reviewer) {
+          setReviewerInfo({
+            id: reviewer.id,
+            name: reviewer.name,
+            email: reviewer.email,
+            type: reviewer.reviewer_type_id
+          })
+        }
+        
         // Store form structure for dynamic rendering
         const formFieldsArray = form.fields || []
         const sections = formFieldsArray.filter((f) => f.type === 'section')
@@ -334,11 +592,15 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
         setFormFields(fields)
         
         // Parse custom statuses and tags from ApplicationStage
+        let parsedStatuses: string[] = []
+        let parsedTags: string[] = []
+        
         if (stage) {
           const statuses = typeof stage.custom_statuses === 'string'
             ? JSON.parse(stage.custom_statuses)
             : stage.custom_statuses
           if (Array.isArray(statuses)) {
+            parsedStatuses = statuses
             setCustomStatuses(statuses)
           }
           
@@ -346,11 +608,33 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
             ? JSON.parse(stage.custom_tags)
             : stage.custom_tags
           if (Array.isArray(tags)) {
+            parsedTags = tags
             setCustomTags(tags)
+          }
+          
+          // Get PII settings from stage
+          if (stage.hide_pii !== undefined) {
+            setHidePII(stage.hide_pii)
+          }
+          if (stage.hidden_pii_fields && Array.isArray(stage.hidden_pii_fields)) {
+            setHiddenPIIFields(stage.hidden_pii_fields)
           }
         }
         
+        // Get reviewer type permissions if available
+        if (reviewer?.reviewer_type_id) {
+          // The permissions should come from the reviewer type, for now use stage_config
+          // Default permissions if not specified
+          setReviewerPermissions({
+            can_edit_score: true,
+            can_edit_status: parsedStatuses.length > 0,
+            can_tag: parsedTags.length > 0,
+            can_comment_only: false
+          })
+        }
+        
         // Priority: stage config rubric > stage rubric from response > form settings rubric
+        let rubricLoaded = false
         if (stageRubric && stageRubric.categories) {
           // Parse rubric categories from stage-specific rubric
           const categories = typeof stageRubric.categories === 'string' 
@@ -358,11 +642,14 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
             : stageRubric.categories
           if (Array.isArray(categories) && categories.length > 0) {
             setRubric(categories as RubricCategory[])
+            rubricLoaded = true
           }
         } else if (settings.rubric && Array.isArray(settings.rubric) && settings.rubric.length > 0) {
           // Fallback to form settings rubric
           setRubric(settings.rubric as RubricCategory[])
+          rubricLoaded = true
         }
+        setHasRubric(rubricLoaded)
 
         // Apply field visibility config from stage config
         if (stage_config?.field_visibility_config) {
@@ -394,23 +681,70 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
             setDrafts(prev => prev.includes(sub.id) ? prev : [...prev, sub.id])
           }
 
-          // Build sections with visible fields only
-          const appSections = sections.map(section => {
-            const sectionFields = fields
-              .filter(f => f.section_id === section.id)
+          // Build sections using the proper groupFieldsBySections helper
+          // This uses form.settings.sections and config.section_id like FocusReviewMode does
+          const grouped = groupFieldsBySections(formFieldsArray, settings)
+          
+          let appSections: Application['sections'] = []
+          
+          // Convert grouped sections to the Application sections format
+          if (grouped.sections.length > 0) {
+            appSections = grouped.sections.map(section => ({
+              id: section.id,
+              title: section.name,
+              fields: section.fields
+                .filter(f => isFieldVisible(f.id))
+                .map(f => ({
+                  id: f.id,
+                  label: f.label || f.name || f.id,
+                  value: data[f.id] || data[f.name] || data[f.label] || '',
+                  type: f.type
+                }))
+                .filter(f => f.value !== '' && f.value !== null && f.value !== undefined)
+            })).filter(s => s.fields.length > 0)
+          }
+          
+          // Add ungrouped fields as a separate section if any
+          if (grouped.ungroupedFields.length > 0) {
+            const ungroupedMapped = grouped.ungroupedFields
               .filter(f => isFieldVisible(f.id))
               .map(f => ({
                 id: f.id,
                 label: f.label || f.name || f.id,
-                value: data[f.id] || data[f.name] || '',
+                value: data[f.id] || data[f.name] || data[f.label] || '',
                 type: f.type
               }))
-            return {
-              id: section.id,
-              title: section.title || section.name || 'Section',
-              fields: sectionFields
+              .filter(f => f.value !== '' && f.value !== null && f.value !== undefined)
+            
+            if (ungroupedMapped.length > 0) {
+              appSections.push({
+                id: 'other-fields',
+                title: 'Other Information',
+                fields: ungroupedMapped
+              })
             }
-          }).filter(s => s.fields.length > 0)
+          }
+          
+          // If still no sections, try to create from raw data keys
+          if (appSections.length === 0 && Object.keys(data).length > 0) {
+            const rawFields = Object.entries(data)
+              .filter(([key]) => !key.startsWith('_') && key !== 'id')
+              .map(([key, value]) => ({
+                id: key,
+                label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                value: value,
+                type: 'text'
+              }))
+              .filter(f => f.value !== '' && f.value !== null && f.value !== undefined)
+            
+            if (rawFields.length > 0) {
+              appSections = [{
+                id: 'all-fields',
+                title: 'Application Data',
+                fields: rawFields
+              }]
+            }
+          }
 
           // Extract prior reviews if enabled
           let priorReviews: Application['priorReviews'] = undefined
@@ -446,6 +780,17 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
 
         setApplications(mappedApps)
         
+        // Collect PII values for inline redaction from all applications
+        if (hiddenPIIFields.length > 0 || (stage?.hidden_pii_fields && stage.hidden_pii_fields.length > 0)) {
+          const allPiiValues: string[] = []
+          const piiFieldNames = stage?.hidden_pii_fields || []
+          mappedApps.forEach(app => {
+            const collected = collectPIIValues(app.data, piiFieldNames)
+            allPiiValues.push(...collected)
+          })
+          setPiiValues([...new Set(allPiiValues)])
+        }
+        
         const initialScores: Record<string, Record<string, number>> = {}
         mappedApps.forEach(app => {
           if (!scores[app.id]) {
@@ -454,6 +799,11 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
           }
         })
         setScores(prev => ({ ...initialScores, ...prev }))
+        
+        // Set initial active section to first available
+        if (mappedApps.length > 0 && mappedApps[0].sections.length > 0) {
+          setActiveSection(mappedApps[0].sections[0].id)
+        }
       } catch (err) {
         console.error('Failed to fetch review data:', err)
         setError('Invalid review token or session expired.')
@@ -492,18 +842,19 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
   }
 
   const currentApp = applications[currentIndex]
-  const isSubmittedApp = submitted.includes(currentApp.id)
-  const isDraftApp = drafts.includes(currentApp.id)
-  const currentScore = scores[currentApp.id] || {}
-  const currentStatus = selectedStatus[currentApp.id] || ''
-  const currentTags = selectedTags[currentApp.id] || []
-  const currentOverallComments = overallComments[currentApp.id] || ''
+  
+  const isSubmittedApp = submitted.includes(currentApp?.id || '')
+  const isDraftApp = drafts.includes(currentApp?.id || '')
+  const currentScore = scores[currentApp?.id || ''] || {}
+  const currentStatus = selectedStatus[currentApp?.id || ''] || ''
+  const currentTags = selectedTags[currentApp?.id || ''] || []
+  const currentOverallComments = overallComments[currentApp?.id || ''] || ''
   
   // Normalize rubric categories for consistent access
   const normalizedRubric = rubric.map(normalizeRubricCategory)
-  const maxScore = normalizedRubric.reduce((a, b) => a + b.max, 0)
-  const totalScore = Object.values(currentScore).reduce((a, b) => a + b, 0)
-  const scorePercent = Math.round((totalScore / maxScore) * 100)
+  const maxScore = normalizedRubric.reduce((a, b) => a + (b.max || 0), 0) || 100 // Default to 100 if no rubric
+  const totalScore = Object.values(currentScore).reduce((a, b) => a + (b || 0), 0)
+  const scorePercent = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0
 
   const handleScoreChange = (categoryId: string, value: number) => {
     if (isSubmittedApp) return
@@ -514,6 +865,63 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
     if (isSubmittedApp) return
     setRubricNotes({ ...rubricNotes, [currentApp.id]: { ...(rubricNotes[currentApp.id] || {}), [categoryId]: value } })
   }
+  
+  // Handle section comment
+  const handleSectionComment = (sectionId: string, comment: string) => {
+    setSectionComments({
+      ...sectionComments,
+      [currentApp.id]: {
+        ...(sectionComments[currentApp.id] || {}),
+        [sectionId]: comment
+      }
+    })
+  }
+  
+  // Handle text selection for highlighting
+  const handleTextSelection = (fieldName: string) => {
+    const selection = window.getSelection()
+    if (selection && selection.toString().trim().length > 0) {
+      const range = selection.getRangeAt(0)
+      const rect = range.getBoundingClientRect()
+      setSelectedText({
+        text: selection.toString().trim(),
+        fieldName,
+        rect
+      })
+      setHighlightComment('')
+    }
+  }
+  
+  // Add highlight with comment
+  const addHighlight = () => {
+    if (selectedText && highlightComment.trim()) {
+      const newHighlight = {
+        id: crypto.randomUUID(),
+        fieldName: selectedText.fieldName,
+        text: selectedText.text,
+        comment: highlightComment.trim()
+      }
+      setTextHighlights({
+        ...textHighlights,
+        [currentApp.id]: [...(textHighlights[currentApp.id] || []), newHighlight]
+      })
+      setSelectedText(null)
+      setHighlightComment('')
+      window.getSelection()?.removeAllRanges()
+    }
+  }
+  
+  // Remove a highlight
+  const removeHighlight = (highlightId: string) => {
+    setTextHighlights({
+      ...textHighlights,
+      [currentApp.id]: (textHighlights[currentApp.id] || []).filter(h => h.id !== highlightId)
+    })
+  }
+  
+  // Get current app's section comments
+  const currentSectionComments = sectionComments[currentApp?.id || ''] || {}
+  const currentHighlights = textHighlights[currentApp?.id || ''] || []
 
   const handleSubmit = async () => {
     setIsSubmitting(true)
@@ -522,6 +930,8 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
         scores: currentScore,
         notes: rubricNotes[currentApp.id],
         overall_comments: overallComments[currentApp.id],
+        section_comments: sectionComments[currentApp.id],
+        highlights: textHighlights[currentApp.id],
         status: selectedStatus[currentApp.id] || 'reviewed',
         tags: selectedTags[currentApp.id] || [],
         is_draft: false
@@ -546,6 +956,8 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
         scores: currentScore,
         notes: rubricNotes[currentApp.id],
         overall_comments: overallComments[currentApp.id],
+        section_comments: sectionComments[currentApp.id],
+        highlights: textHighlights[currentApp.id],
         status: selectedStatus[currentApp.id] || 'draft',
         tags: selectedTags[currentApp.id] || [],
         is_draft: true
@@ -562,73 +974,154 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
   const handleEdit = () => setSubmitted(submitted.filter(id => id !== currentApp.id))
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-lg border-b border-gray-200/50 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex flex-col">
+      {/* Header - Focus Mode Style */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="px-6 py-3">
           <div className="flex items-center justify-between">
+            {/* Left: Logo and Reviewer Info */}
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
                 <Award className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="font-semibold text-gray-900">Scholarship Review Portal</h1>
-                <p className="text-sm text-gray-500">Welcome, {reviewerName}</p>
+                <h1 className="font-semibold text-gray-900">Review Portal</h1>
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <User className="w-3 h-3" />
+                  <span>{reviewerInfo?.name || reviewerName}</span>
+                  {reviewerInfo?.email && (
+                    <>
+                      <span className="text-gray-300">•</span>
+                      <span className="text-gray-400">{reviewerInfo.email}</span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
+            
+            {/* Center: Navigation and Progress */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
+                  disabled={currentIndex === 0}
+                  className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <span className="text-gray-600 text-sm font-medium min-w-[80px] text-center">
+                  {currentIndex + 1} of {applications.length}
+                </span>
+                <button
+                  onClick={() => setCurrentIndex(Math.min(applications.length - 1, currentIndex + 1))}
+                  disabled={currentIndex === applications.length - 1}
+                  className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+              
+              {/* Progress bar */}
+              <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
+                  style={{ width: `${(submitted.length / applications.length) * 100}%` }}
+                />
+              </div>
+              <span className="text-sm font-medium text-gray-600">{submitted.length}/{applications.length}</span>
+            </div>
+            
+            {/* Right: Timer and Privacy */}
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-100">
-                <EyeOff className="w-4 h-4" />
-                PII Protected
+              {/* Timer */}
+              <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-1.5">
+                <button onClick={() => setTimerActive(!timerActive)} className="text-gray-500 hover:text-gray-900">
+                  {timerActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                </button>
+                <Timer className="w-4 h-4 text-gray-400" />
+                <span className="text-gray-900 font-mono text-sm min-w-[50px]">{formatTime(timer)}</span>
               </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full text-sm">
-                <span className="text-gray-500">Progress:</span>
-                <span className="font-semibold text-gray-900">{submitted.length}/{applications.length}</span>
-              </div>
+              
+              {/* Privacy Mode */}
+              {hidePII && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white rounded-lg text-sm font-medium">
+                  <Shield className="w-4 h-4" />
+                  Privacy Mode
+                </div>
+              )}
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-12 gap-8">
-          {/* Left Column - Application Queue */}
-          <div className="col-span-3">
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden sticky top-24">
-              <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-                <h3 className="font-semibold text-gray-900 text-sm">Review Queue</h3>
-                <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500" style={{ width: `${(submitted.length / applications.length) * 100}%` }} />
-                </div>
-              </div>
-              <div className="max-h-[calc(100vh-280px)] overflow-y-auto p-2">
-                {applications.map((app, idx) => {
-                  const isDone = submitted.includes(app.id)
-                  const isActive = idx === currentIndex
-                  return (
-                    <button key={app.id} onClick={() => setCurrentIndex(idx)} className={cn("w-full text-left p-3 rounded-xl mb-1 transition-all flex items-center justify-between", isActive ? "bg-blue-50 border border-blue-200" : "hover:bg-gray-50 border border-transparent")}>
-                      <div>
-                        <p className={cn("font-medium text-sm", isActive ? "text-blue-900" : "text-gray-900")}>{app.redactedName}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{app.major}</p>
-                      </div>
-                      {isDone ? <CheckCircle className="w-5 h-5 text-green-500" /> : isActive ? <ChevronRight className="w-4 h-4 text-blue-500" /> : <div className="w-2 h-2 rounded-full bg-gray-300" />}
-                    </button>
-                  )
-                })}
-              </div>
+      {/* Main Content - Focus Mode Layout */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar - Application Queue */}
+        <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+          <div className="p-4 border-b border-gray-100">
+            <h3 className="font-semibold text-gray-900 text-sm">Review Queue</h3>
+            <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500" style={{ width: `${(submitted.length / applications.length) * 100}%` }} />
             </div>
           </div>
+          <div className="flex-1 overflow-y-auto p-2">
+            {applications.map((app, idx) => {
+              const isDone = submitted.includes(app.id)
+              const isDraft = drafts.includes(app.id)
+              const isActive = idx === currentIndex
+              return (
+                <button 
+                  key={app.id} 
+                  onClick={() => setCurrentIndex(idx)} 
+                  className={cn(
+                    "w-full text-left p-3 rounded-xl mb-1 transition-all flex items-center justify-between",
+                    isActive ? "bg-blue-50 border border-blue-200" : "hover:bg-gray-50 border border-transparent"
+                  )}
+                >
+                  <div>
+                    <p className={cn("font-medium text-sm", isActive ? "text-blue-900" : "text-gray-900")}>
+                      {getDisplayTitle(app, idx)}
+                    </p>
+                    <p className={cn("text-xs text-gray-500 mt-0.5", hidePII && "blur-sm select-none")}>
+                      {hidePII ? '████████' : app.major}
+                    </p>
+                  </div>
+                  {isDone ? (
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                  ) : isDraft ? (
+                    <Save className="w-4 h-4 text-amber-500" />
+                  ) : isActive ? (
+                    <ChevronRight className="w-4 h-4 text-blue-500" />
+                  ) : (
+                    <div className="w-2 h-2 rounded-full bg-gray-300" />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
 
-          {/* Middle Column - Application Content */}
-          <div className="col-span-5 space-y-6">
-            {/* Applicant Card */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Middle - Application Content */}
+        <div className="flex-1 overflow-y-auto bg-gray-50">
+          <div className="p-8 max-w-3xl mx-auto">
+            {/* Applicant Header Card */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-6">
               <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-blue-100 text-sm mb-1">Application #{currentIndex + 1} of {applications.length}</p>
-                    <h2 className="text-2xl font-bold">{currentApp.redactedName}</h2>
-                    <p className="text-blue-100 mt-1">{currentApp.major} • {currentApp.school}</p>
+                    <h2 className="text-2xl font-bold flex items-center gap-3">
+                      {getDisplayTitle(currentApp, currentIndex)}
+                      {hidePII && (
+                        <span className="text-xs bg-white/20 px-2 py-0.5 rounded">
+                          <Shield className="w-3 h-3 inline mr-1" />
+                          Protected
+                        </span>
+                      )}
+                    </h2>
+                    <p className={cn("text-blue-100 mt-1", hidePII && "blur-sm select-none")}>
+                      {hidePII ? '████████ • ████████' : `${currentApp.major} • ${currentApp.school}`}
+                    </p>
                   </div>
                   {isSubmittedApp && (
                     <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2 flex items-center gap-2">
@@ -636,31 +1129,12 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
                       <span className="font-medium">Reviewed</span>
                     </div>
                   )}
-                </div>
-              </div>
-              
-              {/* Quick Stats */}
-              <div className="grid grid-cols-3 divide-x divide-gray-100 bg-gray-50/50">
-                <div className="p-4 text-center">
-                  <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-2">
-                    <GraduationCap className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <p className="text-lg font-bold text-gray-900">{currentApp.gpa}</p>
-                  <p className="text-xs text-gray-500">GPA</p>
-                </div>
-                <div className="p-4 text-center">
-                  <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-2">
-                    <DollarSign className="w-5 h-5 text-green-600" />
-                  </div>
-                  <p className="text-lg font-bold text-gray-900">${Number(currentApp.financials?.gap || 0).toLocaleString()}</p>
-                  <p className="text-xs text-gray-500">Need Gap</p>
-                </div>
-                <div className="p-4 text-center">
-                  <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-2">
-                    <Award className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <p className="text-lg font-bold text-gray-900">{currentApp.financials?.pell ? 'Yes' : 'No'}</p>
-                  <p className="text-xs text-gray-500">Pell Eligible</p>
+                  {isDraftApp && !isSubmittedApp && (
+                    <div className="bg-amber-400/20 backdrop-blur-sm rounded-xl px-4 py-2 flex items-center gap-2 text-amber-100">
+                      <Save className="w-5 h-5" />
+                      <span className="font-medium">Draft</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -720,17 +1194,108 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
                     {currentApp.sections.map(section => (
                       activeSection === section.id && (
                         <div key={section.id} className="space-y-4">
-                          <h4 className="text-gray-900 font-semibold mb-3">{section.title}</h4>
-                          {section.fields.map(field => (
-                            <div key={field.id} className="bg-gray-50 rounded-lg p-4">
-                              <p className="text-xs text-blue-600 font-medium uppercase tracking-wide mb-2">{field.label}</p>
-                              {/* Render based on field type and value */}
-                              {renderExternalFieldValue(field.value, field.type)}
-                            </div>
-                          ))}
+                          {/* Section Header */}
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-lg font-semibold text-gray-900">{section.title}</h4>
+                            {currentHighlights.filter(h => section.fields.some(f => f.id === h.fieldName)).length > 0 && (
+                              <span className="inline-flex items-center gap-1 text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
+                                <Highlighter className="w-3 h-3" />
+                                {currentHighlights.filter(h => section.fields.some(f => f.id === h.fieldName)).length} highlights
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Fields */}
+                          <div className="space-y-3">
+                            {section.fields.map(field => {
+                              const fieldRedacted = isFieldRedacted(field.id) || isFieldRedacted(field.label)
+                              const fieldHighlights = currentHighlights.filter(h => h.fieldName === field.id)
+                              return (
+                                <div 
+                                  key={field.id} 
+                                  className="group bg-white rounded-xl border border-gray-100 hover:border-gray-200 transition-all duration-200 overflow-hidden"
+                                >
+                                  {/* Field Label */}
+                                  <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50/50 border-b border-gray-100">
+                                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{field.label}</p>
+                                    <div className="flex items-center gap-2">
+                                      {fieldHighlights.length > 0 && (
+                                        <span className="text-xs text-yellow-600 flex items-center gap-1">
+                                          <Highlighter className="w-3 h-3" />
+                                          {fieldHighlights.length}
+                                        </span>
+                                      )}
+                                      {fieldRedacted && (
+                                        <span className="flex items-center gap-1 text-xs bg-gray-800 text-white px-2 py-0.5 rounded">
+                                          <EyeOff className="w-3 h-3" />
+                                          Hidden
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Field Value */}
+                                  <div 
+                                    className="px-4 py-3"
+                                    onMouseUp={() => !fieldRedacted && handleTextSelection(field.id)}
+                                  >
+                                    {fieldRedacted ? (
+                                      <div className="bg-gray-900/5 text-gray-400 px-3 py-2 rounded-lg text-sm font-mono select-none border border-gray-200">
+                                        ████████████████
+                                      </div>
+                                    ) : (
+                                      <div className="text-gray-700">
+                                        {renderExternalFieldValue(field.value, field.type, hidePII ? piiValues : [])}
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Highlights for this field */}
+                                  {fieldHighlights.length > 0 && (
+                                    <div className="px-4 pb-3 space-y-2">
+                                      {fieldHighlights.map(h => (
+                                        <div key={h.id} className="flex items-start gap-2 p-2 bg-yellow-50 rounded-lg border border-yellow-200">
+                                          <Highlighter className="w-3.5 h-3.5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-xs text-yellow-800 font-medium truncate">"{h.text}"</p>
+                                            <p className="text-xs text-yellow-700 mt-0.5">{h.comment}</p>
+                                          </div>
+                                          <button 
+                                            onClick={() => removeHighlight(h.id)}
+                                            className="text-yellow-500 hover:text-yellow-700 p-0.5"
+                                          >
+                                            <X className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                          
                           {section.fields.length === 0 && (
-                            <p className="text-gray-500 text-sm">No visible fields in this section.</p>
+                            <div className="text-center py-8 text-gray-400">
+                              <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                              <p className="text-sm">No visible fields in this section</p>
+                            </div>
                           )}
+                          
+                          {/* Section Comment */}
+                          <div className="mt-6 pt-4 border-t border-gray-100">
+                            <div className="flex items-center gap-2 mb-2">
+                              <MessageSquare className="w-4 h-4 text-gray-400" />
+                              <label className="text-sm font-medium text-gray-600">Section Notes</label>
+                            </div>
+                            <textarea
+                              value={currentSectionComments[section.id] || ''}
+                              onChange={(e) => handleSectionComment(section.id, e.target.value)}
+                              placeholder="Add notes about this section..."
+                              rows={2}
+                              className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none resize-none transition-all placeholder:text-gray-400"
+                            />
+                          </div>
                         </div>
                       )
                     ))}
@@ -738,38 +1303,39 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
                     {/* Prior Reviews Section */}
                     {activeSection === 'prior-reviews' && canViewPriorScores && currentApp.priorReviews && (
                       <div className="space-y-4">
-                        <h4 className="text-gray-900 font-semibold mb-3 flex items-center gap-2">
-                          <Star className="w-4 h-4 text-amber-500" />
+                        <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                          <Star className="w-5 h-5 text-amber-500" />
                           Prior Reviews
                         </h4>
                         {currentApp.priorReviews.map((review, idx) => (
-                          <div key={idx} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                            <div className="flex items-center justify-between mb-3">
+                          <div key={idx} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
                               <span className="font-medium text-gray-900">{review.reviewer_name}</span>
                               <span className="text-lg font-bold text-blue-600">{review.total_score} pts</span>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 mb-3">
-                              {Object.entries(review.scores).map(([catId, score]) => {
-                                const cat = normalizedRubric.find(r => r.id === catId)
-                                return (
-                                  <div key={catId} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
-                                    <span className="text-xs text-gray-600">{cat?.name || catId}</span>
-                                    <span className="text-sm font-semibold text-gray-900">{score}/{cat?.max || '?'}</span>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                            {canViewPriorComments && review.notes && Object.keys(review.notes).length > 0 && (
-                              <div className="border-t border-gray-200 pt-3 mt-3">
-                                <p className="text-xs text-gray-500 mb-2">Comments</p>
-                                {Object.entries(review.notes).map(([catId, note]) => {
+                            <div className="p-4">
+                              <div className="grid grid-cols-2 gap-2 mb-3">
+                                {Object.entries(review.scores).map(([catId, score]) => {
                                   const cat = normalizedRubric.find(r => r.id === catId)
-                                  return note ? (
-                                    <div key={catId} className="text-sm text-gray-700 mb-2">
-                                      <span className="font-medium">{cat?.name || catId}:</span> {note}
+                                  return (
+                                    <div key={catId} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                                      <span className="text-xs text-gray-600">{cat?.name || catId}</span>
+                                      <span className="text-sm font-semibold text-gray-900">{score}/{cat?.max || '?'}</span>
                                     </div>
-                                  ) : null
+                                  )
                                 })}
+                              </div>
+                              {canViewPriorComments && review.notes && Object.keys(review.notes).length > 0 && (
+                                <div className="border-t border-gray-100 pt-3 mt-3">
+                                  <p className="text-xs text-gray-500 mb-2">Comments</p>
+                                  {Object.entries(review.notes).map(([catId, note]) => {
+                                    const cat = normalizedRubric.find(r => r.id === catId)
+                                    return note ? (
+                                      <div key={catId} className="text-sm text-gray-700 mb-2">
+                                        <span className="font-medium">{cat?.name || catId}:</span> {note}
+                                      </div>
+                                    ) : null
+                                  })}
                               </div>
                             )}
                             <p className="text-xs text-gray-400 mt-2">
@@ -841,181 +1407,280 @@ export function ExternalReviewInterface({ reviewerName, token }: ExternalReviewI
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Right Column - Scoring */}
-          <div className="col-span-4">
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden sticky top-24">
-              <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-gray-900">Evaluation</h3>
-                  <p className="text-sm text-gray-500">Rate each category</p>
+        {/* Right Sidebar - Compact Evaluation */}
+        <div className="w-80 bg-white border-l border-gray-100 flex flex-col">
+          {/* Header */}
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Star className="w-4 h-4 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 text-sm">Evaluation</h3>
+                <p className="text-xs text-gray-500">{hasRubric ? 'Hover for guidelines' : 'Comments only'}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto">
+            {isSubmittedApp ? (
+              <div className="p-6 text-center">
+                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle className="w-8 h-8 text-emerald-600" />
                 </div>
-                <button onClick={() => setShowRubric(true)} className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
-                  <Info className="w-4 h-4" />
-                  Rubric
+                <h3 className="text-lg font-bold text-gray-900 mb-1">Complete!</h3>
+                {hasRubric && (
+                  <p className="text-2xl font-bold text-blue-600 mb-4">{totalScore}<span className="text-sm text-gray-400 font-normal">/{maxScore}</span></p>
+                )}
+                <button onClick={handleEdit} className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1.5 mx-auto">
+                  <Edit2 className="w-3.5 h-3.5" />
+                  Edit
                 </button>
               </div>
-
-              {isSubmittedApp ? (
-                <div className="p-8 text-center">
-                  <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <CheckCircle className="w-10 h-10 text-green-600" />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-1">Review Complete</h3>
-                  <p className="text-gray-500 mb-2">Score: {totalScore}/{maxScore}</p>
-                  <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-6">
-                    <div className={cn("h-full rounded-full", scorePercent >= 80 ? "bg-green-500" : scorePercent >= 60 ? "bg-blue-500" : "bg-amber-500")} style={{ width: `${scorePercent}%` }} />
-                  </div>
-                  <button onClick={handleEdit} className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-2 mx-auto">
-                    <Edit2 className="w-4 h-4" />
-                    Edit Review
-                  </button>
-                </div>
-              ) : (
-                <div className="p-5">
-                  {/* Score Summary */}
-                  <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-blue-900">Total Score</span>
-                      <span className="text-2xl font-bold text-blue-600">{totalScore}<span className="text-sm text-blue-400 font-normal">/{maxScore}</span></span>
+            ) : (
+              <div className="p-4">
+                {/* Score Summary Card */}
+                {hasRubric && (
+                  <div className="mb-4 p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100/50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-blue-700">Total</span>
+                      <span className="text-xl font-bold text-blue-600">{totalScore}<span className="text-xs text-blue-400 font-normal">/{maxScore}</span></span>
                     </div>
-                    <div className="w-full h-2 bg-blue-200/50 rounded-full overflow-hidden">
+                    <div className="mt-2 h-1.5 bg-blue-200/40 rounded-full overflow-hidden">
                       <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-300" style={{ width: `${scorePercent}%` }} />
                     </div>
                   </div>
+                )}
 
-                  {/* Category Scores */}
-                  <div className="space-y-5">
+                {/* No Rubric Notice */}
+                {!hasRubric && (
+                  <div className="mb-4 p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-500" />
+                      <p className="text-xs font-medium text-amber-700">No rubric configured</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Compact Category Scores */}
+                {hasRubric && normalizedRubric.length > 0 && (
+                  <div className="space-y-2">
                     {normalizedRubric.map((cat) => (
-                      <div key={cat.id} className="group">
-                        <div className="flex items-center justify-between mb-2">
-                          <div>
-                            <p className="font-medium text-gray-900 text-sm">{cat.name}</p>
-                            {cat.levels.length > 0 && (
-                              <p className="text-xs text-gray-500">
-                                {cat.levels[0]?.minScore}-{cat.levels[0]?.maxScore}: {cat.levels[0]?.description?.substring(0, 40)}...
-                              </p>
-                            )}
+                      <div 
+                        key={cat.id} 
+                        className="relative group"
+                        onMouseEnter={() => setHoveredCategory(cat.id)}
+                        onMouseLeave={() => setHoveredCategory(null)}
+                      >
+                        {/* Compact Score Row */}
+                        <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-700 truncate">{cat.name}</p>
                           </div>
-                          <span className="text-sm font-semibold text-gray-900">{currentScore[cat.id] || 0}/{cat.max}</span>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <input 
+                              type="number" 
+                              min="0" 
+                              max={cat.max} 
+                              value={currentScore[cat.id] || 0} 
+                              onChange={(e) => handleScoreChange(cat.id, Math.min(cat.max, Math.max(0, parseInt(e.target.value) || 0)))} 
+                              className="w-12 text-center text-sm font-semibold bg-white border border-gray-200 rounded-md py-1 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none"
+                            />
+                            <span className="text-xs text-gray-400">/{cat.max}</span>
+                          </div>
                         </div>
-                        <input type="range" min="0" max={cat.max} value={currentScore[cat.id] || 0} onChange={(e) => handleScoreChange(cat.id, parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
-                        <input type="text" value={rubricNotes[currentApp.id]?.[cat.id] || ''} onChange={(e) => handleNoteChange(cat.id, e.target.value)} placeholder="Add note..." className="w-full mt-2 text-xs p-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" />
+                        
+                        {/* Slider */}
+                        <div className="px-2 pb-2">
+                          <input 
+                            type="range" 
+                            min="0" 
+                            max={cat.max} 
+                            value={currentScore[cat.id] || 0} 
+                            onChange={(e) => handleScoreChange(cat.id, parseInt(e.target.value))} 
+                            className="w-full h-1 bg-gray-200 rounded-full appearance-none cursor-pointer accent-blue-600"
+                          />
+                        </div>
+                        
+                        {/* Hover Tooltip with Guidelines */}
+                        {hoveredCategory === cat.id && cat.levels.length > 0 && (
+                          <div className="absolute left-0 right-0 top-full z-20 mt-1 p-3 bg-gray-900 text-white rounded-lg shadow-xl text-xs animate-in fade-in slide-in-from-top-2 duration-200">
+                            <p className="font-semibold mb-2 text-gray-200">Scoring Guidelines</p>
+                            <div className="space-y-1.5">
+                              {cat.levels.map((level, idx) => (
+                                <div key={idx} className="flex gap-2">
+                                  <span className="font-mono text-blue-300 flex-shrink-0">{level.minScore}-{level.maxScore}</span>
+                                  <span className="text-gray-300">{level.description}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Note Input */}
+                        <div className="px-2 pb-2">
+                          <input 
+                            type="text" 
+                            value={rubricNotes[currentApp.id]?.[cat.id] || ''} 
+                            onChange={(e) => handleNoteChange(cat.id, e.target.value)} 
+                            placeholder="Note..." 
+                            className="w-full text-xs p-1.5 bg-gray-50 border border-gray-100 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-400 outline-none placeholder:text-gray-400"
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
+                )}
 
-                  {/* Status Selection */}
-                  {customStatuses.length > 0 && (
-                    <div className="mt-6 pt-5 border-t border-gray-100">
-                      <label className="block text-sm font-medium text-gray-900 mb-2">Application Status</label>
-                      <select
-                        value={currentStatus}
-                        onChange={(e) => setSelectedStatus({ ...selectedStatus, [currentApp.id]: e.target.value })}
-                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                      >
-                        <option value="">Select status...</option>
-                        {customStatuses.map((status) => (
-                          <option key={status} value={status}>{status}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* Tags Selection */}
-                  {customTags.length > 0 && (
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium text-gray-900 mb-2">
-                        <Tag className="w-4 h-4 inline mr-1" />
-                        Tags
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {customTags.map((tag) => {
-                          const isSelected = currentTags.includes(tag)
-                          return (
-                            <button
-                              key={tag}
-                              onClick={() => {
-                                if (isSelected) {
-                                  setSelectedTags({ ...selectedTags, [currentApp.id]: currentTags.filter(t => t !== tag) })
-                                } else {
-                                  setSelectedTags({ ...selectedTags, [currentApp.id]: [...currentTags, tag] })
-                                }
-                              }}
-                              className={cn(
-                                "px-3 py-1.5 text-xs font-medium rounded-full transition-all border",
-                                isSelected
-                                  ? "bg-blue-100 text-blue-700 border-blue-200"
-                                  : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
-                              )}
-                            >
-                              {tag}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Overall Comments */}
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
-                      <MessageSquare className="w-4 h-4 inline mr-1" />
-                      Overall Comments
-                    </label>
-                    <textarea
-                      value={currentOverallComments}
-                      onChange={(e) => setOverallComments({ ...overallComments, [currentApp.id]: e.target.value })}
-                      placeholder="Add any overall comments about this application..."
-                      rows={3}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
-                    />
+                {/* Divider */}
+                <div className="my-4 border-t border-gray-100" />
+                
+                {/* Status Selection */}
+                {customStatuses.length > 0 && (
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
+                    <select
+                      value={currentStatus}
+                      onChange={(e) => setSelectedStatus({ ...selectedStatus, [currentApp.id]: e.target.value })}
+                      className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none"
+                    >
+                      <option value="">Select...</option>
+                      {customStatuses.map((status) => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
                   </div>
+                )}
 
-                  {/* Draft indicator */}
-                  {isDraftApp && (
-                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2 text-amber-700 text-sm">
-                      <Save className="w-4 h-4" />
-                      <span>Draft saved - continue editing or submit when ready</span>
+                {/* Tags Selection */}
+                {customTags.length > 0 && (
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">Tags</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {customTags.map((tag) => {
+                        const isSelected = currentTags.includes(tag)
+                        return (
+                          <button
+                            key={tag}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedTags({ ...selectedTags, [currentApp.id]: currentTags.filter(t => t !== tag) })
+                              } else {
+                                setSelectedTags({ ...selectedTags, [currentApp.id]: [...currentTags, tag] })
+                              }
+                            }}
+                            className={cn(
+                              "px-2 py-1 text-xs font-medium rounded-md transition-all",
+                              isSelected
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            )}
+                          >
+                            {tag}
+                          </button>
+                        )
+                      })}
                     </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  <div className="mt-6 space-y-3">
-                    {/* Submit Button */}
-                    <button onClick={handleSubmit} disabled={isSubmitting} className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-50">
-                      {isSubmitting ? (
-                        <><Loader2 className="w-5 h-5 animate-spin" />Submitting...</>
-                      ) : (
-                        <><Send className="w-5 h-5" />Submit Review</>
-                      )}
-                    </button>
-
-                    {/* Save as Draft Button */}
-                    <button onClick={handleSaveDraft} disabled={isSavingDraft} className="w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-                      {isSavingDraft ? (
-                        <><Loader2 className="w-4 h-4 animate-spin" />Saving...</>
-                      ) : (
-                        <><Save className="w-4 h-4" />Save as Draft</>
-                      )}
-                    </button>
                   </div>
+                )}
 
-                  {/* Navigation */}
-                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-                    <button onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 disabled:opacity-50">
-                      <ChevronLeft className="w-4 h-4" />Previous
-                    </button>
-                    <button onClick={() => setCurrentIndex(Math.min(applications.length - 1, currentIndex + 1))} disabled={currentIndex === applications.length - 1} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 disabled:opacity-50">
-                      Next<ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
+                {/* Overall Comments */}
+                <div className="mb-4">
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                    Overall Notes
+                  </label>
+                  <textarea
+                    value={currentOverallComments}
+                    onChange={(e) => setOverallComments({ ...overallComments, [currentApp.id]: e.target.value })}
+                    placeholder="Overall thoughts..."
+                    rows={2}
+                    className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none resize-none placeholder:text-gray-400"
+                  />
                 </div>
-              )}
-            </div>
+
+                {/* Draft indicator */}
+                {isDraftApp && (
+                  <div className="mb-4 p-2 bg-amber-50 border border-amber-100 rounded-lg flex items-center gap-2 text-amber-700 text-xs">
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Draft saved</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
+          
+          {/* Fixed Bottom Actions */}
+          {!isSubmittedApp && (
+            <div className="p-4 border-t border-gray-100 bg-gray-50/50 space-y-2">
+              <button 
+                onClick={handleSubmit} 
+                disabled={isSubmitting} 
+                className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+              >
+                {isSubmitting ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" />Submitting...</>
+                ) : (
+                  <><Send className="w-4 h-4" />Submit Review</>
+                )}
+              </button>
+              <button 
+                onClick={handleSaveDraft} 
+                disabled={isSavingDraft} 
+                className="w-full py-2 bg-white text-gray-600 rounded-lg font-medium hover:bg-gray-100 transition-colors border border-gray-200 flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+              >
+                {isSavingDraft ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" />Saving...</>
+                ) : (
+                  <><Save className="w-4 h-4" />Save Draft</>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
+      
+      {/* Text Selection Highlight Popover */}
+      {selectedText && (
+        <div 
+          className="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-3 w-72 animate-in fade-in zoom-in-95 duration-200"
+          style={{
+            top: selectedText.rect.bottom + 8,
+            left: Math.min(selectedText.rect.left, window.innerWidth - 300)
+          }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Highlighter className="w-4 h-4 text-yellow-500" />
+            <span className="text-sm font-medium text-gray-900">Add Comment</span>
+            <button 
+              onClick={() => { setSelectedText(null); setHighlightComment('') }}
+              className="ml-auto text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mb-2 truncate bg-yellow-50 px-2 py-1 rounded">
+            "{selectedText.text.substring(0, 50)}{selectedText.text.length > 50 ? '...' : ''}"
+          </p>
+          <input
+            ref={highlightInputRef}
+            type="text"
+            value={highlightComment}
+            onChange={(e) => setHighlightComment(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addHighlight()}
+            placeholder="Your comment..."
+            className="w-full p-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none"
+          />
+          <button 
+            onClick={addHighlight}
+            disabled={!highlightComment.trim()}
+            className="w-full mt-2 py-1.5 bg-yellow-500 text-white rounded-lg text-sm font-medium hover:bg-yellow-600 transition-colors disabled:opacity-50"
+          >
+            Add Highlight
+          </button>
+        </div>
+      )}
 
       {/* Rubric Modal */}
       {showRubric && (

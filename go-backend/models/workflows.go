@@ -28,6 +28,7 @@ type ApplicationStage struct {
 	Description      string         `json:"description"`
 	OrderIndex       int            `gorm:"default:0" json:"order_index"`
 	StageType        string         `gorm:"default:'review'" json:"stage_type"`
+	Color            string         `json:"color"` // Stage color: blue, green, yellow, orange, red, purple, pink, teal, indigo, slate
 	StartDate        *time.Time     `json:"start_date"`
 	EndDate          *time.Time     `json:"end_date"`
 	RelativeDeadline string         `json:"relative_deadline"`

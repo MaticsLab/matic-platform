@@ -303,50 +303,62 @@ function FieldRenderer({ field, value, onChange, themeColor }: { field: Field, v
       )}
 
       {/* Selection */}
-      {(field.type === 'select' || field.type === 'rank') && (
-        <Select value={value} onValueChange={onChange}>
-          <SelectTrigger className="h-11">
-            <SelectValue placeholder={field.placeholder || "Select an option"} />
-          </SelectTrigger>
-          <SelectContent>
-            {field.options?.map(opt => (
-              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-            )) || <SelectItem value="default">Default Option</SelectItem>}
-          </SelectContent>
-        </Select>
-      )}
+      {(field.type === 'select' || field.type === 'rank') && (() => {
+        const options = field.options || field.config?.items || []
+        return (
+          <Select value={value} onValueChange={onChange}>
+            <SelectTrigger className="h-11">
+              <SelectValue placeholder={field.placeholder || "Select an option"} />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((opt: string) => (
+                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+              ))}
+              {options.length === 0 && <SelectItem value="default" disabled>No options defined</SelectItem>}
+            </SelectContent>
+          </Select>
+        )
+      })()}
 
-      {field.type === 'multiselect' && (
-        <div className="border rounded-md p-3 space-y-2 bg-white">
-          {field.options?.map(opt => (
-            <div key={opt} className="flex items-center space-x-2">
-              <Checkbox 
-                id={`${field.id}-${opt}`}
-                checked={(value || []).includes(opt)}
-                onCheckedChange={(checked) => {
-                  const current = value || []
-                  if (checked) onChange([...current, opt])
-                  else onChange(current.filter((v: string) => v !== opt))
-                }}
-              />
-              <label htmlFor={`${field.id}-${opt}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                {opt}
-              </label>
-            </div>
-          )) || <div className="text-sm text-gray-400">No options defined</div>}
-        </div>
-      )}
+      {field.type === 'multiselect' && (() => {
+        const options = field.options || field.config?.items || []
+        return (
+          <div className="border rounded-md p-3 space-y-2 bg-white">
+            {options.map((opt: string) => (
+              <div key={opt} className="flex items-center space-x-2">
+                <Checkbox 
+                  id={`${field.id}-${opt}`}
+                  checked={(value || []).includes(opt)}
+                  onCheckedChange={(checked) => {
+                    const current = value || []
+                    if (checked) onChange([...current, opt])
+                    else onChange(current.filter((v: string) => v !== opt))
+                  }}
+                />
+                <label htmlFor={`${field.id}-${opt}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  {opt}
+                </label>
+              </div>
+            ))}
+            {options.length === 0 && <div className="text-sm text-gray-400">No options defined</div>}
+          </div>
+        )
+      })()}
 
-      {field.type === 'radio' && (
-        <RadioGroup value={value} onValueChange={onChange} className="space-y-2">
-          {field.options?.map(opt => (
-            <div key={opt} className="flex items-center space-x-2">
-              <RadioGroupItem value={opt} id={`${field.id}-${opt}`} />
-              <Label htmlFor={`${field.id}-${opt}`}>{opt}</Label>
-            </div>
-          )) || <div className="text-sm text-gray-400">No options defined</div>}
-        </RadioGroup>
-      )}
+      {field.type === 'radio' && (() => {
+        const options = field.options || field.config?.items || []
+        return (
+          <RadioGroup value={value} onValueChange={onChange} className="space-y-2">
+            {options.map((opt: string) => (
+              <div key={opt} className="flex items-center space-x-2">
+                <RadioGroupItem value={opt} id={`${field.id}-${opt}`} />
+                <Label htmlFor={`${field.id}-${opt}`}>{opt}</Label>
+              </div>
+            ))}
+            {options.length === 0 && <div className="text-sm text-gray-400">No options defined</div>}
+          </RadioGroup>
+        )
+      })()}
 
       {field.type === 'checkbox' && (
         <div className="flex items-center space-x-2 p-2 border rounded-lg bg-gray-50/50">

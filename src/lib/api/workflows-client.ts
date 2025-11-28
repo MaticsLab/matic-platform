@@ -22,6 +22,7 @@ export interface ApplicationStage {
   description?: string;
   order_index: number;
   stage_type: string;
+  color?: string;
   start_date?: string;
   end_date?: string;
   relative_deadline?: string;

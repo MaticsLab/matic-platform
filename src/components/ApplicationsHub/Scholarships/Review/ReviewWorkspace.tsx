@@ -312,6 +312,18 @@ function getApplicationDisplayName(
   return app.name
 }
 
+// Single review entry from a reviewer
+interface ReviewHistoryEntry {
+  reviewer_id: string
+  reviewer_name: string
+  reviewed_at: string
+  scores: Record<string, number>
+  total_score?: number
+  notes?: string
+  comments?: string
+  criteria_comments?: Record<string, string>
+}
+
 interface ApplicationData {
   id: string
   name: string
@@ -331,6 +343,7 @@ interface ApplicationData {
   comments: string
   flagged: boolean
   workflowId?: string
+  reviewHistory: ReviewHistoryEntry[]
 }
 
 interface StageWithConfig extends ApplicationStage {
@@ -501,9 +514,17 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
             } catch {}
             
             const primaryConfig = configs[0]
-            const rubric = primaryConfig?.rubric_id 
-              ? allRubrics.find(r => r.id === primaryConfig.rubric_id) || null
-              : null
+            // Priority: stage config rubric > assigned rubric > workflow default rubric
+            let rubric: Rubric | null = null
+            if (primaryConfig?.rubric_id) {
+              rubric = allRubrics.find(r => r.id === primaryConfig.rubric_id) || null
+            } else if (primaryConfig?.assigned_rubric_id) {
+              rubric = allRubrics.find(r => r.id === primaryConfig.assigned_rubric_id) || null
+            }
+            // Fall back to workflow's default rubric
+            if (!rubric && activeWorkflow.default_rubric_id) {
+              rubric = allRubrics.find(r => r.id === activeWorkflow.default_rubric_id) || null
+            }
             
             return {
               ...stage,
@@ -554,7 +575,8 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
           scores: metadata.scores || {},
           comments: metadata.comments || '',
           flagged: metadata.flagged || false,
-          workflowId: assignedWorkflowId
+          workflowId: assignedWorkflowId,
+          reviewHistory: (metadata.review_history || []) as ReviewHistoryEntry[]
         }
       })
       
@@ -1195,20 +1217,19 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
             <div className="flex bg-gray-100 rounded-lg p-0.5">
               {[
                 { id: 'queue' as const, icon: Inbox, label: 'Queue' },
-                { id: 'focus' as const, icon: Target, label: 'Focus' },
                 { id: 'analytics' as const, icon: BarChart3, label: 'Analytics' }
               ].map(mode => (
                 <button
                   key={mode.id}
                   onClick={() => setViewMode(mode.id)}
                   className={cn(
-                    "flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
+                    "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-all",
                     viewMode === mode.id 
                       ? "bg-white text-blue-600 shadow-sm" 
                       : "text-gray-500 hover:text-gray-900"
                   )}
                 >
-                  <mode.icon className="w-3.5 h-3.5" />
+                  <mode.icon className="w-4 h-4" />
                   {mode.label}
                 </button>
               ))}
@@ -1379,6 +1400,8 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
               titleFieldName={titleFieldName}
               hidePII={hidePII}
               hiddenPIIFields={hiddenPIIFields}
+              stages={stages}
+              onMoveToStage={handleMoveToStage}
             />
           )}
           
@@ -1473,7 +1496,9 @@ function QueueView({
   form,
   titleFieldName,
   hidePII,
-  hiddenPIIFields
+  hiddenPIIFields,
+  stages,
+  onMoveToStage
 }: {
   apps: ApplicationData[]
   selectedIndex: number
@@ -1490,9 +1515,12 @@ function QueueView({
   titleFieldName?: string | null
   hidePII?: boolean
   hiddenPIIFields?: string[]
+  stages?: StageWithConfig[]
+  onMoveToStage?: (appId: string, stageId: string) => void
 }) {
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false)
   const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'highest' | 'lowest'>('recent')
+  const [previewTab, setPreviewTab] = useState<'data' | 'reviews'>('data')
 
   const sortedApps = useMemo(() => {
     const sorted = [...apps]
@@ -1690,27 +1718,44 @@ function QueueView({
       </div>
 
       {/* Preview Panel */}
-      <div className="flex-1 flex flex-col bg-gray-50">
+      <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
         {currentApp ? (
           <>
-            <div className="p-6 border-b border-gray-200 bg-white">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">
+            {/* Header */}
+            <div className="px-8 py-6 border-b border-gray-200 bg-white">
+              <div className="flex items-center justify-between gap-6">
+                <div className="min-w-0">
+                  <h2 className="text-2xl font-bold text-gray-900">
                     {getApplicationDisplayName(currentApp, titleFieldName || null, hidePII || false)}
                   </h2>
-                  <p className="text-gray-500">{hidePII ? '••••••@••••••' : currentApp.email}</p>
                 </div>
-                <Button onClick={onStartReview} className="bg-blue-600 hover:bg-blue-700">
-                  <Play className="w-4 h-4 mr-2" />
-                  Start Review
-                </Button>
+                <div className="flex items-center gap-3 shrink-0">
+                  {/* Stage Selector for Admin */}
+                  {stages && stages.length > 0 && onMoveToStage && (
+                    <div className="relative">
+                      <select
+                        value={currentApp.stageId}
+                        onChange={(e) => onMoveToStage(currentApp.id, e.target.value)}
+                        className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2.5 pr-10 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                      >
+                        {stages.map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                  )}
+                  <Button onClick={onStartReview} size="lg" className="bg-blue-600 hover:bg-blue-700 px-6">
+                    <Play className="w-4 h-4 mr-2" />
+                    Start Review
+                  </Button>
+                </div>
               </div>
               
-              {/* Status & Score */}
-              <div className="flex items-center gap-4 mt-4">
+              {/* Status & Score Row */}
+              <div className="flex items-center gap-5 mt-5 flex-wrap">
                 <Badge className={cn(
-                  "capitalize",
+                  "capitalize text-sm px-3 py-1.5",
                   currentApp.status === 'approved' && "bg-green-100 text-green-700 border-green-200",
                   currentApp.status === 'rejected' && "bg-red-100 text-red-700 border-red-200",
                   currentApp.status === 'in_review' && "bg-blue-100 text-blue-700 border-blue-200",
@@ -1720,151 +1765,370 @@ function QueueView({
                 </Badge>
                 
                 {currentApp.score !== null && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="flex items-center gap-3">
+                    <div className="w-36 h-2.5 bg-gray-200 rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-gradient-to-r from-blue-500 to-blue-600"
-                        style={{ width: `${(currentApp.score / currentApp.maxScore) * 100}%` }}
+                        className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
+                        style={{ width: `${Math.min((currentApp.score / currentApp.maxScore) * 100, 100)}%` }}
                       />
                     </div>
-                    <span className="text-sm font-medium text-gray-900">{currentApp.score}/{currentApp.maxScore}</span>
+                    <span className="text-sm font-semibold text-gray-900">{currentApp.score}/{currentApp.maxScore}</span>
                   </div>
                 )}
                 
-                <span className="text-sm text-gray-500 flex items-center gap-1">
+                <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                  <Users className="w-4 h-4" />
+                  <span>{currentApp.reviewCount}/{currentApp.requiredReviews} reviews</span>
+                </div>
+                
+                <span className="text-sm text-gray-500 flex items-center gap-1.5">
                   <Clock className="w-4 h-4" />
                   Submitted {new Date(currentApp.submittedAt).toLocaleDateString()}
                 </span>
               </div>
             </div>
 
-            {/* Application Data Preview */}
-            <div className="flex-1 overflow-y-auto p-6">
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Application Data</h3>
-              
-              {form?.fields && form.fields.length > 0 ? (
-                <div className="space-y-4">
-                  {(() => {
-                    const { sections, ungroupedFields } = groupFieldsBySections(form.fields, form.settings)
-                    
-                    // Get PII values to redact from other fields
-                    const piiValuesToRedact: string[] = (hiddenPIIFields || [])
-                      .map(fieldName => {
-                        const val = currentApp.raw_data[fieldName]
-                        return typeof val === 'string' ? val : null
-                      })
-                      .filter((v): v is string => v !== null && v.length >= 2)
-                    
-                    // Helper to render field value with PII redaction
-                    const renderWithPII = (fieldName: string, value: any) => {
-                      // If this field is marked for hiding, show redacted
-                      if (hidePII && hiddenPIIFields?.includes(fieldName)) {
+            {/* Tab Navigation */}
+            <div className="px-8 py-4 bg-white border-b border-gray-200">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPreviewTab('data')}
+                  className={cn(
+                    "px-5 py-2.5 text-sm font-medium rounded-lg transition-colors",
+                    previewTab === 'data'
+                      ? "bg-blue-100 text-blue-700"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  )}
+                >
+                  <FileText className="w-4 h-4 inline-block mr-2" />
+                  Application Data
+                </button>
+                <button
+                  onClick={() => setPreviewTab('reviews')}
+                  className={cn(
+                    "px-5 py-2.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-2",
+                    previewTab === 'reviews'
+                      ? "bg-blue-100 text-blue-700"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  )}
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Reviews
+                  {currentApp.reviewHistory.length > 0 && (
+                    <span className={cn(
+                      "px-2 py-0.5 text-xs rounded-full",
+                      previewTab === 'reviews' ? "bg-blue-200 text-blue-800" : "bg-gray-200 text-gray-700"
+                    )}>
+                      {currentApp.reviewHistory.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Tab Content */}
+            <div className="flex-1 overflow-y-auto px-8 py-6">
+              {previewTab === 'data' ? (
+                <>
+                  {/* Application Data Tab */}
+                  {form?.fields && form.fields.length > 0 ? (
+                    <div className="space-y-8">
+                      {(() => {
+                        const { sections, ungroupedFields } = groupFieldsBySections(form.fields, form.settings)
+                        
+                        // Helper to check if a field is redacted - checks id, name, and label
+                        const isFieldHidden = (field: { id: string; name: string; label?: string }) => {
+                          if (!hidePII || !hiddenPIIFields || hiddenPIIFields.length === 0) return false
+                          return hiddenPIIFields.includes(field.id) || 
+                                 hiddenPIIFields.includes(field.name) || 
+                                 (field.label && hiddenPIIFields.includes(field.label))
+                        }
+                        
+                        // Get PII values to redact from hidden fields
+                        const piiValuesToRedact: string[] = form.fields
+                          .filter(f => isFieldHidden(f))
+                          .map(f => {
+                            const val = currentApp.raw_data[f.name] || currentApp.raw_data[f.label || '']
+                            return typeof val === 'string' ? val : null
+                          })
+                          .filter((v): v is string => v !== null && v.length >= 2)
+                        
+                        // Helper to render field value with PII redaction
+                        const renderWithPII = (field: { id: string; name: string; label?: string }, value: any) => {
+                          // If this field is marked for hiding, show redacted
+                          if (isFieldHidden(field)) {
+                            return (
+                              <span className="bg-gray-900 text-gray-900 rounded px-2 py-0.5 select-none cursor-help" title="Hidden for privacy">
+                                ████████████████
+                              </span>
+                            )
+                          }
+                          
+                          // If it's a string and PII mode is on, redact matching PII values
+                          if (hidePII && typeof value === 'string' && piiValuesToRedact.length > 0) {
+                            return <RedactedText text={value} piiValues={piiValuesToRedact} />
+                          }
+                          
+                          return renderFieldValue(field.name, value)
+                        }
+                        
                         return (
-                          <span className="bg-gray-900 text-gray-900 rounded px-2 py-0.5 select-none cursor-help" title="Hidden for privacy">
-                            {typeof value === 'string' ? value : JSON.stringify(value)}
-                          </span>
-                        )
-                      }
-                      
-                      // If it's a string and PII mode is on, redact matching PII values
-                      if (hidePII && typeof value === 'string' && piiValuesToRedact.length > 0) {
-                        return <RedactedText text={value} piiValues={piiValuesToRedact} />
-                      }
-                      
-                      return renderFieldValue(fieldName, value)
-                    }
-                    
-                    return (
-                      <>
-                        {/* Ungrouped fields */}
-                        {ungroupedFields.length > 0 && (
-                          <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
-                            {ungroupedFields.map(field => {
-                              const value = currentApp.raw_data[field.name] || currentApp.raw_data[field.label]
-                              if (value === undefined || value === null || value === '') return null
+                          <>
+                            {/* Ungrouped fields */}
+                            {ungroupedFields.length > 0 && (
+                              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                                <div className="divide-y divide-gray-100">
+                                  {ungroupedFields.map(field => {
+                                    const value = currentApp.raw_data[field.name] || currentApp.raw_data[field.label]
+                                    if (value === undefined || value === null || value === '') return null
+                                    
+                                    return (
+                                      <div key={field.id} className="px-6 py-5">
+                                        <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">
+                                          {field.label || field.name.replace(/_/g, ' ')}
+                                        </p>
+                                        <div className="text-gray-800 text-[15px] leading-relaxed">{renderWithPII(field, value)}</div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Sections */}
+                            {sections.map(section => {
+                              const hasData = section.fields.some(f => {
+                                const val = currentApp.raw_data[f.name] || currentApp.raw_data[f.label]
+                                return val !== undefined && val !== null && val !== ''
+                              })
+                              
+                              if (!hasData) return null
                               
                               return (
-                                <div key={field.id} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
-                                  <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-1.5">
-                                    {field.label || field.name.replace(/_/g, ' ')}
-                                  </p>
-                                  <div className="text-gray-800 text-sm leading-relaxed">{renderWithPII(field.name, value)}</div>
+                                <div key={section.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                                  <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                                    <span className="text-base font-bold text-gray-800">{section.name}</span>
+                                  </div>
+                                  <div className="divide-y divide-gray-100">
+                                    {section.fields.map(field => {
+                                      const value = currentApp.raw_data[field.name] || currentApp.raw_data[field.label]
+                                      if (value === undefined || value === null || value === '') return null
+                                      
+                                      return (
+                                        <div key={field.id} className="px-6 py-5">
+                                          <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">
+                                            {field.label || field.name.replace(/_/g, ' ')}
+                                          </p>
+                                          <div className="text-gray-800 text-[15px] leading-relaxed">{renderWithPII(field, value)}</div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </>
+                        )
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {Object.entries(currentApp.raw_data).map(([key, value]) => {
+                        if (key.startsWith('_') || key === 'id') return null
+                        
+                        return (
+                          <div key={key} className="bg-white rounded-xl px-6 py-5 border border-gray-200 shadow-sm">
+                            <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">
+                              {key.replace(/_/g, ' ')}
+                            </p>
+                            <div className="text-gray-800 text-[15px] leading-relaxed">{renderFieldValue(key, value)}</div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  
+                  {rubric && (
+                    <div className="mt-10">
+                      <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Scoring Rubric</h3>
+                      <div className="bg-white rounded-xl px-6 py-5 border border-gray-200 shadow-sm">
+                        <p className="font-semibold text-gray-900 text-lg mb-2">{rubric.name}</p>
+                        <p className="text-gray-600 mb-4">{rubric.description}</p>
+                        <div className="flex items-center gap-2 text-blue-600">
+                          <Award className="w-5 h-5" />
+                          <span className="font-medium">Max Score: {rubric.max_score}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* Reviews Tab */
+                <div className="space-y-6">
+                  {currentApp.reviewHistory.length > 0 ? (
+                    <>
+                      {/* Score Summary */}
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="px-5 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+                          <h3 className="text-sm font-bold text-gray-800">Score Summary</h3>
+                        </div>
+                        <div className="p-5">
+                          {/* Overall Average */}
+                          <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
+                            <div>
+                              <p className="text-sm font-medium text-gray-500">Overall Average</p>
+                              <p className="text-3xl font-bold text-gray-900">
+                                {(() => {
+                                  const allTotals = currentApp.reviewHistory
+                                    .map(r => r.total_score || Object.values(r.scores || {}).reduce((a, b) => a + (Number(b) || 0), 0))
+                                    .filter(t => t > 0)
+                                  if (allTotals.length === 0) return 'N/A'
+                                  return (allTotals.reduce((a, b) => a + b, 0) / allTotals.length).toFixed(1)
+                                })()}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-medium text-gray-500">Reviews Completed</p>
+                              <p className="text-3xl font-bold text-gray-900">{currentApp.reviewHistory.length}</p>
+                            </div>
+                          </div>
+                          
+                          {/* Per-Reviewer Scores */}
+                          <div className="space-y-4">
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Individual Scores</p>
+                            {currentApp.reviewHistory.map((review, idx) => {
+                              const total = review.total_score || Object.values(review.scores || {}).reduce((a, b) => a + (Number(b) || 0), 0)
+                              return (
+                                <div key={idx} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-sm">
+                                    {(review.reviewer_name || 'R')[0].toUpperCase()}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-gray-900 truncate">{review.reviewer_name || `Reviewer ${idx + 1}`}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {review.reviewed_at ? new Date(review.reviewed_at).toLocaleDateString() : 'No date'}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-lg font-bold text-gray-900">{total}</p>
+                                    <p className="text-xs text-gray-500">points</p>
+                                  </div>
                                 </div>
                               )
                             })}
                           </div>
-                        )}
-                        
-                        {/* Sections */}
-                        {sections.map(section => {
-                          const hasData = section.fields.some(f => {
-                            const val = currentApp.raw_data[f.name] || currentApp.raw_data[f.label]
-                            return val !== undefined && val !== null && val !== ''
-                          })
-                          
-                          if (!hasData) return null
-                          
-                          return (
-                            <div key={section.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                              <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
-                                <span className="text-sm font-semibold text-gray-700">{section.name}</span>
-                              </div>
-                              <div className="p-4 space-y-3">
-                                {section.fields.map(field => {
-                                  const value = currentApp.raw_data[field.name] || currentApp.raw_data[field.label]
-                                  if (value === undefined || value === null || value === '') return null
+
+                          {/* Category Breakdown */}
+                          {rubric?.categories && rubric.categories.length > 0 && (
+                            <div className="mt-6 pt-4 border-t border-gray-100">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Category Averages</p>
+                              <div className="space-y-3">
+                                {rubric.categories.map((category: { id: string; name: string; max_points: number }) => {
+                                  const scores = currentApp.reviewHistory
+                                    .map(r => r.scores?.[category.id] || r.scores?.[category.name])
+                                    .filter((s): s is number => typeof s === 'number')
+                                  const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0
                                   
                                   return (
-                                    <div key={field.id} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
-                                      <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-1.5">
-                                        {field.label || field.name.replace(/_/g, ' ')}
-                                      </p>
-                                      <div className="text-gray-800 text-sm leading-relaxed">{renderWithPII(field.name, value)}</div>
+                                    <div key={category.id} className="flex items-center gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <p className="text-sm font-medium text-gray-700 truncate">{category.name}</p>
+                                          <p className="text-sm font-semibold text-gray-900">{avg.toFixed(1)}/{category.max_points}</p>
+                                        </div>
+                                        <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                                          <div 
+                                            className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
+                                            style={{ width: `${Math.min((avg / category.max_points) * 100, 100)}%` }}
+                                          />
+                                        </div>
+                                      </div>
                                     </div>
                                   )
                                 })}
                               </div>
                             </div>
-                          )
-                        })}
-                      </>
-                    )
-                  })()}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {Object.entries(currentApp.raw_data).map(([key, value]) => {
-                    if (key.startsWith('_') || key === 'id') return null
-                    
-                    const isComplex = (typeof value === 'object' && value !== null) || 
-                                     (Array.isArray(value) && value.some(v => typeof v === 'object'))
-                    
-                    return (
-                      <div key={key} className={cn(
-                        "bg-white rounded-lg p-4 border border-gray-200",
-                        isComplex && "col-span-2"
-                      )}>
-                        <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-2">
-                          {key.replace(/_/g, ' ')}
-                        </p>
-                        <div className="text-gray-800 text-sm leading-relaxed">{renderFieldValue(key, value)}</div>
+                          )}
+                        </div>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-              
-              {rubric && (
-                <div className="mt-8">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Scoring Rubric</h3>
-                  <div className="bg-white rounded-lg p-4 border border-gray-200">
-                    <p className="font-medium text-gray-900 mb-2">{rubric.name}</p>
-                    <p className="text-sm text-gray-500 mb-3">{rubric.description}</p>
-                    <div className="flex items-center gap-2">
-                      <Award className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm text-gray-700">Max Score: {rubric.max_score}</span>
+
+                      {/* Reviewer Comments */}
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="px-5 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-gray-200">
+                          <h3 className="text-sm font-bold text-gray-800">Reviewer Comments</h3>
+                        </div>
+                        <div className="divide-y divide-gray-100">
+                          {currentApp.reviewHistory.filter(r => r.notes || r.comments || (r.criteria_comments && Object.keys(r.criteria_comments).length > 0)).length > 0 ? (
+                            currentApp.reviewHistory.map((review, idx) => {
+                              const hasComments = review.notes || review.comments || (review.criteria_comments && Object.keys(review.criteria_comments).length > 0)
+                              if (!hasComments) return null
+                              
+                              return (
+                                <div key={idx} className="p-5">
+                                  <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm">
+                                      {(review.reviewer_name || 'R')[0].toUpperCase()}
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-gray-900">{review.reviewer_name || `Reviewer ${idx + 1}`}</p>
+                                      <p className="text-xs text-gray-500">
+                                        {review.reviewed_at ? new Date(review.reviewed_at).toLocaleDateString() : ''}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* General notes/comments */}
+                                  {(review.notes || review.comments) && (
+                                    <div className="bg-gray-50 rounded-lg p-4 mb-3">
+                                      <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
+                                        {review.notes || review.comments}
+                                      </p>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Category-specific comments */}
+                                  {review.criteria_comments && Object.keys(review.criteria_comments).length > 0 && (
+                                    <div className="space-y-2 mt-3">
+                                      {Object.entries(review.criteria_comments).map(([categoryId, comment]) => {
+                                        if (!comment) return null
+                                        const category = rubric?.categories?.find((c: { id: string; name: string }) => c.id === categoryId || c.name === categoryId)
+                                        return (
+                                          <div key={categoryId} className="bg-blue-50 rounded-lg p-3">
+                                            <p className="text-xs font-semibold text-blue-700 mb-1">
+                                              {category?.name || categoryId}
+                                            </p>
+                                            <p className="text-gray-700 text-sm">{comment}</p>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })
+                          ) : (
+                            <div className="p-8 text-center text-gray-500">
+                              <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                              <p className="font-medium">No comments yet</p>
+                              <p className="text-sm mt-1">Reviewers haven't left any comments</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
+                        <Users className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <p className="text-gray-600 font-medium">No reviews yet</p>
+                      <p className="text-sm text-gray-400 mt-1">This application hasn't been reviewed</p>
+                      <Button onClick={onStartReview} className="mt-4 bg-blue-600 hover:bg-blue-700">
+                        <Play className="w-4 h-4 mr-2" />
+                        Start First Review
+                      </Button>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2027,11 +2291,48 @@ function FocusReviewMode({
     setTextHighlights(prev => prev.filter(h => h.id !== id))
   }
   
-  // PII redaction helper
-  const redactValue = (fieldName: string, value: any): any => {
-    if (!hidePII || !hiddenPIIFields.includes(fieldName)) return value
-    if (typeof value === 'string') return '●●●●●●●●'
-    return value
+  // PII redaction helper - checks field id, name, and label
+  const isFieldRedacted = (field: { id: string; name: string; label?: string }): boolean => {
+    if (!hidePII || !hiddenPIIFields || hiddenPIIFields.length === 0) return false
+    return hiddenPIIFields.includes(field.id) || 
+           hiddenPIIFields.includes(field.name) || 
+           (field.label ? hiddenPIIFields.includes(field.label) : false)
+  }
+  
+  // PII redaction helper - creates visual black box effect
+  const redactValue = (field: { id: string; name: string; label?: string }, value: any): any => {
+    if (!isFieldRedacted(field)) return value
+    // Return a visual indicator that the field is redacted
+    return '████████████████'
+  }
+  
+  // Collect PII values from hidden fields for inline redaction in all text
+  const piiValuesToRedact: string[] = useMemo(() => {
+    if (!hidePII || !hiddenPIIFields || hiddenPIIFields.length === 0) return []
+    const values: string[] = []
+    hiddenPIIFields.forEach(fieldName => {
+      const value = app.raw_data[fieldName]
+      if (value && typeof value === 'string' && value.trim().length >= 2) {
+        values.push(value.trim())
+        // Also split by common separators for names like "John Smith"
+        const parts = value.trim().split(/[\s,]+/)
+        parts.forEach(p => {
+          if (p.length >= 2) values.push(p)
+        })
+      }
+    })
+    return [...new Set(values)]
+  }, [app.raw_data, hidePII, hiddenPIIFields])
+  
+  // Get display title - uses Application # when PII mode is on
+  const getDisplayTitle = (): string => {
+    if (hidePII) {
+      return `Application #${appIndex + 1}`
+    }
+    if (titleFieldName && app.raw_data[titleFieldName]) {
+      return String(app.raw_data[titleFieldName])
+    }
+    return app.name
   }
   
   // Render text with highlights
@@ -2081,7 +2382,33 @@ function FocusReviewMode({
       result.push(text.slice(lastIndex))
     }
     
-    return result.length > 0 ? <>{result}</> : text
+    // If we have PII to redact and the result has text, wrap in RedactedText processing
+    if (result.length > 0 && piiValuesToRedact.length > 0) {
+      // Apply PII redaction to any string parts in the result
+      return <>{result.map((part, i) => 
+        typeof part === 'string' 
+          ? <RedactedText key={`pii-${i}`} text={part} piiValues={piiValuesToRedact} />
+          : part
+      )}</>
+    }
+    
+    return result.length > 0 ? <>{result}</> : (
+      piiValuesToRedact.length > 0 
+        ? <RedactedText text={text} piiValues={piiValuesToRedact} />
+        : text
+    )
+  }
+  
+  // Render field value with PII redaction
+  const renderFieldValueWithPII = (fieldName: string, value: any): React.ReactNode => {
+    if (typeof value === 'string') {
+      if (piiValuesToRedact.length > 0) {
+        return <RedactedText text={value} piiValues={piiValuesToRedact} />
+      }
+      return value
+    }
+    // For non-string values, use the generic field value renderer
+    return renderFieldValue(fieldName, value)
   }
 
   return (
@@ -2199,44 +2526,51 @@ function FocusReviewMode({
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <h1 className="text-2xl font-bold text-gray-900">
-                    {titleFieldName && app.raw_data[titleFieldName] 
-                      ? String(app.raw_data[titleFieldName])
-                      : app.name}
+                    {getDisplayTitle()}
                   </h1>
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowTitleFieldSelector(!showTitleFieldSelector)}
-                      className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
-                      title="Change title field"
-                    >
-                      <Type className="w-4 h-4" />
-                    </button>
-                    {showTitleFieldSelector && form?.fields && (
-                      <div className="absolute left-0 top-8 z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[200px]">
-                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
-                          Select Title Field
+                  {/* PII Mode indicator */}
+                  {hidePII && (
+                    <div className="flex items-center gap-1 px-2 py-0.5 bg-gray-900 text-white rounded text-xs">
+                      <Shield className="w-3 h-3" />
+                      Privacy Mode
+                    </div>
+                  )}
+                  {!hidePII && (
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowTitleFieldSelector(!showTitleFieldSelector)}
+                        className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                        title="Change title field"
+                      >
+                        <Type className="w-4 h-4" />
+                      </button>
+                      {showTitleFieldSelector && form?.fields && (
+                        <div className="absolute left-0 top-8 z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[200px]">
+                          <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                            Select Title Field
+                          </div>
+                          {getTitleCandidateFields(form.fields).map(field => (
+                            <button
+                              key={field.id}
+                              onClick={() => {
+                                setTitleFieldName(field.name)
+                                setShowTitleFieldSelector(false)
+                              }}
+                              className={cn(
+                                "w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between",
+                                titleFieldName === field.name && "bg-blue-50 text-blue-700"
+                              )}
+                            >
+                              <span>{field.label || field.name}</span>
+                              {titleFieldName === field.name && <CheckCircle className="w-4 h-4" />}
+                            </button>
+                          ))}
                         </div>
-                        {getTitleCandidateFields(form.fields).map(field => (
-                          <button
-                            key={field.id}
-                            onClick={() => {
-                              setTitleFieldName(field.name)
-                              setShowTitleFieldSelector(false)
-                            }}
-                            className={cn(
-                              "w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between",
-                              titleFieldName === field.name && "bg-blue-50 text-blue-700"
-                            )}
-                          >
-                            <span>{field.label || field.name}</span>
-                            {titleFieldName === field.name && <CheckCircle className="w-4 h-4" />}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <p className="text-gray-500">{app.email}</p>
+                <p className={cn("text-gray-500", hidePII && "blur-sm select-none")}>{hidePII ? '▓▓▓▓▓▓▓▓▓▓@▓▓▓▓▓.▓▓▓' : app.email}</p>
               </div>
               {app.flagged && (
                 <Badge className="bg-red-100 text-red-700 border-red-200">
@@ -2295,7 +2629,7 @@ function FocusReviewMode({
                             {ungroupedFields.map(field => {
                               const rawValue = app.raw_data[field.name] || app.raw_data[field.label]
                               if (rawValue === undefined || rawValue === null || rawValue === '') return null
-                              const value = redactValue(field.name, rawValue)
+                              const value = redactValue(field, rawValue)
                               
                               return (
                                 <div key={field.id} className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
@@ -2303,22 +2637,34 @@ function FocusReviewMode({
                                     <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">
                                       {field.label || field.name.replace(/_/g, ' ')}
                                     </span>
-                                    {textHighlights.some(h => h.fieldName === field.name) && (
+                                    {isFieldRedacted(field) && (
+                                      <Badge className="bg-gray-900 text-white border-gray-700 text-xs">
+                                        <EyeOff className="w-3 h-3 mr-1" />
+                                        Redacted
+                                      </Badge>
+                                    )}
+                                    {!isFieldRedacted(field) && textHighlights.some(h => h.fieldName === field.name) && (
                                       <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs">
                                         <Sparkles className="w-3 h-3 mr-1" />
                                         {textHighlights.filter(h => h.fieldName === field.name).length}
                                       </Badge>
                                     )}
                                   </div>
-                                  <div 
-                                    className="text-gray-800 text-sm leading-relaxed select-text cursor-text"
-                                    onMouseUp={() => handleTextSelection(field.name)}
-                                  >
-                                    {typeof value === 'string' 
-                                      ? renderHighlightedText(field.name, value)
-                                      : renderFieldValue(field.name, value)
-                                    }
-                                  </div>
+                                  {isFieldRedacted(field) ? (
+                                    <div className="bg-gray-900 text-gray-400 px-3 py-2 rounded-lg text-sm font-mono select-none">
+                                      ████████████████
+                                    </div>
+                                  ) : (
+                                    <div 
+                                      className="text-gray-800 text-sm leading-relaxed select-text cursor-text"
+                                      onMouseUp={() => handleTextSelection(field.name)}
+                                    >
+                                      {typeof value === 'string' 
+                                        ? renderHighlightedText(field.name, value)
+                                        : renderFieldValueWithPII(field.name, value)
+                                      }
+                                    </div>
+                                  )}
                                 </div>
                               )
                             })}
@@ -2376,7 +2722,7 @@ function FocusReviewMode({
                                 {section.fields.map(field => {
                                   const rawValue = app.raw_data[field.name] || app.raw_data[field.label]
                                   if (rawValue === undefined || rawValue === null || rawValue === '') return null
-                                  const value = redactValue(field.name, rawValue)
+                                  const value = redactValue(field, rawValue)
                                   
                                   return (
                                     <div key={field.id} className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
@@ -2384,22 +2730,34 @@ function FocusReviewMode({
                                         <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">
                                           {field.label || field.name.replace(/_/g, ' ')}
                                         </span>
-                                        {textHighlights.some(h => h.fieldName === field.name) && (
+                                        {isFieldRedacted(field) && (
+                                          <Badge className="bg-gray-900 text-white border-gray-700 text-xs">
+                                            <EyeOff className="w-3 h-3 mr-1" />
+                                            Redacted
+                                          </Badge>
+                                        )}
+                                        {!isFieldRedacted(field) && textHighlights.some(h => h.fieldName === field.name) && (
                                           <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs">
                                             <Sparkles className="w-3 h-3 mr-1" />
                                             {textHighlights.filter(h => h.fieldName === field.name).length} note(s)
                                           </Badge>
                                         )}
                                       </div>
-                                      <div 
-                                        className="text-gray-800 text-sm leading-relaxed select-text cursor-text"
-                                        onMouseUp={() => handleTextSelection(field.name)}
-                                      >
-                                        {typeof value === 'string' 
-                                          ? renderHighlightedText(field.name, value)
-                                          : renderFieldValue(field.name, value)
-                                        }
-                                      </div>
+                                      {isFieldRedacted(field) ? (
+                                        <div className="bg-gray-900 text-gray-400 px-3 py-2 rounded-lg text-sm font-mono select-none">
+                                          ████████████████
+                                        </div>
+                                      ) : (
+                                        <div 
+                                          className="text-gray-800 text-sm leading-relaxed select-text cursor-text"
+                                          onMouseUp={() => handleTextSelection(field.name)}
+                                        >
+                                          {typeof value === 'string' 
+                                            ? renderHighlightedText(field.name, value)
+                                            : renderFieldValueWithPII(field.name, value)
+                                          }
+                                        </div>
+                                      )}
                                     </div>
                                   )
                                 })}
