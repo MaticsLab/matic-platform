@@ -1,5 +1,5 @@
 
-const API_KEY = 'AIzaSyDF5pYStCPVI8UWCKtaOx2Ueu-LF_CUBe4'; // User provided key
+const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_AI_KEY || '';
 
 export async function translateContent(
   content: Record<string, string>, 
