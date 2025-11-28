@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { 
   Plus, Trash2, Save, ChevronRight, Users, FileText, Layers, Edit2, X, 
   GripVertical, Check, Loader2, Sparkles, Settings, Award, 
-  Link2, Zap, Target, ClipboardList, ChevronDown, CheckCircle, Search
+  Link2, Zap, Target, ClipboardList, ChevronDown, CheckCircle, Search,
+  Shield, EyeOff
 } from 'lucide-react'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
@@ -258,7 +259,7 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
   return (
     <div className="h-full flex bg-gray-50">
       {/* Left Sidebar - Workflow Selector */}
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col rounded-l-2xl">
+      <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
         {/* Workflow Selector */}
         <div className="p-3 border-b border-gray-200">
           <div className="flex items-center justify-between mb-2">
@@ -1069,6 +1070,10 @@ function StageForm({
   const [showLogicBuilder, setShowLogicBuilder] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   
+  // Privacy / PII Settings
+  const [hidePII, setHidePII] = useState(initial?.hide_pii || false)
+  const [hiddenPIIFields, setHiddenPIIFields] = useState<string[]>(initial?.hidden_pii_fields || [])
+  
   // Logic Rules State
   const [logicRules, setLogicRules] = useState<{
     auto_advance_condition?: string
@@ -1188,6 +1193,8 @@ function StageForm({
         custom_statuses: customStatuses.length > 0 ? customStatuses : undefined,
         custom_tags: customTags.length > 0 ? customTags : undefined,
         logic_rules: Object.keys(builtRules).length > 0 ? builtRules : undefined,
+        hide_pii: hidePII,
+        hidden_pii_fields: hiddenPIIFields.length > 0 ? hiddenPIIFields : undefined,
       }
       
       if (initial) {
@@ -1486,6 +1493,75 @@ function StageForm({
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>
+            </div>
+            
+            {/* Privacy / PII Settings */}
+            <div className="space-y-3 pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-purple-500" />
+                    Privacy Mode
+                  </Label>
+                  <p className="text-xs text-gray-500 mt-1">Hide personally identifiable information from reviewers</p>
+                </div>
+                <Switch
+                  checked={hidePII}
+                  onCheckedChange={setHidePII}
+                />
+              </div>
+              
+              {hidePII && (
+                <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-100">
+                  <Label className="text-sm text-purple-900 flex items-center gap-2 mb-2">
+                    <EyeOff className="w-4 h-4" />
+                    Fields to Hide
+                  </Label>
+                  <p className="text-xs text-purple-700 mb-3">Select which fields should be hidden from reviewers in this stage</p>
+                  
+                  {/* Form sections with fields */}
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {formSections.length > 0 ? (
+                      formSections.map(section => (
+                        <div key={section.id} className="bg-white rounded-lg p-2 border border-purple-100">
+                          <p className="text-xs font-medium text-gray-700 mb-2">{section.title}</p>
+                          <div className="space-y-1">
+                            {section.fields.map(field => (
+                              <label key={field.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-purple-50 p-1 rounded">
+                                <input
+                                  type="checkbox"
+                                  checked={hiddenPIIFields.includes(field.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setHiddenPIIFields([...hiddenPIIFields, field.id])
+                                    } else {
+                                      setHiddenPIIFields(hiddenPIIFields.filter(f => f !== field.id))
+                                    }
+                                  }}
+                                  className="rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+                                />
+                                <span className="text-gray-700">{field.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-xs text-purple-600 italic">
+                        Common PII fields will be hidden: name, email, phone, address
+                      </div>
+                    )}
+                  </div>
+                  
+                  {hiddenPIIFields.length > 0 && (
+                    <div className="mt-3 pt-2 border-t border-purple-100">
+                      <p className="text-xs text-purple-700">
+                        <strong>{hiddenPIIFields.length}</strong> field(s) will be hidden
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -32,6 +32,8 @@ export interface ApplicationStage {
     auto_reject_condition?: string;
     visibility_rules?: string;
   };
+  hide_pii?: boolean;
+  hidden_pii_fields?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -254,7 +256,7 @@ export const workflowsClient = {
     status?: string;
     tags?: string[];
     flagged?: boolean;
-    decision?: 'approved' | 'rejected';
+    decision?: string; // Custom statuses supported
     reviewer_id?: string;
     reviewer_name?: string;
   }) => {

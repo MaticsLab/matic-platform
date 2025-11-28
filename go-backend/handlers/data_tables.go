@@ -8,6 +8,7 @@ import (
 	"github.com/Jsanchez767/matic-platform/database"
 	"github.com/Jsanchez767/matic-platform/middleware"
 	"github.com/Jsanchez767/matic-platform/models"
+	"github.com/Jsanchez767/matic-platform/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -265,6 +266,19 @@ func CreateTableRow(c *gin.Context) {
 		return
 	}
 
+	// Create initial version for version history
+	go func() {
+		versionService := services.NewVersionService()
+		versionService.CreateVersion(services.CreateVersionInput{
+			RowID:        row.ID,
+			TableID:      parsedTableID,
+			Data:         input.Data,
+			ChangeType:   models.ChangeTypeCreate,
+			ChangeReason: "Row created",
+			ChangedBy:    &parsedUserID,
+		})
+	}()
+
 	// Queue row for semantic embedding (async, don't fail if this fails)
 	go func() {
 		database.DB.Exec(`
@@ -299,8 +313,31 @@ func UpdateTableRow(c *gin.Context) {
 		return
 	}
 
+	// Get user ID for version tracking
+	userIDStr, _ := middleware.GetUserID(c)
+	var userID *uuid.UUID
+	if parsedUserID, err := uuid.Parse(userIDStr); err == nil {
+		userID = &parsedUserID
+	}
+
+	// Parse table ID
+	parsedTableID, _ := uuid.Parse(tableID)
+
 	if input.Data != nil {
 		row.Data = mapToJSON(*input.Data)
+
+		// Create version for the update
+		go func() {
+			versionService := services.NewVersionService()
+			versionService.CreateVersion(services.CreateVersionInput{
+				RowID:        row.ID,
+				TableID:      parsedTableID,
+				Data:         *input.Data,
+				ChangeType:   models.ChangeTypeUpdate,
+				ChangeReason: "Row updated",
+				ChangedBy:    userID,
+			})
+		}()
 	}
 	if input.Position != nil {
 		row.Position = *input.Position

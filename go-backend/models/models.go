@@ -96,9 +96,10 @@ func (Table) TableName() string {
 type Field struct {
 	BaseModel
 	TableID        uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
-	Name           string         `gorm:"not null" json:"name"`  // Internal key
-	Label          string         `gorm:"not null" json:"label"` // Display name
-	Type           string         `gorm:"not null" json:"type"`  // text, number, select, etc.
+	Name           string         `gorm:"not null" json:"name"`    // Internal key
+	Label          string         `gorm:"not null" json:"label"`   // Display name
+	Type           string         `gorm:"not null" json:"type"`    // text, number, select, etc.
+	FieldTypeID    string         `json:"field_type_id,omitempty"` // References field_type_registry.id
 	Position       int            `gorm:"default:0" json:"position"`
 	Config         datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"config"` // Merged metadata
 	SemanticType   string         `json:"semantic_type,omitempty"`               // name, email, phone, status, date, etc.

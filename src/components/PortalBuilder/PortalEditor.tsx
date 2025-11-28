@@ -411,7 +411,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         {/* Main Content Area */}
         <div className="flex-1 flex overflow-hidden">
             {/* Left Sidebar - Navigation */}
-            <div className="w-80 bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 rounded-l-2xl">
+            <div className="w-80 bg-white border-r border-gray-200 flex flex-col shadow-sm z-10">
           <Tabs defaultValue="elements" className="flex-1 flex flex-col gap-0 min-h-0">
             <div className="px-4 py-3 border-b border-gray-100">
               <TabsList className="w-full grid grid-cols-3 bg-gray-100 p-1 rounded-full h-auto">

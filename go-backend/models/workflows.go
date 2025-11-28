@@ -31,9 +31,11 @@ type ApplicationStage struct {
 	StartDate        *time.Time     `json:"start_date"`
 	EndDate          *time.Time     `json:"end_date"`
 	RelativeDeadline string         `json:"relative_deadline"`
-	CustomStatuses   datatypes.JSON `json:"custom_statuses"` // []string
-	CustomTags       datatypes.JSON `json:"custom_tags"`     // []string
-	LogicRules       datatypes.JSON `json:"logic_rules"`     // JSON
+	CustomStatuses   datatypes.JSON `json:"custom_statuses"`   // []string
+	CustomTags       datatypes.JSON `json:"custom_tags"`       // []string
+	LogicRules       datatypes.JSON `json:"logic_rules"`       // JSON
+	HidePII          bool           `json:"hide_pii"`          // Enable PII hiding for this stage
+	HiddenPIIFields  datatypes.JSON `json:"hidden_pii_fields"` // []string - field names to hide
 	CreatedAt        time.Time      `json:"created_at"`
 	UpdatedAt        time.Time      `json:"updated_at"`
 }

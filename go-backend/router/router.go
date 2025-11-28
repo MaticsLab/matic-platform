@@ -238,6 +238,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				tables.PATCH("/:id/rows/:row_id", handlers.UpdateTableRow)
 				tables.DELETE("/:id/rows/:row_id", handlers.DeleteTableRow)
 
+				// Row history & versions
+				tables.GET("/:id/rows/:row_id/history", handlers.GetRowHistory)
+				tables.GET("/:id/rows/:row_id/versions/:version", handlers.GetRowVersion)
+				tables.GET("/:id/rows/:row_id/compare-versions/:v1/:v2", handlers.CompareVersions)
+				tables.POST("/:id/rows/:row_id/restore/:version", handlers.RestoreVersion)
+
 				// Table columns
 				tables.POST("/:id/columns", handlers.CreateTableColumn)
 				tables.PATCH("/:id/columns/:column_id", handlers.UpdateTableColumn)
@@ -245,7 +251,34 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 				// Table search
 				tables.GET("/:id/search", handlers.SearchTableRows)
+
+				// Approvals for table changes
+				tables.GET("/:id/approvals", handlers.ListApprovals)
+				tables.GET("/:id/approvals/:approval_id", handlers.GetApproval)
+				tables.POST("/:id/approvals/:approval_id/review", handlers.ReviewApproval)
+
+				// AI Suggestions for table data
+				tables.GET("/:id/suggestions", handlers.GetTableSuggestions)
+				tables.POST("/:id/suggestions/:suggestion_id/apply", handlers.ApplySuggestion)
+				tables.POST("/:id/suggestions/:suggestion_id/dismiss", handlers.DismissSuggestion)
 			}
+
+			// Version management (global)
+			versions := protected.Group("/versions")
+			{
+				versions.POST("/:version_id/archive", handlers.ArchiveVersion)
+				versions.DELETE("/:version_id", handlers.DeleteVersion)
+			}
+
+			// Field Type Registry
+			fieldTypes := protected.Group("/field-types")
+			{
+				fieldTypes.GET("", handlers.GetFieldTypes)
+				fieldTypes.GET("/:type_id", handlers.GetFieldType)
+			}
+
+			// Workspace Activity Feed
+			protected.GET("/workspaces/:id/activity", handlers.GetWorkspaceActivity)
 
 			// Table Links - for managing table relationships
 			tableLinks := protected.Group("/table-links")
@@ -376,6 +409,47 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				reports.POST("/generate", handlers.GenerateReport)
 				reports.GET("/stats", handlers.GetWorkspaceStats)
 				reports.GET("/is-report-query", handlers.IsReportQuery)
+			}
+
+			// ============================================================
+			// HUB & MODULE MANAGEMENT
+			// ============================================================
+
+			// Hub modules with fields
+			hubs := protected.Group("/hubs")
+			{
+				// Get hub modules with full field info
+				hubs.GET("/:hub_id/modules", handlers.GetHubModulesWithFields)
+
+				// Enable module with fields
+				hubs.POST("/:hub_id/modules/enable", handlers.EnableModuleWithFields)
+
+				// Sub-modules
+				hubs.GET("/:hub_id/sub-modules", handlers.ListSubModules)
+				hubs.POST("/:hub_id/sub-modules", handlers.CreateSubModule)
+				hubs.POST("/:hub_id/sub-modules/reorder", handlers.ReorderSubModules)
+			}
+
+			// Sub-module operations
+			subModules := protected.Group("/sub-modules")
+			{
+				subModules.GET("/:sub_module_id", handlers.GetSubModule)
+				subModules.PATCH("/:sub_module_id", handlers.UpdateSubModule)
+				subModules.DELETE("/:sub_module_id", handlers.DeleteSubModule)
+				subModules.GET("/:sub_module_id/rows", handlers.GetSubModuleRows)
+			}
+
+			// Module field definitions
+			moduleFields := protected.Group("/modules")
+			{
+				moduleFields.GET("/:module_id/fields", handlers.GetModuleFields)
+			}
+
+			// Module history settings
+			moduleSettings := protected.Group("/module-configs")
+			{
+				moduleSettings.GET("/:config_id/history-settings", handlers.GetModuleHistorySettings)
+				moduleSettings.PUT("/:config_id/history-settings", handlers.UpdateModuleHistorySettings)
 			}
 		}
 	}

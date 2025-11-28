@@ -548,7 +548,7 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden relative bg-white rounded-tl-xl rounded-bl-xl border-l border-gray-200">
+      <div className="flex-1 flex overflow-hidden relative bg-white border-l border-gray-200">
         {/* Activities List */}
         <div className={`transition-all duration-300 overflow-auto ${
           selectedActivity && !isFullScreen ? 'md:w-2/3 w-full' : 'w-full'

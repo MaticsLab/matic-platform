@@ -228,7 +228,7 @@ export function RequestHubViewer({
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto bg-white rounded-tl-xl rounded-bl-xl border-l border-gray-200">
+      <div className="flex-1 overflow-auto bg-white border-l border-gray-200">
         {activeTab ? (
           <TabContent tab={activeTab} hub={hub} />
         ) : (

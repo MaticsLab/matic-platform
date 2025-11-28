@@ -264,7 +264,7 @@ export function RequestHubListPage({ workspaceId }: RequestHubListPageProps) {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto p-6 bg-white rounded-tl-xl rounded-bl-xl border-l border-gray-200">
+      <div className="flex-1 overflow-auto p-6 bg-white border-l border-gray-200">
         {filteredHubs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
             <div className="text-center max-w-md">

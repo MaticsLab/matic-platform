@@ -225,7 +225,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto bg-white rounded-tl-xl rounded-bl-xl border-l border-gray-200">
+      <div className="flex-1 overflow-y-auto bg-white border-l border-gray-200">
         <div className="p-6">
           {isLoading ? (
             <div className="flex items-center justify-center h-64">

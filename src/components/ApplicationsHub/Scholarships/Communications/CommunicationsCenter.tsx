@@ -64,7 +64,7 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
   return (
     <div className="h-full flex bg-white">
       {/* Sidebar */}
-      <div className="w-64 border-r border-gray-200 bg-gray-50 flex flex-col rounded-l-2xl">
+      <div className="w-64 border-r border-gray-200 bg-gray-50 flex flex-col">
         <div className="p-4">
           <button 
             onClick={() => setActiveView('compose')}

@@ -2,20 +2,21 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { 
-  ChevronRight, ChevronLeft, Star, CheckCircle, 
+  ChevronRight, ChevronLeft, Star, CheckCircle, Check,
   FileText, Users, Award, Flag, 
   ThumbsUp, ThumbsDown, AlertCircle, Loader2, 
-  Eye, Clock, User, MessageSquare,
+  Eye, EyeOff, Clock, User, MessageSquare,
   ArrowRight, Filter, LayoutGrid, List,
   X, Save, RefreshCw, Zap, Play, Pause,
-  ChevronDown, Maximize2, Minimize2, Send,
+  ChevronDown, ChevronUp, Maximize2, Minimize2, Send,
   Target, TrendingUp, BarChart3, Layers,
   UserCheck, UserPlus, ArrowUpRight, Inbox,
-  GraduationCap, Search, Settings2
+  GraduationCap, Search, Settings2, Type, Shield,
+  Plus, Sparkles
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { goClient } from '@/lib/api/go-client'
-import { FormSubmission, Form } from '@/types/forms'
+import { FormSubmission, Form, FormField } from '@/types/forms'
 import { 
   workflowsClient, 
   ApplicationStage, 
@@ -26,6 +27,13 @@ import {
 } from '@/lib/api/workflows-client'
 import { Button } from '@/ui-components/button'
 import { Badge } from '@/ui-components/badge'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/ui-components/dropdown-menu'
 import { useSearch, HubSearchContext } from '@/components/Search'
 import { ReviewerManagement } from '../Reviewers/ReviewerManagement'
 
@@ -138,6 +146,172 @@ function renderFieldValue(key: string, value: any, depth: number = 0): React.Rea
   return <span className="text-gray-900">{String(value)}</span>
 }
 
+// Types for section-based field grouping
+interface FormSection {
+  id: string
+  name: string
+  description?: string
+  position: number
+  fields: FormField[]
+}
+
+interface GroupedFormData {
+  sections: FormSection[]
+  ungroupedFields: FormField[]
+}
+
+// Helper to get config from field (handles both direct config and nested)
+function getFieldConfig(field: FormField): Record<string, any> {
+  if (field.config && typeof field.config === 'object') {
+    return field.config as Record<string, any>
+  }
+  if (field.settings && typeof field.settings === 'object') {
+    return field.settings as Record<string, any>
+  }
+  return {}
+}
+
+// Helper to organize form fields into sections based on form.settings.sections
+function groupFieldsBySections(fields: FormField[] | undefined, formSettings: Record<string, any> | undefined): GroupedFormData {
+  if (!fields || fields.length === 0) {
+    return { sections: [], ungroupedFields: [] }
+  }
+
+  const excludedFieldLabels = ['IP', '_user_agent', 'ip', 'user_agent', '_ip', 'id']
+  
+  // Filter out excluded fields and layout-only fields
+  const regularFields = fields.filter(f => 
+    f.type !== 'section' && 
+    f.type !== 'divider' && 
+    f.type !== 'heading' && 
+    f.type !== 'paragraph' &&
+    !excludedFieldLabels.includes(f.label) &&
+    !excludedFieldLabels.includes(f.name)
+  )
+
+  // If form has sections defined in settings, use those
+  if (formSettings?.sections && Array.isArray(formSettings.sections)) {
+    const sections: FormSection[] = formSettings.sections.map((section: any, index: number) => {
+      // Find fields that belong to this section via config.section_id
+      const sectionFields = regularFields
+        .filter(f => {
+          const config = getFieldConfig(f)
+          return config.section_id === section.id
+        })
+        .sort((a, b) => a.position - b.position)
+      
+      return {
+        id: section.id,
+        name: section.title || section.name || `Section ${index + 1}`,
+        description: section.description,
+        position: index,
+        fields: sectionFields
+      }
+    }).filter((s: FormSection) => s.fields.length > 0) // Only include sections with fields
+    
+    // Find fields not assigned to any section
+    const assignedFieldIds = new Set(sections.flatMap(s => s.fields.map(f => f.id)))
+    const ungroupedFields = regularFields
+      .filter(f => !assignedFieldIds.has(f.id))
+      .sort((a, b) => a.position - b.position)
+    
+    return { sections, ungroupedFields }
+  }
+  
+  // Fallback: check if fields themselves have section type
+  const sectionFields = fields.filter(f => f.type === 'section')
+  
+  if (sectionFields.length > 0) {
+    const sections: FormSection[] = sectionFields.map(section => ({
+      id: section.id,
+      name: section.title || section.label || section.name || 'Untitled Section',
+      description: section.description,
+      position: section.position,
+      fields: regularFields
+        .filter(f => {
+          const config = getFieldConfig(f)
+          return config.section_id === section.id || f.section_id === section.id
+        })
+        .sort((a, b) => a.position - b.position)
+    })).filter(s => s.fields.length > 0)
+
+    sections.sort((a, b) => a.position - b.position)
+    
+    const assignedFieldIds = new Set(sections.flatMap(s => s.fields.map(f => f.id)))
+    const ungroupedFields = regularFields
+      .filter(f => !assignedFieldIds.has(f.id))
+      .sort((a, b) => a.position - b.position)
+      
+    return { sections, ungroupedFields }
+  }
+  
+  // No sections at all - return all as ungrouped
+  return { sections: [], ungroupedFields: regularFields.sort((a, b) => a.position - b.position) }
+}
+
+// Get list of fields that can be used as title
+function getTitleCandidateFields(fields: FormField[] | undefined): FormField[] {
+  if (!fields) return []
+  return fields.filter(f => 
+    ['text', 'email', 'select'].includes(f.type) && 
+    f.type !== 'section' &&
+    !f.name.toLowerCase().includes('password')
+  ).sort((a, b) => a.position - b.position)
+}
+
+// Helper to redact PII values from text - returns JSX with redacted spans
+function RedactedText({ text, piiValues }: { text: string, piiValues: string[] }): JSX.Element {
+  if (!text || piiValues.length === 0) return <>{text}</>
+  
+  // Build a regex that matches any of the PII values
+  const validPiiValues = piiValues.filter(v => v && v.length >= 2)
+  if (validPiiValues.length === 0) return <>{text}</>
+  
+  const pattern = validPiiValues
+    .map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|')
+  
+  const regex = new RegExp(`(${pattern})`, 'gi')
+  const parts = text.split(regex)
+  
+  return (
+    <>
+      {parts.map((part, i) => {
+        const isRedacted = validPiiValues.some(v => v.toLowerCase() === part.toLowerCase())
+        if (isRedacted) {
+          return (
+            <span 
+              key={i}
+              className="bg-gray-900 text-gray-900 rounded px-1 select-none cursor-help hover:bg-gray-700 hover:text-gray-700 transition-colors"
+              title="Hidden for privacy"
+            >
+              {part}
+            </span>
+          )
+        }
+        return <span key={i}>{part}</span>
+      })}
+    </>
+  )
+}
+
+// Get display name for an application
+function getApplicationDisplayName(
+  app: ApplicationData, 
+  titleFieldName: string | null, 
+  hidePII: boolean
+): string {
+  if (hidePII) {
+    return `Applicant ${app.id.substring(0, 6)}`
+  }
+  
+  if (titleFieldName && app.raw_data[titleFieldName]) {
+    return String(app.raw_data[titleFieldName])
+  }
+  
+  return app.name
+}
+
 interface ApplicationData {
   id: string
   name: string
@@ -145,7 +319,7 @@ interface ApplicationData {
   submittedAt: string
   stageId: string
   stageName: string
-  status: 'pending' | 'in_review' | 'approved' | 'rejected' | 'needs_info'
+  status: string // Custom statuses supported
   score: number | null
   maxScore: number
   reviewCount: number
@@ -177,6 +351,15 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
   const [applications, setApplications] = useState<ApplicationData[]>([])
   const [reviewerTypes, setReviewerTypes] = useState<ReviewerType[]>([])
   const [rubrics, setRubrics] = useState<Rubric[]>([])
+  const [form, setForm] = useState<Form | null>(null)
+  
+  // Form display settings
+  const [titleFieldName, setTitleFieldName] = useState<string | null>(null)
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
+  const [showTitleFieldSelector, setShowTitleFieldSelector] = useState(false)
+  
+  // Section comments (per application, per section)
+  const [sectionComments, setSectionComments] = useState<Record<string, Record<string, string>>>({})
   
   // UI state
   const [viewMode, setViewMode] = useState<ViewMode>('queue')
@@ -271,8 +454,22 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
   const loadData = async () => {
     setIsLoading(true)
     try {
-      const form = await goClient.get<Form>(`/forms/${formId}`)
-      const settings = form.settings || {}
+      const loadedForm = await goClient.get<Form>(`/forms/${formId}`)
+      setForm(loadedForm)
+      
+      // Set default title field if not already set
+      if (!titleFieldName && loadedForm.fields) {
+        const candidates = getTitleCandidateFields(loadedForm.fields)
+        const defaultTitleField = candidates.find(f => 
+          f.name.toLowerCase().includes('name') || 
+          f.label.toLowerCase().includes('name')
+        ) || candidates[0]
+        if (defaultTitleField) {
+          setTitleFieldName(defaultTitleField.name)
+        }
+      }
+      
+      const settings = loadedForm.settings || {}
       const workflowId = settings.workflow_id
 
       const [allWorkflows, allRubrics, allReviewerTypes] = await Promise.all([
@@ -494,6 +691,10 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
   const currentApp = stageApps[selectedAppIndex] || null
   const currentStage = stages.find(s => s.id === selectedStageId) || (currentApp ? stages.find(s => s.id === currentApp.stageId) : null)
   const currentRubric = currentStage?.rubric || null
+  
+  // PII settings from stage (read-only, configured in stage settings)
+  const hidePII = currentStage?.hide_pii || false
+  const hiddenPIIFields = currentStage?.hidden_pii_fields || []
 
   // Stats for current workflow
   const stats = useMemo(() => {
@@ -659,7 +860,7 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
     }
   }
 
-  const handleDecision = async (decision: 'approved' | 'rejected') => {
+  const handleDecision = async (decision: string) => {
     if (!currentApp || !formId) return
     
     try {
@@ -688,6 +889,38 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
     } catch (error) {
       console.error('Failed to save decision:', error)
     }
+  }
+
+  const handleSelectRubric = async (rubricId: string) => {
+    if (!currentStage) return
+    
+    try {
+      // Update stage to use this rubric
+      await workflowsClient.updateStage(currentStage.id, {
+        rubric_id: rubricId
+      } as any)
+      
+      // Update local state
+      const selectedRubric = rubrics.find(r => r.id === rubricId)
+      setStages(prev => prev.map(s => 
+        s.id === currentStage.id
+          ? { ...s, rubric: selectedRubric || null }
+          : s
+      ))
+    } catch (error) {
+      console.error('Failed to assign rubric:', error)
+    }
+  }
+
+  const handleSectionComment = (sectionId: string, comment: string) => {
+    if (!currentApp) return
+    setSectionComments(prev => ({
+      ...prev,
+      [currentApp.id]: {
+        ...(prev[currentApp.id] || {}),
+        [sectionId]: comment
+      }
+    }))
   }
 
   const handleSwitchWorkflow = (newWorkflow: ReviewWorkflow) => {
@@ -743,16 +976,29 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
         totalApps={stageApps.length}
         stage={currentStage!}
         rubric={currentRubric}
+        availableRubrics={rubrics}
         scores={editingScores}
         comments={editingComments}
         timer={reviewTimer}
         timerActive={timerActive}
         isSaving={isSaving}
+        form={form}
+        titleFieldName={titleFieldName}
+        setTitleFieldName={setTitleFieldName}
+        showTitleFieldSelector={showTitleFieldSelector}
+        setShowTitleFieldSelector={setShowTitleFieldSelector}
+        collapsedSections={collapsedSections}
+        setCollapsedSections={setCollapsedSections}
+        hidePII={hidePII}
+        hiddenPIIFields={hiddenPIIFields}
+        sectionComments={sectionComments[currentApp.id] || {}}
         onScoreChange={(cat, val) => setEditingScores(p => ({ ...p, [cat]: val }))}
         onCommentsChange={setEditingComments}
         onToggleTimer={() => setTimerActive(!timerActive)}
         onSaveAndNext={handleSaveAndNext}
         onDecision={handleDecision}
+        onSelectRubric={handleSelectRubric}
+        onSectionComment={handleSectionComment}
         onPrev={goToPrev}
         onNext={goToNext}
         onExit={() => {
@@ -890,7 +1136,7 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Stages */}
-        <div className="w-64 bg-white border-r border-gray-200 flex flex-col rounded-l-2xl">
+        <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
           {/* Workflow Selector */}
           <div className="p-3 border-b border-gray-200">
             <div className="relative">
@@ -969,13 +1215,9 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
             </div>
           </div>
 
-          {/* Stages Header */}
-          <div className="px-4 pt-3 pb-2">
+          {/* Stages Header with All option */}
+          <div className="px-4 pt-3 pb-2 flex items-center justify-between">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Stages</h3>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto p-2">
-            {/* All Applications Option */}
             <button
               onClick={() => {
                 setSelectedStageId('all')
@@ -983,32 +1225,17 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
                 setShowOnlyUnassigned(false)
               }}
               className={cn(
-                "w-full text-left px-3 py-3 rounded-lg mb-2 transition-all group",
+                "text-xs font-medium px-2 py-1 rounded-md transition-colors",
                 selectedStageId === 'all' && !showOnlyUnassigned
-                  ? "bg-blue-50 border border-blue-200" 
-                  : "hover:bg-gray-50 border border-transparent"
+                  ? "bg-blue-100 text-blue-700" 
+                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
               )}
             >
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "w-8 h-8 rounded-lg flex items-center justify-center",
-                  selectedStageId === 'all' ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500"
-                )}>
-                  <Inbox className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={cn(
-                    "font-medium",
-                    selectedStageId === 'all' && !showOnlyUnassigned ? "text-gray-900" : "text-gray-700"
-                  )}>All Applications</p>
-                  <p className="text-xs text-gray-400">View all stages</p>
-                </div>
-                <Badge className="bg-gray-100 text-gray-600 border-gray-200">
-                  {stats.total}
-                </Badge>
-              </div>
+              All Applications ({stats.total})
             </button>
-
+          </div>
+          
+          <div className="flex-1 overflow-y-auto px-2 pb-2">
             {/* Unassigned Applications */}
             {stats.unassigned > 0 && (
               <div className={cn(
@@ -1054,8 +1281,7 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
               </div>
             )}
 
-            <div className="border-t border-gray-100 my-2" />
-            
+            {/* Stage List */}
             {stages.map((stage, idx) => {
               const count = applications.filter(a => a.stageId === stage.id).length
               const isActive = stage.id === selectedStageId && !showOnlyUnassigned
@@ -1149,6 +1375,10 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
               onToggleFilters={() => setShowFilters(!showFilters)}
               onRefresh={loadData}
               hasActiveFilters={filterStatus !== 'all' || filterTags.length > 0 || filterScoreMin !== null || filterScoreMax !== null || filterReviewed !== 'all'}
+              form={form}
+              titleFieldName={titleFieldName}
+              hidePII={hidePII}
+              hiddenPIIFields={hiddenPIIFields}
             />
           )}
           
@@ -1239,7 +1469,11 @@ function QueueView({
   showFilters,
   onToggleFilters,
   onRefresh,
-  hasActiveFilters
+  hasActiveFilters,
+  form,
+  titleFieldName,
+  hidePII,
+  hiddenPIIFields
 }: {
   apps: ApplicationData[]
   selectedIndex: number
@@ -1252,6 +1486,10 @@ function QueueView({
   onToggleFilters?: () => void
   onRefresh?: () => void
   hasActiveFilters?: boolean
+  form?: Form | null
+  titleFieldName?: string | null
+  hidePII?: boolean
+  hiddenPIIFields?: string[]
 }) {
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false)
   const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'highest' | 'lowest'>('recent')
@@ -1282,9 +1520,16 @@ function QueueView({
   return (
     <div className="flex-1 flex overflow-hidden">
       {/* Application List */}
-      <div className="w-96 border-r border-gray-200 flex flex-col bg-white rounded-l-2xl">
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="font-medium text-gray-900">{apps.length} Applications</h3>
+      <div className="w-96 border-r border-gray-200 flex flex-col bg-gray-50">
+        <div className="p-4 border-b border-gray-200 bg-white flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Users className="w-4 h-4 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">{apps.length} Applications</h3>
+            </div>
+          </div>
           <div className="flex items-center gap-1">
             {/* Sort & Filter Dropdown */}
             <div className="relative">
@@ -1346,6 +1591,17 @@ function QueueView({
               )}
             </div>
             
+            {/* PII Status Indicator - Now controlled by stage settings */}
+            {hidePII && (
+              <div 
+                className="flex items-center gap-1.5 px-2 py-1 bg-amber-100 text-amber-700 rounded-lg"
+                title={`Privacy Mode enabled for this stage. ${hiddenPIIFields?.length || 0} field(s) hidden.`}
+              >
+                <EyeOff className="w-4 h-4" />
+                <span className="text-xs font-medium">PII Hidden</span>
+              </div>
+            )}
+            
             {/* Refresh Button */}
             <button
               onClick={onRefresh}
@@ -1357,49 +1613,61 @@ function QueueView({
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {sortedApps.map((app, idx) => {
             const originalIdx = apps.findIndex(a => a.id === app.id)
+            const isSelected = originalIdx === selectedIndex
+            const displayName = getApplicationDisplayName(app, titleFieldName || null, hidePII || false)
+            const displayEmail = hidePII ? '••••••@••••••' : app.email
+            
             return (
             <button
               key={app.id}
               onClick={() => onSelect(originalIdx)}
               className={cn(
-                "w-full text-left px-4 py-4 border-b border-gray-100 transition-all",
-                originalIdx === selectedIndex 
-                  ? "bg-blue-50 border-l-2 border-l-blue-600" 
-                  : "hover:bg-gray-50"
+                "w-full text-left p-4 rounded-xl transition-all border",
+                isSelected 
+                  ? "bg-white border-blue-200 shadow-md ring-1 ring-blue-100" 
+                  : "bg-white border-gray-100 hover:border-gray-200 hover:shadow-sm"
               )}
             >
               <div className="flex items-start gap-3">
                 <div className={cn(
-                  "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0",
-                  app.status === 'approved' ? "bg-green-100 text-green-700" :
-                  app.status === 'rejected' ? "bg-red-100 text-red-700" :
-                  app.status === 'in_review' ? "bg-blue-100 text-blue-700" :
-                  "bg-gray-100 text-gray-600"
+                  "w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 shadow-sm",
+                  app.status === 'approved' ? "bg-gradient-to-br from-green-400 to-green-500 text-white" :
+                  app.status === 'rejected' ? "bg-gradient-to-br from-red-400 to-red-500 text-white" :
+                  app.status === 'in_review' ? "bg-gradient-to-br from-blue-400 to-blue-500 text-white" :
+                  "bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600"
                 )}>
-                  {app.name.charAt(0)}
+                  {hidePII ? '#' : displayName.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="font-medium text-gray-900 truncate">{app.name}</p>
-                    {app.flagged && <Flag className="w-3 h-3 text-red-500 shrink-0" />}
+                    <p className={cn(
+                      "font-semibold truncate",
+                      isSelected ? "text-blue-900" : "text-gray-900"
+                    )}>{displayName}</p>
+                    {app.flagged && <Flag className="w-3.5 h-3.5 text-red-500 shrink-0" />}
                   </div>
-                  <p className="text-xs text-gray-500 truncate">{app.email}</p>
-                  <div className="flex items-center gap-2 mt-2">
+                  <p className="text-xs text-gray-500 truncate mt-0.5">{displayEmail}</p>
+                  <div className="flex items-center gap-2 mt-2.5 flex-wrap">
                     {app.stageName && (
-                      <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs">
+                      <Badge className={cn(
+                        "text-xs font-medium px-2 py-0.5",
+                        isSelected 
+                          ? "bg-blue-100 text-blue-700 border-blue-200"
+                          : "bg-purple-50 text-purple-700 border-purple-100"
+                      )}>
                         {app.stageName}
                       </Badge>
                     )}
                     {app.score !== null && (
-                      <span className="flex items-center gap-1 text-xs text-amber-600">
+                      <span className="flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
                         <Star className="w-3 h-3 fill-current" />
                         {app.score}/{app.maxScore}
                       </span>
                     )}
-                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                    <span className="flex items-center gap-1 text-xs text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded">
                       <Users className="w-3 h-3" />
                       {app.reviewCount}/{app.requiredReviews}
                     </span>
@@ -1411,8 +1679,11 @@ function QueueView({
           
           {sortedApps.length === 0 && (
             <div className="p-8 text-center">
-              <Inbox className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No applications in this stage</p>
+              <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Inbox className="w-8 h-8 text-gray-400" />
+              </div>
+              <p className="text-gray-600 font-medium">No applications yet</p>
+              <p className="text-sm text-gray-400 mt-1">Applications will appear here</p>
             </div>
           )}
         </div>
@@ -1425,8 +1696,10 @@ function QueueView({
             <div className="p-6 border-b border-gray-200 bg-white">
               <div className="flex items-start justify-between">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">{currentApp.name}</h2>
-                  <p className="text-gray-500">{currentApp.email}</p>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    {getApplicationDisplayName(currentApp, titleFieldName || null, hidePII || false)}
+                  </h2>
+                  <p className="text-gray-500">{hidePII ? '••••••@••••••' : currentApp.email}</p>
                 </div>
                 <Button onClick={onStartReview} className="bg-blue-600 hover:bg-blue-700">
                   <Play className="w-4 h-4 mr-2" />
@@ -1468,28 +1741,118 @@ function QueueView({
             {/* Application Data Preview */}
             <div className="flex-1 overflow-y-auto p-6">
               <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Application Data</h3>
-              <div className="space-y-4">
-                {Object.entries(currentApp.raw_data).map(([key, value]) => {
-                  // Skip internal fields
-                  if (key.startsWith('_') || key === 'id') return null
-                  
-                  // Check if this is a complex field (object or array with objects)
-                  const isComplex = (typeof value === 'object' && value !== null) || 
-                                   (Array.isArray(value) && value.some(v => typeof v === 'object'))
-                  
-                  return (
-                    <div key={key} className={cn(
-                      "bg-white rounded-lg p-4 border border-gray-200",
-                      isComplex && "col-span-2"
-                    )}>
-                      <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">
-                        {key.replace(/_/g, ' ')}
-                      </p>
-                      <div className="text-gray-900">{renderFieldValue(key, value)}</div>
-                    </div>
-                  )
-                })}
-              </div>
+              
+              {form?.fields && form.fields.length > 0 ? (
+                <div className="space-y-4">
+                  {(() => {
+                    const { sections, ungroupedFields } = groupFieldsBySections(form.fields, form.settings)
+                    
+                    // Get PII values to redact from other fields
+                    const piiValuesToRedact: string[] = (hiddenPIIFields || [])
+                      .map(fieldName => {
+                        const val = currentApp.raw_data[fieldName]
+                        return typeof val === 'string' ? val : null
+                      })
+                      .filter((v): v is string => v !== null && v.length >= 2)
+                    
+                    // Helper to render field value with PII redaction
+                    const renderWithPII = (fieldName: string, value: any) => {
+                      // If this field is marked for hiding, show redacted
+                      if (hidePII && hiddenPIIFields?.includes(fieldName)) {
+                        return (
+                          <span className="bg-gray-900 text-gray-900 rounded px-2 py-0.5 select-none cursor-help" title="Hidden for privacy">
+                            {typeof value === 'string' ? value : JSON.stringify(value)}
+                          </span>
+                        )
+                      }
+                      
+                      // If it's a string and PII mode is on, redact matching PII values
+                      if (hidePII && typeof value === 'string' && piiValuesToRedact.length > 0) {
+                        return <RedactedText text={value} piiValues={piiValuesToRedact} />
+                      }
+                      
+                      return renderFieldValue(fieldName, value)
+                    }
+                    
+                    return (
+                      <>
+                        {/* Ungrouped fields */}
+                        {ungroupedFields.length > 0 && (
+                          <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+                            {ungroupedFields.map(field => {
+                              const value = currentApp.raw_data[field.name] || currentApp.raw_data[field.label]
+                              if (value === undefined || value === null || value === '') return null
+                              
+                              return (
+                                <div key={field.id} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
+                                  <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-1.5">
+                                    {field.label || field.name.replace(/_/g, ' ')}
+                                  </p>
+                                  <div className="text-gray-800 text-sm leading-relaxed">{renderWithPII(field.name, value)}</div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                        
+                        {/* Sections */}
+                        {sections.map(section => {
+                          const hasData = section.fields.some(f => {
+                            const val = currentApp.raw_data[f.name] || currentApp.raw_data[f.label]
+                            return val !== undefined && val !== null && val !== ''
+                          })
+                          
+                          if (!hasData) return null
+                          
+                          return (
+                            <div key={section.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                              <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+                                <span className="text-sm font-semibold text-gray-700">{section.name}</span>
+                              </div>
+                              <div className="p-4 space-y-3">
+                                {section.fields.map(field => {
+                                  const value = currentApp.raw_data[field.name] || currentApp.raw_data[field.label]
+                                  if (value === undefined || value === null || value === '') return null
+                                  
+                                  return (
+                                    <div key={field.id} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
+                                      <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-1.5">
+                                        {field.label || field.name.replace(/_/g, ' ')}
+                                      </p>
+                                      <div className="text-gray-800 text-sm leading-relaxed">{renderWithPII(field.name, value)}</div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </>
+                    )
+                  })()}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {Object.entries(currentApp.raw_data).map(([key, value]) => {
+                    if (key.startsWith('_') || key === 'id') return null
+                    
+                    const isComplex = (typeof value === 'object' && value !== null) || 
+                                     (Array.isArray(value) && value.some(v => typeof v === 'object'))
+                    
+                    return (
+                      <div key={key} className={cn(
+                        "bg-white rounded-lg p-4 border border-gray-200",
+                        isComplex && "col-span-2"
+                      )}>
+                        <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-2">
+                          {key.replace(/_/g, ' ')}
+                        </p>
+                        <div className="text-gray-800 text-sm leading-relaxed">{renderFieldValue(key, value)}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
               
               {rubric && (
                 <div className="mt-8">
@@ -1526,16 +1889,29 @@ function FocusReviewMode({
   totalApps,
   stage,
   rubric,
+  availableRubrics,
   scores,
   comments,
   timer,
   timerActive,
   isSaving,
+  form,
+  titleFieldName,
+  setTitleFieldName,
+  showTitleFieldSelector,
+  setShowTitleFieldSelector,
+  collapsedSections,
+  setCollapsedSections,
+  hidePII,
+  hiddenPIIFields,
+  sectionComments,
   onScoreChange,
   onCommentsChange,
   onToggleTimer,
   onSaveAndNext,
   onDecision,
+  onSelectRubric,
+  onSectionComment,
   onPrev,
   onNext,
   onExit
@@ -1545,26 +1921,235 @@ function FocusReviewMode({
   totalApps: number
   stage: StageWithConfig
   rubric: Rubric | null
+  availableRubrics: Rubric[]
   scores: Record<string, number>
   comments: string
   timer: number
   timerActive: boolean
   isSaving: boolean
+  form: Form | null
+  titleFieldName: string | null
+  setTitleFieldName: (name: string | null) => void
+  showTitleFieldSelector: boolean
+  setShowTitleFieldSelector: (show: boolean) => void
+  collapsedSections: Set<string>
+  setCollapsedSections: (sections: Set<string>) => void
+  hidePII: boolean
+  hiddenPIIFields: string[]
+  sectionComments: Record<string, string>
   onScoreChange: (cat: string, val: number) => void
   onCommentsChange: (c: string) => void
   onToggleTimer: () => void
   onSaveAndNext: () => void
-  onDecision: (d: 'approved' | 'rejected') => void
+  onDecision: (status: string) => void
+  onSelectRubric: (rubricId: string) => void
+  onSectionComment: (sectionId: string, comment: string) => void
   onPrev: () => void
   onNext: () => void
   onExit: () => void
 }) {
+  const [showRubricSelector, setShowRubricSelector] = useState(false)
+  const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  
+  // Text highlighting state
+  const [textHighlights, setTextHighlights] = useState<{
+    id: string
+    fieldName: string
+    text: string
+    comment: string
+    startOffset: number
+    endOffset: number
+  }[]>([])
+  const [selectedText, setSelectedText] = useState<{
+    text: string
+    fieldName: string
+    rect: DOMRect
+  } | null>(null)
+  const [highlightComment, setHighlightComment] = useState('')
+  
+  // Dismiss selection popover on escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedText) {
+        setSelectedText(null)
+        setHighlightComment('')
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedText])
+  
   const totalScore = Object.values(scores).reduce((sum, val) => sum + (val || 0), 0)
   const maxScore = rubric?.max_score || 100
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
+  
+  // Show feedback briefly after action
+  const showFeedback = (type: 'success' | 'error', message: string) => {
+    setActionFeedback({ type, message })
+    setTimeout(() => setActionFeedback(null), 2000)
+  }
+  
+  // Handle text selection
+  const handleTextSelection = (fieldName: string) => {
+    const selection = window.getSelection()
+    if (selection && selection.toString().trim().length > 0) {
+      const range = selection.getRangeAt(0)
+      const rect = range.getBoundingClientRect()
+      setSelectedText({
+        text: selection.toString().trim(),
+        fieldName,
+        rect
+      })
+      setHighlightComment('')
+    }
+  }
+  
+  // Add highlight with comment
+  const addHighlight = () => {
+    if (selectedText && highlightComment.trim()) {
+      const newHighlight = {
+        id: crypto.randomUUID(),
+        fieldName: selectedText.fieldName,
+        text: selectedText.text,
+        comment: highlightComment.trim(),
+        startOffset: 0,
+        endOffset: selectedText.text.length
+      }
+      setTextHighlights(prev => [...prev, newHighlight])
+      setSelectedText(null)
+      setHighlightComment('')
+      showFeedback('success', 'Highlight added')
+    }
+  }
+  
+  // Remove a highlight
+  const removeHighlight = (id: string) => {
+    setTextHighlights(prev => prev.filter(h => h.id !== id))
+  }
+  
+  // PII redaction helper
+  const redactValue = (fieldName: string, value: any): any => {
+    if (!hidePII || !hiddenPIIFields.includes(fieldName)) return value
+    if (typeof value === 'string') return '●●●●●●●●'
+    return value
+  }
+  
+  // Render text with highlights
+  const renderHighlightedText = (fieldName: string, text: string): React.ReactNode => {
+    const fieldHighlights = textHighlights.filter(h => h.fieldName === fieldName)
+    if (fieldHighlights.length === 0) return text
+    
+    // Sort highlights by their appearance in the text
+    let result: React.ReactNode[] = []
+    let lastIndex = 0
+    
+    fieldHighlights.forEach((highlight, idx) => {
+      const highlightIndex = text.indexOf(highlight.text, lastIndex)
+      if (highlightIndex >= 0) {
+        // Add text before this highlight
+        if (highlightIndex > lastIndex) {
+          result.push(text.slice(lastIndex, highlightIndex))
+        }
+        // Add highlighted text
+        result.push(
+          <span 
+            key={highlight.id}
+            className="bg-yellow-200 cursor-pointer relative group"
+            title={highlight.comment}
+          >
+            {highlight.text}
+            <span className="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10 max-w-xs">
+              {highlight.comment}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  removeHighlight(highlight.id)
+                }}
+                className="ml-2 text-red-300 hover:text-red-100"
+              >
+                ×
+              </button>
+            </span>
+          </span>
+        )
+        lastIndex = highlightIndex + highlight.text.length
+      }
+    })
+    
+    // Add remaining text
+    if (lastIndex < text.length) {
+      result.push(text.slice(lastIndex))
+    }
+    
+    return result.length > 0 ? <>{result}</> : text
+  }
 
   return (
     <div className="fixed inset-0 bg-white z-50 flex flex-col">
+      {/* Action Feedback Toast */}
+      {actionFeedback && (
+        <div className={cn(
+          "fixed top-20 left-1/2 -translate-x-1/2 z-[60] px-4 py-2 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-2 duration-200",
+          actionFeedback.type === 'success' ? "bg-green-600 text-white" : "bg-red-600 text-white"
+        )}>
+          <div className="flex items-center gap-2">
+            {actionFeedback.type === 'success' ? (
+              <CheckCircle className="w-4 h-4" />
+            ) : (
+              <AlertCircle className="w-4 h-4" />
+            )}
+            <span className="text-sm font-medium">{actionFeedback.message}</span>
+          </div>
+        </div>
+      )}
+      
+      {/* Text Selection Popover */}
+      {selectedText && (
+        <div 
+          className="fixed z-[70] bg-white rounded-lg shadow-xl border border-gray-200 p-3 w-72"
+          style={{
+            top: selectedText.rect.bottom + window.scrollY + 8,
+            left: Math.min(selectedText.rect.left + window.scrollX, window.innerWidth - 300)
+          }}
+        >
+          <div className="mb-2">
+            <p className="text-xs text-gray-500 mb-1">Selected text:</p>
+            <p className="text-sm text-gray-700 bg-yellow-100 px-2 py-1 rounded line-clamp-2">
+              "{selectedText.text}"
+            </p>
+          </div>
+          <textarea
+            value={highlightComment}
+            onChange={(e) => setHighlightComment(e.target.value)}
+            placeholder="Add a comment about this text..."
+            rows={2}
+            className="w-full text-sm p-2 border border-gray-200 rounded-lg placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
+            autoFocus
+          />
+          <div className="flex justify-end gap-2 mt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedText(null)
+                setHighlightComment('')
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!highlightComment.trim()}
+              onClick={addHighlight}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Sparkles className="w-3 h-3 mr-1" />
+              Add Note
+            </Button>
+          </div>
+        </div>
+      )}
+      
       {/* Top Bar */}
       <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6">
         <div className="flex items-center gap-4">
@@ -1609,9 +2194,48 @@ function FocusReviewMode({
         {/* Left - Application Data */}
         <div className="w-1/2 border-r border-gray-200 overflow-y-auto bg-gray-50">
           <div className="p-8">
+            {/* Header with title field selector */}
             <div className="flex items-start justify-between mb-6">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-1">{app.name}</h1>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    {titleFieldName && app.raw_data[titleFieldName] 
+                      ? String(app.raw_data[titleFieldName])
+                      : app.name}
+                  </h1>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowTitleFieldSelector(!showTitleFieldSelector)}
+                      className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                      title="Change title field"
+                    >
+                      <Type className="w-4 h-4" />
+                    </button>
+                    {showTitleFieldSelector && form?.fields && (
+                      <div className="absolute left-0 top-8 z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[200px]">
+                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                          Select Title Field
+                        </div>
+                        {getTitleCandidateFields(form.fields).map(field => (
+                          <button
+                            key={field.id}
+                            onClick={() => {
+                              setTitleFieldName(field.name)
+                              setShowTitleFieldSelector(false)
+                            }}
+                            className={cn(
+                              "w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between",
+                              titleFieldName === field.name && "bg-blue-50 text-blue-700"
+                            )}
+                          >
+                            <span>{field.label || field.name}</span>
+                            {titleFieldName === field.name && <CheckCircle className="w-4 h-4" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <p className="text-gray-500">{app.email}</p>
               </div>
               {app.flagged && (
@@ -1621,20 +2245,206 @@ function FocusReviewMode({
                 </Badge>
               )}
             </div>
-
-            <div className="space-y-6">
-              {Object.entries(app.raw_data).map(([key, value]) => {
-                // Skip internal fields
-                if (key.startsWith('_') || key === 'id') return null
-                
-                return (
-                  <div key={key} className="border-b border-gray-200 pb-4">
-                    <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">{key.replace(/_/g, ' ')}</p>
-                    <div className="text-gray-700">{renderFieldValue(key, value)}</div>
-                  </div>
-                )
-              })}
+            
+            {/* Highlight instruction hint */}
+            <div className="flex items-center gap-2 mb-4 text-xs text-gray-400">
+              <Sparkles className="w-3 h-3" />
+              <span>Tip: Select text to add highlighted notes</span>
             </div>
+
+            {/* Text highlights summary */}
+            {textHighlights.length > 0 && (
+              <div className="mb-4 bg-yellow-50 rounded-xl border border-yellow-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-yellow-800 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    Highlighted Notes ({textHighlights.length})
+                  </h4>
+                </div>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {textHighlights.map(h => (
+                    <div key={h.id} className="flex items-start justify-between gap-2 text-sm bg-white rounded-lg p-2 border border-yellow-200">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-yellow-800 font-medium truncate">"{h.text}"</p>
+                        <p className="text-gray-600 text-xs">{h.comment}</p>
+                      </div>
+                      <button
+                        onClick={() => removeHighlight(h.id)}
+                        className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Section-based data display */}
+            {form?.fields && form.fields.length > 0 ? (
+              <div className="space-y-4">
+                {(() => {
+                  const { sections, ungroupedFields } = groupFieldsBySections(form.fields, form.settings)
+                  
+                  return (
+                    <>
+                      {/* Ungrouped fields first (if any) */}
+                      {ungroupedFields.length > 0 && (
+                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                          <div className="p-4 space-y-4">
+                            {ungroupedFields.map(field => {
+                              const rawValue = app.raw_data[field.name] || app.raw_data[field.label]
+                              if (rawValue === undefined || rawValue === null || rawValue === '') return null
+                              const value = redactValue(field.name, rawValue)
+                              
+                              return (
+                                <div key={field.id} className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
+                                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                                    <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">
+                                      {field.label || field.name.replace(/_/g, ' ')}
+                                    </span>
+                                    {textHighlights.some(h => h.fieldName === field.name) && (
+                                      <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs">
+                                        <Sparkles className="w-3 h-3 mr-1" />
+                                        {textHighlights.filter(h => h.fieldName === field.name).length}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div 
+                                    className="text-gray-800 text-sm leading-relaxed select-text cursor-text"
+                                    onMouseUp={() => handleTextSelection(field.name)}
+                                  >
+                                    {typeof value === 'string' 
+                                      ? renderHighlightedText(field.name, value)
+                                      : renderFieldValue(field.name, value)
+                                    }
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Sections */}
+                      {sections.map(section => {
+                        const isCollapsed = collapsedSections.has(section.id)
+                        const hasData = section.fields.some(f => {
+                          const val = app.raw_data[f.name] || app.raw_data[f.label]
+                          return val !== undefined && val !== null && val !== ''
+                        })
+                        
+                        if (!hasData) return null
+                        
+                        return (
+                          <div key={section.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                            {/* Section header */}
+                            <button
+                              onClick={() => {
+                                const newCollapsed = new Set(collapsedSections)
+                                if (isCollapsed) {
+                                  newCollapsed.delete(section.id)
+                                } else {
+                                  newCollapsed.add(section.id)
+                                }
+                                setCollapsedSections(newCollapsed)
+                              }}
+                              className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors border-b border-gray-200"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-gray-900">{section.name}</span>
+                                {section.description && (
+                                  <span className="text-xs text-gray-500">• {section.description}</span>
+                                )}
+                                {sectionComments[section.id] && (
+                                  <Badge className="bg-blue-100 text-blue-600 border-blue-200 text-xs">
+                                    <MessageSquare className="w-3 h-3 mr-1" />
+                                    Note
+                                  </Badge>
+                                )}
+                              </div>
+                              {isCollapsed ? (
+                                <ChevronDown className="w-4 h-4 text-gray-400" />
+                              ) : (
+                                <ChevronUp className="w-4 h-4 text-gray-400" />
+                              )}
+                            </button>
+                            
+                            {/* Section content */}
+                            {!isCollapsed && (
+                              <div className="p-4 space-y-4">
+                                {section.fields.map(field => {
+                                  const rawValue = app.raw_data[field.name] || app.raw_data[field.label]
+                                  if (rawValue === undefined || rawValue === null || rawValue === '') return null
+                                  const value = redactValue(field.name, rawValue)
+                                  
+                                  return (
+                                    <div key={field.id} className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
+                                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                                        <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">
+                                          {field.label || field.name.replace(/_/g, ' ')}
+                                        </span>
+                                        {textHighlights.some(h => h.fieldName === field.name) && (
+                                          <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs">
+                                            <Sparkles className="w-3 h-3 mr-1" />
+                                            {textHighlights.filter(h => h.fieldName === field.name).length} note(s)
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <div 
+                                        className="text-gray-800 text-sm leading-relaxed select-text cursor-text"
+                                        onMouseUp={() => handleTextSelection(field.name)}
+                                      >
+                                        {typeof value === 'string' 
+                                          ? renderHighlightedText(field.name, value)
+                                          : renderFieldValue(field.name, value)
+                                        }
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                                
+                                {/* Section comment input */}
+                                <div className="pt-4 border-t border-gray-100">
+                                  <div className="flex items-start gap-2">
+                                    <MessageSquare className="w-4 h-4 text-gray-400 mt-2 flex-shrink-0" />
+                                    <textarea
+                                      value={sectionComments[section.id] || ''}
+                                      onChange={(e) => onSectionComment(section.id, e.target.value)}
+                                      placeholder={`Add notes about ${section.name.toLowerCase()}...`}
+                                      rows={2}
+                                      className="flex-1 text-sm p-2 border border-gray-200 rounded-lg placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </>
+                  )
+                })()}
+              </div>
+            ) : (
+              /* Fallback: flat list for forms without field definitions */
+              <div className="space-y-4">
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden p-4 space-y-4">
+                  {Object.entries(app.raw_data).map(([key, value]) => {
+                    if (key.startsWith('_') || key === 'id') return null
+                    
+                    return (
+                      <div key={key} className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
+                        <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-1.5 block">
+                          {key.replace(/_/g, ' ')}
+                        </span>
+                        <div className="text-gray-800 text-sm leading-relaxed">{renderFieldValue(key, value)}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1696,9 +2506,77 @@ function FocusReviewMode({
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
-                <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">No rubric configured for this stage</p>
+              <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                <div className="text-center py-8 px-6">
+                  <div className="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Award className="w-7 h-7 text-amber-600" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">No Rubric Configured</h3>
+                  <p className="text-sm text-gray-500 mb-6 max-w-xs mx-auto">
+                    Add a scoring rubric to this stage to enable structured evaluation
+                  </p>
+                  
+                  {/* Rubric selection dropdown or creation */}
+                  {availableRubrics.length > 0 ? (
+                    <div className="space-y-3">
+                      {!showRubricSelector ? (
+                        <Button 
+                          onClick={() => setShowRubricSelector(true)}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          <Award className="w-4 h-4 mr-2" />
+                          Select a Rubric
+                        </Button>
+                      ) : (
+                        <div className="bg-white rounded-lg border border-gray-200 p-4 max-w-sm mx-auto">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm font-medium text-gray-700">Select Rubric</span>
+                            <button 
+                              onClick={() => setShowRubricSelector(false)}
+                              className="text-gray-400 hover:text-gray-600"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {availableRubrics.map(r => (
+                              <button
+                                key={r.id}
+                                onClick={() => {
+                                  onSelectRubric(r.id)
+                                  setShowRubricSelector(false)
+                                  showFeedback('success', `Rubric "${r.name}" assigned`)
+                                }}
+                                className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                              >
+                                <div className="font-medium text-gray-900 text-sm">{r.name}</div>
+                                {r.description && (
+                                  <div className="text-xs text-gray-500 mt-1 line-clamp-2">{r.description}</div>
+                                )}
+                                <div className="text-xs text-gray-400 mt-1">
+                                  {r.categories?.length || 0} categories • Max {r.max_score || 100} points
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-400">
+                        Or configure rubrics in Workflow Settings
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-500">
+                        No rubrics available. Create one in Workflow Settings.
+                      </p>
+                      <Button variant="outline" className="gap-2">
+                        <Plus className="w-4 h-4" />
+                        Configure Rubrics
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1720,30 +2598,89 @@ function FocusReviewMode({
 
           {/* Action Footer */}
           <div className="p-6 bg-gray-50 border-t border-gray-200">
+            {/* Status indicators */}
+            {app.status && app.status !== 'pending' && (
+              <div className="mb-4 flex items-center gap-2">
+                <span className="text-sm text-gray-500">Current status:</span>
+                <Badge className={cn(
+                  "capitalize",
+                  app.status === 'approved' && "bg-green-100 text-green-700 border-green-200",
+                  app.status === 'rejected' && "bg-red-100 text-red-700 border-red-200",
+                  app.status === 'pending' && "bg-gray-100 text-gray-700 border-gray-200",
+                  !['approved', 'rejected', 'pending'].includes(app.status) && "bg-blue-100 text-blue-700 border-blue-200"
+                )}>
+                  {app.status.replace(/_/g, ' ')}
+                </Badge>
+              </div>
+            )}
+            
             <div className="flex items-center gap-3">
-              <Button 
-                variant="outline" 
-                onClick={() => onDecision('rejected')}
-                className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-              >
-                <ThumbsDown className="w-4 h-4 mr-2" />
-                Reject
-              </Button>
+              {/* Save & Next button */}
               <Button 
                 onClick={onSaveAndNext}
                 disabled={isSaving}
-                className="flex-1 bg-blue-600 hover:bg-blue-700"
+                variant="outline"
+                className="flex-1"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                 Save & Next
               </Button>
-              <Button 
-                onClick={() => onDecision('approved')}
-                className="flex-1 bg-green-600 hover:bg-green-700"
-              >
-                <ThumbsUp className="w-4 h-4 mr-2" />
-                Approve
-              </Button>
+              
+              {/* Custom Status Dropdown - uses stage.custom_statuses if available */}
+              {(() => {
+                const customStatuses = stage.custom_statuses && Array.isArray(stage.custom_statuses) && stage.custom_statuses.length > 0
+                  ? stage.custom_statuses
+                  : ['Approved', 'Rejected', 'Pending'] // Default statuses
+                
+                const getStatusColor = (status: string) => {
+                  const lower = status.toLowerCase()
+                  if (lower.includes('approv') || lower.includes('accept') || lower.includes('complete')) {
+                    return 'text-green-600 hover:bg-green-50'
+                  }
+                  if (lower.includes('reject') || lower.includes('deny') || lower.includes('decline')) {
+                    return 'text-red-600 hover:bg-red-50'
+                  }
+                  if (lower.includes('pend') || lower.includes('wait') || lower.includes('review')) {
+                    return 'text-amber-600 hover:bg-amber-50'
+                  }
+                  return 'text-blue-600 hover:bg-blue-50'
+                }
+                
+                const getStatusIcon = (status: string) => {
+                  const lower = status.toLowerCase()
+                  if (lower.includes('approv') || lower.includes('accept') || lower.includes('complete')) {
+                    return <ThumbsUp className="w-4 h-4 mr-2" />
+                  }
+                  if (lower.includes('reject') || lower.includes('deny') || lower.includes('decline')) {
+                    return <ThumbsDown className="w-4 h-4 mr-2" />
+                  }
+                  return <Check className="w-4 h-4 mr-2" />
+                }
+                
+                return (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button className="flex-[2] bg-indigo-600 hover:bg-indigo-700">
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Set Status
+                        <ChevronDown className="w-4 h-4 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      {customStatuses.map((status) => (
+                        <DropdownMenuItem
+                          key={status}
+                          onClick={() => onDecision(status.toLowerCase().replace(/\s+/g, '_'))}
+                          className={cn("cursor-pointer", getStatusColor(status))}
+                        >
+                          {getStatusIcon(status)}
+                          {status}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )
+              })()}
             </div>
           </div>
         </div>
