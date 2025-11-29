@@ -16,6 +16,7 @@ const FIELD_TYPES: { value: string; label: string }[] = [
   { value: 'email', label: 'Email' },
   { value: 'phone', label: 'Phone' },
   { value: 'url', label: 'URL' },
+  { value: 'address', label: 'Address' },
   { value: 'select', label: 'Dropdown' },
   { value: 'multiselect', label: 'Multi-Select' },
   { value: 'radio', label: 'Single Choice' },

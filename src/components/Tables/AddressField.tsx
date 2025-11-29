@@ -45,7 +45,7 @@ interface MapboxSuggestion {
   }
 }
 
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_API_token
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_API_TOKEN
 
 export function AddressField({ 
   value, 
