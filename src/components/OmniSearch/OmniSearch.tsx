@@ -151,12 +151,17 @@ export const OmniSearch: React.FC<OmniSearchProps> = ({
     const loadWorkspaceData = async () => {
       if (!workspaceId) return
       try {
-        const [tables, forms] = await Promise.all([
+        const [tables, formsResponse] = await Promise.all([
           tablesGoClient.getTablesByWorkspace(workspaceId).catch(() => []),
-          formsClient.list(workspaceId).catch(() => [])
+          formsClient.list(workspaceId).catch(() => ({ forms: [] }))
         ])
-        setCachedTables((tables || []).map((t: any) => ({ id: t.id, name: t.name })))
-        setCachedForms((forms || []).map((f: any) => ({ id: f.id, name: f.name })))
+        // Handle both array and object responses
+        const tablesArray = Array.isArray(tables) ? tables : []
+        const formsArray = Array.isArray(formsResponse) ? formsResponse : 
+                          (formsResponse?.forms || formsResponse?.data || [])
+        
+        setCachedTables(tablesArray.map((t: any) => ({ id: t.id, name: t.name })))
+        setCachedForms(Array.isArray(formsArray) ? formsArray.map((f: any) => ({ id: f.id, name: f.name })) : [])
       } catch (error) {
         console.warn('Failed to load workspace data for AI actions')
       }
