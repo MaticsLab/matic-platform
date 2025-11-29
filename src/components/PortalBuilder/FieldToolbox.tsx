@@ -29,9 +29,45 @@ const ICON_MAP: Record<string, LucideIcon> = {
   ListChecks: List, ChevronDown: List, Circle: CheckCircle2, LayoutGrid: Layout, MapPin
 }
 
-function getIconComponent(iconName?: string): LucideIcon {
-  if (!iconName) return Box
-  return ICON_MAP[iconName] || Box
+// Fallback icons by field type ID (when icon column is empty in database)
+const FIELD_TYPE_ID_ICONS: Record<string, LucideIcon> = {
+  text: Type,
+  textarea: AlignLeft,
+  number: Hash,
+  email: Mail,
+  phone: Phone,
+  url: Link,
+  address: MapPin,
+  select: List,
+  multiselect: List,
+  radio: CheckCircle2,
+  checkbox: CheckSquare,
+  date: Calendar,
+  datetime: CalendarClock,
+  time: Clock,
+  file: FileUp,
+  image: ImageIcon,
+  signature: PenTool,
+  rating: Star,
+  rank: ArrowUpDown,
+  divider: Minus,
+  heading: Heading,
+  paragraph: Pilcrow,
+  group: Layout,
+  repeater: List,
+  section: Layout,
+}
+
+function getIconComponent(iconName?: string, fieldTypeId?: string): LucideIcon {
+  // Try icon name first
+  if (iconName && ICON_MAP[iconName]) {
+    return ICON_MAP[iconName]
+  }
+  // Fall back to field type ID mapping
+  if (fieldTypeId && FIELD_TYPE_ID_ICONS[fieldTypeId]) {
+    return FIELD_TYPE_ID_ICONS[fieldTypeId]
+  }
+  return Box
 }
 
 // Fallback static field groups (used if API fails)
@@ -128,7 +164,7 @@ export function FieldToolbox({ onAddField }: FieldToolboxProps) {
         items: items.map((item: FieldTypeSummary) => ({
           type: item.id,
           label: item.label,
-          icon: getIconComponent(item.icon),
+          icon: getIconComponent(item.icon, item.id),
           description: item.description,
         }))
       }))
