@@ -36,12 +36,15 @@ import {
 } from '@/ui-components/dropdown-menu'
 import { useSearch, HubSearchContext } from '@/components/Search'
 import { ReviewerManagement } from '../Reviewers/ReviewerManagement'
+import { CommunicationsCenter } from '../Communications/CommunicationsCenter'
 
 interface ReviewWorkspaceProps {
   workspaceId: string
   formId: string | null
   showReviewersPanel?: boolean
   onToggleReviewersPanel?: () => void
+  showCommunicationsPanel?: boolean
+  onToggleCommunicationsPanel?: () => void
 }
 
 // Helper function to render nested data (groups, repeaters, objects) nicely
@@ -354,7 +357,14 @@ interface StageWithConfig extends ApplicationStage {
 
 type ViewMode = 'focus' | 'queue' | 'analytics'
 
-export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: externalShowReviewersPanel, onToggleReviewersPanel }: ReviewWorkspaceProps) {
+export function ReviewWorkspace({ 
+  workspaceId, 
+  formId, 
+  showReviewersPanel: externalShowReviewersPanel, 
+  onToggleReviewersPanel,
+  showCommunicationsPanel: externalShowCommunicationsPanel,
+  onToggleCommunicationsPanel
+}: ReviewWorkspaceProps) {
   // Core state
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -377,10 +387,13 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
   // UI state
   const [viewMode, setViewMode] = useState<ViewMode>('queue')
   const [internalShowReviewersPanel, setInternalShowReviewersPanel] = useState(false)
+  const [internalShowCommunicationsPanel, setInternalShowCommunicationsPanel] = useState(false)
   
   // Use external control if provided, otherwise use internal state
   const showReviewersPanel = externalShowReviewersPanel !== undefined ? externalShowReviewersPanel : internalShowReviewersPanel
   const setShowReviewersPanel = onToggleReviewersPanel || (() => setInternalShowReviewersPanel(!internalShowReviewersPanel))
+  const showCommunicationsPanel = externalShowCommunicationsPanel !== undefined ? externalShowCommunicationsPanel : internalShowCommunicationsPanel
+  const setShowCommunicationsPanel = onToggleCommunicationsPanel || (() => setInternalShowCommunicationsPanel(!internalShowCommunicationsPanel))
   const [selectedStageId, setSelectedStageId] = useState<string>('all')
   const [selectedAppIndex, setSelectedAppIndex] = useState(0)
   const [isReviewMode, setIsReviewMode] = useState(false)
@@ -1458,6 +1471,44 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
             
             <div className="flex-1 overflow-y-auto">
               <ReviewerManagement formId={formId} workspaceId={workspaceId} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Communications Slide-over Panel */}
+      {showCommunicationsPanel && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/30 transition-opacity" 
+            onClick={setShowCommunicationsPanel} 
+          />
+          
+          {/* Panel */}
+          <div className="absolute right-2 top-2 bottom-2 w-full max-w-3xl bg-white border border-gray-200 rounded-xl shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                  <MessageSquare className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Communications</h2>
+                  <p className="text-sm text-gray-500">Send messages and manage templates</p>
+                </div>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={setShowCommunicationsPanel}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            
+            <div className="flex-1 overflow-hidden">
+              <CommunicationsCenter workspaceId={workspaceId} formId={formId} />
             </div>
           </div>
         </div>

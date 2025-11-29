@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink, LayoutDashboard, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search, Plus, Eye, MessageSquare, Workflow, UserPlus } from 'lucide-react'
+import { FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink, BarChart3, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search, Plus, Eye, MessageSquare, Workflow, UserPlus } from 'lucide-react'
 import { ReviewWorkspace } from './Review/ReviewWorkspace'
 import { CommunicationsCenter } from './Communications/CommunicationsCenter'
 import { ReviewerManagement } from './Reviewers/ReviewerManagement'
 import { WorkflowBuilder } from './Configuration/WorkflowBuilder'
+import { ScholarshipDashboard } from './Dashboard/ScholarshipDashboard'
 import { SettingsModal } from './Configuration/SettingsModal'
 import { useTabContext } from '@/components/WorkspaceTabProvider'
 import { useSearch, HubSearchContext } from '@/components/Search'
@@ -25,7 +26,7 @@ interface ScholarshipManagerProps {
   formId: string | null
 }
 
-type Tab = 'overview' | 'review' | 'communications' | 'builder' | 'settings' | 'workflows' | 'reviewers'
+type Tab = 'review' | 'workflows' | 'analytics' | 'builder' | 'settings' | 'reviewers'
 
 interface Stats {
   totalSubmissions: number
@@ -37,10 +38,9 @@ interface Stats {
 }
 
 const tabConfig = [
-  { id: 'overview' as Tab, label: 'Overview', icon: LayoutDashboard, color: 'purple', subModule: 'Overview' },
   { id: 'review' as Tab, label: 'Review', icon: FileCheck, color: 'blue', subModule: 'Review Center' },
-  { id: 'communications' as Tab, label: 'Communications', icon: Mail, color: 'green', subModule: 'Communications' },
   { id: 'workflows' as Tab, label: 'Workflows', icon: GitMerge, color: 'indigo', subModule: 'Workflow Builder' },
+  { id: 'analytics' as Tab, label: 'Analytics', icon: BarChart3, color: 'purple', subModule: 'Analytics' },
 ]
 
 export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerProps) {
@@ -49,7 +49,7 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
   const hubUrl = `/workspace/${workspaceId}/applications`
   const hubTab = tabs.find(t => t.url === hubUrl)
   
-  const [activeTab, setActiveTab] = useState<Tab>('overview')
+  const [activeTab, setActiveTab] = useState<Tab>('review')
   const [isInitialized, setIsInitialized] = useState(false)
   const [form, setForm] = useState<Form | null>(null)
   const [workspaceSlug, setWorkspaceSlug] = useState<string>('')
@@ -73,6 +73,7 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
   const [tempSlug, setTempSlug] = useState('')
   const [copied, setCopied] = useState(false)
   const [showReviewersPanel, setShowReviewersPanel] = useState(false)
+  const [showCommunicationsPanel, setShowCommunicationsPanel] = useState(false)
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://maticslab.com'
   const fullUrl = `${baseUrl}/apply/${applicationSlug}`
@@ -161,7 +162,7 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
     }
   }
 
-  // Register tab actions - Team button shown for all sub modules
+  // Register tab actions - Team and Communications buttons shown for all sub modules
   useEffect(() => {
     const actions = []
     
@@ -172,6 +173,16 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
       onClick: () => setShowReviewersPanel(!showReviewersPanel),
       variant: 'outline' as const
     })
+    
+    // Add Communications button for review tab
+    if (activeTab === 'review') {
+      actions.push({
+        label: 'Communications',
+        icon: Mail,
+        onClick: () => setShowCommunicationsPanel(!showCommunicationsPanel),
+        variant: 'outline' as const
+      })
+    }
     
     actions.push(
       {
@@ -191,7 +202,7 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
     setTabActions(actions)
 
     return () => setTabActions([])
-  }, [workspaceId, workspaceSlug, formId, setTabActions, activeTab, showReviewersPanel])
+  }, [workspaceId, workspaceSlug, formId, setTabActions, activeTab, showReviewersPanel, showCommunicationsPanel])
 
   // Register tab header content with navigation
   useEffect(() => {
@@ -246,24 +257,14 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
     }
 
     const searchContextByTab: Record<string, HubSearchContext> = {
-      overview: {
+      analytics: {
         hubType: 'applications',
         hubId: formId || '',
         hubName: form?.name || 'Application',
-        placeholder: 'Search applications, stats...',
+        placeholder: 'Search analytics, stats...',
         actions: [
           { id: 'view-all', label: 'View All Applications', icon: Eye, action: () => setActiveTab('review') },
           { id: 'config-workflows', label: 'Configure Workflows', icon: Workflow, action: () => setActiveTab('workflows') }
-        ]
-      },
-      communications: {
-        hubType: 'applications',
-        hubId: formId || '',
-        hubName: form?.name || 'Application',
-        placeholder: 'Search templates, messages...',
-        actions: [
-          { id: 'new-template', label: 'New Template', icon: Plus, action: () => {} },
-          { id: 'send-message', label: 'Send Message', icon: MessageSquare, action: () => {} }
         ]
       },
       workflows: {
@@ -370,168 +371,18 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
 
       {/* Content Area */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'overview' && (
-          <div className="h-full overflow-y-auto p-8">
-            <div className="max-w-6xl mx-auto space-y-8">
-              {/* Quick Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div 
-                  onClick={() => setActiveTab('review')}
-                  className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">Total Submissions</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalSubmissions}</p>
-                    </div>
-                    <div className="p-2.5 bg-blue-100 rounded-lg text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                      <FileCheck className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 mt-3 text-sm">
-                    <span className="text-blue-600 font-medium">{stats.pendingReview} pending</span>
-                    <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-
-                <div 
-                  onClick={() => setActiveTab('review')}
-                  className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">Completed Reviews</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-1">{stats.completed}</p>
-                    </div>
-                    <div className="p-2.5 bg-green-100 rounded-lg text-green-600 group-hover:bg-green-600 group-hover:text-white transition-colors">
-                      <CheckCircle className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 mt-3 text-sm">
-                    <span className="text-green-600 font-medium">
-                      {stats.totalSubmissions > 0 ? Math.round((stats.completed / stats.totalSubmissions) * 100) : 0}% complete
-                    </span>
-                    <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-
-                <div 
-                  onClick={() => setActiveTab('reviewers')}
-                  className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">Active Reviewers</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-1">{stats.reviewersActive}</p>
-                    </div>
-                    <div className="p-2.5 bg-orange-100 rounded-lg text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-colors">
-                      <Users className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 mt-3 text-sm">
-                    <span className="text-orange-600 font-medium">Manage team</span>
-                    <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-
-                <div 
-                  onClick={() => setActiveTab('workflows')}
-                  className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">Workflows</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-1">{stats.workflowsConfigured}</p>
-                    </div>
-                    <div className="p-2.5 bg-indigo-100 rounded-lg text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                      <GitMerge className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 mt-3 text-sm">
-                    <span className="text-indigo-600 font-medium">Configure</span>
-                    <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <button 
-                    onClick={() => setActiveTab('review')}
-                    className="flex items-center gap-4 p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition-all text-left group"
-                  >
-                    <div className="p-3 bg-blue-100 rounded-lg text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                      <FileCheck className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">Start Reviewing</p>
-                      <p className="text-sm text-gray-500">{stats.pendingReview} applications waiting</p>
-                    </div>
-                  </button>
-
-                  <button 
-                    onClick={() => setActiveTab('reviewers')}
-                    className="flex items-center gap-4 p-4 border border-gray-200 rounded-xl hover:border-orange-300 hover:bg-orange-50 transition-all text-left group"
-                  >
-                    <div className="p-3 bg-orange-100 rounded-lg text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-colors">
-                      <Users className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">Invite Reviewers</p>
-                      <p className="text-sm text-gray-500">Add committee members</p>
-                    </div>
-                  </button>
-
-                  <button 
-                    onClick={() => setActiveTab('workflows')}
-                    className="flex items-center gap-4 p-4 border border-gray-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-all text-left group"
-                  >
-                    <div className="p-3 bg-indigo-100 rounded-lg text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                      <GitMerge className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">Configure Workflow</p>
-                      <p className="text-sm text-gray-500">Set up review stages & rubrics</p>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Getting Started Guide (if no workflows) */}
-              {stats.workflowsConfigured === 0 && (
-                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border border-indigo-100 p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 bg-white rounded-xl shadow-sm">
-                      <AlertCircle className="w-6 h-6 text-indigo-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900">Get Started with Workflows</h3>
-                      <p className="text-gray-600 mt-1 mb-4">
-                        Create a review workflow to define stages, assign reviewer types, and set up scoring rubrics for your scholarship applications.
-                      </p>
-                      <Button onClick={() => setActiveTab('workflows')}>
-                        <GitMerge className="w-4 h-4 mr-2" />
-                        Create First Workflow
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
         {activeTab === 'review' && (
           <ReviewWorkspace 
             workspaceId={workspaceId} 
             formId={formId} 
             showReviewersPanel={showReviewersPanel}
             onToggleReviewersPanel={() => setShowReviewersPanel(!showReviewersPanel)}
+            showCommunicationsPanel={showCommunicationsPanel}
+            onToggleCommunicationsPanel={() => setShowCommunicationsPanel(!showCommunicationsPanel)}
           />
         )}
-        {activeTab === 'communications' && <CommunicationsCenter workspaceId={workspaceId} formId={formId} />}
         {activeTab === 'workflows' && <WorkflowBuilder workspaceId={workspaceId} formId={formId} />}
+        {activeTab === 'analytics' && <ScholarshipDashboard workspaceId={workspaceId} formId={formId} />}
         {activeTab === 'settings' && (
           <div className="p-8 text-center text-gray-500">
             <Settings className="w-12 h-12 mx-auto mb-4 text-gray-400" />
