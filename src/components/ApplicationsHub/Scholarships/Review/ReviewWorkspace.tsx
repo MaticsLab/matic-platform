@@ -1031,33 +1031,161 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
     )
   }
 
+  // Active filters count for badge
+  const activeFiltersCount = [
+    filterStatus !== 'all',
+    filterReviewed !== 'all',
+    filterScoreMin !== null,
+    filterScoreMax !== null,
+    filterTags.length > 0
+  ].filter(Boolean).length
+
   return (
     <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
-      {/* Advanced Filters Panel - shown at top when active */}
-      {showFilters && (
-          <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                <Filter className="w-4 h-4" />
-                Advanced Filters
-              </h4>
+      {/* Compact Header Bar - Workflow + Stats + Actions */}
+      <div className="bg-white border-b border-gray-200">
+        {/* Top row - Workflow selector and actions */}
+        <div className="px-4 py-3 flex items-center justify-between gap-4">
+          {/* Workflow Selector - Compact */}
+          <div className="flex items-center gap-3">
+            <div className="relative">
               <button
-                onClick={() => setShowFilters(false)}
-                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                onClick={() => setShowWorkflowSelector(!showWorkflowSelector)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors"
               >
-                <X className="w-4 h-4" />
+                <Layers className="w-4 h-4 text-gray-500" />
+                <span className="font-medium text-gray-900 text-sm">{workflow?.name || 'Select Workflow'}</span>
+                <ChevronDown className={cn("w-3.5 h-3.5 text-gray-400 transition-transform", showWorkflowSelector && "rotate-180")} />
+              </button>
+              
+              {showWorkflowSelector && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowWorkflowSelector(false)} />
+                  <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 min-w-[200px] overflow-hidden">
+                    <div className="max-h-64 overflow-y-auto py-1">
+                      {workflows.map(wf => (
+                        <button
+                          key={wf.id}
+                          onClick={() => handleSwitchWorkflow(wf)}
+                          className={cn(
+                            "w-full text-left px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors",
+                            workflow?.id === wf.id && "bg-blue-50"
+                          )}
+                        >
+                          <span className="font-medium text-gray-900 text-sm">{wf.name}</span>
+                          <div className="flex items-center gap-2">
+                            {wf.is_active && (
+                              <span className="text-[10px] font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded">Active</span>
+                            )}
+                            {workflow?.id === wf.id && <Check className="w-4 h-4 text-blue-600" />}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            
+            {/* View Mode Toggle - Minimal */}
+            <div className="flex bg-gray-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode('queue')}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                  viewMode === 'queue' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                Queue
+              </button>
+              <button
+                onClick={() => setViewMode('analytics')}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                  viewMode === 'analytics' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                Analytics
               </button>
             </div>
-            <div className="flex flex-wrap items-end gap-4">
-              {/* Status Filter */}
-              <div className="w-40">
+          </div>
+          
+          {/* Right side - Stats summary + Actions */}
+          <div className="flex items-center gap-4">
+            {/* Inline Stats - Compact pills */}
+            <div className="hidden md:flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-amber-50 text-amber-700 rounded-md text-xs font-medium">
+                <Clock className="w-3 h-3" />
+                {stats.pending}
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-medium">
+                <Eye className="w-3 h-3" />
+                {stats.inReview}
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-green-50 text-green-700 rounded-md text-xs font-medium">
+                <CheckCircle className="w-3 h-3" />
+                {stats.approved}
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-red-50 text-red-700 rounded-md text-xs font-medium">
+                <X className="w-3 h-3" />
+                {stats.rejected}
+              </span>
+            </div>
+            
+            {/* Divider */}
+            <div className="h-6 w-px bg-gray-200 hidden md:block" />
+            
+            {/* Filter button with badge */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+                showFilters || activeFiltersCount > 0
+                  ? "bg-blue-50 text-blue-700 border border-blue-200"
+                  : "text-gray-600 hover:bg-gray-100 border border-transparent"
+              )}
+            >
+              <Filter className="w-4 h-4" />
+              Filters
+              {activeFiltersCount > 0 && (
+                <span className="ml-1 w-5 h-5 bg-blue-600 text-white rounded-full text-xs flex items-center justify-center">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+            
+            {/* Refresh */}
+            <button
+              onClick={loadData}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            
+            {/* Start Review - Primary CTA */}
+            {stageApps.length > 0 && (
+              <Button onClick={startReview} size="sm" className="bg-blue-600 hover:bg-blue-700">
+                <Play className="w-4 h-4 mr-1.5" />
+                Review
+              </Button>
+            )}
+          </div>
+        </div>
+        
+        {/* Filters Panel - Slide down when active */}
+        {showFilters && (
+          <div className="px-4 pb-3 pt-1 border-t border-gray-100 bg-gray-50/50">
+            <div className="flex flex-wrap items-end gap-3">
+              {/* Status */}
+              <div className="w-36">
                 <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                  className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-sm"
                 >
-                  <option value="all">All Statuses</option>
+                  <option value="all">All</option>
                   <option value="pending">Pending</option>
                   <option value="in_review">In Review</option>
                   <option value="approved">Approved</option>
@@ -1065,51 +1193,50 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
                 </select>
               </div>
 
-              {/* Review Status Filter */}
-              <div className="w-40">
-                <label className="block text-xs font-medium text-gray-500 mb-1">Review Status</label>
+              {/* Review Status */}
+              <div className="w-36">
+                <label className="block text-xs font-medium text-gray-500 mb-1">Reviewed</label>
                 <select
                   value={filterReviewed}
                   onChange={(e) => setFilterReviewed(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                  className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-sm"
                 >
                   <option value="all">All</option>
-                  <option value="reviewed">Reviewed</option>
-                  <option value="unreviewed">Unreviewed</option>
+                  <option value="reviewed">Yes</option>
+                  <option value="unreviewed">No</option>
                 </select>
               </div>
 
-              {/* Score Range Filter */}
-              <div className="flex items-end gap-2">
-                <div className="w-24">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Min Score</label>
+              {/* Score Range */}
+              <div className="flex items-end gap-1.5">
+                <div className="w-20">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Score</label>
                   <input
                     type="number"
                     value={filterScoreMin ?? ''}
                     onChange={(e) => setFilterScoreMin(e.target.value ? parseInt(e.target.value) : null)}
-                    placeholder="0"
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                    placeholder="Min"
+                    className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-sm"
                   />
                 </div>
                 <span className="text-gray-400 pb-2">–</span>
-                <div className="w-24">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Max Score</label>
+                <div className="w-20">
                   <input
                     type="number"
                     value={filterScoreMax ?? ''}
                     onChange={(e) => setFilterScoreMax(e.target.value ? parseInt(e.target.value) : null)}
-                    placeholder="100"
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                    placeholder="Max"
+                    className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-sm"
                   />
                 </div>
               </div>
 
-              {/* Tags Filter */}
+              {/* Tags */}
               {allTags.length > 0 && (
-                <div className="flex-1 min-w-48 max-w-md">
+                <div className="flex-1 min-w-[150px] max-w-xs">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Tags</label>
-                  <div className="flex flex-wrap gap-1 p-2 bg-white border border-gray-200 rounded-lg min-h-[38px]">
-                    {allTags.map(tag => (
+                  <div className="flex flex-wrap gap-1 p-1.5 bg-white border border-gray-200 rounded-lg min-h-[32px]">
+                    {allTags.slice(0, 5).map(tag => (
                       <button
                         key={tag}
                         onClick={() => {
@@ -1120,271 +1247,133 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
                           }
                         }}
                         className={cn(
-                          "px-2 py-0.5 text-xs rounded-full border transition-all",
+                          "px-2 py-0.5 text-xs rounded-full transition-all",
                           filterTags.includes(tag)
-                            ? "bg-blue-100 text-blue-700 border-blue-200"
-                            : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                         )}
                       >
                         {tag}
                       </button>
                     ))}
-                    {allTags.length === 0 && (
-                      <span className="text-xs text-gray-400">No tags available</span>
-                    )}
                   </div>
                 </div>
               )}
 
-              {/* Clear Filters */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setFilterStatus('all')
-                  setFilterReviewed('all')
-                  setFilterScoreMin(null)
-                  setFilterScoreMax(null)
-                  setFilterTags([])
-                }}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-4 h-4 mr-1" />
-                Clear Filters
-              </Button>
+              {/* Clear */}
+              {activeFiltersCount > 0 && (
+                <button
+                  onClick={() => {
+                    setFilterStatus('all')
+                    setFilterReviewed('all')
+                    setFilterScoreMin(null)
+                    setFilterScoreMax(null)
+                    setFilterTags([])
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-700 underline pb-2"
+                >
+                  Clear all
+                </button>
+              )}
             </div>
           </div>
         )}
+      </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Stages */}
-        <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-          {/* Workflow Selector */}
-          <div className="p-3 border-b border-gray-200">
-            <div className="relative">
-              <button
-                onClick={() => setShowWorkflowSelector(!showWorkflowSelector)}
-                className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <Layers className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span className="font-medium text-blue-900 text-sm truncate">{workflow?.name || 'Select Workflow'}</span>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px] px-1.5 py-0">
-                    {workflow?.is_active ? 'Active' : 'Draft'}
-                  </Badge>
-                  <ChevronDown className={cn("w-3.5 h-3.5 text-blue-600 transition-transform", showWorkflowSelector && "rotate-180")} />
-                </div>
-              </button>
-              
-              {showWorkflowSelector && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
-                  <div className="p-2 border-b border-gray-100 bg-gray-50">
-                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Workflows</p>
-                  </div>
-                  <div className="max-h-48 overflow-y-auto p-1">
-                    {workflows.map(wf => (
-                      <button
-                        key={wf.id}
-                        onClick={() => handleSwitchWorkflow(wf)}
-                        className={cn(
-                          "w-full text-left p-2 rounded-md flex items-center justify-between hover:bg-gray-50 transition-colors",
-                          workflow?.id === wf.id && "bg-blue-50"
-                        )}
-                      >
-                        <div className="min-w-0">
-                          <p className="font-medium text-gray-900 text-sm truncate">{wf.name}</p>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {wf.is_active && (
-                            <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px] px-1 py-0">Active</Badge>
-                          )}
-                          {workflow?.id === wf.id && (
-                            <CheckCircle className="w-3.5 h-3.5 text-blue-600" />
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* View Mode Tabs */}
-          <div className="p-3 border-b border-gray-200">
-            <div className="flex bg-gray-100 rounded-lg p-0.5">
-              {[
-                { id: 'queue' as const, icon: Inbox, label: 'Queue' },
-                { id: 'analytics' as const, icon: BarChart3, label: 'Analytics' }
-              ].map(mode => (
-                <button
-                  key={mode.id}
-                  onClick={() => setViewMode(mode.id)}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-all",
-                    viewMode === mode.id 
-                      ? "bg-white text-blue-600 shadow-sm" 
-                      : "text-gray-500 hover:text-gray-900"
-                  )}
-                >
-                  <mode.icon className="w-4 h-4" />
-                  {mode.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Stages Header with All option */}
-          <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Stages</h3>
+        {/* Slim Stage Sidebar */}
+        <div className="w-14 bg-white border-r border-gray-100 flex flex-col items-center py-3 gap-1">
+          {/* All stages */}
+          <button
+            onClick={() => {
+              setSelectedStageId('all')
+              setSelectedAppIndex(0)
+              setShowOnlyUnassigned(false)
+            }}
+            className={cn(
+              "w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all group relative",
+              selectedStageId === 'all' && !showOnlyUnassigned
+                ? "bg-blue-600 text-white shadow-md"
+                : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            )}
+            title="All Applications"
+          >
+            <Inbox className="w-5 h-5" />
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-gray-900 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              {stats.total}
+            </span>
+          </button>
+          
+          {/* Unassigned */}
+          {stats.unassigned > 0 && (
             <button
               onClick={() => {
+                setShowOnlyUnassigned(!showOnlyUnassigned)
                 setSelectedStageId('all')
                 setSelectedAppIndex(0)
-                setShowOnlyUnassigned(false)
               }}
               className={cn(
-                "text-xs font-medium px-2 py-1 rounded-md transition-colors",
-                selectedStageId === 'all' && !showOnlyUnassigned
-                  ? "bg-blue-100 text-blue-700" 
-                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                "w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all relative",
+                showOnlyUnassigned
+                  ? "bg-amber-500 text-white shadow-md"
+                  : "text-amber-500 hover:bg-amber-50"
               )}
+              title="Unassigned Applications"
             >
-              All Applications ({stats.total})
+              <AlertCircle className="w-5 h-5" />
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                {stats.unassigned}
+              </span>
             </button>
-          </div>
+          )}
           
-          <div className="flex-1 overflow-y-auto px-2 pb-2">
-            {/* Unassigned Applications */}
-            {stats.unassigned > 0 && (
-              <div className={cn(
-                "px-3 py-2 mb-2 rounded-lg border transition-all",
-                showOnlyUnassigned 
-                  ? "bg-amber-100 border-amber-300" 
-                  : "bg-amber-50 border-amber-200 hover:bg-amber-100 cursor-pointer"
-              )}>
-                <button
-                  onClick={() => {
-                    setShowOnlyUnassigned(!showOnlyUnassigned)
-                    setSelectedStageId('all')
-                    setSelectedAppIndex(0)
-                  }}
-                  className="w-full flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-600" />
-                    <span className="text-sm font-medium text-amber-800">
-                      {showOnlyUnassigned ? 'Showing Unassigned' : 'Unassigned'}
-                    </span>
-                  </div>
-                  <Badge className="bg-amber-100 text-amber-700 border-amber-200">
-                    {stats.unassigned}
-                  </Badge>
-                </button>
-                {showOnlyUnassigned && workflow && stages.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-amber-200">
-                    <button
-                      onClick={handleAssignAllUnassigned}
-                      disabled={isAssigningUnassigned}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded-lg disabled:opacity-50"
-                    >
-                      {isAssigningUnassigned ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <Zap className="w-3 h-3" />
-                      )}
-                      Assign All to {stages[0]?.name || 'First Stage'}
-                    </button>
-                  </div>
+          <div className="w-6 h-px bg-gray-200 my-2" />
+          
+          {/* Stage indicators */}
+          {stages.map((stage, idx) => {
+            const count = applications.filter(a => a.stageId === stage.id).length
+            const isActive = stage.id === selectedStageId && !showOnlyUnassigned
+            
+            return (
+              <button
+                key={stage.id}
+                onClick={() => {
+                  setSelectedStageId(stage.id)
+                  setSelectedAppIndex(0)
+                  setShowOnlyUnassigned(false)
+                }}
+                className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold transition-all relative group",
+                  isActive
+                    ? "bg-blue-600 text-white shadow-md"
+                    : count > 0
+                    ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    : "bg-gray-50 text-gray-300"
                 )}
-              </div>
-            )}
-
-            {/* Stage List */}
-            {stages.map((stage, idx) => {
-              const count = applications.filter(a => a.stageId === stage.id).length
-              const isActive = stage.id === selectedStageId && !showOnlyUnassigned
-              
-              return (
-                <button
-                  key={stage.id}
-                  onClick={() => {
-                    setSelectedStageId(stage.id)
-                    setSelectedAppIndex(0)
-                    setShowOnlyUnassigned(false)
-                  }}
-                  className={cn(
-                    "w-full text-left px-3 py-3 rounded-lg mb-1 transition-all group",
-                    isActive 
-                      ? "bg-blue-50 border border-blue-200" 
-                      : "hover:bg-gray-50"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold",
-                      isActive ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500"
-                    )}>
-                      {idx + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        "font-medium truncate",
-                        isActive ? "text-gray-900" : "text-gray-700"
-                      )}>{stage.name}</p>
-                      <p className="text-xs text-gray-400">{stage.stage_type}</p>
-                    </div>
-                    <Badge className={cn(
-                      "ml-auto",
-                      count > 0 
-                        ? "bg-blue-100 text-blue-700 border-blue-200" 
-                        : "bg-gray-100 text-gray-400"
-                    )}>
-                      {count}
-                    </Badge>
-                  </div>
-                  
-                  {stage.rubric && (
-                    <div className="mt-2 ml-11 flex items-center gap-1 text-xs text-gray-400">
-                      <Award className="w-3 h-3" />
-                      {stage.rubric.name}
-                    </div>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Quick Stats */}
-          <div className="p-4 border-t border-gray-200 space-y-3">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Overview</h3>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-gray-50 rounded-lg p-2 text-center">
-                <p className="text-lg font-bold text-amber-600">{stats.pending}</p>
-                <p className="text-xs text-gray-500">Pending</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-2 text-center">
-                <p className="text-lg font-bold text-blue-600">{stats.inReview}</p>
-                <p className="text-xs text-gray-500">In Review</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-2 text-center">
-                <p className="text-lg font-bold text-green-600">{stats.approved}</p>
-                <p className="text-xs text-gray-500">Approved</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-2 text-center">
-                <p className="text-lg font-bold text-red-600">{stats.rejected}</p>
-                <p className="text-xs text-gray-500">Rejected</p>
-              </div>
-            </div>
-          </div>
+                title={stage.name}
+              >
+                {idx + 1}
+                {count > 0 && (
+                  <span className={cn(
+                    "absolute -top-1 -right-1 w-5 h-5 text-[10px] font-bold rounded-full flex items-center justify-center",
+                    isActive ? "bg-white text-blue-600" : "bg-blue-100 text-blue-700"
+                  )}>
+                    {count}
+                  </span>
+                )}
+                {/* Tooltip */}
+                <span className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                  {stage.name}
+                </span>
+              </button>
+            )
+          })}
         </div>
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {viewMode === 'queue' && (
-            <QueueView
+            <AccordionQueueView
               apps={stageApps}
               selectedIndex={selectedAppIndex}
               onSelect={(idx) => setSelectedAppIndex(idx)}
@@ -1392,16 +1381,13 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
               currentApp={currentApp}
               stage={currentStage || undefined}
               rubric={currentRubric}
-              showFilters={showFilters}
-              onToggleFilters={() => setShowFilters(!showFilters)}
-              onRefresh={loadData}
-              hasActiveFilters={filterStatus !== 'all' || filterTags.length > 0 || filterScoreMin !== null || filterScoreMax !== null || filterReviewed !== 'all'}
               form={form}
               titleFieldName={titleFieldName}
               hidePII={hidePII}
               hiddenPIIFields={hiddenPIIFields}
               stages={stages}
               onMoveToStage={handleMoveToStage}
+              onDecision={handleDecision}
             />
           )}
           
@@ -1409,12 +1395,12 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
             <div className="flex-1 flex items-center justify-center bg-gray-50">
               {stageApps.length > 0 ? (
                 <div className="text-center">
-                  <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                    <Target className="w-10 h-10 text-blue-600" />
+                  <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Target className="w-8 h-8 text-blue-600" />
                   </div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">Focus Mode</h2>
-                  <p className="text-gray-500 mb-6 max-w-sm">
-                    Review applications one by one without distractions. Timer tracks your review time.
+                  <h2 className="text-lg font-bold text-gray-900 mb-2">Focus Mode</h2>
+                  <p className="text-gray-500 mb-4 max-w-xs text-sm">
+                    Review applications one by one with timer tracking.
                   </p>
                   <Button onClick={startReview} className="bg-blue-600 hover:bg-blue-700">
                     <Play className="w-4 h-4 mr-2" />
@@ -1476,6 +1462,353 @@ export function ReviewWorkspace({ workspaceId, formId, showReviewersPanel: exter
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// New Accordion Queue View - Clean single-column with expandable rows
+function AccordionQueueView({
+  apps,
+  selectedIndex,
+  onSelect,
+  onStartReview,
+  currentApp,
+  stage,
+  rubric,
+  form,
+  titleFieldName,
+  hidePII,
+  hiddenPIIFields,
+  stages,
+  onMoveToStage,
+  onDecision
+}: {
+  apps: ApplicationData[]
+  selectedIndex: number
+  onSelect: (idx: number) => void
+  onStartReview: () => void
+  currentApp: ApplicationData | null
+  stage?: StageWithConfig
+  rubric: Rubric | null
+  form?: Form | null
+  titleFieldName?: string | null
+  hidePII?: boolean
+  hiddenPIIFields?: string[]
+  stages?: StageWithConfig[]
+  onMoveToStage?: (appId: string, stageId: string) => void
+  onDecision?: (decision: string) => void
+}) {
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'data' | 'reviews'>('data')
+  const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'highest' | 'lowest'>('recent')
+
+  const sortedApps = useMemo(() => {
+    const sorted = [...apps]
+    switch (sortBy) {
+      case 'recent':
+        return sorted.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+      case 'oldest':
+        return sorted.sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
+      case 'highest':
+        return sorted.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+      case 'lowest':
+        return sorted.sort((a, b) => (a.score ?? 0) - (b.score ?? 0))
+      default:
+        return sorted
+    }
+  }, [apps, sortBy])
+
+  const toggleExpand = (appId: string, idx: number) => {
+    if (expandedId === appId) {
+      setExpandedId(null)
+    } else {
+      setExpandedId(appId)
+      onSelect(idx)
+    }
+  }
+
+  if (apps.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Inbox className="w-8 h-8 text-gray-400" />
+          </div>
+          <p className="text-gray-600 font-medium">No applications found</p>
+          <p className="text-sm text-gray-400 mt-1">Try adjusting your filters</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Sort bar */}
+      <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center justify-between">
+        <span className="text-sm text-gray-500">{apps.length} application{apps.length !== 1 ? 's' : ''}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">Sort:</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="text-sm text-gray-700 bg-transparent border-none focus:ring-0 cursor-pointer pr-6"
+          >
+            <option value="recent">Most Recent</option>
+            <option value="oldest">Oldest First</option>
+            <option value="highest">Highest Score</option>
+            <option value="lowest">Lowest Score</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Application list with accordion */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="divide-y divide-gray-100">
+          {sortedApps.map((app, idx) => {
+            const originalIdx = apps.findIndex(a => a.id === app.id)
+            const isExpanded = expandedId === app.id
+            const displayName = getApplicationDisplayName(app, titleFieldName || null, hidePII || false)
+            const displayEmail = hidePII ? '••••••@••••••' : app.email
+            
+            return (
+              <div key={app.id} className={cn("bg-white", isExpanded && "bg-gray-50")}>
+                {/* Row header - always visible */}
+                <button
+                  onClick={() => toggleExpand(app.id, originalIdx)}
+                  className={cn(
+                    "w-full px-4 py-3 flex items-center gap-4 hover:bg-gray-50 transition-colors",
+                    isExpanded && "bg-blue-50/50"
+                  )}
+                >
+                  {/* Status indicator */}
+                  <div className={cn(
+                    "w-2 h-2 rounded-full shrink-0",
+                    app.status === 'approved' && "bg-green-500",
+                    app.status === 'rejected' && "bg-red-500",
+                    app.status === 'in_review' && "bg-blue-500",
+                    app.status === 'pending' && "bg-amber-500"
+                  )} />
+                  
+                  {/* Avatar */}
+                  <div className={cn(
+                    "w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold shrink-0",
+                    app.status === 'approved' ? "bg-green-100 text-green-700" :
+                    app.status === 'rejected' ? "bg-red-100 text-red-700" :
+                    app.status === 'in_review' ? "bg-blue-100 text-blue-700" :
+                    "bg-gray-100 text-gray-600"
+                  )}>
+                    {hidePII ? '#' : displayName.charAt(0).toUpperCase()}
+                  </div>
+                  
+                  {/* Name & email */}
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="font-medium text-gray-900 truncate">{displayName}</p>
+                    <p className="text-xs text-gray-500 truncate">{displayEmail}</p>
+                  </div>
+                  
+                  {/* Score */}
+                  {app.score !== null && (
+                    <div className="flex items-center gap-1.5 text-sm shrink-0">
+                      <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                      <span className="font-semibold text-gray-900">{app.score}</span>
+                      <span className="text-gray-400">/ {app.maxScore}</span>
+                    </div>
+                  )}
+                  
+                  {/* Reviews */}
+                  <div className="flex items-center gap-1 text-xs text-gray-500 shrink-0">
+                    <Users className="w-3.5 h-3.5" />
+                    <span>{app.reviewCount}/{app.requiredReviews}</span>
+                  </div>
+                  
+                  {/* Stage badge */}
+                  <Badge className="bg-purple-50 text-purple-700 border-purple-100 text-xs shrink-0">
+                    {app.stageName}
+                  </Badge>
+                  
+                  {/* Expand icon */}
+                  <ChevronDown className={cn(
+                    "w-4 h-4 text-gray-400 transition-transform shrink-0",
+                    isExpanded && "rotate-180"
+                  )} />
+                </button>
+                
+                {/* Expanded content */}
+                {isExpanded && (
+                  <div className="px-4 pb-4 border-t border-gray-100">
+                    {/* Action bar */}
+                    <div className="py-3 flex items-center justify-between border-b border-gray-100">
+                      {/* Tabs */}
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => setActiveTab('data')}
+                          className={cn(
+                            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                            activeTab === 'data' ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
+                          )}
+                        >
+                          Application
+                        </button>
+                        <button
+                          onClick={() => setActiveTab('reviews')}
+                          className={cn(
+                            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5",
+                            activeTab === 'reviews' ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
+                          )}
+                        >
+                          Reviews
+                          {app.reviewHistory.length > 0 && (
+                            <span className={cn(
+                              "w-5 h-5 rounded-full text-xs flex items-center justify-center",
+                              activeTab === 'reviews' ? "bg-white/20" : "bg-gray-200"
+                            )}>
+                              {app.reviewHistory.length}
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                      
+                      {/* Quick actions */}
+                      <div className="flex items-center gap-2">
+                        {stages && stages.length > 1 && onMoveToStage && (
+                          <select
+                            value={app.stageId}
+                            onChange={(e) => onMoveToStage(app.id, e.target.value)}
+                            className="text-xs px-2 py-1 border border-gray-200 rounded-md bg-white"
+                          >
+                            {stages.map(s => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={onStartReview}
+                          className="text-xs h-7"
+                        >
+                          <Play className="w-3 h-3 mr-1" />
+                          Review
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {/* Tab content */}
+                    <div className="pt-4 max-h-[400px] overflow-y-auto">
+                      {activeTab === 'data' ? (
+                        <div className="space-y-3">
+                          {form?.fields && form.fields.length > 0 ? (
+                            (() => {
+                              const { sections, ungroupedFields } = groupFieldsBySections(form.fields, form.settings)
+                              const allFields = [...ungroupedFields, ...sections.flatMap(s => s.fields)]
+                              
+                              return allFields.slice(0, 8).map(field => {
+                                const value = app.raw_data[field.name] || app.raw_data[field.label]
+                                if (value === undefined || value === null || value === '') return null
+                                
+                                return (
+                                  <div key={field.id} className="flex gap-3">
+                                    <span className="text-xs font-medium text-gray-500 w-28 shrink-0 pt-0.5">
+                                      {(field.label || field.name).replace(/_/g, ' ')}
+                                    </span>
+                                    <span className="text-sm text-gray-900 flex-1 min-w-0">
+                                      {typeof value === 'string' ? value : JSON.stringify(value)}
+                                    </span>
+                                  </div>
+                                )
+                              })
+                            })()
+                          ) : (
+                            Object.entries(app.raw_data).slice(0, 8).map(([key, value]) => {
+                              if (key.startsWith('_') || key === 'id' || !value) return null
+                              return (
+                                <div key={key} className="flex gap-3">
+                                  <span className="text-xs font-medium text-gray-500 w-28 shrink-0 pt-0.5">
+                                    {key.replace(/_/g, ' ')}
+                                  </span>
+                                  <span className="text-sm text-gray-900 flex-1 min-w-0">
+                                    {typeof value === 'string' ? value : JSON.stringify(value)}
+                                  </span>
+                                </div>
+                              )
+                            })
+                          )}
+                          <button className="text-xs text-blue-600 hover:text-blue-700 font-medium mt-2">
+                            View full application →
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {app.reviewHistory.length > 0 ? (
+                            app.reviewHistory.map((review, idx) => {
+                              const total = review.total_score || Object.values(review.scores || {}).reduce((a, b) => a + (Number(b) || 0), 0)
+                              return (
+                                <div key={idx} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-100">
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                                    {(review.reviewer_name || 'R')[0].toUpperCase()}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between">
+                                      <p className="font-medium text-gray-900 text-sm">{review.reviewer_name || `Reviewer ${idx + 1}`}</p>
+                                      <span className="text-sm font-bold text-gray-900">{total} pts</span>
+                                    </div>
+                                    <p className="text-xs text-gray-500">
+                                      {review.reviewed_at ? new Date(review.reviewed_at).toLocaleDateString() : 'No date'}
+                                    </p>
+                                    {(review.notes || review.comments) && (
+                                      <p className="mt-2 text-sm text-gray-600 line-clamp-2">
+                                        {review.notes || review.comments}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })
+                          ) : (
+                            <div className="text-center py-6 text-gray-500">
+                              <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                              <p className="text-sm">No reviews yet</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Decision footer */}
+                    <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <Clock className="w-3.5 h-3.5" />
+                        Submitted {new Date(app.submittedAt).toLocaleDateString()}
+                      </div>
+                      {onDecision && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onDecision('rejected')}
+                            className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs"
+                          >
+                            <ThumbsDown className="w-3.5 h-3.5 mr-1" />
+                            Reject
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => onDecision('approved')}
+                            className="bg-green-600 hover:bg-green-700 h-8 text-xs"
+                          >
+                            <ThumbsUp className="w-3.5 h-3.5 mr-1" />
+                            Approve
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }
