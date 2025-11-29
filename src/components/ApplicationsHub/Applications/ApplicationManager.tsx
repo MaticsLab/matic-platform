@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink, BarChart3, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search, Plus, Eye, MessageSquare, Workflow, UserPlus } from 'lucide-react'
+import { FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink, BarChart3, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search, Plus, Eye, MessageSquare, Workflow, UserPlus, X } from 'lucide-react'
 import { ReviewWorkspace } from './Review/ReviewWorkspace'
 import { CommunicationsCenter } from './Communications/CommunicationsCenter'
 import { ReviewerManagement } from './Reviewers/ReviewerManagement'
@@ -395,6 +395,44 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
             goClient.get<Form>(`/forms/${formId}`).then(setForm)
           }}
         />
+      )}
+
+      {/* Reviewers Slide-over Panel - Available on all tabs */}
+      {showReviewersPanel && activeTab !== 'review' && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/30 transition-opacity" 
+            onClick={() => setShowReviewersPanel(false)} 
+          />
+          
+          {/* Panel */}
+          <div className="absolute right-2 top-2 bottom-2 w-full max-w-2xl bg-white border border-gray-200 rounded-xl shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Users className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Team & Reviewers</h2>
+                  <p className="text-sm text-gray-500">Manage review team for this workflow</p>
+                </div>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowReviewersPanel(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto">
+              <ReviewerManagement formId={formId} workspaceId={workspaceId} />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
