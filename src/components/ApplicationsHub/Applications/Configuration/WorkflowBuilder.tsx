@@ -58,7 +58,7 @@ interface WorkflowBuilderProps {
   formId?: string | null
 }
 
-type ActivePanel = 'none' | 'workflow' | 'stage' | 'reviewer' | 'rubric' | 'stage-config' | 'stage-settings' | 'group' | 'workflow-action'
+type ActivePanel = 'none' | 'workflow' | 'stage' | 'reviewer' | 'rubric' | 'stage-config' | 'stage-settings' | 'group' | 'workflow-action' | 'stage-action'
 
 interface PanelState {
   type: ActivePanel
