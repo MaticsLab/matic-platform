@@ -45,8 +45,6 @@ interface MapboxSuggestion {
   }
 }
 
-const MAPBOX_TOKEN = process.env.MAPBOX_API_TOKEN
-
 export function AddressField({ 
   value, 
   onChange, 
@@ -98,22 +96,16 @@ export function AddressField({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [parsedValue])
 
-  // Fetch suggestions from Mapbox
+  // Fetch suggestions from our API route (proxies to Mapbox)
   const fetchSuggestions = useCallback(async (query: string) => {
-    if (!query.trim() || query.length < 3 || !MAPBOX_TOKEN) {
+    if (!query.trim() || query.length < 3) {
       setSuggestions([])
       return
     }
 
     setIsLoading(true)
     try {
-      const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?` +
-        `access_token=${MAPBOX_TOKEN}&` +
-        `autocomplete=true&` +
-        `types=address,place,locality,neighborhood,postcode&` +
-        `limit=5`
-      )
+      const response = await fetch(`/api/mapbox/geocode?q=${encodeURIComponent(query)}`)
       
       if (!response.ok) throw new Error('Failed to fetch suggestions')
       
