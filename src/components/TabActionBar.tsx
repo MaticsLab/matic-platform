@@ -228,8 +228,8 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
         
         {/* Title info after arrows */}
         {tabHeaderContent && (
-          <div className="pl-2 border-l border-gray-200 flex items-center gap-2">
-            <span className="text-sm font-semibold text-gray-900">{tabHeaderContent.title}</span>
+          <div className="pl-2 border-l border-gray-200 flex items-center gap-2 max-w-[200px]">
+            <span className="text-sm font-semibold text-gray-900 truncate">{tabHeaderContent.title}</span>
           </div>
         )}
       </div>
