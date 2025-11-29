@@ -10,6 +10,7 @@ import (
 	"github.com/Jsanchez767/matic-platform/models"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 // VersionService handles row version history and change tracking
@@ -129,6 +130,89 @@ func (s *VersionService) CreateVersion(input CreateVersionInput) (*CreateVersion
 		fieldChange.ContainsPII = s.checkIfPIIField(fc.FieldName, input.TableID)
 
 		database.DB.Create(&fieldChange)
+	}
+
+	return &CreateVersionResult{
+		VersionID:     version.ID,
+		VersionNumber: newVersionNumber,
+		FieldChanges:  fieldChanges,
+	}, nil
+}
+
+// CreateVersionTx creates a new version within an existing transaction
+// Use this when you need row creation and version creation in the same transaction
+func (s *VersionService) CreateVersionTx(tx *gorm.DB, input CreateVersionInput) (*CreateVersionResult, error) {
+	// Get current version number
+	var currentVersion int
+	tx.Raw("SELECT COALESCE(MAX(version_number), 0) FROM row_versions WHERE row_id = ?", input.RowID).Scan(&currentVersion)
+	newVersionNumber := currentVersion + 1
+
+	// Get previous data for diff calculation (if not create)
+	var previousData map[string]interface{}
+	if input.ChangeType != models.ChangeTypeCreate {
+		var prevVersion models.RowVersion
+		if err := tx.Where("row_id = ? AND version_number = ?", input.RowID, currentVersion).First(&prevVersion).Error; err == nil {
+			json.Unmarshal(prevVersion.Data, &previousData)
+		}
+	}
+
+	// Calculate field changes
+	fieldChanges := s.calculateFieldChanges(previousData, input.Data, input.TableID)
+
+	// Generate change summary
+	changeSummary := s.generateChangeSummary(fieldChanges, input.ChangeReason)
+
+	// Convert data to JSON
+	dataJSON, _ := json.Marshal(input.Data)
+	metadataJSON, _ := json.Marshal(input.Metadata)
+
+	// Create the version
+	version := models.RowVersion{
+		ID:               uuid.New(),
+		RowID:            input.RowID,
+		TableID:          input.TableID,
+		VersionNumber:    newVersionNumber,
+		Data:             datatypes.JSON(dataJSON),
+		Metadata:         datatypes.JSON(metadataJSON),
+		ChangeType:       input.ChangeType,
+		ChangeReason:     input.ChangeReason,
+		ChangeSummary:    changeSummary,
+		BatchOperationID: input.BatchOperationID,
+		ChangedBy:        input.ChangedBy,
+		AIAssisted:       input.AIAssisted,
+		AIConfidence:     input.AIConfidence,
+		AISuggestionID:   input.AISuggestionID,
+	}
+
+	if err := tx.Create(&version).Error; err != nil {
+		return nil, fmt.Errorf("failed to create version: %w", err)
+	}
+
+	// Create field change records
+	for _, fc := range fieldChanges {
+		oldValueJSON, _ := json.Marshal(fc.OldValue)
+		newValueJSON, _ := json.Marshal(fc.NewValue)
+
+		fieldChange := models.FieldChange{
+			ID:              uuid.New(),
+			RowVersionID:    version.ID,
+			RowID:           input.RowID,
+			FieldName:       fc.FieldName,
+			FieldType:       fc.FieldType,
+			FieldLabel:      fc.FieldLabel,
+			OldValue:        datatypes.JSON(oldValueJSON),
+			NewValue:        datatypes.JSON(newValueJSON),
+			ChangeAction:    fc.ChangeAction,
+			NestedPath:      fc.NestedPath,
+			SimilarityScore: fc.SimilarityScore,
+		}
+
+		// Check if field contains PII (uses main DB since registry is read-only)
+		fieldChange.ContainsPII = s.checkIfPIIField(fc.FieldName, input.TableID)
+
+		if err := tx.Create(&fieldChange).Error; err != nil {
+			return nil, fmt.Errorf("failed to create field change: %w", err)
+		}
 	}
 
 	return &CreateVersionResult{

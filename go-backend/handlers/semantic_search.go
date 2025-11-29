@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -28,9 +29,11 @@ type SemanticSearchRequest struct {
 		EntityType string `json:"entity_type,omitempty"`
 		TableID    string `json:"table_id,omitempty"`
 	} `json:"filters,omitempty"`
-	Limit        int  `json:"limit,omitempty"`
-	UseSemantics bool `json:"use_semantics,omitempty"` // Enable semantic search (default true)
-	UseFuzzy     bool `json:"use_fuzzy,omitempty"`     // Enable fuzzy search (default true)
+	Limit        int                `json:"limit,omitempty"`
+	UseSemantics bool               `json:"use_semantics,omitempty"` // Enable semantic search (default true)
+	UseFuzzy     bool               `json:"use_fuzzy,omitempty"`     // Enable fuzzy search (default true)
+	FieldWeights map[string]float64 `json:"field_weights,omitempty"` // Override field search weights
+	ExcludePII   bool               `json:"exclude_pii,omitempty"`   // Don't search PII fields
 }
 
 // SemanticSearchResponse represents the search response
@@ -61,6 +64,7 @@ type SemanticResult struct {
 }
 
 // HybridSearch performs combined keyword + semantic search
+// Supports field_weights for custom ranking and exclude_pii to skip PII fields
 func HybridSearch(c *gin.Context) {
 	workspaceID := c.Query("workspace_id")
 	if workspaceID == "" {
@@ -88,6 +92,8 @@ func HybridSearch(c *gin.Context) {
 		if limit, err := strconv.Atoi(c.Query("limit")); err == nil {
 			req.Limit = limit
 		}
+		// Parse exclude_pii from query params
+		req.ExcludePII = c.Query("exclude_pii") == "true"
 	}
 
 	if req.Limit == 0 {
@@ -107,11 +113,24 @@ func HybridSearch(c *gin.Context) {
 		}
 	}
 
-	// Build filters JSON
-	filtersJSON := "{}"
+	// Build filters JSON including exclude_pii and field_weights
+	filtersMap := make(map[string]interface{})
 	if req.Filters.HubType != "" {
-		filtersJSON = `{"hub_type": "` + req.Filters.HubType + `"}`
+		filtersMap["hub_type"] = req.Filters.HubType
 	}
+	if req.Filters.EntityType != "" {
+		filtersMap["entity_type"] = req.Filters.EntityType
+	}
+	if req.Filters.TableID != "" {
+		filtersMap["table_id"] = req.Filters.TableID
+	}
+	if req.ExcludePII {
+		filtersMap["exclude_pii"] = true
+	}
+	if len(req.FieldWeights) > 0 {
+		filtersMap["field_weights"] = req.FieldWeights
+	}
+	filtersJSON, _ := json.Marshal(filtersMap)
 
 	var results []SemanticResult
 
@@ -119,7 +138,7 @@ func HybridSearch(c *gin.Context) {
 		// Use hybrid search with embeddings
 		rows, err := database.DB.Raw(`
 			SELECT * FROM hybrid_search($1, $2, $3::vector, $4::jsonb, $5, 0.4, 0.6)
-		`, workspaceUUID, req.Query, pgVectorString(queryEmbedding), filtersJSON, req.Limit).Rows()
+		`, workspaceUUID, req.Query, pgVectorString(queryEmbedding), string(filtersJSON), req.Limit).Rows()
 
 		if err == nil {
 			defer rows.Close()
@@ -142,7 +161,7 @@ func HybridSearch(c *gin.Context) {
 		// Fallback to smart_search (keyword + fuzzy)
 		rows, err := database.DB.Raw(`
 			SELECT * FROM smart_search($1, $2, $3::jsonb, $4)
-		`, workspaceUUID, req.Query, filtersJSON, req.Limit).Rows()
+		`, workspaceUUID, req.Query, string(filtersJSON), req.Limit).Rows()
 
 		if err == nil {
 			defer rows.Close()
@@ -288,6 +307,76 @@ func QueueForEmbedding(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Queued for embedding"})
+}
+
+// RebuildSearchIndex triggers a full or workspace-specific search index rebuild
+func RebuildSearchIndex(c *gin.Context) {
+	workspaceID := c.Query("workspace_id")
+
+	var result struct {
+		Count int `json:"count"`
+	}
+
+	var err error
+	if workspaceID != "" {
+		workspaceUUID, parseErr := uuid.Parse(workspaceID)
+		if parseErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace_id"})
+			return
+		}
+		err = database.DB.Raw(`SELECT rebuild_search_index($1) as count`, workspaceUUID).Scan(&result.Count).Error
+	} else {
+		err = database.DB.Raw(`SELECT rebuild_search_index(NULL) as count`).Scan(&result.Count).Error
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "Search index rebuilt",
+		"indexed_count": result.Count,
+		"workspace_id":  workspaceID,
+	})
+}
+
+// GetTableSchemaForAI returns table schema in AI-friendly format
+func GetTableSchemaForAI(c *gin.Context) {
+	tableID := c.Param("id")
+
+	tableUUID, err := uuid.Parse(tableID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid table ID"})
+		return
+	}
+
+	var schema json.RawMessage
+	if err := database.DB.Raw(`SELECT get_table_schema_for_ai($1)`, tableUUID).Scan(&schema).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Data(http.StatusOK, "application/json", schema)
+}
+
+// GetWorkspaceSummaryForAI returns workspace summary in AI-friendly format
+func GetWorkspaceSummaryForAI(c *gin.Context) {
+	workspaceID := c.Param("id")
+
+	workspaceUUID, err := uuid.Parse(workspaceID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace ID"})
+		return
+	}
+
+	var summary json.RawMessage
+	if err := database.DB.Raw(`SELECT get_workspace_summary_for_ai($1)`, workspaceUUID).Scan(&summary).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Data(http.StatusOK, "application/json", summary)
 }
 
 // pgVectorString converts float32 slice to PostgreSQL vector string

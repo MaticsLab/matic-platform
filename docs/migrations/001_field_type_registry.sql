@@ -20,6 +20,7 @@ CREATE TABLE field_type_registry (
   is_sortable BOOLEAN DEFAULT true,     -- Can sort by this field
   is_filterable BOOLEAN DEFAULT true,   -- Can filter by this field
   is_editable BOOLEAN DEFAULT true,     -- Can be edited after creation
+  supports_pii BOOLEAN DEFAULT false,   -- Can contain PII data
   
   -- Rendering hints
   table_renderer TEXT,  -- Component for table cells
@@ -37,7 +38,7 @@ CREATE TABLE field_type_registry (
   --   "summarization_weight": 1.5
   -- }
   
-  default_semantic_type TEXT REFERENCES semantic_field_types(id),
+  default_semantic_type TEXT,
   
   -- Edit tracking settings
   track_changes BOOLEAN DEFAULT true,  -- Should edits be tracked?
@@ -130,3 +131,6 @@ INSERT INTO field_type_registry (id, category, label, is_container, storage_sche
   '{"type": "number", "minimum": 0, "maximum": 5}',
   '{"embedding_strategy": "with_label", "privacy_level": "public"}'
 );
+
+-- Indexes
+CREATE INDEX idx_field_type_registry_category ON field_type_registry(category);

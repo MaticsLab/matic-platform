@@ -250,7 +250,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 				// Row history & versions
 				tables.GET("/:id/rows/:row_id/history", handlers.GetRowHistory)
+				tables.GET("/:id/rows/:row_id/history/:version", handlers.GetRowVersion)
 				tables.GET("/:id/rows/:row_id/versions/:version", handlers.GetRowVersion)
+				tables.GET("/:id/rows/:row_id/diff/:v1/:v2", handlers.CompareVersions)
 				tables.GET("/:id/rows/:row_id/compare-versions/:v1/:v2", handlers.CompareVersions)
 				tables.POST("/:id/rows/:row_id/restore/:version", handlers.RestoreVersion)
 
@@ -267,7 +269,14 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				tables.GET("/:id/approvals/:approval_id", handlers.GetApproval)
 				tables.POST("/:id/approvals/:approval_id/review", handlers.ReviewApproval)
 
-				// AI Suggestions for table data
+				// AI endpoints for tables
+				tables.GET("/:id/schema/ai", handlers.GetTableAISchema)
+				tables.GET("/:id/ai/suggestions", handlers.GetTableSuggestions)
+				tables.POST("/:id/ai/analyze", handlers.AnalyzeTableForSuggestions)
+				tables.POST("/:id/ai/rows/:row_id/analyze", handlers.AnalyzeRowForSuggestions)
+				tables.POST("/:id/ai/suggestions/:suggestion_id/apply", handlers.ApplySuggestion)
+				tables.POST("/:id/ai/suggestions/:suggestion_id/dismiss", handlers.DismissSuggestion)
+				// Legacy routes (deprecated - use /ai/ prefix)
 				tables.GET("/:id/suggestions", handlers.GetTableSuggestions)
 				tables.POST("/:id/suggestions/:suggestion_id/apply", handlers.ApplySuggestion)
 				tables.POST("/:id/suggestions/:suggestion_id/dismiss", handlers.DismissSuggestion)
@@ -354,6 +363,13 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				search.GET("/embeddings/stats", handlers.GetEmbeddingStats)
 				search.POST("/embeddings/queue", handlers.QueueForEmbedding)
 
+				// Search index management
+				search.POST("/rebuild-index", handlers.RebuildSearchIndex)
+
+				// AI context for prompts
+				search.GET("/ai/table/:id", handlers.GetTableSchemaForAI)
+				search.GET("/ai/workspace/:id", handlers.GetWorkspaceSummaryForAI)
+
 				// Legacy universal workspace search
 				search.GET("", handlers.SearchWorkspace)
 
@@ -412,6 +428,17 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				stageConfigs.POST("", handlers.CreateStageReviewerConfig)
 				stageConfigs.PATCH("/:id", handlers.UpdateStageReviewerConfig)
 				stageConfigs.DELETE("/:id", handlers.DeleteStageReviewerConfig)
+			}
+
+			// Change Requests (Approval Workflow)
+			changeRequests := protected.Group("/change-requests")
+			{
+				changeRequests.GET("", handlers.ListChangeRequests)
+				changeRequests.POST("", handlers.CreateChangeRequest)
+				changeRequests.GET("/:id", handlers.GetChangeRequest)
+				changeRequests.POST("/:id/review", handlers.ReviewChangeRequest)
+				changeRequests.POST("/:id/cancel", handlers.CancelChangeRequest)
+				changeRequests.GET("/row/:row_id", handlers.GetPendingChangesForRow)
 			}
 
 			// AI Reports

@@ -423,27 +423,63 @@ func SubmitForm(c *gin.Context) {
 		var existingRow models.Row
 		// Postgres JSONB query: data->'personal'->>'personalEmail' = ?
 		if err := database.DB.Where("table_id = ? AND data->'personal'->>'personalEmail' = ?", formID, email).First(&existingRow).Error; err == nil {
-			// Update existing row - create version for this update
+			// Update existing row with transaction - create version in same transaction
+			tx := database.DB.Begin()
+			defer func() {
+				if r := recover(); r != nil {
+					tx.Rollback()
+				}
+			}()
+
 			existingRow.Data = mapToJSON(data)
 			existingRow.UpdatedAt = time.Now()
-			database.DB.Save(&existingRow)
+			if err := tx.Save(&existingRow).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update submission"})
+				return
+			}
 
-			// Create version for the update
+			// Create version for the update (synchronous, in transaction)
+			versionService := services.NewVersionService()
+			if _, err := versionService.CreateVersionTx(tx, services.CreateVersionInput{
+				RowID:        existingRow.ID,
+				TableID:      parsedFormID,
+				Data:         data,
+				ChangeType:   models.ChangeTypeUpdate,
+				ChangeReason: "Form submission updated",
+			}); err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create version"})
+				return
+			}
+
+			if err := tx.Commit().Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+				return
+			}
+
+			// Queue for embedding (async - ok to be outside transaction)
 			go func() {
-				versionService := services.NewVersionService()
-				versionService.CreateVersion(services.CreateVersionInput{
-					RowID:        existingRow.ID,
-					TableID:      parsedFormID,
-					Data:         data,
-					ChangeType:   models.ChangeTypeUpdate,
-					ChangeReason: "Form submission updated",
-				})
+				database.DB.Exec(`
+					INSERT INTO embedding_queue (entity_id, entity_type, priority, status)
+					VALUES ($1, 'submission', 5, 'pending')
+					ON CONFLICT (entity_id, entity_type) 
+					DO UPDATE SET priority = 5, status = 'pending', created_at = NOW()
+				`, existingRow.ID)
 			}()
 
 			c.JSON(http.StatusOK, existingRow)
 			return
 		}
 	}
+
+	// Create new row with transaction
+	tx := database.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 
 	row := models.Row{
 		TableID: parsedFormID,
@@ -459,25 +495,33 @@ func SubmitForm(c *gin.Context) {
 		}
 	}
 
-	if err := database.DB.Create(&row).Error; err != nil {
+	if err := tx.Create(&row).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Create initial version for version history
-	go func() {
-		versionService := services.NewVersionService()
-		versionService.CreateVersion(services.CreateVersionInput{
-			RowID:        row.ID,
-			TableID:      parsedFormID,
-			Data:         data,
-			ChangeType:   models.ChangeTypeCreate,
-			ChangeReason: "Form submission created",
-			ChangedBy:    userID,
-		})
-	}()
+	// Create initial version for version history (synchronous, in transaction)
+	versionService := services.NewVersionService()
+	if _, err := versionService.CreateVersionTx(tx, services.CreateVersionInput{
+		RowID:        row.ID,
+		TableID:      parsedFormID,
+		Data:         data,
+		ChangeType:   models.ChangeTypeCreate,
+		ChangeReason: "Initial submission from portal",
+		ChangedBy:    userID,
+	}); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create version"})
+		return
+	}
 
-	// Queue submission for semantic embedding (async, don't fail if this fails)
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
+	// Queue submission for semantic embedding (async - ok to be outside transaction)
 	go func() {
 		database.DB.Exec(`
 			INSERT INTO embedding_queue (entity_id, entity_type, priority, status)

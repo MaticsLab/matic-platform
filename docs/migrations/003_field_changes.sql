@@ -24,10 +24,14 @@ CREATE TABLE field_changes (
   similarity_score FLOAT,        -- How different is new from old (0-1)?
   semantic_change_type TEXT,     -- 'correction', 'addition', 'major_revision'
   
+  -- PII tracking
+  contains_pii BOOLEAN DEFAULT false,
+  
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Indexes for efficient field history queries
 CREATE INDEX idx_field_changes_row_id ON field_changes(row_id, created_at DESC);
+CREATE INDEX idx_field_changes_version_id ON field_changes(row_version_id);
 CREATE INDEX idx_field_changes_field_id ON field_changes(field_id, created_at DESC);
 CREATE INDEX idx_field_changes_field_name ON field_changes(field_name, created_at DESC);

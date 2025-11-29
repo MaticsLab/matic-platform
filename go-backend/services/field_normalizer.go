@@ -565,6 +565,138 @@ func (n *FieldNormalizer) checkEmailTypos(email string) *AIFieldHint {
 // EMBEDDING TEXT GENERATION
 // ============================================================
 
+// IndexedFieldInfo represents info about a field that was indexed
+type IndexedFieldInfo struct {
+	FieldID         string  `json:"field_id"`
+	FieldName       string  `json:"field_name"`
+	FieldLabel      string  `json:"field_label,omitempty"`
+	SemanticType    string  `json:"semantic_type,omitempty"`
+	ContributedText string  `json:"contributed_text"`
+	Weight          float64 `json:"weight"`
+}
+
+// FieldEmbeddingInput represents field-specific text for embeddings
+type FieldEmbeddingInput struct {
+	FullText       string             `json:"full_text"`
+	BySemanticType map[string]string  `json:"by_semantic_type"` // semantic_type -> text
+	IndexedFields  []IndexedFieldInfo `json:"indexed_fields"`
+}
+
+// GenerateFieldAwareEmbeddingInput creates structured input for field-aware embeddings
+func (n *FieldNormalizer) GenerateFieldAwareEmbeddingInput(tableID uuid.UUID, data map[string]interface{}) *FieldEmbeddingInput {
+	result := &FieldEmbeddingInput{
+		BySemanticType: make(map[string]string),
+		IndexedFields:  []IndexedFieldInfo{},
+	}
+
+	var fullTextParts []string
+
+	// Get field definitions
+	var fields []models.Field
+	database.DB.Where("table_id = ?", tableID).Order("position ASC").Find(&fields)
+
+	for _, field := range fields {
+		value, exists := data[field.Name]
+		if !exists || value == nil {
+			continue
+		}
+
+		// Get field type from registry
+		fieldTypeID := field.Type
+		if field.FieldTypeID != "" {
+			fieldTypeID = field.FieldTypeID
+		}
+
+		fieldType, hasType := n.registry[fieldTypeID]
+		if !hasType {
+			continue
+		}
+
+		// Parse AI schema
+		var aiSchema map[string]interface{}
+		json.Unmarshal(fieldType.AISchema, &aiSchema)
+
+		strategy, _ := aiSchema["embedding_strategy"].(string)
+		privacyLevel, _ := aiSchema["privacy_level"].(string)
+		searchWeight := 1.0
+		if w, ok := aiSchema["search_weight"].(float64); ok {
+			searchWeight = w
+		}
+
+		// Skip PII and fields marked to skip
+		if strategy == "skip" || privacyLevel == "pii" {
+			continue
+		}
+
+		// Generate text based on strategy
+		var text string
+		switch strategy {
+		case "value_only":
+			text = n.valueToString(value)
+		case "with_label":
+			text = fmt.Sprintf("%s: %s", field.Label, n.valueToString(value))
+		case "summarize_count":
+			if arr, ok := value.([]interface{}); ok {
+				template, _ := aiSchema["summarization_template"].(string)
+				if template == "" {
+					template = "{count} items"
+				}
+				text = strings.Replace(template, "{count}", fmt.Sprintf("%d", len(arr)), 1)
+				text = fmt.Sprintf("%s: %s", field.Label, text)
+			}
+		case "children_only":
+			if obj, ok := value.(map[string]interface{}); ok {
+				var childParts []string
+				for k, v := range obj {
+					childParts = append(childParts, fmt.Sprintf("%s: %s", k, n.valueToString(v)))
+				}
+				text = strings.Join(childParts, ". ")
+			}
+		case "filename_only":
+			if obj, ok := value.(map[string]interface{}); ok {
+				if name, ok := obj["name"].(string); ok {
+					text = fmt.Sprintf("File: %s", name)
+				}
+			}
+		default:
+			text = n.valueToString(value)
+		}
+
+		if text == "" {
+			continue
+		}
+
+		// Add to full text
+		fullTextParts = append(fullTextParts, text)
+
+		// Track indexed field info
+		result.IndexedFields = append(result.IndexedFields, IndexedFieldInfo{
+			FieldID:         field.ID.String(),
+			FieldName:       field.Name,
+			FieldLabel:      field.Label,
+			SemanticType:    field.SemanticType,
+			ContributedText: text,
+			Weight:          searchWeight,
+		})
+
+		// Group by semantic type for field-specific embeddings
+		semanticType := field.SemanticType
+		if semanticType == "" {
+			semanticType = fieldType.DefaultSemanticType
+		}
+		if semanticType != "" {
+			if existing, ok := result.BySemanticType[semanticType]; ok {
+				result.BySemanticType[semanticType] = existing + ". " + text
+			} else {
+				result.BySemanticType[semanticType] = text
+			}
+		}
+	}
+
+	result.FullText = strings.Join(fullTextParts, ". ")
+	return result
+}
+
 // GenerateEmbeddingText creates text for AI embeddings based on field types
 func (n *FieldNormalizer) GenerateEmbeddingText(tableID uuid.UUID, data map[string]interface{}) string {
 	var textParts []string

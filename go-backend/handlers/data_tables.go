@@ -293,19 +293,16 @@ func CreateTableRow(c *gin.Context) {
 }
 
 type UpdateTableRowInput struct {
-	Data     *map[string]interface{} `json:"data"`
-	Position *int64                  `json:"position"`
+	Data         *map[string]interface{} `json:"data"`
+	Position     *int64                  `json:"position"`
+	ChangeReason string                  `json:"change_reason"` // Optional reason for the change
 }
 
+// UpdateTableRow updates a row with full version history tracking
+// Follows the row-edit-flow spec: transaction-wrapped update with diff computation
 func UpdateTableRow(c *gin.Context) {
 	tableID := c.Param("id")
 	rowID := c.Param("row_id")
-
-	var row models.Row
-	if err := database.DB.Where("id = ? AND table_id = ?", rowID, tableID).First(&row).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Row not found"})
-		return
-	}
 
 	var input UpdateTableRowInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -320,43 +317,139 @@ func UpdateTableRow(c *gin.Context) {
 		userID = &parsedUserID
 	}
 
-	// Parse table ID
-	parsedTableID, _ := uuid.Parse(tableID)
+	// Parse IDs
+	parsedTableID, err := uuid.Parse(tableID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid table ID"})
+		return
+	}
+	parsedRowID, err := uuid.Parse(rowID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid row ID"})
+		return
+	}
+
+	// BEGIN TRANSACTION - all updates must be atomic
+	tx := database.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 1. Load current row within transaction (FOR UPDATE to prevent race conditions)
+	var row models.Row
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").
+		Where("id = ? AND table_id = ?", parsedRowID, parsedTableID).
+		First(&row).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusNotFound, gin.H{"error": "Row not found"})
+		return
+	}
+
+	// Store old data for diff calculation
+	var oldData map[string]interface{}
+	if row.Data != nil {
+		json.Unmarshal(row.Data, &oldData)
+	}
+
+	var versionResult *services.CreateVersionResult
+	hasDataChange := false
 
 	if input.Data != nil {
-		row.Data = mapToJSON(*input.Data)
+		hasDataChange = true
 
-		// Create version for the update
-		go func() {
-			versionService := services.NewVersionService()
-			versionService.CreateVersion(services.CreateVersionInput{
-				RowID:        row.ID,
-				TableID:      parsedTableID,
-				Data:         *input.Data,
-				ChangeType:   models.ChangeTypeUpdate,
-				ChangeReason: "Row updated",
-				ChangedBy:    userID,
-			})
-		}()
+		// Merge new data with existing data (partial update support)
+		mergedData := make(map[string]interface{})
+		for k, v := range oldData {
+			mergedData[k] = v
+		}
+		for k, v := range *input.Data {
+			mergedData[k] = v
+		}
+
+		// 5. Update the row data
+		row.Data = mapToJSON(mergedData)
+
+		// Determine change reason
+		changeReason := input.ChangeReason
+		if changeReason == "" {
+			changeReason = "Row updated"
+		}
+
+		// 6-7. Create version and field_changes within transaction
+		versionService := services.NewVersionService()
+		var versionErr error
+		versionResult, versionErr = versionService.CreateVersionTx(tx, services.CreateVersionInput{
+			RowID:        row.ID,
+			TableID:      parsedTableID,
+			Data:         mergedData,
+			ChangeType:   models.ChangeTypeUpdate,
+			ChangeReason: changeReason,
+			ChangedBy:    userID,
+		})
+		if versionErr != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create version: " + versionErr.Error()})
+			return
+		}
 	}
+
 	if input.Position != nil {
 		row.Position = *input.Position
 	}
 
-	if err := database.DB.Save(&row).Error; err != nil {
+	// Save the updated row
+	if err := tx.Save(&row).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Queue row for re-embedding (async, don't fail if this fails)
-	go func() {
-		database.DB.Exec(`
-			INSERT INTO embedding_queue (entity_id, entity_type, priority, status)
-			VALUES ($1, 'row', 3, 'pending')
-			ON CONFLICT (entity_id, entity_type) 
-			DO UPDATE SET priority = 3, status = 'pending', created_at = NOW()
-		`, row.ID)
-	}()
+	// COMMIT TRANSACTION
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction: " + err.Error()})
+		return
+	}
+
+	// RE-INDEX IF SEARCHABLE FIELD CHANGED (async, after commit)
+	if hasDataChange {
+		go func() {
+			// Check if any changed field is searchable
+			shouldReindex := false
+			if versionResult != nil && len(versionResult.FieldChanges) > 0 {
+				var searchableFields []string
+				database.DB.Raw(`
+					SELECT field_name FROM table_fields 
+					WHERE table_id = ? AND is_searchable = true
+				`, parsedTableID).Scan(&searchableFields)
+
+				for _, fc := range versionResult.FieldChanges {
+					for _, sf := range searchableFields {
+						if fc.FieldName == sf {
+							shouldReindex = true
+							break
+						}
+					}
+					if shouldReindex {
+						break
+					}
+				}
+			} else {
+				// If no version result, always reindex to be safe
+				shouldReindex = true
+			}
+
+			if shouldReindex {
+				database.DB.Exec(`
+					INSERT INTO embedding_queue (entity_id, entity_type, priority, status)
+					VALUES ($1, 'row', 3, 'pending')
+					ON CONFLICT (entity_id, entity_type) 
+					DO UPDATE SET priority = 3, status = 'pending', created_at = NOW()
+				`, row.ID)
+			}
+		}()
+	}
 
 	c.JSON(http.StatusOK, row)
 }

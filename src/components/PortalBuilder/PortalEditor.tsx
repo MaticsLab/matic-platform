@@ -437,18 +437,14 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         <div className="flex-1 flex overflow-hidden">
             {/* Left Sidebar - Navigation */}
             <div className="w-80 bg-white border-r border-gray-200 flex flex-col shadow-sm z-10">
-          <Tabs defaultValue="elements" className="flex-1 flex flex-col gap-0 min-h-0">
+          <Tabs defaultValue="structure" className="flex-1 flex flex-col gap-0 min-h-0">
             <div className="px-4 py-3 border-b border-gray-100">
               <TabsList className="w-full grid grid-cols-3 bg-gray-100 p-1 rounded-full h-auto">
+                <TabsTrigger value="structure" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Sections</TabsTrigger>
                 <TabsTrigger value="elements" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Fields</TabsTrigger>
-                <TabsTrigger value="structure" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Pages</TabsTrigger>
                 <TabsTrigger value="theme" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Theme</TabsTrigger>
               </TabsList>
             </div>
-
-            <TabsContent value="elements" className="flex-1 mt-0 overflow-hidden data-[state=active]:flex flex-col min-h-0">
-               <FieldToolbox onAddField={handleAddField} />
-            </TabsContent>
 
             <TabsContent value="structure" className="flex-1 data-[state=active]:flex flex-col mt-0 min-h-0 overflow-hidden">
               <div className="p-4 pb-2 flex justify-between items-center">
@@ -465,6 +461,10 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   onReorder={(sections: Section[]) => setConfig(prev => ({ ...prev, sections }))}
                 />
               </ScrollArea>
+            </TabsContent>
+
+            <TabsContent value="elements" className="flex-1 mt-0 overflow-hidden data-[state=active]:flex flex-col min-h-0">
+               <FieldToolbox onAddField={handleAddField} />
             </TabsContent>
 
             <TabsContent value="theme" className="flex-1 overflow-y-auto min-h-0">

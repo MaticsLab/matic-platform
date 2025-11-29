@@ -27,8 +27,9 @@ import {
 import { Badge } from "@/ui-components/badge";
 import { ScrollArea } from "@/ui-components/scroll-area";
 import { Separator } from "@/ui-components/separator";
-import { Loader2, History, RotateCcw, Eye, Bot, User } from "lucide-react";
+import { Loader2, History, RotateCcw, Eye, Bot, User, GitCompare } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
+import { VersionDiff } from "./VersionDiff";
 
 interface HistoryPanelProps {
   tableId: string;
@@ -49,6 +50,7 @@ export function HistoryPanel({
   const [loading, setLoading] = useState(true);
   const [selectedVersion, setSelectedVersion] = useState<RowVersion | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [compareVersion, setCompareVersion] = useState<{v1: number, v2: number} | null>(null);
 
   useEffect(() => {
     if (isOpen && rowId) {
@@ -206,6 +208,20 @@ export function HistoryPanel({
                           View
                         </Button>
 
+                        {index > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setCompareVersion({
+                              v1: version.version_number,
+                              v2: versions[0].version_number // Compare with latest
+                            })}
+                          >
+                            <GitCompare className="h-3.5 w-3.5 mr-1" />
+                            Compare
+                          </Button>
+                        )}
+
                         {index > 0 && ( // Can't restore to current version
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -251,6 +267,31 @@ export function HistoryPanel({
             version={selectedVersion}
             onClose={() => setSelectedVersion(null)}
           />
+        )}
+
+        {/* Version Comparison Panel */}
+        {compareVersion && (
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50">
+            <div className="fixed inset-4 bg-background border rounded-lg shadow-lg overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <GitCompare className="h-5 w-5" />
+                  Comparing Version {compareVersion.v1} → {compareVersion.v2}
+                </h3>
+                <Button variant="ghost" size="sm" onClick={() => setCompareVersion(null)}>
+                  Close
+                </Button>
+              </div>
+              <div className="p-4 h-[calc(100%-60px)] overflow-auto">
+                <VersionDiff
+                  tableId={tableId}
+                  rowId={rowId}
+                  version1={compareVersion.v1}
+                  version2={compareVersion.v2}
+                />
+              </div>
+            </div>
+          </div>
         )}
       </SheetContent>
     </Sheet>

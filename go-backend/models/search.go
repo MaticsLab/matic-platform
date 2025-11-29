@@ -77,10 +77,15 @@ type SearchIndex struct {
 	SearchClickCount int            `gorm:"default:0" json:"search_click_count"`
 	ImportanceScore  float64        `gorm:"default:1.0" json:"importance_score"`
 	Metadata         datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"metadata"`
-	// Vector embedding fields (from migration 007)
+	// Vector embedding fields (from migration 005/007)
 	Embedding          []float32  `gorm:"type:vector(1536)" json:"embedding,omitempty"`
 	EmbeddingModel     string     `json:"embedding_model,omitempty"`
 	EmbeddingCreatedAt *time.Time `json:"embedding_created_at,omitempty"`
+	// Field-aware embeddings (from migration 005)
+	FieldEmbeddings datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"field_embeddings,omitempty"`
+	// Structure: {"full_text": [...], "by_semantic_type": {"name": [...], "email": [...]}}
+	IndexedFields datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"indexed_fields,omitempty"`
+	// Structure: [{"field_id": "uuid", "field_name": "name", "contributed_text": "...", "weight": 2.0}]
 }
 
 // TableName specifies the table name for SearchIndex
@@ -255,16 +260,26 @@ type RecordSearchClickRequest struct {
 
 // EmbeddingQueue - Queue for async embedding generation
 type EmbeddingQueue struct {
-	ID           uuid.UUID  `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
-	EntityID     uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_embedding_entity" json:"entity_id"`
-	EntityType   string     `gorm:"not null;uniqueIndex:idx_embedding_entity" json:"entity_type"`
-	ContentHash  string     `json:"content_hash,omitempty"`
-	Priority     int        `gorm:"default:0" json:"priority"`
-	Status       string     `gorm:"default:'pending'" json:"status"` // pending, processing, completed, failed
-	Attempts     int        `gorm:"default:0" json:"attempts"`
-	ErrorMessage string     `json:"error_message,omitempty"`
-	CreatedAt    time.Time  `gorm:"autoCreateTime" json:"created_at"`
-	ProcessedAt  *time.Time `json:"processed_at,omitempty"`
+	ID         uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	EntityID   uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_embedding_entity" json:"entity_id"`
+	EntityType string    `gorm:"not null;uniqueIndex:idx_embedding_entity" json:"entity_type"` // row, table, form, workspace
+
+	// Queue management
+	Priority int    `gorm:"default:5" json:"priority"`       // 1-10, 1 = highest
+	Status   string `gorm:"default:'pending'" json:"status"` // pending, processing, completed, failed, skipped
+
+	// Content tracking
+	ContentHash string `json:"content_hash,omitempty"`
+	LastContent string `json:"last_content,omitempty"` // Last content that was embedded
+
+	// Processing info
+	Attempts    int        `gorm:"default:0" json:"attempts"`
+	LastError   string     `gorm:"column:last_error" json:"last_error,omitempty"`
+	ProcessedAt *time.Time `json:"processed_at,omitempty"`
+
+	// Timestamps
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 // TableName specifies the table name for EmbeddingQueue

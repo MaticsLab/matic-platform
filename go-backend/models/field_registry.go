@@ -128,10 +128,10 @@ type RowVersion struct {
 	AISuggestionID *uuid.UUID `gorm:"type:uuid" json:"ai_suggestion_id,omitempty"`
 
 	// Archive/Delete support
-	IsArchived       bool       `gorm:"default:false" json:"is_archived"`
-	ArchivedAt       *time.Time `json:"archived_at,omitempty"`
-	ArchivedBy       *uuid.UUID `gorm:"type:uuid" json:"archived_by,omitempty"`
-	ArchiveExpiresAt *time.Time `json:"archive_expires_at,omitempty"`
+	IsArchived    bool       `gorm:"default:false" json:"is_archived"`
+	ArchivedAt    *time.Time `json:"archived_at,omitempty"`
+	ArchivedBy    *uuid.UUID `gorm:"type:uuid" json:"archived_by,omitempty"`
+	ArchiveReason string     `json:"archive_reason,omitempty"`
 
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 }
@@ -332,4 +332,59 @@ const (
 	SuggestionStatusRejected    = "rejected"
 	SuggestionStatusDismissed   = "dismissed"
 	SuggestionStatusAutoApplied = "auto_applied"
+)
+
+// ============================================================
+// CHANGE REQUESTS (Approval Workflow)
+// ============================================================
+
+// ChangeRequest - Pending edit requiring approval before being applied
+type ChangeRequest struct {
+	ID          uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	WorkspaceID uuid.UUID `gorm:"type:uuid;not null;index" json:"workspace_id"`
+	TableID     uuid.UUID `gorm:"type:uuid;not null;index" json:"table_id"`
+	RowID       uuid.UUID `gorm:"type:uuid;not null;index" json:"row_id"`
+
+	// What's being changed
+	CurrentData   datatypes.JSON `gorm:"type:jsonb;not null" json:"current_data"`
+	ProposedData  datatypes.JSON `gorm:"type:jsonb;not null" json:"proposed_data"`
+	ChangedFields []string       `gorm:"type:text[]" json:"changed_fields"`
+
+	// Change context
+	ChangeReason  string `json:"change_reason,omitempty"`
+	ChangeSummary string `json:"change_summary,omitempty"`
+
+	// Requester
+	RequestedBy uuid.UUID `gorm:"type:uuid;not null" json:"requested_by"`
+	RequestedAt time.Time `gorm:"default:now()" json:"requested_at"`
+
+	// Approval workflow
+	Status string `gorm:"default:'pending'" json:"status"` // pending, approved, rejected, cancelled, expired
+
+	// Reviewer
+	ReviewedBy  *uuid.UUID `gorm:"type:uuid" json:"reviewed_by,omitempty"`
+	ReviewedAt  *time.Time `json:"reviewed_at,omitempty"`
+	ReviewNotes string     `json:"review_notes,omitempty"`
+
+	// If approved, which version was created
+	AppliedVersionID *uuid.UUID `gorm:"type:uuid" json:"applied_version_id,omitempty"`
+
+	// Auto-expiry
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+func (ChangeRequest) TableName() string {
+	return "change_requests"
+}
+
+// Change request statuses
+const (
+	ChangeRequestStatusPending   = "pending"
+	ChangeRequestStatusApproved  = "approved"
+	ChangeRequestStatusRejected  = "rejected"
+	ChangeRequestStatusCancelled = "cancelled"
+	ChangeRequestStatusExpired   = "expired"
 )

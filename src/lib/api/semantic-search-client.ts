@@ -150,6 +150,132 @@ export const semanticSearchClient = {
     }
     return goFetch('/search/smart', { params })
   },
+
+  /**
+   * Rebuild the search index for a workspace or all workspaces
+   */
+  async rebuildSearchIndex(
+    workspaceId?: string
+  ): Promise<{ message: string; indexed_count: number; workspace_id?: string }> {
+    const params: Record<string, string> = {}
+    if (workspaceId) {
+      params.workspace_id = workspaceId
+    }
+    return goFetch('/search/rebuild-index', {
+      method: 'POST',
+      params,
+    })
+  },
+
+  /**
+   * Get table schema in AI-friendly format for prompts
+   */
+  async getTableSchemaForAI(tableId: string): Promise<{
+    table_id: string
+    table_name: string
+    entity_type: string
+    description: string
+    fields: Array<{
+      name: string
+      label: string
+      type: string
+      semantic_type: string
+      is_searchable: boolean
+      is_display_field: boolean
+      search_weight: number
+      sample_values: string[]
+    }>
+    row_count: number
+  }> {
+    return goFetch(`/search/ai/table/${tableId}`)
+  },
+
+  /**
+   * Get workspace summary in AI-friendly format for prompts
+   */
+  async getWorkspaceSummaryForAI(workspaceId: string): Promise<{
+    workspace_id: string
+    workspace_name: string
+    ai_description: string
+    tables: Array<{
+      id: string
+      name: string
+      entity_type: string
+      row_count: number
+    }>
+    statistics: {
+      table_count: number
+      total_rows: number
+      total_forms: number
+    }
+  }> {
+    return goFetch(`/search/ai/workspace/${workspaceId}`)
+  },
+
+  /**
+   * Get search suggestions based on query prefix
+   */
+  async getSearchSuggestions(
+    workspaceId: string,
+    query: string,
+    options?: { limit?: number }
+  ): Promise<{ suggestions: string[] }> {
+    return goFetch('/search/suggestions', {
+      params: {
+        q: query,
+        workspace_id: workspaceId,
+        limit: String(options?.limit || 5),
+      },
+    })
+  },
+
+  /**
+   * Get recent searches for the current user
+   */
+  async getRecentSearches(
+    workspaceId: string,
+    options?: { limit?: number }
+  ): Promise<{ searches: Array<{ query: string; searched_at: string }> }> {
+    return goFetch('/search/recent', {
+      params: {
+        workspace_id: workspaceId,
+        limit: String(options?.limit || 5),
+      },
+    })
+  },
+
+  /**
+   * Save a search to history
+   */
+  async saveSearchHistory(
+    workspaceId: string,
+    query: string,
+    resultCount: number
+  ): Promise<{ message: string }> {
+    return goFetch('/search/history', {
+      method: 'POST',
+      body: JSON.stringify({
+        workspace_id: workspaceId,
+        query,
+        result_count: resultCount,
+      }),
+    })
+  },
+
+  /**
+   * Get popular searches in workspace
+   */
+  async getPopularSearches(
+    workspaceId: string,
+    options?: { limit?: number }
+  ): Promise<{ searches: Array<{ query: string; count: number }> }> {
+    return goFetch('/search/popular', {
+      params: {
+        workspace_id: workspaceId,
+        limit: String(options?.limit || 5),
+      },
+    })
+  },
 }
 
 /**
