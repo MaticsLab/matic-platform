@@ -482,8 +482,12 @@ export function ReviewWorkspace({
       const loadedStages = await Promise.all(
         stagesData.map(async (stage) => {
           let configs: StageReviewerConfig[] = []
+          let actions: StageAction[] = []
           try {
-            configs = await workflowsClient.listStageConfigs(stage.id)
+            [configs, actions] = await Promise.all([
+              workflowsClient.listStageConfigs(stage.id),
+              workflowsClient.listStageActions(stage.id)
+            ])
           } catch {}
           
           const primaryConfig = configs[0]
@@ -495,7 +499,8 @@ export function ReviewWorkspace({
             ...stage,
             reviewerConfigs: configs,
             rubric,
-            applicationCount: applications.filter(a => a.stageId === stage.id).length
+            applicationCount: applications.filter(a => a.stageId === stage.id).length,
+            stageActions: actions
           }
         })
       )
