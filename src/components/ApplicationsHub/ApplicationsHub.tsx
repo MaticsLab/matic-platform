@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { GraduationCap, FileText, Layout, Plus, Search, MoreVertical, ArrowRight, Loader2, Filter, CheckCircle, Clock } from 'lucide-react'
-import { ScholarshipManager } from './Scholarships/ScholarshipManager'
+import { ApplicationManager } from './Applications/ApplicationManager'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import {
@@ -197,7 +197,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
   // If we are in the scholarships module, render the manager
   if (currentView === 'scholarships') {
     return (
-      <ScholarshipManager 
+      <ApplicationManager 
         workspaceId={workspaceId}
         formId={selectedFormId}
       />

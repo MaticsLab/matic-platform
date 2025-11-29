@@ -5,13 +5,12 @@ import { BarChart3, Users, FileText, AlertCircle, Download, Filter, Clock, Arrow
 import { goClient } from '@/lib/api/go-client'
 import { FormSubmission, Form, DashboardConfig, DashboardTile, LogicRule } from '@/types/forms'
 
-interface ScholarshipDashboardProps {
-// ... existing code ...
+interface ApplicationDashboardProps {
   workspaceId: string
   formId: string | null
 }
 
-export function ScholarshipDashboard({ workspaceId, formId }: ScholarshipDashboardProps) {
+export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboardProps) {
   const [submissions, setSubmissions] = useState<FormSubmission[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [formSettings, setFormSettings] = useState<any>({})

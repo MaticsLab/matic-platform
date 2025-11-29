@@ -230,12 +230,6 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
         {tabHeaderContent && (
           <div className="pl-2 border-l border-gray-200 flex items-center gap-2">
             <span className="text-sm font-semibold text-gray-900">{tabHeaderContent.title}</span>
-            {tabHeaderContent.subModule && (
-              <>
-                <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-                <span className="text-sm font-medium text-gray-600">{tabHeaderContent.subModule}</span>
-              </>
-            )}
           </div>
         )}
       </div>

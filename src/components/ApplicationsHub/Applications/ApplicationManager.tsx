@@ -6,7 +6,7 @@ import { ReviewWorkspace } from './Review/ReviewWorkspace'
 import { CommunicationsCenter } from './Communications/CommunicationsCenter'
 import { ReviewerManagement } from './Reviewers/ReviewerManagement'
 import { WorkflowBuilder } from './Configuration/WorkflowBuilder'
-import { ScholarshipDashboard } from './Dashboard/ScholarshipDashboard'
+import { ApplicationDashboard } from './Dashboard/ApplicationDashboard'
 import { SettingsModal } from './Configuration/SettingsModal'
 import { useTabContext } from '@/components/WorkspaceTabProvider'
 import { useSearch, HubSearchContext } from '@/components/Search'
@@ -21,7 +21,7 @@ import { Form } from '@/types/forms'
 import { useParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
-interface ScholarshipManagerProps {
+interface ApplicationManagerProps {
   workspaceId: string
   formId: string | null
 }
@@ -43,7 +43,7 @@ const tabConfig = [
   { id: 'analytics' as Tab, label: 'Analytics', icon: BarChart3, color: 'purple', subModule: 'Analytics' },
 ]
 
-export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerProps) {
+export function ApplicationManager({ workspaceId, formId }: ApplicationManagerProps) {
   const { tabs, tabManager, setTabActions, setTabHeaderContent } = useTabContext()
   const { setHubContext } = useSearch()
   const hubUrl = `/workspace/${workspaceId}/applications`
@@ -382,7 +382,7 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
           />
         )}
         {activeTab === 'workflows' && <WorkflowBuilder workspaceId={workspaceId} formId={formId} />}
-        {activeTab === 'analytics' && <ScholarshipDashboard workspaceId={workspaceId} formId={formId} />}
+        {activeTab === 'analytics' && <ApplicationDashboard workspaceId={workspaceId} formId={formId} />}
         {activeTab === 'settings' && (
           <div className="p-8 text-center text-gray-500">
             <Settings className="w-12 h-12 mx-auto mb-4 text-gray-400" />

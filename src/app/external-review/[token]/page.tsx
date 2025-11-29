@@ -1,4 +1,4 @@
-import { ExternalReviewInterface } from '@/components/ApplicationsHub/Scholarships/Reviewers/ExternalReviewInterface'
+import { ExternalReviewInterface } from '@/components/ApplicationsHub/Applications/Reviewers/ExternalReviewInterface'
 
 export default function ExternalReviewPage({ params }: { params: { token: string } }) {
   // In a real app, we would validate the token here and fetch the reviewer's name
