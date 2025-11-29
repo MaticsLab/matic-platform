@@ -261,7 +261,7 @@ export const OmniSearch: React.FC<OmniSearchProps> = ({
     try {
       const response = await semanticSearchClient.findSimilar(entityId, entityType as any, { limit: 10 })
       
-      const similarItems: SearchResult[] = (response.similar_items || []).map((item: any) => ({
+      const similarItems: SearchResult[] = (response.similarItems || []).map((item: any) => ({
         id: item.entity_id,
         title: item.title,
         subtitle: item.subtitle || `${Math.round(item.similarity * 100)}% similar`,

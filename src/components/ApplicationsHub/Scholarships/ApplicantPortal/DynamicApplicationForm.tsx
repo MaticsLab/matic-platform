@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/ui-
 import { Progress } from '@/ui-components/progress'
 import { Separator } from '@/ui-components/separator'
 import { PortalConfig, Section, Field } from '@/types/portal'
+import { AddressField, AddressValue } from '@/components/Tables/AddressField'
 
 interface DynamicApplicationFormProps {
   config: PortalConfig
@@ -267,6 +268,16 @@ function FieldRenderer({ field, value, onChange, themeColor }: { field: Field, v
           onChange={e => onChange(e.target.value)} 
           placeholder={field.placeholder}
           className="h-11"
+        />
+      )}
+
+      {/* Address Field with Mapbox Autocomplete */}
+      {field.type === 'address' && (
+        <AddressField
+          value={value as AddressValue | null}
+          onChange={(addressValue) => onChange(addressValue)}
+          placeholder={field.placeholder || 'Start typing an address...'}
+          isTableCell={false}
         />
       )}
 
