@@ -153,12 +153,17 @@ export const OmniSearch: React.FC<OmniSearchProps> = ({
       try {
         const [tables, formsResponse] = await Promise.all([
           tablesGoClient.getTablesByWorkspace(workspaceId).catch(() => []),
-          formsClient.list(workspaceId).catch(() => ({ forms: [] }))
+          formsClient.list(workspaceId).catch(() => [])
         ])
         // Handle both array and object responses
         const tablesArray = Array.isArray(tables) ? tables : []
-        const formsArray = Array.isArray(formsResponse) ? formsResponse : 
-                          (formsResponse?.forms || formsResponse?.data || [])
+        // formsResponse could be array or object with forms/data property
+        let formsArray: any[] = []
+        if (Array.isArray(formsResponse)) {
+          formsArray = formsResponse
+        } else if (formsResponse && typeof formsResponse === 'object') {
+          formsArray = (formsResponse as any).forms || (formsResponse as any).data || []
+        }
         
         setCachedTables(tablesArray.map((t: any) => ({ id: t.id, name: t.name })))
         setCachedForms(Array.isArray(formsArray) ? formsArray.map((f: any) => ({ id: f.id, name: f.name })) : [])
