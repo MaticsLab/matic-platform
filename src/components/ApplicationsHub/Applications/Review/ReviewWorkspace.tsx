@@ -1100,27 +1100,16 @@ export function ReviewWorkspace({
               )}
             </div>
             
-            {/* View Mode Toggle - Minimal */}
-            <div className="flex bg-gray-100 rounded-lg p-0.5">
-              <button
-                onClick={() => setViewMode('queue')}
-                className={cn(
-                  "px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-                  viewMode === 'queue' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                )}
-              >
-                Queue
-              </button>
-              <button
-                onClick={() => setViewMode('analytics')}
-                className={cn(
-                  "px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-                  viewMode === 'analytics' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                )}
-              >
-                Analytics
-              </button>
-            </div>
+            {/* Contact Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={setShowCommunicationsPanel}
+              className="flex items-center gap-2"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Contact
+            </Button>
           </div>
           
           {/* Right side - Stats summary + Actions */}

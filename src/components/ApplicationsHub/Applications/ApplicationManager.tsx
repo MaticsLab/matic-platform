@@ -162,7 +162,7 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
     }
   }
 
-  // Register tab actions - Team and Communications buttons shown for all sub modules
+  // Register tab actions - Team button shown for all sub modules
   useEffect(() => {
     const actions = []
     
@@ -173,16 +173,6 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
       onClick: () => setShowReviewersPanel(!showReviewersPanel),
       variant: 'outline' as const
     })
-    
-    // Add Communications button for review tab
-    if (activeTab === 'review') {
-      actions.push({
-        label: 'Communications',
-        icon: Mail,
-        onClick: () => setShowCommunicationsPanel(!showCommunicationsPanel),
-        variant: 'outline' as const
-      })
-    }
     
     actions.push(
       {
