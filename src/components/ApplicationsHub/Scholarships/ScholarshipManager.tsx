@@ -161,19 +161,17 @@ export function ScholarshipManager({ workspaceId, formId }: ScholarshipManagerPr
     }
   }
 
-  // Register tab actions - Team button shown when on Review tab
+  // Register tab actions - Team button shown for all sub modules
   useEffect(() => {
     const actions = []
     
-    // Add Team button when on Review tab
-    if (activeTab === 'review') {
-      actions.push({
-        label: 'Team',
-        icon: Users,
-        onClick: () => setShowReviewersPanel(!showReviewersPanel),
-        variant: 'outline' as const
-      })
-    }
+    // Add Team button for all tabs
+    actions.push({
+      label: 'Team',
+      icon: Users,
+      onClick: () => setShowReviewersPanel(!showReviewersPanel),
+      variant: 'outline' as const
+    })
     
     actions.push(
       {
