@@ -233,8 +233,20 @@ func DeleteVersion(c *gin.Context) {
 
 // GetFieldTypes returns all field types from registry
 func GetFieldTypes(c *gin.Context) {
+	category := c.Query("category")  // optional filter: primitive, container, layout, special
+	moduleId := c.Query("module_id") // optional filter by module
+
+	query := database.DB.Order("category, id")
+
+	if category != "" {
+		query = query.Where("category = ?", category)
+	}
+	if moduleId != "" {
+		query = query.Where("module_id = ? OR module_id IS NULL", moduleId)
+	}
+
 	var types []models.FieldTypeRegistry
-	if err := database.DB.Find(&types).Error; err != nil {
+	if err := query.Find(&types).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -253,6 +265,62 @@ func GetFieldType(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, fieldType)
+}
+
+// FieldTypeSummary is a simplified version for toolbox display
+type FieldTypeSummary struct {
+	ID          string `json:"id"`
+	Category    string `json:"category"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	Icon        string `json:"icon"`
+	Color       string `json:"color"`
+	IsContainer bool   `json:"is_container"`
+}
+
+// GetFieldTypesToolbox returns a simplified list grouped by category for the portal builder
+// GET /api/v1/field-types/toolbox
+func GetFieldTypesToolbox(c *gin.Context) {
+	var fieldTypes []models.FieldTypeRegistry
+	if err := database.DB.
+		Where("is_system_field = false OR is_system_field IS NULL").
+		Order("category, label").
+		Find(&fieldTypes).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Group by category for easier frontend consumption
+	grouped := map[string][]FieldTypeSummary{
+		"primitive": {},
+		"container": {},
+		"layout":    {},
+		"special":   {},
+	}
+
+	for _, ft := range fieldTypes {
+		summary := FieldTypeSummary{
+			ID:          ft.ID,
+			Category:    ft.Category,
+			Label:       ft.Label,
+			Description: ft.Description,
+			Icon:        ft.Icon,
+			Color:       ft.Color,
+			IsContainer: ft.IsContainer,
+		}
+		grouped[ft.Category] = append(grouped[ft.Category], summary)
+	}
+
+	c.JSON(http.StatusOK, grouped)
+}
+
+// ValidateFieldType checks if a field type ID is valid and returns the registry entry
+func ValidateFieldType(fieldTypeID string) (*models.FieldTypeRegistry, error) {
+	var fieldType models.FieldTypeRegistry
+	if err := database.DB.First(&fieldType, "id = ?", fieldTypeID).Error; err != nil {
+		return nil, err
+	}
+	return &fieldType, nil
 }
 
 // ============================================================

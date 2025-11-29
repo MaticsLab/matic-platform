@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { PortalConfig } from '@/types/portal'
-import { translateContent } from '@/lib/ai-translation'
+import { translateContent } from '@/lib/ai/translation'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 

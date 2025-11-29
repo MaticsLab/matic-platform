@@ -5,6 +5,17 @@ import { GraduationCap, FileText, Layout, Plus, Search, MoreVertical, ArrowRight
 import { ScholarshipManager } from './Scholarships/ScholarshipManager'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/ui-components/dialog"
+import { Label } from "@/ui-components/label"
+import { Textarea } from "@/ui-components/textarea"
+import { toast } from "sonner"
 import { useTabContext } from '@/components/WorkspaceTabProvider'
 import { goClient } from '@/lib/api/go-client'
 import { Form } from '@/types/forms'
@@ -29,6 +40,12 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
   const [forms, setForms] = useState<Form[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'draft'>('all')
+
+  // Create Application State
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [newAppName, setNewAppName] = useState('')
+  const [newAppDescription, setNewAppDescription] = useState('')
+  const [isCreating, setIsCreating] = useState(false)
 
   // Initialize state from metadata
   useEffect(() => {
@@ -88,7 +105,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
       {
         label: 'New Application',
         icon: Plus,
-        onClick: () => {},
+        onClick: () => setIsCreateDialogOpen(true),
         variant: 'default'
       }
     ])
@@ -109,7 +126,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
       hubName: 'Applications Hub',
       placeholder: 'Search applications...',
       actions: [
-        { id: 'new-app', label: 'New Application', icon: Plus, action: () => {} }
+        { id: 'new-app', label: 'New Application', icon: Plus, action: () => setIsCreateDialogOpen(true) }
       ]
     }
 
@@ -137,6 +154,40 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
       registerNavigationHandler(null)
     }
   }, [currentView, registerNavigationHandler])
+
+  const handleCreateApplication = async () => {
+    if (!newAppName.trim()) {
+      toast.error('Application name is required')
+      return
+    }
+
+    try {
+      setIsCreating(true)
+      const newForm = await goClient.post<Form>('/forms', {
+        workspace_id: workspaceId,
+        name: newAppName,
+        description: newAppDescription,
+        status: 'draft',
+        is_public: false,
+        settings: {},
+        submit_settings: {}
+      })
+
+      setForms([newForm, ...forms])
+      setIsCreateDialogOpen(false)
+      setNewAppName('')
+      setNewAppDescription('')
+      toast.success('Application created successfully')
+      
+      // Open the new form immediately
+      handleFormClick(newForm.id)
+    } catch (error) {
+      console.error('Failed to create application:', error)
+      toast.error('Failed to create application')
+    } finally {
+      setIsCreating(false)
+    }
+  }
 
   const handleFormClick = (formId: string) => {
     setSelectedFormId(formId)
@@ -243,7 +294,10 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
                   : 'Create your first application to get started'}
               </p>
               {!searchQuery && filterStatus === 'all' && (
-                <Button className="bg-blue-600 hover:bg-blue-700">
+                <Button 
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={() => setIsCreateDialogOpen(true)}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Create Application
                 </Button>
@@ -295,7 +349,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
                   {/* Create New Card */}
                   <button 
                     className="border-2 border-dashed border-gray-200 rounded-lg p-4 flex flex-col items-center justify-center text-gray-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50/50 transition-all min-h-[180px]"
-                    onClick={() => {}}
+                    onClick={() => setIsCreateDialogOpen(true)}
                   >
                     <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-3">
                       <Plus className="w-5 h-5" />
@@ -309,6 +363,47 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
               )}
         </div>
       </div>
+
+      {/* Create Application Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Application</DialogTitle>
+            <DialogDescription>
+              Create a new application form to start collecting submissions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Application Name</Label>
+              <Input
+                id="name"
+                placeholder="e.g., 2024 Scholarship Application"
+                value={newAppName}
+                onChange={(e) => setNewAppName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description (Optional)</Label>
+              <Textarea
+                id="description"
+                placeholder="Brief description of this application..."
+                value={newAppDescription}
+                onChange={(e) => setNewAppDescription(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateApplication} disabled={isCreating}>
+              {isCreating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Create Application
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

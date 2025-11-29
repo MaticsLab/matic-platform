@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getLastWorkspace } from '@/lib/utils'
-import { getCurrentUser } from '@/lib/supabase'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { Loader2 } from 'lucide-react'
 
@@ -32,26 +31,23 @@ export default function LoginPage() {
       if (signInError) throw signInError
       if (!data.user) throw new Error('Login failed')
 
-      // Check for last visited workspace
-      const lastWorkspace = getLastWorkspace()
+      // Get user's workspaces to ensure we redirect to one they have access to
+      const workspaces = await workspacesSupabase.getWorkspacesForUser(data.user.id)
       
-      if (lastWorkspace) {
-        // Redirect to last visited workspace
-        router.push(`/workspace/${lastWorkspace}`)
-      } else {
-        // Get first workspace and redirect to it
-        const user = await getCurrentUser()
-        if (user) {
-          const workspaces = await workspacesSupabase.getWorkspacesForUser(user.id)
-          if (workspaces && workspaces.length > 0) {
-            router.push(`/workspace/${workspaces[0].slug}`)
-          } else {
-            // No workspaces - this shouldn't happen, but redirect to home
-            router.push('/')
-          }
+      if (workspaces && workspaces.length > 0) {
+        // Check if last visited workspace is in user's workspaces
+        const lastWorkspace = getLastWorkspace()
+        const hasAccessToLast = lastWorkspace && workspaces.some(w => w.slug === lastWorkspace)
+        
+        if (hasAccessToLast) {
+          router.push(`/workspace/${lastWorkspace}`)
         } else {
-          router.push('/')
+          // Redirect to first workspace user has access to
+          router.push(`/workspace/${workspaces[0].slug}`)
         }
+      } else {
+        // No workspaces - redirect to home or onboarding
+        router.push('/')
       }
     } catch (err: any) {
       console.error('Login error:', err)
@@ -89,6 +85,7 @@ export default function LoginPage() {
               <input
                 id="email"
                 type="email"
+                autoComplete="email"
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -106,6 +103,7 @@ export default function LoginPage() {
               <input
                 id="password"
                 type="password"
+                autoComplete="current-password"
                 required
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}

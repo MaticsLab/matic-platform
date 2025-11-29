@@ -5,7 +5,7 @@ import { DndProvider } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { 
   Layout, Settings, FileText, Plus, Save, Eye, 
-  ChevronLeft, Monitor, Smartphone, Palette, Lock, Loader2, X
+  ChevronLeft, Monitor, Smartphone, Palette, Lock, Loader2, X, CheckCircle2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -63,6 +63,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isPublished, setIsPublished] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
@@ -217,7 +219,9 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
         if (formId) {
             await formsClient.updateStructure(formId, config)
-            toast.success('Portal saved successfully')
+            // Also set is_published to true so submissions are accepted
+            await formsClient.update(formId, { is_published: true })
+            toast.success('Portal published successfully!')
         } else {
             const newForm = await formsClient.create({
                 workspace_id: workspace.id,
@@ -226,11 +230,15 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             }) as any
             setFormId(newForm.id)
             await formsClient.updateStructure(newForm.id, config)
-            toast.success('Portal created and saved')
+            // Also set is_published to true so submissions are accepted
+            await formsClient.update(newForm.id, { is_published: true })
+            toast.success('Portal created and published!')
         }
+        setIsPublished(true)
+        setHasUnsavedChanges(false)
     } catch (error) {
         console.error('Failed to save:', error)
-        toast.error('Failed to save portal')
+        toast.error('Failed to publish portal')
     } finally {
         setIsSaving(false)
     }
@@ -241,6 +249,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
       ...prev,
       sections: prev.sections.map(s => s.id === sectionId ? { ...s, ...updates } : s)
     }))
+    setHasUnsavedChanges(true)
+    setIsPublished(false)
   }
 
   const handleUpdateField = (fieldId: string, updates: Partial<Field>) => {
@@ -257,6 +267,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     }
     setConfig(prev => ({ ...prev, sections: [...prev.sections, newSection] }))
     setActiveSectionId(newSection.id)
+    setHasUnsavedChanges(true)
+    setIsPublished(false)
   }
 
   const handleAddField = (type: Field['type']) => {
@@ -269,6 +281,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
       width: 'full'
     }
     handleUpdateSection(activeSection.id, { fields: [...activeSection.fields, newField] })
+    setHasUnsavedChanges(true)
+    setIsPublished(false)
   }
 
   // Helper functions for recursive updates
@@ -398,12 +412,23 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
               </Button>
               <Button 
                 size="sm" 
-                className="bg-gray-900 hover:bg-gray-800 text-white"
+                className={cn(
+                  "text-white transition-all duration-300",
+                  isPublished && !hasUnsavedChanges
+                    ? "bg-green-600 hover:bg-green-700" 
+                    : "bg-gray-900 hover:bg-gray-800"
+                )}
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={isSaving || (isPublished && !hasUnsavedChanges)}
               >
-                {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                Publish
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : isPublished && !hasUnsavedChanges ? (
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                {isPublished && !hasUnsavedChanges ? 'Published' : 'Publish'}
               </Button>
             </div>
         </div>

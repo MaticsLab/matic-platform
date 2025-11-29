@@ -10,7 +10,7 @@ import {
   PARTICIPANTS_TABLE_DESCRIPTION,
   getParticipantsColumns,
   PARTICIPANTS_DEFAULT_VIEW
-} from '../participants-table-schema'
+} from '../activities/participants-schema'
 
 /**
  * Check if participants table exists in workspace
@@ -146,7 +146,7 @@ export async function ensureEnrolledProgramsLinkColumn(
         }
         
         const { error } = await supabase
-          .from('table_columns')
+          .from('table_fields')
           .update(updateData)
           .eq('id', enrolledProgramsColumn.id)
         

@@ -22,7 +22,7 @@ export function PublicPortal({ slug }: { slug: string }) {
   useEffect(() => {
     const fetchForm = async () => {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8000/api/v1'
+        const baseUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
         const response = await fetch(`${baseUrl}/forms/by-slug/${slug}`)
         if (response.ok) {
           const data = await response.json()
@@ -44,7 +44,7 @@ export function PublicPortal({ slug }: { slug: string }) {
     // Fetch existing submission
     if (form?.id) {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8000/api/v1'
+        const baseUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
         console.log('Fetching submission for:', form.id, email)
         const res = await fetch(`${baseUrl}/forms/${form.id}/submission?email=${encodeURIComponent(email)}`)
         if (res.ok) {

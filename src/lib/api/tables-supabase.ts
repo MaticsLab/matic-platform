@@ -15,7 +15,7 @@ export const tablesSupabase = {
       .from('data_tables')
       .select(`
         *,
-        columns:table_columns!table_columns_table_id_fkey(*),
+        columns:table_fields!table_columns_table_id_fkey(*),
         views:table_views(*)
       `)
       .eq('workspace_id', workspaceId)
@@ -33,7 +33,7 @@ export const tablesSupabase = {
       .from('data_tables')
       .select(`
         *,
-        columns:table_columns!table_columns_table_id_fkey(*),
+        columns:table_fields!table_columns_table_id_fkey(*),
         views:table_views(*),
         links:table_links!table_links_source_table_id_fkey(*)
       `)
@@ -90,7 +90,7 @@ export const tablesSupabase = {
    */
   async getTableColumns(tableId: string) {
     const { data, error } = await supabase
-      .from('table_columns')
+      .from('table_fields')
       .select('*')
       .eq('table_id', tableId)
       .order('position', { ascending: true })
@@ -104,7 +104,7 @@ export const tablesSupabase = {
    */
   async createColumn(columnData: any) {
     const { data, error } = await supabase
-      .from('table_columns')
+      .from('table_fields')
       .insert(columnData)
       .select()
       .single()
@@ -118,7 +118,7 @@ export const tablesSupabase = {
    */
   async updateColumn(columnId: string, updates: any) {
     const { data, error } = await supabase
-      .from('table_columns')
+      .from('table_fields')
       .update(updates)
       .eq('id', columnId)
       .select()
@@ -133,7 +133,7 @@ export const tablesSupabase = {
    */
   async deleteColumn(columnId: string) {
     const { error } = await supabase
-      .from('table_columns')
+      .from('table_fields')
       .delete()
       .eq('id', columnId)
 

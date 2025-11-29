@@ -130,7 +130,7 @@ async function getActivitiesTable(workspaceId: string): Promise<string> {
   ];
 
   const { error: columnsError } = await supabase
-    .from('table_columns')
+    .from('table_fields')
     .insert(defaultColumns);
 
   if (columnsError) {

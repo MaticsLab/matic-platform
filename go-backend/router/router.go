@@ -284,6 +284,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			fieldTypes := protected.Group("/field-types")
 			{
 				fieldTypes.GET("", handlers.GetFieldTypes)
+				fieldTypes.GET("/toolbox", handlers.GetFieldTypesToolbox)
 				fieldTypes.GET("/:type_id", handlers.GetFieldType)
 			}
 

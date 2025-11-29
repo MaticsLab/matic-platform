@@ -26,12 +26,14 @@ func (b *BaseModel) BeforeCreate(tx *gorm.DB) error {
 // Organization model
 type Organization struct {
 	BaseModel
-	Name        string               `gorm:"not null" json:"name"`
-	Slug        string               `gorm:"uniqueIndex;not null" json:"slug"`
-	Description string               `json:"description"`
-	Settings    datatypes.JSON       `gorm:"type:jsonb;default:'{}'" json:"settings"`
-	Members     []OrganizationMember `gorm:"foreignKey:OrganizationID" json:"members,omitempty"`
-	Workspaces  []Workspace          `gorm:"foreignKey:OrganizationID" json:"workspaces,omitempty"`
+	Name             string               `gorm:"not null" json:"name"`
+	Slug             string               `gorm:"uniqueIndex;not null" json:"slug"`
+	Description      string               `json:"description"`
+	LogoURL          string               `json:"logo_url,omitempty"`
+	Settings         datatypes.JSON       `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	SubscriptionTier string               `gorm:"default:'free'" json:"subscription_tier"`
+	Members          []OrganizationMember `gorm:"foreignKey:OrganizationID" json:"members,omitempty"`
+	Workspaces       []Workspace          `gorm:"foreignKey:OrganizationID" json:"workspaces,omitempty"`
 }
 
 type OrganizationMember struct {
@@ -53,6 +55,7 @@ func (m *OrganizationMember) BeforeCreate(tx *gorm.DB) error {
 }
 
 // Workspace model
+// Maps to workspaces in database
 type Workspace struct {
 	BaseModel
 	OrganizationID uuid.UUID         `gorm:"type:uuid;not null;index" json:"organization_id"`
@@ -64,6 +67,9 @@ type Workspace struct {
 	Settings       datatypes.JSON    `gorm:"type:jsonb;default:'{}'" json:"settings"`
 	IsArchived     bool              `gorm:"default:false" json:"is_archived"`
 	CreatedBy      uuid.UUID         `gorm:"type:uuid;not null" json:"created_by"`
+	LogoURL        string            `json:"logo_url,omitempty"`
+	AIDescription  string            `gorm:"column:ai_description" json:"ai_description,omitempty"`
+	DataSummary    datatypes.JSON    `gorm:"type:jsonb" json:"data_summary,omitempty"`
 	Members        []WorkspaceMember `gorm:"foreignKey:WorkspaceID" json:"members,omitempty"`
 	Tables         []Table           `gorm:"foreignKey:WorkspaceID" json:"tables,omitempty"`
 }
@@ -86,19 +92,26 @@ func (m *WorkspaceMember) BeforeCreate(tx *gorm.DB) error {
 }
 
 // Table (Consolidated DataTable)
+// Maps to data_tables in database
 type Table struct {
 	BaseModel
-	WorkspaceID uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
-	Name        string         `gorm:"not null" json:"name"`
-	Slug        string         `gorm:"uniqueIndex" json:"slug"`
-	Description string         `json:"description"`
-	Icon        string         `gorm:"default:'table'" json:"icon"`
-	Color       string         `gorm:"default:'#10B981'" json:"color"`
-	HubType     string         `gorm:"default:'data'" json:"hub_type"`       // activities, applications, data
-	EntityType  string         `gorm:"default:'generic'" json:"entity_type"` // person, event, application, etc.
-	Settings    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
-	RowCount    int            `gorm:"default:0" json:"row_count"`
-	CreatedBy   uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`
+	WorkspaceID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
+	Name             string         `gorm:"not null" json:"name"`
+	Slug             string         `gorm:"uniqueIndex" json:"slug"`
+	Description      string         `json:"description"`
+	Icon             string         `gorm:"default:'table'" json:"icon"`
+	Color            string         `gorm:"default:'#10B981'" json:"color"`
+	HubType          string         `gorm:"default:'data'" json:"hub_type"`       // activities, applications, data
+	EntityType       string         `gorm:"default:'generic'" json:"entity_type"` // person, event, application, etc.
+	Settings         datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	ImportSource     string         `json:"import_source,omitempty"` // Where data was imported from
+	ImportMetadata   datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"import_metadata"`
+	IsArchived       bool           `gorm:"default:false" json:"is_archived"`
+	RowCount         int            `gorm:"default:0" json:"row_count"`
+	HistorySettings  datatypes.JSON `gorm:"type:jsonb" json:"history_settings,omitempty"`               // Version history config
+	ApprovalSettings datatypes.JSON `gorm:"type:jsonb" json:"approval_settings,omitempty"`              // Change approval config
+	AISettings       datatypes.JSON `gorm:"column:ai_settings;type:jsonb" json:"ai_settings,omitempty"` // AI suggestion settings
+	CreatedBy        uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`
 
 	// Relationships
 	Fields []Field `gorm:"foreignKey:TableID;constraint:OnDelete:CASCADE" json:"columns"`
@@ -111,20 +124,32 @@ func (Table) TableName() string {
 }
 
 // Field (Consolidated TableColumn/FormField)
+// Maps to table_fields in database
 type Field struct {
 	BaseModel
-	TableID        uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
-	Name           string         `gorm:"not null" json:"name"`    // Internal key
-	Label          string         `gorm:"not null" json:"label"`   // Display name
-	Type           string         `gorm:"not null" json:"type"`    // text, number, select, etc.
-	FieldTypeID    string         `json:"field_type_id,omitempty"` // References field_type_registry.id
-	Position       int            `gorm:"default:0" json:"position"`
-	Config         datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"config"` // Merged metadata
-	SemanticType   string         `json:"semantic_type,omitempty"`               // name, email, phone, status, date, etc.
-	IsSearchable   bool           `gorm:"default:true" json:"is_searchable"`
-	IsDisplayField bool           `gorm:"default:false" json:"is_display_field"`
-	SearchWeight   float64        `gorm:"default:1.0" json:"search_weight"`
-	SampleValues   datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"sample_values,omitempty"`
+	TableID             uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
+	Name                string         `gorm:"not null" json:"name"`                              // Internal key
+	Label               string         `gorm:"not null" json:"label"`                             // Display name
+	Description         string         `json:"description,omitempty"`                             // Field description
+	Type                string         `gorm:"not null" json:"type"`                              // text, number, select, link, etc.
+	Settings            datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`           // Type-specific settings
+	Validation          datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"validation"`         // Validation rules
+	Formula             string         `json:"formula,omitempty"`                                 // Calculated field formula
+	FormulaDependencies []string       `gorm:"type:text[]" json:"formula_dependencies,omitempty"` // Fields formula depends on
+	LinkedTableID       *uuid.UUID     `gorm:"type:uuid" json:"linked_table_id,omitempty"`        // For link fields
+	LinkedColumnID      *uuid.UUID     `gorm:"type:uuid" json:"linked_column_id,omitempty"`       // Display column for link
+	RollupFunction      string         `json:"rollup_function,omitempty"`                         // Aggregation function for rollups
+	Position            int            `gorm:"default:0" json:"position"`                         // Display order
+	Width               int            `gorm:"default:150" json:"width"`                          // Column width in pixels
+	IsVisible           bool           `gorm:"default:true" json:"is_visible"`                    // Show in table view
+	IsPrimary           bool           `gorm:"default:false" json:"is_primary"`                   // Primary display field
+	Config              datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"config"`             // Additional configuration
+	SemanticType        string         `json:"semantic_type,omitempty"`                           // name, email, phone, status, date, etc.
+	IsSearchable        bool           `gorm:"default:true" json:"is_searchable"`                 // Include in search
+	IsDisplayField      bool           `gorm:"default:false" json:"is_display_field"`             // Use as display in links
+	SearchWeight        float64        `gorm:"default:1.0" json:"search_weight"`                  // Search ranking weight
+	SampleValues        datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"sample_values"`      // Cached sample values
+	FieldTypeID         string         `json:"field_type_id,omitempty"`                           // References field_type_registry.id
 }
 
 func (Field) TableName() string {
@@ -134,12 +159,13 @@ func (Field) TableName() string {
 // Row (Consolidated TableRow/FormSubmission)
 type Row struct {
 	BaseModel
-	TableID   uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
-	Data      datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"data"`
-	Metadata  datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"metadata"` // Added Metadata
-	Position  int            `gorm:"default:0" json:"position"`
-	CreatedBy *uuid.UUID     `gorm:"type:uuid" json:"created_by,omitempty"`
-	UpdatedBy *uuid.UUID     `gorm:"type:uuid" json:"updated_by,omitempty"`
+	TableID    uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
+	Data       datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"data"`
+	Metadata   datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"metadata"`
+	IsArchived bool           `gorm:"default:false" json:"is_archived"`
+	Position   int64          `gorm:"default:0" json:"position"` // bigint in database
+	CreatedBy  *uuid.UUID     `gorm:"type:uuid" json:"created_by,omitempty"`
+	UpdatedBy  *uuid.UUID     `gorm:"type:uuid" json:"updated_by,omitempty"`
 }
 
 func (Row) TableName() string {
@@ -147,13 +173,21 @@ func (Row) TableName() string {
 }
 
 // View (Consolidated TableView/Form)
+// Maps to table_views in database
 type View struct {
 	BaseModel
-	TableID   uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
-	Name      string         `gorm:"not null" json:"name"`
-	Type      string         `gorm:"not null" json:"type"` // grid, form, kanban, gallery
-	Config    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"config"`
-	CreatedBy uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`
+	TableID     uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
+	Name        string         `gorm:"not null" json:"name"`
+	Description string         `json:"description,omitempty"`
+	Type        string         `gorm:"not null" json:"type"` // grid, form, kanban, gallery, calendar, timeline
+	Settings    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	Filters     datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"filters"`
+	Sorts       datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"sorts"`
+	Grouping    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"grouping"`
+	Config      datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"config"`
+	IsShared    bool           `gorm:"default:false" json:"is_shared"`
+	IsLocked    bool           `gorm:"default:false" json:"is_locked"`
+	CreatedBy   uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`
 }
 
 func (View) TableName() string {

@@ -173,12 +173,11 @@ The application automatically creates and migrates all required tables on startu
 - request_hubs
 - request_hub_tabs
 - data_tables
-- table_columns
+- table_fields (column/field definitions)
 - table_rows
 - table_views
-- forms
-- form_fields
-- form_submissions
+- table_links
+- table_row_links
 
 ## 🏗️ Build for Production
 

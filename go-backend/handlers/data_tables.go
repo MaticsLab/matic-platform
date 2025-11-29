@@ -215,7 +215,7 @@ func ListTableRows(c *gin.Context) {
 
 type CreateTableRowInput struct {
 	Data     map[string]interface{} `json:"data" binding:"required"`
-	Position int                    `json:"position"`
+	Position int64                  `json:"position"`
 }
 
 func CreateTableRow(c *gin.Context) {
@@ -294,7 +294,7 @@ func CreateTableRow(c *gin.Context) {
 
 type UpdateTableRowInput struct {
 	Data     *map[string]interface{} `json:"data"`
-	Position *int                    `json:"position"`
+	Position *int64                  `json:"position"`
 }
 
 func UpdateTableRow(c *gin.Context) {

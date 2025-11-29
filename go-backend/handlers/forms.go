@@ -12,6 +12,7 @@ import (
 	"github.com/Jsanchez767/matic-platform/database"
 	"github.com/Jsanchez767/matic-platform/middleware"
 	"github.com/Jsanchez767/matic-platform/models"
+	"github.com/Jsanchez767/matic-platform/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -369,6 +370,32 @@ func SubmitForm(c *gin.Context) {
 		data = make(map[string]interface{})
 	}
 
+	// Parse form ID
+	parsedFormID := uuid.MustParse(formID)
+
+	// Normalize data using FieldNormalizer
+	normalizer := services.NewFieldNormalizer()
+	normalizeResult, err := normalizer.NormalizeForStorage(services.NormalizeInput{
+		TableID: parsedFormID,
+		Data:    data,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to normalize data: " + err.Error()})
+		return
+	}
+
+	// Check for validation errors
+	if len(normalizeResult.Errors) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Validation errors",
+			"details": normalizeResult.Errors,
+		})
+		return
+	}
+
+	// Use normalized data
+	data = normalizeResult.Data
+
 	data["_ip_address"] = c.ClientIP()
 	data["_user_agent"] = c.Request.UserAgent()
 
@@ -396,24 +423,39 @@ func SubmitForm(c *gin.Context) {
 		var existingRow models.Row
 		// Postgres JSONB query: data->'personal'->>'personalEmail' = ?
 		if err := database.DB.Where("table_id = ? AND data->'personal'->>'personalEmail' = ?", formID, email).First(&existingRow).Error; err == nil {
-			// Update existing row
+			// Update existing row - create version for this update
 			existingRow.Data = mapToJSON(data)
 			existingRow.UpdatedAt = time.Now()
 			database.DB.Save(&existingRow)
+
+			// Create version for the update
+			go func() {
+				versionService := services.NewVersionService()
+				versionService.CreateVersion(services.CreateVersionInput{
+					RowID:        existingRow.ID,
+					TableID:      parsedFormID,
+					Data:         data,
+					ChangeType:   models.ChangeTypeUpdate,
+					ChangeReason: "Form submission updated",
+				})
+			}()
+
 			c.JSON(http.StatusOK, existingRow)
 			return
 		}
 	}
 
 	row := models.Row{
-		TableID: uuid.MustParse(formID),
+		TableID: parsedFormID,
 		Data:    mapToJSON(data),
 	}
 
 	// Add user ID if authenticated (optional for forms)
-	if userID, exists := middleware.GetUserID(c); exists {
-		if parsedUserID, err := uuid.Parse(userID); err == nil {
+	var userID *uuid.UUID
+	if userIDStr, exists := middleware.GetUserID(c); exists {
+		if parsedUserID, err := uuid.Parse(userIDStr); err == nil {
 			row.CreatedBy = &parsedUserID
+			userID = &parsedUserID
 		}
 	}
 
@@ -421,6 +463,19 @@ func SubmitForm(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Create initial version for version history
+	go func() {
+		versionService := services.NewVersionService()
+		versionService.CreateVersion(services.CreateVersionInput{
+			RowID:        row.ID,
+			TableID:      parsedFormID,
+			Data:         data,
+			ChangeType:   models.ChangeTypeCreate,
+			ChangeReason: "Form submission created",
+			ChangedBy:    userID,
+		})
+	}()
 
 	// Queue submission for semantic embedding (async, don't fail if this fails)
 	go func() {
@@ -550,13 +605,23 @@ func UpdateFormStructure(c *gin.Context) {
 				config["children"] = fieldInput.Children
 			}
 
+			// Get field_type_id from registry (use type as ID, they should match)
+			fieldTypeID := GetDefaultFieldTypeID(fieldInput.Type)
+
+			// Generate a clean name from label (snake_case)
+			fieldName := toSnakeCase(fieldInput.Label)
+			if fieldName == "" {
+				fieldName = "field_" + fieldInput.ID[:8]
+			}
+
 			field := models.Field{
-				TableID:  table.ID,
-				Label:    fieldInput.Label,
-				Name:     fieldInput.Label,
-				Type:     fieldInput.Type,
-				Position: position,
-				Config:   mapToJSON(config),
+				TableID:     table.ID,
+				Label:       fieldInput.Label,
+				Name:        fieldName,
+				Type:        fieldInput.Type,
+				FieldTypeID: fieldTypeID, // Link to field_type_registry
+				Position:    position,
+				Config:      mapToJSON(config),
 			}
 
 			// Use ID from frontend if valid UUID, else generate new

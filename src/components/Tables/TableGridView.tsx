@@ -245,7 +245,7 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
         {
           event: '*',
           schema: 'public',
-          table: 'table_columns',
+          table: 'table_fields',
           filter: `table_id=eq.${tableId}`
         },
         (payload) => {

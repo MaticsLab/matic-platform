@@ -206,6 +206,13 @@ export function ApplicationForm({
   const rawSections = (formDefinition?.settings?.sections as any[]) || []
   const hasFields = (formDefinition?.fields?.length || 0) > 0
   
+  // Debug logging
+  console.log('ApplicationForm Debug:', {
+    formDefinition: formDefinition ? { id: formDefinition.id, name: formDefinition.name, fieldsCount: formDefinition.fields?.length } : null,
+    rawSections,
+    hasFields
+  })
+  
   // If formDefinition is provided, we treat it as dynamic.
   // If no sections defined but fields exist, create a default section.
   const sections = rawSections.length > 0 
@@ -414,7 +421,7 @@ export function ApplicationForm({
                 <CardContent className={cn("space-y-8", isExternal ? "px-0" : "")}>
                   {isDynamic ? (
                     <DynamicSection
-                      fields={formDefinition!.fields!.filter(f => {
+                      fields={(formDefinition?.fields || []).filter(f => {
                         const config = f.config as any
                         // If we are using the synthesized default section, show all fields
                         if (sections.length === 1 && sections[0].id === 'default') return true

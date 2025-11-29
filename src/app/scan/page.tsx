@@ -689,7 +689,7 @@ function ScanPageContent() {
 
       // Try to get authenticated user, fallback to guest system user
       const { getCurrentUser } = await import('@/lib/supabase')
-      const { GUEST_SCANNER_SYSTEM_USER_ID, getGuestScannerInfo } = await import('@/lib/guest-scanner')
+      const { GUEST_SCANNER_SYSTEM_USER_ID, getGuestScannerInfo } = await import('@/lib/activities/guest-scanner')
       const user = await getCurrentUser()
       const guestInfo = getGuestScannerInfo()
       
