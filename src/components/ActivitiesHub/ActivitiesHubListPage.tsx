@@ -362,12 +362,6 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
   useEffect(() => {
     setTabActions([
       {
-        label: 'Tables',
-        icon: Database,
-        onClick: () => router.push(`/workspace/${workspaceId}/tables`),
-        variant: 'outline' as const
-      },
-      {
         label: 'Add Activity',
         icon: Plus,
         onClick: () => setAddDialogOpen(true),
@@ -574,13 +568,6 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
                     >
                       <Plus className="h-4 w-4 mr-2" />
                       Create Activity
-                    </Button>
-                    <Button 
-                      variant="outline"
-                      onClick={() => router.push(`/workspace/${workspaceId}/tables`)}
-                    >
-                      <Database className="h-4 w-4 mr-2" />
-                      Tables
                     </Button>
                   </div>
                 )}
