@@ -5,7 +5,7 @@ import { useDrag, useDrop } from 'react-dnd'
 import { 
   GripVertical, Trash2, Plus, Type, AlignLeft, Hash, Mail, Calendar, 
   CheckSquare, List, Image as ImageIcon, Phone, Link, Clock, PenTool, 
-  Star, Minus, Heading, Pilcrow, CheckCircle2, Layout, X, Settings, Info, ArrowUpDown
+  Star, Minus, Heading, Pilcrow, CheckCircle2, Layout, X, Settings, Info, ArrowUpDown, MapPin
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -23,7 +23,7 @@ interface FormBuilderProps {
 }
 
 const FIELD_ICONS: Record<string, any> = {
-  text: Type, textarea: AlignLeft, number: Hash, email: Mail, phone: Phone, url: Link,
+  text: Type, textarea: AlignLeft, number: Hash, email: Mail, phone: Phone, url: Link, address: MapPin,
   select: List, multiselect: List, radio: CheckCircle2, checkbox: CheckSquare,
   date: Calendar, datetime: Calendar, time: Clock,
   file: ImageIcon, image: ImageIcon, signature: PenTool, rating: Star, rank: ArrowUpDown,

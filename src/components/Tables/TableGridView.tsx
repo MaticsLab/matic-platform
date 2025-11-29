@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Plus, ChevronDown, Trash2, Copy, Settings, EyeOff, Eye, Grid3x3, Kanban, Calendar as CalendarIcon, Image as ImageIcon, List, Search, BarChart3, Filter, MoreHorizontal, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, AlignJustify, Rows, Maximize2 } from 'lucide-react'
+import { Plus, ChevronDown, Trash2, Copy, Settings, EyeOff, Eye, Grid3x3, Kanban, Calendar as CalendarIcon, Image as ImageIcon, List, Search, BarChart3, Filter, MoreHorizontal, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, AlignJustify, Rows, Maximize2, MapPin } from 'lucide-react'
 import { ColumnEditorModal } from './ColumnEditorModal'
 import { LinkField } from './LinkField'
+import { AddressField, AddressValue } from './AddressField'
 import { pulseSupabase } from '@/lib/api/pulse-supabase'
 import type { PulseEnabledTable } from '@/lib/api/pulse-client'
 import { tablesGoClient } from '@/lib/api/tables-go-client'
@@ -1094,6 +1095,29 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
             // Save links using the dedicated handler
             await handleSaveLinks(row.id, column.name, newValue)
           }}
+        />
+      )
+    }
+
+    // Address column type - use address autocomplete field
+    if (column.column_type === 'address') {
+      return (
+        <AddressField
+          value={value as AddressValue | string | null}
+          onChange={(newValue) => {
+            // Update local state immediately
+            const updatedRows = rows.map(r => 
+              r.id === row.id 
+                ? { ...r, data: { ...r.data, [column.name]: newValue } }
+                : r
+            )
+            setRows(updatedRows)
+          }}
+          onSave={async (newValue) => {
+            await handleCellEdit(row.id, column.name, newValue)
+          }}
+          isTableCell={true}
+          className={isSelected ? 'ring-2 ring-inset ring-blue-500' : ''}
         />
       )
     }

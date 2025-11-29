@@ -10,7 +10,7 @@
 export type FieldCategory = 'primitive' | 'container' | 'layout' | 'special'
 
 export type FieldTypeId =
-  | 'text' | 'textarea' | 'email' | 'phone' | 'url'
+  | 'text' | 'textarea' | 'email' | 'phone' | 'url' | 'address'
   | 'number' | 'rating'
   | 'date' | 'datetime' | 'time'
   | 'select' | 'multiselect' | 'radio' | 'checkbox'

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { 
   Type, AlignLeft, Hash, Mail, Calendar, CheckSquare, List, Image as ImageIcon,
   Phone, Link, Clock, PenTool, Star, Minus, Heading, Pilcrow, CheckCircle2, Layout, Search, ArrowUpDown,
-  FileUp, CalendarClock, FunctionSquare, Calculator, Link2, Box, Loader2, LucideIcon
+  FileUp, CalendarClock, FunctionSquare, Calculator, Link2, Box, Loader2, LucideIcon, MapPin
 } from 'lucide-react'
 import { Input } from '@/ui-components/input'
 import { FieldType } from '@/types/portal'
@@ -26,7 +26,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Type, AlignLeft, Hash, Mail, Calendar, CheckSquare, List, Image: ImageIcon,
   Phone, Link, Clock, PenTool, Star, Minus, Heading, Pilcrow, CheckCircle2, Layout, Search, ArrowUpDown,
   FileUp, CalendarClock, FunctionSquare, Calculator, Link2, Box, Text: Pilcrow, Folder: Layout,
-  ListChecks: List, ChevronDown: List, Circle: CheckCircle2, LayoutGrid: Layout
+  ListChecks: List, ChevronDown: List, Circle: CheckCircle2, LayoutGrid: Layout, MapPin
 }
 
 function getIconComponent(iconName?: string): LucideIcon {
@@ -45,6 +45,7 @@ const STATIC_FIELD_GROUPS: FieldGroup[] = [
       { type: 'email', label: 'Email', icon: Mail },
       { type: 'phone', label: 'Phone', icon: Phone },
       { type: 'url', label: 'URL', icon: Link },
+      { type: 'address', label: 'Address', icon: MapPin, description: 'Address with autocomplete' },
     ]
   },
   {

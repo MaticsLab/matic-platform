@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, GripVertical, Type, Hash, Mail, Phone, Calendar, CheckSquare, Link as LinkIcon, List, Image, Link2, Search, ChevronRight } from 'lucide-react'
+import { X, Plus, Trash2, GripVertical, Type, Hash, Mail, Phone, Calendar, CheckSquare, Link as LinkIcon, List, Image, Link2, Search, ChevronRight, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface Column {
@@ -34,6 +34,7 @@ const COLUMN_TYPES = [
   { value: 'email', label: 'Email', icon: Mail, description: 'Email address with validation' },
   { value: 'phone', label: 'Phone', icon: Phone, description: 'Phone number' },
   { value: 'url', label: 'URL', icon: LinkIcon, description: 'Website link' },
+  { value: 'address', label: 'Address', icon: MapPin, description: 'Address with autocomplete' },
   { value: 'date', label: 'Date', icon: Calendar, description: 'Date picker' },
   { value: 'datetime', label: 'Date & Time', icon: Calendar, description: 'Date and time picker' },
   { value: 'checkbox', label: 'Checkbox', icon: CheckSquare, description: 'True/false value' },

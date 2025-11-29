@@ -44,6 +44,7 @@ export const FIELD_TYPE_ICONS: Record<string, string> = {
   email: 'Mail',
   phone: 'Phone',
   url: 'Link2',
+  address: 'MapPin',
   number: 'Hash',
   date: 'Calendar',
   datetime: 'CalendarClock',
