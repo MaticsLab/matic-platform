@@ -1,12 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { 
   Type, AlignLeft, Hash, Mail, Calendar, CheckSquare, List, Image as ImageIcon,
   Phone, Link, Clock, PenTool, Star, Minus, Heading, Pilcrow, CheckCircle2, Layout, Search, ArrowUpDown,
-  FileUp, CalendarClock, FunctionSquare, Calculator, Link2, Box, Loader2, LucideIcon, MapPin
+  FileUp, CalendarClock, LucideIcon, MapPin
 } from 'lucide-react'
 import { Input } from '@/ui-components/input'
 import { FieldType } from '@/types/portal'
-import { fieldTypesClient, FieldTypesToolbox, FieldTypeSummary } from '@/lib/api/field-types-client'
 
 // Type for field group items
 interface FieldGroupItem {
@@ -21,62 +20,13 @@ interface FieldGroup {
   items: FieldGroupItem[]
 }
 
-// Icon mapping from string names to Lucide components
-const ICON_MAP: Record<string, LucideIcon> = {
-  Type, AlignLeft, Hash, Mail, Calendar, CheckSquare, List, Image: ImageIcon,
-  Phone, Link, Clock, PenTool, Star, Minus, Heading, Pilcrow, CheckCircle2, Layout, Search, ArrowUpDown,
-  FileUp, CalendarClock, FunctionSquare, Calculator, Link2, Box, Text: Pilcrow, Folder: Layout,
-  ListChecks: List, ChevronDown: List, Circle: CheckCircle2, LayoutGrid: Layout, MapPin
-}
-
-// Fallback icons by field type ID (when icon column is empty in database)
-const FIELD_TYPE_ID_ICONS: Record<string, LucideIcon> = {
-  text: Type,
-  textarea: AlignLeft,
-  number: Hash,
-  email: Mail,
-  phone: Phone,
-  url: Link,
-  address: MapPin,
-  select: List,
-  multiselect: List,
-  radio: CheckCircle2,
-  checkbox: CheckSquare,
-  date: Calendar,
-  datetime: CalendarClock,
-  time: Clock,
-  file: FileUp,
-  image: ImageIcon,
-  signature: PenTool,
-  rating: Star,
-  rank: ArrowUpDown,
-  divider: Minus,
-  heading: Heading,
-  paragraph: Pilcrow,
-  group: Layout,
-  repeater: List,
-  section: Layout,
-}
-
-function getIconComponent(iconName?: string, fieldTypeId?: string): LucideIcon {
-  // Try icon name first
-  if (iconName && ICON_MAP[iconName]) {
-    return ICON_MAP[iconName]
-  }
-  // Fall back to field type ID mapping
-  if (fieldTypeId && FIELD_TYPE_ID_ICONS[fieldTypeId]) {
-    return FIELD_TYPE_ID_ICONS[fieldTypeId]
-  }
-  return Box
-}
-
-// Fallback static field groups (used if API fails)
+// Static field groups - the source of truth for the Portal Builder
 const STATIC_FIELD_GROUPS: FieldGroup[] = [
   {
     title: 'Basic Fields',
     items: [
-      { type: 'text', label: 'Text Input', icon: Type },
-      { type: 'textarea', label: 'Text Area', icon: AlignLeft },
+      { type: 'text', label: 'Short Text', icon: Type },
+      { type: 'textarea', label: 'Long Text', icon: AlignLeft },
       { type: 'number', label: 'Number', icon: Hash },
       { type: 'email', label: 'Email', icon: Mail },
       { type: 'phone', label: 'Phone', icon: Phone },
@@ -103,7 +53,7 @@ const STATIC_FIELD_GROUPS: FieldGroup[] = [
     ]
   },
   {
-    title: 'Media & Advanced',
+    title: 'Media & Files',
     items: [
       { type: 'file', label: 'File Upload', icon: FileUp },
       { type: 'image', label: 'Image Upload', icon: ImageIcon },
@@ -117,7 +67,12 @@ const STATIC_FIELD_GROUPS: FieldGroup[] = [
       { type: 'heading', label: 'Heading', icon: Heading },
       { type: 'paragraph', label: 'Paragraph', icon: Pilcrow },
       { type: 'divider', label: 'Divider', icon: Minus },
-      { type: 'group', label: 'Group', icon: Layout },
+    ]
+  },
+  {
+    title: 'Containers',
+    items: [
+      { type: 'group', label: 'Field Group', icon: Layout },
       { type: 'repeater', label: 'Repeater', icon: List },
     ]
   }
@@ -128,47 +83,11 @@ interface FieldToolboxProps {
 }
 
 export function FieldToolbox({ onAddField }: FieldToolboxProps) {
-  const [toolbox, setToolbox] = useState<FieldTypesToolbox | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    const loadFieldTypes = async () => {
-      try {
-        const data = await fieldTypesClient.getToolbox()
-        setToolbox(data)
-      } catch (error) {
-        console.error('Failed to load field types from registry, using static fallback:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    loadFieldTypes()
-  }, [])
-
-  // Convert API response to display groups
-  const fieldGroups: FieldGroup[] = useMemo(() => {
-    if (!toolbox) return STATIC_FIELD_GROUPS
-
-    const categoryLabels: Record<string, string> = {
-      primitive: 'Basic Fields',
-      container: 'Containers',
-      layout: 'Layout',
-      special: 'Advanced',
-    }
-
-    return Object.entries(toolbox)
-      .filter(([_, items]) => items.length > 0)
-      .map(([category, items]) => ({
-        title: categoryLabels[category] || category,
-        items: items.map((item: FieldTypeSummary) => ({
-          type: item.id,
-          label: item.label,
-          icon: getIconComponent(item.icon, item.id),
-          description: item.description,
-        }))
-      }))
-  }, [toolbox])
+  // Always use the static field groups - they are the source of truth
+  // The API registry is for backend validation, not for driving the UI
+  const fieldGroups = STATIC_FIELD_GROUPS
 
   // Filter fields by search query
   const filteredGroups = useMemo(() => {
@@ -185,14 +104,6 @@ export function FieldToolbox({ onAddField }: FieldToolboxProps) {
       }))
       .filter(group => group.items.length > 0)
   }, [fieldGroups, searchQuery])
-
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50/50">
-        <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-      </div>
-    )
-  }
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50/50 min-h-0">
