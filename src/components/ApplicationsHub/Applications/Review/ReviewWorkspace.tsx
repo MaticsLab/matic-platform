@@ -12,10 +12,11 @@ import {
   Target, TrendingUp, BarChart3, Layers,
   UserCheck, UserPlus, ArrowUpRight, Inbox,
   GraduationCap, Search, Settings2, Type, Shield,
-  Plus, Sparkles
+  Plus, Sparkles, Trash2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { goClient } from '@/lib/api/go-client'
+import { formsClient } from '@/lib/api/forms-client'
 import { FormSubmission, Form, FormField } from '@/types/forms'
 import { 
   workflowsClient, 
@@ -23,7 +24,10 @@ import {
   Rubric, 
   StageReviewerConfig, 
   ReviewerType,
-  ReviewWorkflow 
+  ReviewWorkflow,
+  WorkflowAction,
+  ApplicationGroup,
+  StageAction
 } from '@/lib/api/workflows-client'
 import { Button } from '@/ui-components/button'
 import { Badge } from '@/ui-components/badge'
@@ -37,6 +41,28 @@ import {
 import { useSearch, HubSearchContext } from '@/components/Search'
 import { ReviewerManagement } from '../Reviewers/ReviewerManagement'
 import { CommunicationsCenter } from '../Communications/CommunicationsCenter'
+
+// Stage color palette - semantic colors for workflow stages
+const STAGE_COLORS = {
+  blue: { bg: 'bg-blue-500', bgLight: 'bg-blue-100', border: 'border-blue-200', text: 'text-blue-700', textLight: 'text-blue-500' },
+  green: { bg: 'bg-green-500', bgLight: 'bg-green-100', border: 'border-green-200', text: 'text-green-700', textLight: 'text-green-500' },
+  yellow: { bg: 'bg-yellow-500', bgLight: 'bg-yellow-100', border: 'border-yellow-200', text: 'text-yellow-700', textLight: 'text-yellow-500' },
+  orange: { bg: 'bg-orange-500', bgLight: 'bg-orange-100', border: 'border-orange-200', text: 'text-orange-700', textLight: 'text-orange-500' },
+  red: { bg: 'bg-red-500', bgLight: 'bg-red-100', border: 'border-red-200', text: 'text-red-700', textLight: 'text-red-500' },
+  purple: { bg: 'bg-purple-500', bgLight: 'bg-purple-100', border: 'border-purple-200', text: 'text-purple-700', textLight: 'text-purple-500' },
+  pink: { bg: 'bg-pink-500', bgLight: 'bg-pink-100', border: 'border-pink-200', text: 'text-pink-700', textLight: 'text-pink-500' },
+  teal: { bg: 'bg-teal-500', bgLight: 'bg-teal-100', border: 'border-teal-200', text: 'text-teal-700', textLight: 'text-teal-500' },
+  indigo: { bg: 'bg-indigo-500', bgLight: 'bg-indigo-100', border: 'border-indigo-200', text: 'text-indigo-700', textLight: 'text-indigo-500' },
+  slate: { bg: 'bg-slate-500', bgLight: 'bg-slate-100', border: 'border-slate-200', text: 'text-slate-700', textLight: 'text-slate-500' },
+} as const
+
+type StageColorKey = keyof typeof STAGE_COLORS
+
+// Default stage colors based on index
+const getDefaultStageColor = (index: number): StageColorKey => {
+  const colorOrder: StageColorKey[] = ['blue', 'green', 'purple', 'orange', 'teal', 'pink', 'yellow', 'indigo', 'red', 'slate']
+  return colorOrder[index % colorOrder.length]
+}
 
 interface ReviewWorkspaceProps {
   workspaceId: string
@@ -353,6 +379,7 @@ interface StageWithConfig extends ApplicationStage {
   reviewerConfigs: StageReviewerConfig[]
   rubric: Rubric | null
   applicationCount: number
+  stageActions: StageAction[]
 }
 
 type ViewMode = 'focus' | 'queue' | 'analytics'
@@ -375,6 +402,9 @@ export function ReviewWorkspace({
   const [reviewerTypes, setReviewerTypes] = useState<ReviewerType[]>([])
   const [rubrics, setRubrics] = useState<Rubric[]>([])
   const [form, setForm] = useState<Form | null>(null)
+  const [workflowActions, setWorkflowActions] = useState<WorkflowAction[]>([])
+  const [groups, setGroups] = useState<ApplicationGroup[]>([])
+  const [stageActions, setStageActions] = useState<StageAction[]>([])
   
   // Form display settings
   const [titleFieldName, setTitleFieldName] = useState<string | null>(null)
@@ -517,13 +547,25 @@ export function ReviewWorkspace({
       if (activeWorkflow) {
         setWorkflow(activeWorkflow)
         
+        // Load workflow actions and groups
+        const [actionsData, groupsData] = await Promise.all([
+          workflowsClient.listWorkflowActions(activeWorkflow.id),
+          workflowsClient.listGroups(activeWorkflow.id)
+        ])
+        setWorkflowActions(actionsData)
+        setGroups(groupsData)
+        
         const stagesData = await workflowsClient.listStages(workspaceId, activeWorkflow.id)
         
         loadedStages = await Promise.all(
           stagesData.map(async (stage) => {
             let configs: StageReviewerConfig[] = []
+            let actions: StageAction[] = []
             try {
-              configs = await workflowsClient.listStageConfigs(stage.id)
+              [configs, actions] = await Promise.all([
+                workflowsClient.listStageConfigs(stage.id),
+                workflowsClient.listStageActions(stage.id)
+              ])
             } catch {}
             
             const primaryConfig = configs[0]
@@ -543,7 +585,8 @@ export function ReviewWorkspace({
               ...stage,
               reviewerConfigs: configs,
               rubric,
-              applicationCount: 0
+              applicationCount: 0,
+              stageActions: actions
             }
           })
         )
@@ -803,6 +846,30 @@ export function ReviewWorkspace({
     }
   }
 
+  const handleDeleteApplication = async (appId: string) => {
+    if (!formId) return
+    
+    try {
+      await formsClient.deleteSubmission(formId, appId)
+      
+      // Remove from local state
+      setApplications(prev => prev.filter(app => app.id !== appId))
+      
+      // Update stage counts
+      setStages(prev => prev.map(stage => ({
+        ...stage,
+        applicationCount: applications.filter(a => a.id !== appId && a.stageId === stage.id).length
+      })))
+      
+      // Reset selection if deleted app was selected
+      if (selectedAppIndex >= applications.length - 1) {
+        setSelectedAppIndex(Math.max(0, selectedAppIndex - 1))
+      }
+    } catch (error) {
+      console.error('Failed to delete application:', error)
+    }
+  }
+
   const handleAssignWorkflow = async (appId: string, workflowId: string, stageId: string) => {
     if (!formId) return
     
@@ -923,6 +990,50 @@ export function ReviewWorkspace({
       goToNext()
     } catch (error) {
       console.error('Failed to save decision:', error)
+    }
+  }
+
+  // Execute a workflow or stage action
+  const handleExecuteAction = async (action: WorkflowAction | StageAction, comment?: string) => {
+    if (!currentApp || !formId) return
+    
+    const isWorkflowAction = 'review_workflow_id' in action
+    
+    try {
+      // Execute the action via API
+      await workflowsClient.executeAction({
+        action_id: action.id,
+        action_type: isWorkflowAction ? 'workflow_action' : 'stage_action',
+        submission_id: currentApp.id,
+        form_id: formId,
+        comment
+      })
+      
+      // Update local state based on action type
+      if (action.action_type === 'move_to_group' && action.target_group_id) {
+        const targetGroup = groups.find(g => g.id === action.target_group_id)
+        setApplications(prev => prev.map(app => 
+          app.id === currentApp.id
+            ? { ...app, status: targetGroup?.name.toLowerCase() || 'moved', groupId: action.target_group_id }
+            : app
+        ))
+      } else if (action.action_type === 'advance_stage' || action.action_type === 'move_to_stage') {
+        const currentStageIndex = stages.findIndex(s => s.id === currentApp.stageId)
+        if (currentStageIndex >= 0 && currentStageIndex < stages.length - 1) {
+          const nextStage = stages[currentStageIndex + 1]
+          await handleMoveToStage(currentApp.id, nextStage.id, 'Advanced via action')
+        }
+      } else if (action.action_type === 'set_status' && 'status_value' in action) {
+        setApplications(prev => prev.map(app => 
+          app.id === currentApp.id
+            ? { ...app, status: action.status_value || action.name.toLowerCase() }
+            : app
+        ))
+      }
+      
+      goToNext()
+    } catch (error) {
+      console.error('Failed to execute action:', error)
     }
   }
 
@@ -1357,6 +1468,8 @@ export function ReviewWorkspace({
           {stages.map((stage, idx) => {
             const count = applications.filter(a => a.stageId === stage.id).length
             const isActive = stage.id === selectedStageId && !showOnlyUnassigned
+            const stageColorKey = ((stage as any).color as StageColorKey) || getDefaultStageColor(idx)
+            const stageColor = STAGE_COLORS[stageColorKey]
             
             return (
               <button
@@ -1369,10 +1482,10 @@ export function ReviewWorkspace({
                 className={cn(
                   "w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold transition-all relative group",
                   isActive
-                    ? "bg-blue-600 text-white shadow-md"
+                    ? `${stageColor.bg} text-white shadow-md`
                     : count > 0
-                    ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    : "bg-gray-50 text-gray-300"
+                    ? `${stageColor.bgLight} ${stageColor.text} hover:opacity-80`
+                    : `${stageColor.bgLight} ${stageColor.textLight} opacity-50`
                 )}
                 title={stage.name}
               >
@@ -1380,7 +1493,8 @@ export function ReviewWorkspace({
                 {count > 0 && (
                   <span className={cn(
                     "absolute -top-1 -right-1 w-5 h-5 text-[10px] font-bold rounded-full flex items-center justify-center",
-                    isActive ? "bg-white text-blue-600" : "bg-blue-100 text-blue-700"
+                    isActive ? "bg-white" : stageColor.bg,
+                    isActive ? stageColor.text : "text-white"
                   )}>
                     {count}
                   </span>
@@ -1412,6 +1526,10 @@ export function ReviewWorkspace({
               stages={stages}
               onMoveToStage={handleMoveToStage}
               onDecision={handleDecision}
+              onDelete={handleDeleteApplication}
+              workflowActions={workflowActions}
+              groups={groups}
+              onExecuteAction={handleExecuteAction}
             />
           )}
           
@@ -1543,7 +1661,11 @@ function AccordionQueueView({
   hiddenPIIFields,
   stages,
   onMoveToStage,
-  onDecision
+  onDecision,
+  onDelete,
+  workflowActions,
+  groups,
+  onExecuteAction
 }: {
   apps: ApplicationData[]
   selectedIndex: number
@@ -1559,6 +1681,10 @@ function AccordionQueueView({
   stages?: StageWithConfig[]
   onMoveToStage?: (appId: string, stageId: string) => void
   onDecision?: (decision: string) => void
+  onDelete?: (appId: string) => void
+  workflowActions?: WorkflowAction[]
+  groups?: ApplicationGroup[]
+  onExecuteAction?: (action: WorkflowAction | StageAction) => void
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'data' | 'reviews'>('data')
@@ -1752,6 +1878,21 @@ function AccordionQueueView({
                           <Play className="w-3 h-3 mr-1" />
                           Review
                         </Button>
+                        {onDelete && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (confirm('Are you sure you want to delete this application? This action cannot be undone.')) {
+                                onDelete(app.id)
+                              }
+                            }}
+                            className="text-xs h-7 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                     
@@ -1842,25 +1983,97 @@ function AccordionQueueView({
                         <Clock className="w-3.5 h-3.5" />
                         Submitted {new Date(app.submittedAt).toLocaleDateString()}
                       </div>
-                      {onDecision && (
+                      {/* Custom Actions - Stage actions first, then workflow actions */}
+                      {(stage?.stageActions?.length || workflowActions?.length || onDecision) && (
                         <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => onDecision('rejected')}
-                            className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs"
-                          >
-                            <ThumbsDown className="w-3.5 h-3.5 mr-1" />
-                            Reject
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => onDecision('approved')}
-                            className="bg-green-600 hover:bg-green-700 h-8 text-xs"
-                          >
-                            <ThumbsUp className="w-3.5 h-3.5 mr-1" />
-                            Approve
-                          </Button>
+                          {/* Stage-specific actions */}
+                          {stage?.stageActions?.map((action) => {
+                            const actionColors: Record<string, { bg: string, text: string, border: string, hover: string }> = {
+                              gray: { bg: 'bg-gray-600', text: 'text-gray-600', border: 'border-gray-200', hover: 'hover:bg-gray-50' },
+                              red: { bg: 'bg-red-600', text: 'text-red-600', border: 'border-red-200', hover: 'hover:bg-red-50' },
+                              orange: { bg: 'bg-orange-600', text: 'text-orange-600', border: 'border-orange-200', hover: 'hover:bg-orange-50' },
+                              yellow: { bg: 'bg-yellow-600', text: 'text-yellow-600', border: 'border-yellow-200', hover: 'hover:bg-yellow-50' },
+                              green: { bg: 'bg-green-600', text: 'text-green-600', border: 'border-green-200', hover: 'hover:bg-green-50' },
+                              blue: { bg: 'bg-blue-600', text: 'text-blue-600', border: 'border-blue-200', hover: 'hover:bg-blue-50' },
+                              purple: { bg: 'bg-purple-600', text: 'text-purple-600', border: 'border-purple-200', hover: 'hover:bg-purple-50' },
+                              pink: { bg: 'bg-pink-600', text: 'text-pink-600', border: 'border-pink-200', hover: 'hover:bg-pink-50' },
+                            }
+                            const colors = actionColors[action.color] || actionColors.gray
+                            const isPositive = action.action_type === 'advance_stage' || action.color === 'green'
+                            
+                            return (
+                              <Button
+                                key={action.id}
+                                size="sm"
+                                variant={isPositive ? "default" : "outline"}
+                                onClick={() => onExecuteAction?.(action)}
+                                className={cn(
+                                  "h-8 text-xs",
+                                  isPositive 
+                                    ? `${colors.bg} hover:opacity-90 text-white` 
+                                    : `${colors.text} ${colors.border} ${colors.hover}`
+                                )}
+                              >
+                                {action.name}
+                              </Button>
+                            )
+                          })}
+                          
+                          {/* Workflow-level actions */}
+                          {workflowActions?.map((action) => {
+                            const actionColors: Record<string, { bg: string, text: string, border: string, hover: string }> = {
+                              gray: { bg: 'bg-gray-600', text: 'text-gray-600', border: 'border-gray-200', hover: 'hover:bg-gray-50' },
+                              red: { bg: 'bg-red-600', text: 'text-red-600', border: 'border-red-200', hover: 'hover:bg-red-50' },
+                              orange: { bg: 'bg-orange-600', text: 'text-orange-600', border: 'border-orange-200', hover: 'hover:bg-orange-50' },
+                              yellow: { bg: 'bg-yellow-600', text: 'text-yellow-600', border: 'border-yellow-200', hover: 'hover:bg-yellow-50' },
+                              green: { bg: 'bg-green-600', text: 'text-green-600', border: 'border-green-200', hover: 'hover:bg-green-50' },
+                              blue: { bg: 'bg-blue-600', text: 'text-blue-600', border: 'border-blue-200', hover: 'hover:bg-blue-50' },
+                              purple: { bg: 'bg-purple-600', text: 'text-purple-600', border: 'border-purple-200', hover: 'hover:bg-purple-50' },
+                              pink: { bg: 'bg-pink-600', text: 'text-pink-600', border: 'border-pink-200', hover: 'hover:bg-pink-50' },
+                            }
+                            const colors = actionColors[action.color] || actionColors.gray
+                            const isPositive = action.action_type === 'move_to_stage' || action.color === 'green'
+                            
+                            return (
+                              <Button
+                                key={action.id}
+                                size="sm"
+                                variant={isPositive ? "default" : "outline"}
+                                onClick={() => onExecuteAction?.(action)}
+                                className={cn(
+                                  "h-8 text-xs",
+                                  isPositive 
+                                    ? `${colors.bg} hover:opacity-90 text-white` 
+                                    : `${colors.text} ${colors.border} ${colors.hover}`
+                                )}
+                              >
+                                {action.name}
+                              </Button>
+                            )
+                          })}
+                          
+                          {/* Fallback to legacy approve/reject if no custom actions */}
+                          {!stage?.stageActions?.length && !workflowActions?.length && onDecision && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => onDecision('rejected')}
+                                className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs"
+                              >
+                                <ThumbsDown className="w-3.5 h-3.5 mr-1" />
+                                Reject
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => onDecision('approved')}
+                                className="bg-green-600 hover:bg-green-700 h-8 text-xs"
+                              >
+                                <ThumbsUp className="w-3.5 h-3.5 mr-1" />
+                                Approve
+                              </Button>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>

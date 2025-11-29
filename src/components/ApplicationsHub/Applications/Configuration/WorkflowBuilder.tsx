@@ -5,12 +5,12 @@ import {
   Plus, Trash2, Save, ChevronRight, Users, FileText, Layers, Edit2, X, 
   GripVertical, Check, Loader2, Sparkles, Settings, Award, 
   Link2, Zap, Target, ClipboardList, ChevronDown, CheckCircle, Search,
-  Shield, EyeOff
+  Shield, EyeOff, Folder, Archive, XCircle, Clock, FolderOpen, ArchiveX
 } from 'lucide-react'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { cn } from '@/lib/utils'
-import { workflowsClient, ReviewWorkflow, ApplicationStage, ReviewerType, Rubric, StageReviewerConfig } from '@/lib/api/workflows-client'
+import { workflowsClient, ReviewWorkflow, ApplicationStage, ReviewerType, Rubric, StageReviewerConfig, ApplicationGroup, WorkflowAction } from '@/lib/api/workflows-client'
 
 // Stage color palette - semantic colors for workflow stages
 const STAGE_COLORS = {
@@ -58,7 +58,7 @@ interface WorkflowBuilderProps {
   formId?: string | null
 }
 
-type ActivePanel = 'none' | 'workflow' | 'stage' | 'reviewer' | 'rubric' | 'stage-config' | 'stage-settings'
+type ActivePanel = 'none' | 'workflow' | 'stage' | 'reviewer' | 'rubric' | 'stage-config' | 'stage-settings' | 'group' | 'workflow-action'
 
 interface PanelState {
   type: ActivePanel
@@ -76,6 +76,8 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
   const [reviewerTypes, setReviewerTypes] = useState<ReviewerType[]>([])
   const [rubrics, setRubrics] = useState<Rubric[]>([])
   const [stageConfigs, setStageConfigs] = useState<StageReviewerConfig[]>([])
+  const [groups, setGroups] = useState<ApplicationGroup[]>([])
+  const [workflowActions, setWorkflowActions] = useState<WorkflowAction[]>([])
   
   // Form sections for field visibility config
   const [formSections, setFormSections] = useState<FormSection[]>([])
@@ -192,15 +194,19 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
     if (!selectedWorkflow) return
     setIsLoading(true)
     try {
-      const [stagesData, typesData, rubricsData] = await Promise.all([
+      const [stagesData, typesData, rubricsData, groupsData, actionsData] = await Promise.all([
         workflowsClient.listStages(workspaceId, selectedWorkflow.id),
         workflowsClient.listReviewerTypes(workspaceId),
-        workflowsClient.listRubrics(workspaceId)
+        workflowsClient.listRubrics(workspaceId),
+        workflowsClient.listGroups(selectedWorkflow.id),
+        workflowsClient.listWorkflowActions(selectedWorkflow.id)
       ])
       
       setStages(stagesData)
       setReviewerTypes(typesData)
       setRubrics(rubricsData)
+      setGroups(groupsData)
+      setWorkflowActions(actionsData)
 
       // Fetch stage configs if we have a selected stage
       if (selectedStageId) {
@@ -429,6 +435,78 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
                 </button>
               </div>
             )}
+
+            {/* Application Groups Section */}
+            <div className="mt-6 pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between px-1 mb-2">
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Application Groups</span>
+                <button 
+                  onClick={() => setPanel({ type: 'group', mode: 'create' })}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  + Add
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {groups.map((group) => {
+                  const groupColors: Record<string, { bg: string, text: string, bgLight: string }> = {
+                    gray: { bg: 'bg-gray-500', text: 'text-gray-600', bgLight: 'bg-gray-50' },
+                    red: { bg: 'bg-red-500', text: 'text-red-600', bgLight: 'bg-red-50' },
+                    orange: { bg: 'bg-orange-500', text: 'text-orange-600', bgLight: 'bg-orange-50' },
+                    yellow: { bg: 'bg-yellow-500', text: 'text-yellow-600', bgLight: 'bg-yellow-50' },
+                    green: { bg: 'bg-green-500', text: 'text-green-600', bgLight: 'bg-green-50' },
+                    blue: { bg: 'bg-blue-500', text: 'text-blue-600', bgLight: 'bg-blue-50' },
+                    purple: { bg: 'bg-purple-500', text: 'text-purple-600', bgLight: 'bg-purple-50' },
+                    pink: { bg: 'bg-pink-500', text: 'text-pink-600', bgLight: 'bg-pink-50' },
+                  }
+                  const colors = groupColors[group.color] || groupColors.gray
+                  
+                  return (
+                    <button
+                      key={group.id}
+                      onClick={() => setPanel({ type: 'group', mode: 'edit', data: group })}
+                      className={cn(
+                        "w-full text-left px-3 py-2.5 rounded-xl transition-all",
+                        "hover:bg-gray-50 border border-transparent"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-7 h-7 rounded-lg flex items-center justify-center text-white shadow-sm",
+                          colors.bg
+                        )}>
+                          {group.icon === 'archive' ? (
+                            <ArchiveX className="w-3.5 h-3.5" />
+                          ) : (
+                            <FolderOpen className="w-3.5 h-3.5" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-gray-900 block truncate">{group.name}</span>
+                          <span className="text-[10px] text-gray-500">
+                            {group.is_system ? 'System' : 'Custom'} Group
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+              {groups.length === 0 && (
+                <div className="text-center py-4 px-4">
+                  <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-2">
+                    <FolderOpen className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <p className="text-xs text-gray-500 mb-1">No groups yet</p>
+                  <button 
+                    onClick={() => setPanel({ type: 'group', mode: 'create' })}
+                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Create first group →
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -644,6 +722,87 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
                     )}
                   </div>
                 </section>
+
+                {/* Workflow Actions Section */}
+                <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-red-100 rounded-lg">
+                        <Zap className="w-4 h-4 text-red-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Workflow Actions</h3>
+                        <p className="text-xs text-gray-500">{workflowActions.length} actions defined</p>
+                      </div>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      onClick={() => setPanel({ type: 'workflow-action', mode: 'create' })}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
+                    {workflowActions.map(action => {
+                      const actionColors: Record<string, { bg: string, text: string }> = {
+                        gray: { bg: 'bg-gray-100', text: 'text-gray-600' },
+                        red: { bg: 'bg-red-100', text: 'text-red-600' },
+                        orange: { bg: 'bg-orange-100', text: 'text-orange-600' },
+                        yellow: { bg: 'bg-yellow-100', text: 'text-yellow-600' },
+                        green: { bg: 'bg-green-100', text: 'text-green-600' },
+                        blue: { bg: 'bg-blue-100', text: 'text-blue-600' },
+                        purple: { bg: 'bg-purple-100', text: 'text-purple-600' },
+                        pink: { bg: 'bg-pink-100', text: 'text-pink-600' },
+                      }
+                      const colors = actionColors[action.color] || actionColors.gray
+                      const targetGroup = groups.find(g => g.id === action.target_group_id)
+                      
+                      return (
+                        <div 
+                          key={action.id}
+                          className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 group cursor-pointer transition-colors"
+                          onClick={() => setPanel({ type: 'workflow-action', mode: 'edit', data: action })}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", colors.bg, colors.text)}>
+                              {action.icon === 'x-circle' ? (
+                                <XCircle className="w-4 h-4" />
+                              ) : action.icon === 'check-circle' ? (
+                                <CheckCircle className="w-4 h-4" />
+                              ) : (
+                                <Zap className="w-4 h-4" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900 text-sm">{action.name}</p>
+                              <p className="text-xs text-gray-500">
+                                {action.action_type === 'move_to_group' && targetGroup 
+                                  ? `→ ${targetGroup.name}` 
+                                  : action.action_type.replace(/_/g, ' ')}
+                              </p>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      )
+                    })}
+                    {workflowActions.length === 0 && (
+                      <div className="text-center py-8 text-gray-500 text-sm">
+                        <p>No workflow actions yet</p>
+                        <p className="text-xs mt-1 text-gray-400">Create actions like Reject to route applications to groups</p>
+                        <Button 
+                          variant="link" 
+                          size="sm" 
+                          className="text-red-600 mt-2"
+                          onClick={() => setPanel({ type: 'workflow-action', mode: 'create' })}
+                        >
+                          Create one
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </section>
               </div>
             </div>
           )}
@@ -660,6 +819,8 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
         reviewerTypes={reviewerTypes}
         rubrics={rubrics}
         formSections={formSections}
+        groups={groups}
+        workflowActions={workflowActions}
         onSaveWorkflow={panel.mode === 'create' ? handleCreateWorkflow : handleEditWorkflow}
         onDeleteWorkflow={() => panel.data?.id && handleDeleteWorkflow(panel.data.id)}
         onRefresh={fetchWorkflowData}
@@ -864,6 +1025,8 @@ function SidePanel({
   reviewerTypes,
   rubrics,
   formSections,
+  groups,
+  workflowActions,
   onSaveWorkflow,
   onDeleteWorkflow,
   onRefresh
@@ -876,6 +1039,8 @@ function SidePanel({
   reviewerTypes: ReviewerType[]
   rubrics: Rubric[]
   formSections: FormSection[]
+  groups: ApplicationGroup[]
+  workflowActions: WorkflowAction[]
   onSaveWorkflow: (name: string, description?: string, applicationType?: string, defaultRubricId?: string) => void
   onDeleteWorkflow: () => void
   onRefresh: () => void
@@ -889,7 +1054,10 @@ function SidePanel({
     reviewer: panel.mode === 'create' ? 'New Reviewer Role' : 'Edit Reviewer Role',
     rubric: panel.mode === 'create' ? 'New Rubric' : 'Edit Rubric',
     'stage-config': 'Configure Stage Reviewers',
-    'stage-settings': 'Stage Settings'
+    'stage-settings': 'Stage Settings',
+    'group': panel.mode === 'create' ? 'New Application Group' : 'Edit Application Group',
+    'workflow-action': panel.mode === 'create' ? 'New Workflow Action' : 'Edit Workflow Action',
+    'stage-action': panel.mode === 'create' ? 'New Stage Action' : 'Edit Stage Action'
   }
 
   return (
@@ -966,6 +1134,27 @@ function SidePanel({
             reviewerTypes={reviewerTypes}
             rubrics={rubrics}
             formSections={formSections}
+            onSave={onRefresh}
+            onCancel={onClose}
+          />
+        )}
+
+        {panel.type === 'group' && workflowId && (
+          <GroupForm
+            initial={panel.mode === 'edit' ? panel.data : undefined}
+            workspaceId={workspaceId}
+            workflowId={workflowId}
+            onSave={onRefresh}
+            onCancel={onClose}
+          />
+        )}
+
+        {panel.type === 'workflow-action' && workflowId && (
+          <WorkflowActionForm
+            initial={panel.mode === 'edit' ? panel.data : undefined}
+            workspaceId={workspaceId}
+            workflowId={workflowId}
+            groups={groups}
             onSave={onRefresh}
             onCancel={onClose}
           />
@@ -4394,5 +4583,401 @@ function StageConfigForm({
         </Button>
       </div>
     </div>
+  )
+}
+
+// Application Group Form
+function GroupForm({
+  initial,
+  workspaceId,
+  workflowId,
+  onSave,
+  onCancel
+}: {
+  initial?: ApplicationGroup
+  workspaceId: string
+  workflowId: string
+  onSave: () => void
+  onCancel: () => void
+}) {
+  const [name, setName] = useState(initial?.name || '')
+  const [description, setDescription] = useState(initial?.description || '')
+  const [color, setColor] = useState(initial?.color || 'gray')
+  const [icon, setIcon] = useState(initial?.icon || 'folder')
+  const [isSaving, setIsSaving] = useState(false)
+
+  const colors = [
+    { value: 'gray', label: 'Gray', bg: 'bg-gray-500' },
+    { value: 'red', label: 'Red', bg: 'bg-red-500' },
+    { value: 'orange', label: 'Orange', bg: 'bg-orange-500' },
+    { value: 'yellow', label: 'Yellow', bg: 'bg-yellow-500' },
+    { value: 'green', label: 'Green', bg: 'bg-green-500' },
+    { value: 'blue', label: 'Blue', bg: 'bg-blue-500' },
+    { value: 'purple', label: 'Purple', bg: 'bg-purple-500' },
+    { value: 'pink', label: 'Pink', bg: 'bg-pink-500' },
+  ]
+
+  const icons = [
+    { value: 'folder', label: 'Folder' },
+    { value: 'archive', label: 'Archive' },
+    { value: 'x-circle', label: 'Rejected' },
+    { value: 'clock', label: 'Waitlist' },
+    { value: 'check-circle', label: 'Approved' },
+    { value: 'star', label: 'Star' },
+    { value: 'flag', label: 'Flag' },
+    { value: 'inbox', label: 'Inbox' },
+  ]
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim()) return
+    setIsSaving(true)
+    try {
+      if (initial?.id) {
+        await workflowsClient.updateGroup(initial.id, {
+          name: name.trim(),
+          description: description.trim() || undefined,
+          color,
+          icon,
+        })
+      } else {
+        await workflowsClient.createGroup({
+          workspace_id: workspaceId,
+          review_workflow_id: workflowId,
+          name: name.trim(),
+          description: description.trim() || undefined,
+          color,
+          icon,
+          is_system: false,
+        })
+      }
+      onSave()
+    } catch (error) {
+      console.error('Failed to save group:', error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!initial?.id) return
+    if (!confirm('Delete this group? Applications in this group will not be deleted.')) return
+    try {
+      await workflowsClient.deleteGroup(initial.id)
+      onSave()
+    } catch (error) {
+      console.error('Failed to delete group:', error)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-2">
+        <Label htmlFor="group-name">Group Name *</Label>
+        <Input
+          id="group-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g., Rejected, Waitlist, Archive"
+          autoFocus
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="group-desc">Description</Label>
+        <Textarea
+          id="group-desc"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="What is this group used for?"
+          rows={2}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Color</Label>
+        <div className="flex gap-2 flex-wrap">
+          {colors.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => setColor(c.value)}
+              className={cn(
+                "w-8 h-8 rounded-lg transition-all",
+                c.bg,
+                color === c.value ? "ring-2 ring-offset-2 ring-gray-400 scale-110" : "hover:scale-105"
+              )}
+              title={c.label}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Icon</Label>
+        <Select value={icon} onValueChange={setIcon}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select an icon" />
+          </SelectTrigger>
+          <SelectContent>
+            {icons.map((i) => (
+              <SelectItem key={i.value} value={i.value}>
+                {i.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Preview */}
+      <div className="p-4 bg-gray-50 rounded-lg">
+        <Label className="text-xs text-gray-500 mb-2 block">Preview</Label>
+        <div className="flex items-center gap-3">
+          <div className={cn(
+            "w-10 h-10 rounded-lg flex items-center justify-center text-white",
+            colors.find(c => c.value === color)?.bg || 'bg-gray-500'
+          )}>
+            {icon === 'archive' ? (
+              <ArchiveX className="w-5 h-5" />
+            ) : (
+              <FolderOpen className="w-5 h-5" />
+            )}
+          </div>
+          <div>
+            <p className="font-medium text-gray-900">{name || 'Group Name'}</p>
+            <p className="text-xs text-gray-500">{description || 'No description'}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-3 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
+          Cancel
+        </Button>
+        <Button type="submit" disabled={!name.trim() || isSaving} className="flex-1">
+          {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+          {initial ? 'Save Changes' : 'Create Group'}
+        </Button>
+      </div>
+
+      {initial && !initial.is_system && (
+        <Button 
+          type="button" 
+          variant="ghost" 
+          className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+          onClick={handleDelete}
+        >
+          <Trash2 className="w-4 h-4 mr-2" />
+          Delete Group
+        </Button>
+      )}
+    </form>
+  )
+}
+
+// Workflow Action Form
+function WorkflowActionForm({
+  initial,
+  workspaceId,
+  workflowId,
+  groups,
+  onSave,
+  onCancel
+}: {
+  initial?: WorkflowAction
+  workspaceId: string
+  workflowId: string
+  groups: ApplicationGroup[]
+  onSave: () => void
+  onCancel: () => void
+}) {
+  const [name, setName] = useState(initial?.name || '')
+  const [description, setDescription] = useState(initial?.description || '')
+  const [color, setColor] = useState(initial?.color || 'red')
+  const [icon, setIcon] = useState(initial?.icon || 'x-circle')
+  const [actionType, setActionType] = useState<'move_to_group' | 'move_to_stage' | 'send_email' | 'custom'>(
+    initial?.action_type || 'move_to_group'
+  )
+  const [targetGroupId, setTargetGroupId] = useState(initial?.target_group_id || '')
+  const [requiresComment, setRequiresComment] = useState(initial?.requires_comment || false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const colors = [
+    { value: 'gray', label: 'Gray', bg: 'bg-gray-500' },
+    { value: 'red', label: 'Red', bg: 'bg-red-500' },
+    { value: 'orange', label: 'Orange', bg: 'bg-orange-500' },
+    { value: 'yellow', label: 'Yellow', bg: 'bg-yellow-500' },
+    { value: 'green', label: 'Green', bg: 'bg-green-500' },
+    { value: 'blue', label: 'Blue', bg: 'bg-blue-500' },
+    { value: 'purple', label: 'Purple', bg: 'bg-purple-500' },
+    { value: 'pink', label: 'Pink', bg: 'bg-pink-500' },
+  ]
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim()) return
+    setIsSaving(true)
+    try {
+      if (initial?.id) {
+        await workflowsClient.updateWorkflowAction(initial.id, {
+          name: name.trim(),
+          description: description.trim() || undefined,
+          color,
+          icon,
+          action_type: actionType,
+          target_group_id: actionType === 'move_to_group' ? targetGroupId || undefined : undefined,
+          requires_comment: requiresComment,
+        })
+      } else {
+        await workflowsClient.createWorkflowAction({
+          workspace_id: workspaceId,
+          review_workflow_id: workflowId,
+          name: name.trim(),
+          description: description.trim() || undefined,
+          color,
+          icon,
+          action_type: actionType,
+          target_group_id: actionType === 'move_to_group' ? targetGroupId || undefined : undefined,
+          requires_comment: requiresComment,
+          is_system: false,
+        })
+      }
+      onSave()
+    } catch (error) {
+      console.error('Failed to save workflow action:', error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!initial?.id) return
+    if (!confirm('Delete this action?')) return
+    try {
+      await workflowsClient.deleteWorkflowAction(initial.id)
+      onSave()
+    } catch (error) {
+      console.error('Failed to delete workflow action:', error)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-2">
+        <Label htmlFor="action-name">Action Name *</Label>
+        <Input
+          id="action-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g., Reject, Approve, Request More Info"
+          autoFocus
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="action-desc">Description</Label>
+        <Textarea
+          id="action-desc"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="What does this action do?"
+          rows={2}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Button Color</Label>
+        <div className="flex gap-2 flex-wrap">
+          {colors.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => setColor(c.value)}
+              className={cn(
+                "w-8 h-8 rounded-lg transition-all",
+                c.bg,
+                color === c.value ? "ring-2 ring-offset-2 ring-gray-400 scale-110" : "hover:scale-105"
+              )}
+              title={c.label}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Action Type</Label>
+        <Select value={actionType} onValueChange={(v: any) => setActionType(v)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="move_to_group">Move to Group</SelectItem>
+            <SelectItem value="move_to_stage">Move to Stage</SelectItem>
+            <SelectItem value="send_email">Send Email</SelectItem>
+            <SelectItem value="custom">Custom Action</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {actionType === 'move_to_group' && (
+        <div className="space-y-2">
+          <Label>Target Group</Label>
+          <Select value={targetGroupId} onValueChange={setTargetGroupId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select target group" />
+            </SelectTrigger>
+            <SelectContent>
+              {groups.map((g) => (
+                <SelectItem key={g.id} value={g.id}>
+                  {g.name}
+                </SelectItem>
+              ))}
+              {groups.length === 0 && (
+                <div className="p-2 text-sm text-gray-500 text-center">
+                  No groups created yet
+                </div>
+              )}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-gray-500">
+            Applications will be moved to this group when this action is used
+          </p>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+        <div>
+          <Label>Require Comment</Label>
+          <p className="text-xs text-gray-500 mt-1">
+            Reviewer must provide a comment when using this action
+          </p>
+        </div>
+        <Switch checked={requiresComment} onCheckedChange={setRequiresComment} />
+      </div>
+
+      <div className="flex gap-3 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
+          Cancel
+        </Button>
+        <Button type="submit" disabled={!name.trim() || isSaving} className="flex-1">
+          {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+          {initial ? 'Save Changes' : 'Create Action'}
+        </Button>
+      </div>
+
+      {initial && !initial.is_system && (
+        <Button 
+          type="button" 
+          variant="ghost" 
+          className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+          onClick={handleDelete}
+        >
+          <Trash2 className="w-4 h-4 mr-2" />
+          Delete Action
+        </Button>
+      )}
+    </form>
   )
 }

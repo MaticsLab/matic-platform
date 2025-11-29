@@ -331,6 +331,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 				// Form submissions
 				forms.GET("/:id/submissions", handlers.ListFormSubmissions)
+				forms.DELETE("/:id/submissions/:submission_id", handlers.DeleteFormSubmission)
 
 				// Form search
 				forms.GET("/:id/search", handlers.SearchFormSubmissions)
@@ -428,6 +429,44 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				stageConfigs.POST("", handlers.CreateStageReviewerConfig)
 				stageConfigs.PATCH("/:id", handlers.UpdateStageReviewerConfig)
 				stageConfigs.DELETE("/:id", handlers.DeleteStageReviewerConfig)
+			}
+
+			// Application Groups (Rejected, Waitlist, etc.)
+			groups := protected.Group("/application-groups")
+			{
+				groups.GET("", handlers.ListApplicationGroups)
+				groups.POST("", handlers.CreateApplicationGroup)
+				groups.GET("/:id", handlers.GetApplicationGroup)
+				groups.PATCH("/:id", handlers.UpdateApplicationGroup)
+				groups.DELETE("/:id", handlers.DeleteApplicationGroup)
+				groups.GET("/:id/applications", handlers.GetGroupApplications)
+			}
+
+			// Workflow Actions (global actions like Reject)
+			workflowActions := protected.Group("/workflow-actions")
+			{
+				workflowActions.GET("", handlers.ListWorkflowActions)
+				workflowActions.POST("", handlers.CreateWorkflowAction)
+				workflowActions.GET("/:id", handlers.GetWorkflowAction)
+				workflowActions.PATCH("/:id", handlers.UpdateWorkflowAction)
+				workflowActions.DELETE("/:id", handlers.DeleteWorkflowAction)
+			}
+
+			// Stage Actions (stage-specific actions)
+			stageActions := protected.Group("/stage-actions")
+			{
+				stageActions.GET("", handlers.ListStageActions)
+				stageActions.POST("", handlers.CreateStageAction)
+				stageActions.PATCH("/:id", handlers.UpdateStageAction)
+				stageActions.DELETE("/:id", handlers.DeleteStageAction)
+			}
+
+			// Action Execution
+			actions := protected.Group("/actions")
+			{
+				actions.POST("/execute", handlers.ExecuteAction)
+				actions.POST("/move-to-group", handlers.MoveToGroup)
+				actions.POST("/restore-from-group", handlers.RestoreFromGroup)
 			}
 
 			// Change Requests (Approval Workflow)

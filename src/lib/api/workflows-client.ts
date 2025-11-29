@@ -108,6 +108,58 @@ export interface StageReviewerConfig {
   updated_at: string;
 }
 
+// Application Group - for custom groups outside the pipeline (Rejected, Waitlist, etc.)
+export interface ApplicationGroup {
+  id: string;
+  workspace_id: string;
+  review_workflow_id: string;
+  name: string;
+  description?: string;
+  color: string; // gray, red, orange, yellow, green, blue, purple, pink
+  icon: string;  // folder, archive, x-circle, check-circle, clock, etc.
+  order_index: number;
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Workflow Action - global actions that apply to all stages (e.g., Reject)
+export interface WorkflowAction {
+  id: string;
+  workspace_id: string;
+  review_workflow_id: string;
+  name: string;
+  description?: string;
+  color: string;
+  icon: string;
+  action_type: 'move_to_group' | 'move_to_stage' | 'send_email' | 'custom';
+  target_group_id?: string;
+  target_stage_id?: string;
+  requires_comment: boolean;
+  is_system: boolean;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Stage Action - actions specific to a stage
+export interface StageAction {
+  id: string;
+  stage_id: string;
+  name: string;
+  description?: string;
+  color: string;
+  icon: string;
+  action_type: 'set_status' | 'advance_stage' | 'move_to_group';
+  target_group_id?: string;
+  target_stage_id?: string;
+  status_value?: string;
+  requires_comment: boolean;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // API Client
 export const workflowsClient = {
   // Workflows
@@ -271,6 +323,118 @@ export const workflowsClient = {
     return goFetch<{ count: number }>(`/forms/${formId}/submissions/bulk-assign-workflow`, {
       method: 'POST',
       body: JSON.stringify({ submission_ids: submissionIds, workflow_id: workflowId, stage_id: stageId }),
+    });
+  },
+
+  // Application Groups
+  listGroups: async (workflowId: string) => {
+    return goFetch<ApplicationGroup[]>(`/application-groups?workflow_id=${workflowId}`);
+  },
+  createGroup: async (data: Partial<ApplicationGroup>) => {
+    return goFetch<ApplicationGroup>('/application-groups', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  getGroup: async (id: string) => {
+    return goFetch<ApplicationGroup>(`/application-groups/${id}`);
+  },
+  updateGroup: async (id: string, data: Partial<ApplicationGroup>) => {
+    return goFetch<ApplicationGroup>(`/application-groups/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+  deleteGroup: async (id: string) => {
+    return goFetch<void>(`/application-groups/${id}`, {
+      method: 'DELETE',
+    });
+  },
+  getGroupApplications: async (groupId: string, formId?: string) => {
+    let url = `/application-groups/${groupId}/applications`;
+    if (formId) url += `?form_id=${formId}`;
+    return goFetch<any[]>(url);
+  },
+
+  // Workflow Actions
+  listWorkflowActions: async (workflowId: string) => {
+    return goFetch<WorkflowAction[]>(`/workflow-actions?workflow_id=${workflowId}`);
+  },
+  createWorkflowAction: async (data: Partial<WorkflowAction>) => {
+    return goFetch<WorkflowAction>('/workflow-actions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  getWorkflowAction: async (id: string) => {
+    return goFetch<WorkflowAction>(`/workflow-actions/${id}`);
+  },
+  updateWorkflowAction: async (id: string, data: Partial<WorkflowAction>) => {
+    return goFetch<WorkflowAction>(`/workflow-actions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+  deleteWorkflowAction: async (id: string) => {
+    return goFetch<void>(`/workflow-actions/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Stage Actions
+  listStageActions: async (stageId: string) => {
+    return goFetch<StageAction[]>(`/stage-actions?stage_id=${stageId}`);
+  },
+  createStageAction: async (data: Partial<StageAction>) => {
+    return goFetch<StageAction>('/stage-actions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  updateStageAction: async (id: string, data: Partial<StageAction>) => {
+    return goFetch<StageAction>(`/stage-actions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+  deleteStageAction: async (id: string) => {
+    return goFetch<void>(`/stage-actions/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Action Execution
+  executeAction: async (data: {
+    form_id: string;
+    submission_id: string;
+    action_type: 'workflow_action' | 'stage_action';
+    action_id: string;
+    comment?: string;
+  }) => {
+    return goFetch<{ message: string; target_group_id?: string; target_stage_id?: string; status?: string }>('/actions/execute', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  moveToGroup: async (data: {
+    form_id: string;
+    submission_id: string;
+    group_id: string;
+    comment?: string;
+  }) => {
+    return goFetch<{ message: string; group_id: string }>('/actions/move-to-group', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  restoreFromGroup: async (data: {
+    form_id: string;
+    submission_id: string;
+    stage_id: string;
+  }) => {
+    return goFetch<{ message: string; stage_id: string }>('/actions/restore-from-group', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   },
 };

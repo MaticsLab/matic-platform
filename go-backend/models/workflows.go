@@ -79,3 +79,68 @@ type StageReviewerConfig struct {
 	CreatedAt             time.Time      `json:"created_at"`
 	UpdatedAt             time.Time      `json:"updated_at"`
 }
+
+// ApplicationGroup represents custom groups outside the pipeline (e.g., Rejected, Waitlist)
+type ApplicationGroup struct {
+	ID               uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	WorkspaceID      uuid.UUID `gorm:"type:uuid;not null;index" json:"workspace_id"`
+	ReviewWorkflowID uuid.UUID `gorm:"type:uuid;not null;index" json:"review_workflow_id"`
+	Name             string    `gorm:"not null" json:"name"`
+	Description      string    `json:"description"`
+	Color            string    `gorm:"default:'gray'" json:"color"`  // gray, red, orange, yellow, green, blue, purple, pink
+	Icon             string    `gorm:"default:'folder'" json:"icon"` // folder, archive, x-circle, check-circle, clock, etc.
+	OrderIndex       int       `gorm:"default:0" json:"order_index"`
+	IsSystem         bool      `gorm:"default:false" json:"is_system"` // System groups like "Rejected" can't be deleted
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+func (ApplicationGroup) TableName() string {
+	return "application_groups"
+}
+
+// WorkflowAction represents actions that can be taken on applications at workflow level
+// These appear in the action dropdown for all stages
+type WorkflowAction struct {
+	ID               uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	WorkspaceID      uuid.UUID  `gorm:"type:uuid;not null;index" json:"workspace_id"`
+	ReviewWorkflowID uuid.UUID  `gorm:"type:uuid;not null;index" json:"review_workflow_id"`
+	Name             string     `gorm:"not null" json:"name"` // e.g., "Reject", "Waitlist", "Request More Info"
+	Description      string     `json:"description"`
+	Color            string     `gorm:"default:'gray'" json:"color"`                // Button color
+	Icon             string     `gorm:"default:'circle'" json:"icon"`               // Icon name
+	ActionType       string     `gorm:"default:'move_to_group'" json:"action_type"` // move_to_group, move_to_stage, send_email, custom
+	TargetGroupID    *uuid.UUID `gorm:"type:uuid" json:"target_group_id"`           // Group to move to if action_type is move_to_group
+	TargetStageID    *uuid.UUID `gorm:"type:uuid" json:"target_stage_id"`           // Stage to move to if action_type is move_to_stage
+	RequiresComment  bool       `gorm:"default:false" json:"requires_comment"`      // Require a comment when taking this action
+	IsSystem         bool       `gorm:"default:false" json:"is_system"`             // System actions like "Reject" can be customized but not deleted
+	OrderIndex       int        `gorm:"default:0" json:"order_index"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+}
+
+func (WorkflowAction) TableName() string {
+	return "workflow_actions"
+}
+
+// StageAction represents stage-specific actions (status changes that are specific to a stage)
+type StageAction struct {
+	ID              uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	StageID         uuid.UUID  `gorm:"type:uuid;not null;index" json:"stage_id"`
+	Name            string     `gorm:"not null" json:"name"` // e.g., "Approve", "Needs Review", "Complete"
+	Description     string     `json:"description"`
+	Color           string     `gorm:"default:'blue'" json:"color"`             // Button color
+	Icon            string     `gorm:"default:'check'" json:"icon"`             // Icon name
+	ActionType      string     `gorm:"default:'set_status'" json:"action_type"` // set_status, advance_stage, move_to_group
+	TargetGroupID   *uuid.UUID `gorm:"type:uuid" json:"target_group_id"`        // Group to move to
+	TargetStageID   *uuid.UUID `gorm:"type:uuid" json:"target_stage_id"`        // Stage to advance to
+	StatusValue     string     `json:"status_value"`                            // Status value to set
+	RequiresComment bool       `gorm:"default:false" json:"requires_comment"`
+	OrderIndex      int        `gorm:"default:0" json:"order_index"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
+func (StageAction) TableName() string {
+	return "stage_actions"
+}

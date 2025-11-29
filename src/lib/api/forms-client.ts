@@ -34,4 +34,7 @@ export const formsClient = {
     
   getSubmissions: (id: string) => 
     goClient.get(`/forms/${id}/submissions`),
+
+  deleteSubmission: (formId: string, submissionId: string) =>
+    goClient.delete(`/forms/${formId}/submissions/${submissionId}`),
 }

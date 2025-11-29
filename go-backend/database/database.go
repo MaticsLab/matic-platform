@@ -86,6 +86,11 @@ func AutoMigrate() error {
 		&models.ReviewerType{},
 		&models.Rubric{},
 		&models.StageReviewerConfig{},
+
+		// Application Groups and Actions (009_application_groups.sql)
+		&models.ApplicationGroup{},
+		&models.WorkflowAction{},
+		&models.StageAction{},
 	)
 
 	if err != nil {

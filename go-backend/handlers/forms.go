@@ -337,6 +337,30 @@ func ListFormSubmissions(c *gin.Context) {
 	c.JSON(http.StatusOK, rows)
 }
 
+// DeleteFormSubmission deletes a single form submission (row) by its ID
+func DeleteFormSubmission(c *gin.Context) {
+	formID := c.Param("id")
+	submissionID := c.Param("submission_id")
+
+	fmt.Printf("Deleting submission %s from form %s\n", submissionID, formID)
+
+	// Verify the submission exists and belongs to the form
+	var row models.Row
+	if err := database.DB.Where("id = ? AND table_id = ?", submissionID, formID).First(&row).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
+		return
+	}
+
+	// Delete the submission (row)
+	if err := database.DB.Delete(&row).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete submission"})
+		return
+	}
+
+	fmt.Printf("Successfully deleted submission %s\n", submissionID)
+	c.JSON(http.StatusOK, gin.H{"message": "Submission deleted successfully"})
+}
+
 type SubmitFormInput struct {
 	Data  map[string]interface{} `json:"data" binding:"required"`
 	Email string                 `json:"email"`
