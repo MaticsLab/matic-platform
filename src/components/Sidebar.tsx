@@ -16,7 +16,7 @@ interface SidebarProps {
 
 export function Sidebar({ workspaceId }: SidebarProps) {
   const { tabManager, activeTab } = useTabContext()
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true)
   
   const navItems = [
     {
