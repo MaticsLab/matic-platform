@@ -133,17 +133,132 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
     )
   }
 
-  return (
-    <div className="h-full overflow-auto p-6">
-      {/* ... existing code ... */}
-      <div className="flex gap-3">
+  const colorMap: Record<string, string> = {
+    blue: 'bg-blue-50 text-blue-600 border-blue-100',
+    yellow: 'bg-yellow-50 text-yellow-600 border-yellow-100',
+    purple: 'bg-purple-50 text-purple-600 border-purple-100',
+    green: 'bg-green-50 text-green-600 border-green-100',
+    red: 'bg-red-50 text-red-600 border-red-100',
+  }
 
-          {/* ... existing buttons ... */}
+  return (
+    <div className="h-full overflow-auto p-6 space-y-6">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-4 gap-4">
+        {statsTiles.map(tile => {
+          const IconComponent = getIcon(tile.icon)
+          const value = calculateTileValue(tile, submissions)
+          return (
+            <div key={tile.id} className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colorMap[tile.color || 'blue']}`}>
+                  <IconComponent className="w-5 h-5" />
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-gray-400" />
+              </div>
+              <div className="text-2xl font-bold text-gray-900">{value}</div>
+              <div className="text-sm text-gray-500">{tile.title}</div>
+            </div>
+          )
+        })}
       </div>
 
-      {/* ... existing grid ... */}
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-3 gap-6">
+        {/* Smart Folders */}
+        <div className="col-span-2 bg-white rounded-xl border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Smart Folders</h3>
+            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+              Configure
+            </button>
+          </div>
+          <div className="space-y-3">
+            {folderTiles.map(folder => {
+              const count = calculateTileValue(folder, submissions)
+              return (
+                <div 
+                  key={folder.id}
+                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${
+                      folder.color === 'green' ? 'bg-green-500' :
+                      folder.color === 'blue' ? 'bg-blue-500' :
+                      folder.color === 'red' ? 'bg-red-500' :
+                      'bg-gray-500'
+                    }`} />
+                    <span className="font-medium text-gray-900">{folder.title}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-600">{count}</span>
+                    <ArrowUpRight className="w-4 h-4 text-gray-400" />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
 
+        {/* Timeline */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Timeline</h3>
+            <Calendar className="w-4 h-4 text-gray-400" />
+          </div>
+          <div className="space-y-4">
+            {upcomingDeadlines.map((item, idx) => (
+              <div key={idx} className="flex items-start gap-3">
+                <div className={`w-2 h-2 rounded-full mt-2 ${
+                  item.type === 'critical' ? 'bg-red-500' : 'bg-blue-500'
+                }`} />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900 text-sm">{item.event}</div>
+                  <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
+                    <span>{item.date}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-xs ${
+                      item.daysLeft <= 7 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {item.daysLeft}d left
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
+      {/* Recent Activity */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
+          <Clock className="w-4 h-4 text-gray-400" />
+        </div>
+        {recentActivity.length > 0 ? (
+          <div className="space-y-3">
+            {recentActivity.map((activity, idx) => (
+              <div key={idx} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium text-gray-600">
+                    {activity.user.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-900">{activity.user}</span>
+                    <span className="text-gray-500 ml-1">{activity.action}</span>
+                  </div>
+                </div>
+                <span className="text-sm text-gray-400">{activity.time}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <p className="text-sm">No recent activity</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
