@@ -28,35 +28,35 @@ export function Sidebar({ workspaceId }: SidebarProps) {
     },
     {
       id: 'activities',
-      label: 'Activities Hub',
+      label: 'Activities',
       icon: Activity,
       url: `/workspace/${workspaceId}/activities-hubs`,
       type: 'custom'
     },
     {
       id: 'applications',
-      label: 'Applications Hub',
+      label: 'Applications',
       icon: GraduationCap,
       url: `/workspace/${workspaceId}/applications`,
       type: 'custom'
     },
     {
       id: 'requests',
-      label: 'Request Hub',
+      label: 'Requests',
       icon: Inbox,
       url: `/workspace/${workspaceId}/request-hubs`,
       type: 'custom'
     },
     {
       id: 'data',
-      label: 'Data Hub',
+      label: 'Data',
       icon: BarChart3,
       url: `/workspace/${workspaceId}/tables`,
       type: 'table'
     },
     {
       id: 'people',
-      label: 'People Hub',
+      label: 'People',
       icon: Users,
       url: `/workspace/${workspaceId}/people`,
       type: 'custom'
