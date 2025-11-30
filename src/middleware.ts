@@ -14,40 +14,48 @@ export function middleware(request: NextRequest) {
   const url = request.nextUrl
   const hostname = request.headers.get('host') || ''
   
-  // Skip for main domains and API routes
+  // Skip API routes and static files
   if (
-    MAIN_DOMAINS.some(domain => hostname === domain || hostname.endsWith(`.${domain}`)) ||
     url.pathname.startsWith('/api') ||
     url.pathname.startsWith('/_next') ||
     url.pathname.startsWith('/static') ||
     url.pathname.includes('.')
   ) {
-    // Exception: forms.maticsapp.com/{uuid-or-slug} should go to /apply/{uuid-or-slug}
-    if (hostname === 'forms.maticsapp.com' && url.pathname !== '/' && !url.pathname.startsWith('/apply')) {
-      const slug = url.pathname.slice(1) // Remove leading slash
-      return NextResponse.rewrite(new URL(`/apply/${slug}`, request.url))
+    return NextResponse.next()
+  }
+
+  // Check if this is a main domain (not a custom subdomain)
+  const isMainDomain = MAIN_DOMAINS.includes(hostname)
+  
+  // Handle forms.maticsapp.com - rewrite to /apply/{slug}
+  if (hostname === 'forms.maticsapp.com' && url.pathname !== '/' && !url.pathname.startsWith('/apply')) {
+    const slug = url.pathname.slice(1) // Remove leading slash
+    return NextResponse.rewrite(new URL(`/apply/${slug}`, request.url))
+  }
+  
+  // If it's a main domain, proceed normally
+  if (isMainDomain) {
+    return NextResponse.next()
+  }
+
+  // Check if this is a custom subdomain of maticsapp.com
+  // e.g., bpnc.maticsapp.com -> subdomain = "bpnc"
+  if (hostname.endsWith('.maticsapp.com')) {
+    const subdomain = hostname.replace('.maticsapp.com', '')
+    const slug = url.pathname.slice(1) // Remove leading slash
+    
+    if (!subdomain || !slug) {
+      return NextResponse.next()
     }
-    return NextResponse.next()
+
+    // Rewrite to the portal page with subdomain and slug as query params
+    const newUrl = new URL(`/apply/${slug}`, request.url)
+    newUrl.searchParams.set('subdomain', subdomain)
+    
+    return NextResponse.rewrite(newUrl)
   }
 
-  // Extract subdomain from hostname
-  // e.g., bpnc.maticsapp.com -> bpnc
-  const subdomain = hostname.split('.')[0]
-  
-  // Get the path (slug)
-  // e.g., /scholarship -> scholarship
-  const slug = url.pathname.slice(1)
-  
-  if (!subdomain || !slug) {
-    return NextResponse.next()
-  }
-
-  // Rewrite to the portal page with subdomain and slug as query params
-  // The portal page will use these to fetch the correct form
-  const newUrl = new URL(`/apply/${slug}`, request.url)
-  newUrl.searchParams.set('subdomain', subdomain)
-  
-  return NextResponse.rewrite(newUrl)
+  return NextResponse.next()
 }
 
 export const config = {
