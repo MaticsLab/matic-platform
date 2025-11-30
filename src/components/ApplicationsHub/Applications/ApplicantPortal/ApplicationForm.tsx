@@ -6,7 +6,7 @@ import {
   User, GraduationCap, DollarSign, FileText, Trophy, Upload, 
   CheckCircle2, AlertCircle, Save, ChevronRight, ArrowLeft, ArrowRight,
   Calendar as CalendarIcon, Plus, Trash2, GripVertical, Clock,
-  LayoutGrid, Mail, Star
+  LayoutGrid, Mail, Star, Send, Printer, CheckCircle, AlertTriangle, ClipboardCheck
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -222,7 +222,8 @@ export function ApplicationForm({
 
   const isDynamic = !!formDefinition
 
-  const TABS = isDynamic && sections.length > 0
+  // Add Review tab at the end for both dynamic and static forms
+  const baseTabs = isDynamic && sections.length > 0
     ? sections.map(s => ({ id: s.id, label: s.title, icon: FileText }))
     : [
         { id: 'personal', label: 'Personal Info', icon: User },
@@ -232,6 +233,8 @@ export function ApplicationForm({
         { id: 'activities', label: 'Activities', icon: Trophy },
         { id: 'documents', label: 'Documents', icon: Upload },
       ]
+  
+  const TABS = [...baseTabs, { id: 'review', label: 'Review & Submit', icon: ClipboardCheck }]
 
   const [activeTab, setActiveTab] = useState<TabId>(TABS[0]?.id || 'personal')
   const [formData, setFormData] = useState<any>(initialData || (isDynamic ? {} : EMPTY_APPLICATION_STATE))
@@ -417,10 +420,25 @@ export function ApplicationForm({
               <Card className={cn(isExternal ? "border-none shadow-none" : "")}>
                 <CardHeader className={cn(isExternal ? "px-0" : "")}>
                   <CardTitle className="text-2xl">{TABS.find(t => t.id === activeTab)?.label}</CardTitle>
-                  <CardDescription>Please fill out all required fields.</CardDescription>
+                  <CardDescription>
+                    {activeTab === 'review' 
+                      ? 'Review your application and submit when ready.'
+                      : 'Please fill out all required fields.'
+                    }
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className={cn("space-y-8", isExternal ? "px-0" : "")}>
-                  {isDynamic ? (
+                  {activeTab === 'review' ? (
+                    <ReviewSection
+                      formData={formData}
+                      formDefinition={formDefinition}
+                      sections={sections}
+                      isDynamic={isDynamic}
+                      onSubmit={() => handleSave(true)}
+                      onNavigateToSection={(sectionId) => setActiveTab(sectionId)}
+                      isExternal={isExternal}
+                    />
+                  ) : isDynamic ? (
                     <DynamicSection
                       fields={(formDefinition?.fields || []).filter(f => {
                         const config = f.config as any
@@ -991,6 +1009,374 @@ function DynamicSection({ fields, allFields = [], data, onChange }: { fields: an
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// Review Section Component
+interface ReviewSectionProps {
+  formData: any
+  formDefinition?: Form | null
+  sections: any[]
+  isDynamic: boolean
+  onSubmit: () => void
+  onNavigateToSection: (sectionId: string) => void
+  isExternal?: boolean
+}
+
+function ReviewSection({ 
+  formData, 
+  formDefinition, 
+  sections, 
+  isDynamic, 
+  onSubmit, 
+  onNavigateToSection,
+  isExternal = false 
+}: ReviewSectionProps) {
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
+  const [agreedToAccuracy, setAgreedToAccuracy] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handlePrint = () => {
+    window.print()
+  }
+
+  const handleSubmit = async () => {
+    if (!agreedToTerms || !agreedToAccuracy) return
+    
+    setIsSubmitting(true)
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    onSubmit()
+    setIsSubmitting(false)
+  }
+
+  // Calculate completion status
+  const getCompletionStatus = () => {
+    if (isDynamic && formDefinition?.fields) {
+      const requiredFields = formDefinition.fields.filter(f => (f.config as any)?.is_required)
+      if (requiredFields.length === 0) return { filledCount: 0, total: 0, isComplete: true }
+      
+      const filledFields = requiredFields.filter(f => {
+        const val = formData[f.name]
+        return val !== undefined && val !== '' && val !== null && (Array.isArray(val) ? val.length > 0 : true)
+      })
+      
+      return { 
+        filledCount: filledFields.length, 
+        total: requiredFields.length, 
+        isComplete: filledFields.length === requiredFields.length,
+        incompleteFields: requiredFields.filter(f => {
+          const val = formData[f.name]
+          return val === undefined || val === '' || val === null || (Array.isArray(val) && val.length === 0)
+        })
+      }
+    }
+    
+    // For static forms, just check some key fields
+    const staticFields = [
+      formData.personal?.studentName,
+      formData.personal?.personalEmail,
+      formData.academic?.gpa,
+      formData.essays?.whyScholarship
+    ]
+    const filledCount = staticFields.filter(f => f && f !== '').length
+    return { filledCount, total: staticFields.length, isComplete: filledCount === staticFields.length }
+  }
+
+  const status = getCompletionStatus()
+
+  // Group fields by section for display
+  const getFieldsBySection = () => {
+    if (!isDynamic || !formDefinition?.fields) return []
+    
+    return sections.map(section => ({
+      ...section,
+      fields: formDefinition.fields.filter(f => {
+        const config = f.config as any
+        if (sections.length === 1 && sections[0].id === 'default') return true
+        return config?.section_id === section.id
+      })
+    }))
+  }
+
+  const renderFieldValue = (field: any, value: any): React.ReactNode => {
+    if (value === undefined || value === null || value === '') {
+      return <span className="text-gray-400 italic">Not provided</span>
+    }
+    
+    if (typeof value === 'boolean') {
+      return <span className={value ? 'text-green-600' : 'text-gray-500'}>{value ? 'Yes' : 'No'}</span>
+    }
+    
+    if (Array.isArray(value)) {
+      if (value.length === 0) return <span className="text-gray-400 italic">None</span>
+      
+      // Handle array of objects (repeaters)
+      if (typeof value[0] === 'object') {
+        return (
+          <div className="space-y-2 mt-2">
+            {value.map((item, idx) => (
+              <div key={idx} className="bg-gray-50 p-3 rounded-lg text-sm">
+                {Object.entries(item).map(([k, v]) => (
+                  <div key={k} className="flex gap-2">
+                    <span className="text-gray-500 capitalize">{k.replace(/_/g, ' ')}:</span>
+                    <span className="text-gray-900">{String(v)}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )
+      }
+      
+      return value.join(', ')
+    }
+    
+    if (typeof value === 'object') {
+      // Handle address object
+      if (value.street || value.city) {
+        const parts = [value.street, value.city, value.state, value.zip].filter(Boolean)
+        return parts.join(', ') || <span className="text-gray-400 italic">Not provided</span>
+      }
+      
+      // Handle formatted address from AddressField
+      if (value.formatted_address) {
+        return value.formatted_address
+      }
+      
+      return JSON.stringify(value)
+    }
+    
+    // For long text, truncate
+    if (typeof value === 'string' && value.length > 200) {
+      return <ExpandableText content={value} />
+    }
+    
+    return String(value)
+  }
+
+  const sectionsByData = getFieldsBySection()
+
+  return (
+    <div className="space-y-6">
+      {/* Completion Status Banner */}
+      <div
+        className={cn(
+          "border rounded-lg p-4",
+          status.isComplete
+            ? "bg-green-50 border-green-200"
+            : "bg-orange-50 border-orange-200"
+        )}
+      >
+        <div className="flex items-start gap-3">
+          {status.isComplete ? (
+            <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+          ) : (
+            <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
+          )}
+          <div className="flex-1">
+            <h3 className={cn("font-medium", status.isComplete ? "text-green-900" : "text-orange-900")}>
+              {status.isComplete ? "Application Complete!" : "Application Incomplete"}
+            </h3>
+            <p className={cn("text-sm mt-1", status.isComplete ? "text-green-700" : "text-orange-700")}>
+              {status.isComplete
+                ? "All required fields have been completed. Review your information below and submit when ready."
+                : `${status.filledCount} of ${status.total} required fields completed. Please complete all sections before submitting.`}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Application Summary */}
+      <div className="space-y-6 print:space-y-4">
+        {isDynamic ? (
+          // Dynamic form review
+          sectionsByData.filter(s => s.fields.length > 0).map(section => (
+            <ReviewSectionCard 
+              key={section.id} 
+              title={section.title}
+              onEdit={() => onNavigateToSection(section.id)}
+            >
+              <div className="space-y-4">
+                {section.fields.filter((f: any) => f.type !== 'group' && f.type !== 'divider' && f.type !== 'paragraph').map((field: any) => (
+                  <div key={field.id} className="grid grid-cols-3 gap-4 text-sm">
+                    <dt className="text-gray-600">{field.label}</dt>
+                    <dd className="col-span-2 text-gray-900">{renderFieldValue(field, formData[field.name])}</dd>
+                  </div>
+                ))}
+              </div>
+            </ReviewSectionCard>
+          ))
+        ) : (
+          // Static form review
+          <>
+            <ReviewSectionCard title="Personal Information" onEdit={() => onNavigateToSection('personal')}>
+              <InfoRow label="Name" value={formData.personal?.studentName} />
+              <InfoRow label="Email" value={formData.personal?.personalEmail || formData.personal?.cpsEmail} />
+              <InfoRow label="Phone" value={formData.personal?.phone} />
+              <InfoRow label="Date of Birth" value={formData.personal?.dob} />
+              <InfoRow label="Student ID" value={formData.personal?.studentId} />
+            </ReviewSectionCard>
+
+            <ReviewSectionCard title="Academic Information" onEdit={() => onNavigateToSection('academic')}>
+              <InfoRow label="GPA" value={formData.academic?.gpa} />
+              <InfoRow label="Full-Time Status" value={formData.academic?.fullTime} />
+              <InfoRow label="Top Universities" value={formData.academic?.top3?.filter(Boolean).join(', ')} />
+            </ReviewSectionCard>
+
+            <ReviewSectionCard title="Essays" onEdit={() => onNavigateToSection('essays')}>
+              {formData.essays?.whyScholarship && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-gray-700">Why do you deserve this scholarship?</h4>
+                  <ExpandableText content={formData.essays.whyScholarship} />
+                </div>
+              )}
+              {formData.essays?.careerGoals && (
+                <div className="space-y-2 mt-4">
+                  <h4 className="text-sm font-medium text-gray-700">Career Goals</h4>
+                  <ExpandableText content={formData.essays.careerGoals} />
+                </div>
+              )}
+            </ReviewSectionCard>
+          </>
+        )}
+      </div>
+
+      {/* Certifications */}
+      <div className="border border-gray-200 rounded-lg p-6 space-y-4 print:hidden">
+        <h3 className="font-medium text-gray-900">Certification</h3>
+        
+        <div className="space-y-3">
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="terms"
+              checked={agreedToTerms}
+              onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
+              className="mt-1"
+            />
+            <label htmlFor="terms" className="text-sm text-gray-700 cursor-pointer flex-1">
+              I certify that I have read and agree to the{' '}
+              <a href="#" className="text-blue-600 hover:underline">terms and conditions</a>{' '}
+              of this scholarship program.
+            </label>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="accuracy"
+              checked={agreedToAccuracy}
+              onCheckedChange={(checked) => setAgreedToAccuracy(checked as boolean)}
+              className="mt-1"
+            />
+            <label htmlFor="accuracy" className="text-sm text-gray-700 cursor-pointer flex-1">
+              I certify that all information provided in this application is true and accurate to the 
+              best of my knowledge. I understand that providing false information may result in 
+              disqualification.
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-3 flex-wrap print:hidden">
+        <Button
+          size="lg"
+          onClick={handleSubmit}
+          disabled={!status.isComplete || !agreedToTerms || !agreedToAccuracy || isSubmitting}
+          className={cn("flex-1 min-w-[200px]", isExternal && "bg-gray-900 hover:bg-gray-800")}
+        >
+          {isSubmitting ? (
+            <>
+              <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+              Submitting...
+            </>
+          ) : (
+            <>
+              <Send className="h-4 w-4 mr-2" />
+              Submit Application
+            </>
+          )}
+        </Button>
+
+        <Button variant="outline" size="lg" onClick={handlePrint}>
+          <Printer className="h-4 w-4 mr-2" />
+          Print Application
+        </Button>
+      </div>
+
+      {!status.isComplete && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 print:hidden">
+          <p className="text-sm text-amber-800">
+            Please complete all required sections before submitting your application. 
+            Use the sidebar to navigate to incomplete sections.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Helper component for review section cards
+function ReviewSectionCard({ 
+  title, 
+  children, 
+  onEdit 
+}: { 
+  title: string
+  children: React.ReactNode
+  onEdit?: () => void 
+}) {
+  return (
+    <div className="border border-gray-200 rounded-lg p-6 print:border-0 print:p-4">
+      <div className="flex items-center justify-between mb-4 pb-2 border-b">
+        <h3 className="font-medium text-gray-900">{title}</h3>
+        {onEdit && (
+          <button
+            onClick={onEdit}
+            className="text-sm text-blue-600 hover:text-blue-700 hover:underline print:hidden flex items-center gap-1"
+          >
+            <ChevronRight className="w-4 h-4" />
+            Edit
+          </button>
+        )}
+      </div>
+      <div className="space-y-3">{children}</div>
+    </div>
+  )
+}
+
+// Helper component for info rows
+function InfoRow({ label, value }: { label: string; value?: string }) {
+  return (
+    <div className="grid grid-cols-3 gap-4 text-sm">
+      <dt className="text-gray-600">{label}</dt>
+      <dd className="col-span-2 text-gray-900">{value || <span className="text-gray-400 italic">Not provided</span>}</dd>
+    </div>
+  )
+}
+
+// Helper component for expandable text (essays)
+function ExpandableText({ content }: { content: string }) {
+  const [expanded, setExpanded] = useState(false)
+  
+  if (!content) return null
+
+  const preview = content.slice(0, 200)
+  const shouldTruncate = content.length > 200
+
+  return (
+    <div className="space-y-2">
+      <div className="text-sm text-gray-700 whitespace-pre-wrap">
+        {expanded || !shouldTruncate ? content : `${preview}...`}
+      </div>
+      {shouldTruncate && !expanded && (
+        <button
+          onClick={() => setExpanded(true)}
+          className="text-sm text-blue-600 hover:underline print:hidden"
+        >
+          Read more
+        </button>
+      )}
     </div>
   )
 }
