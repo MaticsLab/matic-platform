@@ -137,15 +137,18 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     .sort((a: any, b: any) => a.position - b.position)
                     .map((f: any) => {
                         const config = getConfig(f);
+                        // Extract known fields and keep the rest in config
+                        const { section_id, is_required, items, ...restConfig } = config;
                         return {
                             id: f.id,
                             type: f.type,
                             label: f.label,
-                            required: config.is_required,
+                            required: is_required,
                             width: config.width || 'full',
                             placeholder: config.placeholder,
-                            options: config.items,
-                            children: config.children // For groups/repeaters
+                            options: items,
+                            children: config.children, // For groups/repeaters
+                            config: restConfig // Preserve color, icon, and other config
                         }
                     });
 
@@ -175,15 +178,18 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   title: 'General Information',
                   fields: fullForm.fields.map((f: any) => {
                         const config = getConfig(f);
+                        // Extract known fields and keep the rest in config
+                        const { section_id, is_required, items, ...restConfig } = config;
                         return {
                             id: f.id,
                             type: f.type,
                             label: f.label,
-                            required: config.is_required,
+                            required: is_required,
                             width: config.width || 'full',
                             placeholder: config.placeholder,
-                            options: config.items,
-                            children: config.children
+                            options: items,
+                            children: config.children,
+                            config: restConfig // Preserve color, icon, and other config
                         }
                   }).sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
               }
