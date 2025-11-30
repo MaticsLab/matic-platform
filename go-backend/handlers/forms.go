@@ -771,10 +771,19 @@ func GetFormSubmission(c *gin.Context) {
 	// 1. data->'personal'->>'personalEmail' (static forms)
 	// 2. data->>'_applicant_email' (dynamic forms - new field)
 	// 3. data->>'email' (dynamic forms - field named email)
+	// 4. data->>'Personal Email' (dynamic forms - field named Personal Email)
+	// 5. data->>'CPS email' (dynamic forms - field named CPS email)
+	// 6. data->>'personalEmail' (dynamic forms - camelCase variant)
 	queries := []string{
 		"table_id = ? AND data->'personal'->>'personalEmail' = ?",
 		"table_id = ? AND data->>'_applicant_email' = ?",
 		"table_id = ? AND data->>'email' = ?",
+		"table_id = ? AND data->>'Personal Email' = ?",
+		"table_id = ? AND data->>'CPS email' = ?",
+		"table_id = ? AND data->>'personalEmail' = ?",
+		"table_id = ? AND LOWER(data->>'email') = LOWER(?)",
+		"table_id = ? AND LOWER(data->>'Personal Email') = LOWER(?)",
+		"table_id = ? AND LOWER(data->>'CPS email') = LOWER(?)",
 	}
 
 	var found bool

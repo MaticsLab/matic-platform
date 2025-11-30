@@ -1164,8 +1164,252 @@ function ReviewSection({
   const [agreedToAccuracy, setAgreedToAccuracy] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Generate application number from form data or use a default
+  const applicationNumber = formData?._submission_id || formData?.id || `APP-${Date.now().toString(36).toUpperCase()}`
+  const submissionDate = formData?._submitted_at 
+    ? new Date(formData._submitted_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+
   const handlePrint = () => {
-    window.print()
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      window.print()
+      return
+    }
+
+    // Generate print content
+    const printContent = generatePrintContent()
+    
+    printWindow.document.write(printContent)
+    printWindow.document.close()
+    
+    // Wait for content to load then print
+    printWindow.onload = () => {
+      printWindow.print()
+      printWindow.onafterprint = () => printWindow.close()
+    }
+  }
+
+  const generatePrintContent = () => {
+    const formName = formDefinition?.name || 'Application'
+    const sectionsByData = getFieldsBySection()
+    
+    let sectionsHtml = ''
+    
+    if (isDynamic) {
+      sectionsByData.filter(s => s.fields.length > 0).forEach(section => {
+        let fieldsHtml = ''
+        section.fields
+          .filter((f: any) => f.type !== 'group' && f.type !== 'divider' && f.type !== 'paragraph')
+          .forEach((field: any) => {
+            const value = formatPrintValue(formData[field.name])
+            fieldsHtml += `
+              <tr>
+                <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280; width: 35%; vertical-align: top;">${field.label}</td>
+                <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">${value}</td>
+              </tr>
+            `
+          })
+        
+        sectionsHtml += `
+          <div style="margin-bottom: 24px; break-inside: avoid;">
+            <h2 style="font-size: 16px; font-weight: 600; color: #111827; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb;">${section.title}</h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              ${fieldsHtml}
+            </table>
+          </div>
+        `
+      })
+    } else {
+      // Static form sections
+      sectionsHtml = `
+        <div style="margin-bottom: 24px; break-inside: avoid;">
+          <h2 style="font-size: 16px; font-weight: 600; color: #111827; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb;">Personal Information</h2>
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <tr><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280; width: 35%;">Name</td><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">${formData.personal?.studentName || 'Not provided'}</td></tr>
+            <tr><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Email</td><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">${formData.personal?.personalEmail || formData.personal?.cpsEmail || 'Not provided'}</td></tr>
+            <tr><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Phone</td><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">${formData.personal?.phone || 'Not provided'}</td></tr>
+            <tr><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Date of Birth</td><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">${formData.personal?.dob || 'Not provided'}</td></tr>
+            <tr><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Student ID</td><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">${formData.personal?.studentId || 'Not provided'}</td></tr>
+          </table>
+        </div>
+        <div style="margin-bottom: 24px; break-inside: avoid;">
+          <h2 style="font-size: 16px; font-weight: 600; color: #111827; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb;">Academic Information</h2>
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <tr><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280; width: 35%;">GPA</td><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">${formData.academic?.gpa || 'Not provided'}</td></tr>
+            <tr><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Full-Time Status</td><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">${formData.academic?.fullTime || 'Not provided'}</td></tr>
+            <tr><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Top Universities</td><td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">${formData.academic?.top3?.filter(Boolean).join(', ') || 'Not provided'}</td></tr>
+          </table>
+        </div>
+        ${formData.essays?.whyScholarship ? `
+        <div style="margin-bottom: 24px; break-inside: avoid;">
+          <h2 style="font-size: 16px; font-weight: 600; color: #111827; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb;">Essays</h2>
+          <div style="margin-bottom: 16px;">
+            <h3 style="font-size: 13px; font-weight: 500; color: #6b7280; margin-bottom: 8px;">Why do you deserve this scholarship?</h3>
+            <p style="font-size: 13px; color: #111827; white-space: pre-wrap; line-height: 1.6;">${formData.essays.whyScholarship}</p>
+          </div>
+          ${formData.essays?.careerGoals ? `
+          <div>
+            <h3 style="font-size: 13px; font-weight: 500; color: #6b7280; margin-bottom: 8px;">Career Goals</h3>
+            <p style="font-size: 13px; color: #111827; white-space: pre-wrap; line-height: 1.6;">${formData.essays.careerGoals}</p>
+          </div>
+          ` : ''}
+        </div>
+        ` : ''}
+      `
+    }
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${formName} - Application #${applicationNumber}</title>
+        <style>
+          @page {
+            margin: 0.75in;
+            size: letter;
+          }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color: #111827;
+            line-height: 1.5;
+            margin: 0;
+            padding: 0;
+          }
+          .header {
+            border-bottom: 3px solid #111827;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+          }
+          .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+          }
+          .logo-box {
+            width: 40px;
+            height: 40px;
+            background: #111827;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 20px;
+          }
+          .app-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #111827;
+          }
+          .app-meta {
+            display: flex;
+            gap: 40px;
+            margin-top: 16px;
+            font-size: 13px;
+          }
+          .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+          }
+          .meta-label {
+            color: #6b7280;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .meta-value {
+            color: #111827;
+            font-weight: 500;
+          }
+          .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 11px;
+            color: #6b7280;
+            text-align: center;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo">
+            <div class="logo-box">M</div>
+            <div class="app-title">${formName}</div>
+          </div>
+          <div class="app-meta">
+            <div class="meta-item">
+              <span class="meta-label">Application Number</span>
+              <span class="meta-value">${applicationNumber}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Date</span>
+              <span class="meta-value">${submissionDate}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Applicant</span>
+              <span class="meta-value">${formData?.['First Name'] || formData?.personal?.studentName || formData?.firstName || 'N/A'} ${formData?.['Last Name'] || formData?.lastName || ''}</span>
+            </div>
+          </div>
+        </div>
+        
+        ${sectionsHtml}
+        
+        <div class="footer">
+          <p>This document was generated on ${new Date().toLocaleString()} • Powered by Matic Platform</p>
+        </div>
+      </body>
+      </html>
+    `
+  }
+
+  const formatPrintValue = (value: any): string => {
+    if (value === undefined || value === null || value === '') {
+      return '<span style="color: #9ca3af; font-style: italic;">Not provided</span>'
+    }
+    
+    if (typeof value === 'boolean') {
+      return value ? 'Yes' : 'No'
+    }
+    
+    if (Array.isArray(value)) {
+      if (value.length === 0) return '<span style="color: #9ca3af; font-style: italic;">None</span>'
+      
+      // Handle array of objects (repeaters)
+      if (typeof value[0] === 'object') {
+        return value.map((item, idx) => {
+          const entries = Object.entries(item)
+            .map(([k, v]) => `<strong>${k.replace(/_/g, ' ')}:</strong> ${String(v)}`)
+            .join(', ')
+          return `<div style="background: #f9fafb; padding: 8px; border-radius: 4px; margin-top: 4px;">${entries}</div>`
+        }).join('')
+      }
+      
+      return value.join(', ')
+    }
+    
+    if (typeof value === 'object') {
+      // Handle address object
+      if (value.street || value.city) {
+        const parts = [value.street, value.city, value.state, value.zip].filter(Boolean)
+        return parts.join(', ') || '<span style="color: #9ca3af; font-style: italic;">Not provided</span>'
+      }
+      
+      // Handle formatted address from AddressField
+      if (value.formatted_address) {
+        return value.formatted_address
+      }
+      
+      return JSON.stringify(value)
+    }
+    
+    // Escape HTML and preserve line breaks
+    return String(value).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
   }
 
   const handleSubmit = async () => {
