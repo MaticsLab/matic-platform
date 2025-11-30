@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/Jsanchez767/matic-platform/config"
 	"github.com/Jsanchez767/matic-platform/handlers"
@@ -13,9 +14,29 @@ import (
 func SetupRouter(cfg *config.Config) *gin.Engine {
 	r := gin.Default()
 
-	// CORS configuration
+	// CORS configuration with dynamic origin checking for subdomains
 	corsConfig := cors.Config{
-		AllowOrigins:     cfg.AllowedOrigins,
+		AllowOriginFunc: func(origin string) bool {
+			// Allow localhost for development
+			if strings.HasPrefix(origin, "http://localhost") {
+				return true
+			}
+			// Allow any *.maticsapp.com subdomain
+			if strings.HasSuffix(origin, ".maticsapp.com") || origin == "https://maticsapp.com" {
+				return true
+			}
+			// Allow Vercel preview deployments
+			if strings.HasSuffix(origin, ".vercel.app") {
+				return true
+			}
+			// Check against explicitly configured origins
+			for _, allowed := range cfg.AllowedOrigins {
+				if origin == allowed {
+					return true
+				}
+			}
+			return false
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},

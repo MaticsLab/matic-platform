@@ -22,6 +22,7 @@ func LoadConfig() *Config {
 		"http://localhost:3000",
 		"https://www.maticsapp.com",
 		"https://maticsapp.com",
+		"https://forms.maticsapp.com",
 		"https://matics-platform.vercel.app", // Fallback for Vercel preview deployments
 	}
 	if allowedOrigins != "" {
