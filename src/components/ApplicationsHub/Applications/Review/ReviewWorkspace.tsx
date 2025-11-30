@@ -508,6 +508,13 @@ export function ReviewWorkspace({
   const [showOnlyUnassigned, setShowOnlyUnassigned] = useState(false)
   const [isAssigningUnassigned, setIsAssigningUnassigned] = useState(false)
   
+  // Bulk assignment modal state
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false)
+  const [bulkAssignSelectedApps, setBulkAssignSelectedApps] = useState<string[]>([])
+  const [bulkAssignStrategy, setBulkAssignStrategy] = useState<'manual' | 'equal'>('manual')
+  const [bulkAssignTargetReviewers, setBulkAssignTargetReviewers] = useState<string[]>([])
+  const [isBulkAssigning, setIsBulkAssigning] = useState(false)
+  
   // Scoring state
   const [editingScores, setEditingScores] = useState<Record<string, number>>({})
   const [editingComments, setEditingComments] = useState('')
@@ -1185,6 +1192,74 @@ export function ReviewWorkspace({
     }
   }
 
+  // Open the bulk assign modal when clicking unassigned section
+  const openBulkAssignModal = () => {
+    const unassignedApps = applications.filter(a => !a.assignedReviewers?.length)
+    setBulkAssignSelectedApps(unassignedApps.map(a => a.id))
+    setBulkAssignTargetReviewers([])
+    setBulkAssignStrategy('manual')
+    setShowBulkAssignModal(true)
+  }
+
+  // Handle bulk assignment to reviewers
+  const handleBulkAssignToReviewers = async () => {
+    if (!formId || bulkAssignSelectedApps.length === 0 || bulkAssignTargetReviewers.length === 0) return
+    
+    setIsBulkAssigning(true)
+    try {
+      const appsToAssign = bulkAssignSelectedApps
+      const reviewerIds = bulkAssignTargetReviewers
+      
+      if (bulkAssignStrategy === 'equal') {
+        // Distribute evenly among selected reviewers
+        const appsPerReviewer = Math.ceil(appsToAssign.length / reviewerIds.length)
+        
+        for (let i = 0; i < reviewerIds.length; i++) {
+          const reviewerId = reviewerIds[i]
+          const startIdx = i * appsPerReviewer
+          const endIdx = Math.min(startIdx + appsPerReviewer, appsToAssign.length)
+          const appIds = appsToAssign.slice(startIdx, endIdx)
+          
+          if (appIds.length > 0) {
+            await goClient.post(`/forms/${formId}/reviewers/${reviewerId}/assign`, {
+              strategy: 'manual',
+              submission_ids: appIds
+            })
+          }
+        }
+      } else {
+        // Manual: assign all selected apps to all selected reviewers
+        for (const reviewerId of reviewerIds) {
+          await goClient.post(`/forms/${formId}/reviewers/${reviewerId}/assign`, {
+            strategy: 'manual',
+            submission_ids: appsToAssign
+          })
+        }
+      }
+      
+      // Update local state
+      setApplications(prev => prev.map(app => {
+        if (bulkAssignSelectedApps.includes(app.id)) {
+          const existingReviewers = app.assignedReviewers || []
+          const newReviewers = [...new Set([...existingReviewers, ...reviewerIds])]
+          return { ...app, assignedReviewers: newReviewers }
+        }
+        return app
+      }))
+      
+      setShowBulkAssignModal(false)
+      setBulkAssignSelectedApps([])
+      setBulkAssignTargetReviewers([])
+      
+      // Reload data to get accurate counts
+      loadData()
+    } catch (error) {
+      console.error('Failed to bulk assign:', error)
+    } finally {
+      setIsBulkAssigning(false)
+    }
+  }
+
   const handleSaveAndNext = async () => {
     if (!currentApp || !formId) return
     setIsSaving(true)
@@ -1761,21 +1836,17 @@ export function ReviewWorkspace({
             </span>
           </button>
           
-          {/* Unassigned */}
+          {/* Unassigned - Click to open assignment modal */}
           {stats.unassigned > 0 && (
             <button
               onClick={() => {
-                setShowOnlyUnassigned(!showOnlyUnassigned)
-                setSelectedStageId('all')
-                setSelectedAppIndex(0)
+                openBulkAssignModal()
               }}
               className={cn(
                 "w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all relative",
-                showOnlyUnassigned
-                  ? "bg-amber-500 text-white shadow-md"
-                  : "text-amber-500 hover:bg-amber-50"
+                "text-amber-500 hover:bg-amber-50"
               )}
-              title="Unassigned Applications"
+              title="Assign Unassigned Applications"
             >
               <AlertCircle className="w-5 h-5" />
               <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
@@ -1970,6 +2041,248 @@ export function ReviewWorkspace({
             
             <div className="flex-1 overflow-hidden">
               <CommunicationsCenter workspaceId={workspaceId} formId={formId} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Assign Modal */}
+      {showBulkAssignModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                  <UserPlus className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Assign to Reviewers</h2>
+                  <p className="text-sm text-gray-500">Select applications and reviewers for assignment</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowBulkAssignModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(85vh-140px)]">
+              {/* Assignment Strategy */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">Assignment Strategy</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setBulkAssignStrategy('manual')}
+                    className={cn(
+                      "p-4 rounded-xl border-2 text-left transition-all",
+                      bulkAssignStrategy === 'manual' 
+                        ? "border-blue-500 bg-blue-50" 
+                        : "border-gray-200 hover:border-gray-300"
+                    )}
+                  >
+                    <Target className={cn("w-5 h-5 mb-2", bulkAssignStrategy === 'manual' ? "text-blue-600" : "text-gray-400")} />
+                    <h3 className="font-medium text-gray-900">All to All</h3>
+                    <p className="text-xs text-gray-500 mt-1">Each reviewer sees all selected applications</p>
+                  </button>
+                  <button
+                    onClick={() => setBulkAssignStrategy('equal')}
+                    className={cn(
+                      "p-4 rounded-xl border-2 text-left transition-all",
+                      bulkAssignStrategy === 'equal' 
+                        ? "border-blue-500 bg-blue-50" 
+                        : "border-gray-200 hover:border-gray-300"
+                    )}
+                  >
+                    <Layers className={cn("w-5 h-5 mb-2", bulkAssignStrategy === 'equal' ? "text-blue-600" : "text-gray-400")} />
+                    <h3 className="font-medium text-gray-900">Distribute Equally</h3>
+                    <p className="text-xs text-gray-500 mt-1">Split applications evenly among reviewers</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Select Applications */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-sm font-medium text-gray-700">
+                    Applications ({bulkAssignSelectedApps.length} selected)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const unassigned = applications.filter(a => !a.assignedReviewers?.length).map(a => a.id)
+                        setBulkAssignSelectedApps(unassigned)
+                      }}
+                      className="text-xs text-blue-600 hover:text-blue-700"
+                    >
+                      Select all unassigned
+                    </button>
+                    <button
+                      onClick={() => setBulkAssignSelectedApps([])}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+                  {applications.filter(a => !a.assignedReviewers?.length).length === 0 ? (
+                    <div className="p-4 text-center text-gray-500 text-sm">
+                      No unassigned applications
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {applications.filter(a => !a.assignedReviewers?.length).map(app => {
+                        const isSelected = bulkAssignSelectedApps.includes(app.id)
+                        return (
+                          <div
+                            key={app.id}
+                            onClick={() => {
+                              setBulkAssignSelectedApps(prev => 
+                                isSelected ? prev.filter(id => id !== app.id) : [...prev, app.id]
+                              )
+                            }}
+                            className={cn(
+                              "flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 transition-colors",
+                              isSelected && "bg-blue-50"
+                            )}
+                          >
+                            <div className={cn(
+                              "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                              isSelected ? "bg-blue-600 border-blue-600" : "border-gray-300"
+                            )}>
+                              {isSelected && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium text-gray-600">
+                              {app.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{app.name}</p>
+                              <p className="text-xs text-gray-500">{app.email}</p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Select Reviewers */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-sm font-medium text-gray-700">
+                    Reviewers ({bulkAssignTargetReviewers.length} selected)
+                  </label>
+                  <button
+                    onClick={() => setBulkAssignTargetReviewers(Object.keys(reviewersMap))}
+                    className="text-xs text-blue-600 hover:text-blue-700"
+                  >
+                    Select all
+                  </button>
+                </div>
+                <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+                  {Object.keys(reviewersMap).length === 0 ? (
+                    <div className="p-4 text-center text-gray-500 text-sm">
+                      <p>No reviewers yet.</p>
+                      <button
+                        onClick={() => {
+                          setShowBulkAssignModal(false)
+                          setShowReviewersPanel()
+                        }}
+                        className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
+                      >
+                        Invite reviewers first →
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {Object.entries(reviewersMap).map(([id, reviewer]) => {
+                        const isSelected = bulkAssignTargetReviewers.includes(id)
+                        return (
+                          <div
+                            key={id}
+                            onClick={() => {
+                              setBulkAssignTargetReviewers(prev => 
+                                isSelected ? prev.filter(rid => rid !== id) : [...prev, id]
+                              )
+                            }}
+                            className={cn(
+                              "flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 transition-colors",
+                              isSelected && "bg-blue-50"
+                            )}
+                          >
+                            <div className={cn(
+                              "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                              isSelected ? "bg-blue-600 border-blue-600" : "border-gray-300"
+                            )}>
+                              {isSelected && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                            <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-sm font-medium text-purple-700">
+                              {reviewer.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{reviewer.name}</p>
+                              {reviewer.role && (
+                                <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
+                                  {reviewer.role}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Summary */}
+              {bulkAssignSelectedApps.length > 0 && bulkAssignTargetReviewers.length > 0 && (
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    {bulkAssignStrategy === 'equal' ? (
+                      <>
+                        <strong>{bulkAssignSelectedApps.length}</strong> applications will be distributed equally among{' '}
+                        <strong>{bulkAssignTargetReviewers.length}</strong> reviewers
+                        {' '}(~{Math.ceil(bulkAssignSelectedApps.length / bulkAssignTargetReviewers.length)} each)
+                      </>
+                    ) : (
+                      <>
+                        Each of the <strong>{bulkAssignTargetReviewers.length}</strong> selected reviewers will receive all{' '}
+                        <strong>{bulkAssignSelectedApps.length}</strong> applications
+                      </>
+                    )}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+              <button
+                onClick={() => setShowBulkAssignModal(false)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkAssignToReviewers}
+                disabled={isBulkAssigning || bulkAssignSelectedApps.length === 0 || bulkAssignTargetReviewers.length === 0}
+                className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isBulkAssigning ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Assigning...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-4 h-4" />
+                    Assign Applications
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

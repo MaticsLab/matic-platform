@@ -86,6 +86,14 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
   const [reviewerToDelete, setReviewerToDelete] = useState<Reviewer | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleteAction, setDeleteAction] = useState<'archive' | 'remove_completely' | 'reassign'>('archive')
+  
+  // Reassignment state
+  const [showReassignModal, setShowReassignModal] = useState(false)
+  const [reassignSubmissionId, setReassignSubmissionId] = useState<string | null>(null)
+  const [reassignFromReviewerId, setReassignFromReviewerId] = useState<string | null>(null)
+  const [reassignToReviewerId, setReassignToReviewerId] = useState<string>('')
+  const [reassignNote, setReassignNote] = useState('')
+  const [isReassigning, setIsReassigning] = useState(false)
 
   useEffect(() => {
     if (formId) fetchReviewers()
@@ -388,6 +396,79 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
     setTimeout(() => setCopiedId(null), 2000)
   }
 
+  // Open reassign modal for a specific application
+  const openReassignModal = (submissionId: string, fromReviewerId: string) => {
+    setReassignSubmissionId(submissionId)
+    setReassignFromReviewerId(fromReviewerId)
+    setReassignToReviewerId('')
+    setReassignNote('')
+    setShowReassignModal(true)
+  }
+
+  // Handle reassigning an application from one reviewer to another
+  const handleReassignApplication = async () => {
+    if (!formId || !reassignSubmissionId || !reassignFromReviewerId || !reassignToReviewerId) return
+    
+    setIsReassigning(true)
+    try {
+      // Get the submission
+      const submission = submissions.find(s => s.id === reassignSubmissionId)
+      if (!submission) throw new Error('Submission not found')
+      
+      // Remove from old reviewer and add to new reviewer
+      const currentAssigned = submission.metadata?.assigned_reviewers || []
+      const newAssigned = currentAssigned.filter((id: string) => id !== reassignFromReviewerId)
+      if (!newAssigned.includes(reassignToReviewerId)) {
+        newAssigned.push(reassignToReviewerId)
+      }
+      
+      // Update the submission metadata
+      await goClient.patch(`/forms/${formId}/submissions/${reassignSubmissionId}`, {
+        metadata: { 
+          ...submission.metadata, 
+          assigned_reviewers: newAssigned,
+          reassignment_history: [
+            ...(submission.metadata?.reassignment_history || []),
+            {
+              from: reassignFromReviewerId,
+              to: reassignToReviewerId,
+              note: reassignNote,
+              timestamp: new Date().toISOString()
+            }
+          ]
+        }
+      })
+      
+      // Update local submission state
+      setSubmissions(prev => prev.map(s => 
+        s.id === reassignSubmissionId 
+          ? { ...s, metadata: { ...s.metadata, assigned_reviewers: newAssigned } }
+          : s
+      ))
+      
+      // Update reviewer counts
+      const updatedReviewers = reviewers.map(r => {
+        if (r.id === reassignFromReviewerId) {
+          return { ...r, assignedCount: Math.max(0, r.assignedCount - 1) }
+        }
+        if (r.id === reassignToReviewerId) {
+          return { ...r, assignedCount: r.assignedCount + 1 }
+        }
+        return r
+      })
+      await saveReviewers(updatedReviewers)
+      
+      const toReviewer = reviewers.find(r => r.id === reassignToReviewerId)
+      showToast(`Application reassigned to ${toReviewer?.name || 'reviewer'}`, 'success')
+      setShowReassignModal(false)
+    } catch (error) {
+      console.error('Failed to reassign:', error)
+      showToast('Failed to reassign application', 'error')
+    } finally {
+      setIsReassigning(false)
+    }
+  }
+
   // Active reviewers (not removed) for display and stats
   const activeReviewers = useMemo(() => reviewers.filter(r => !r.removed), [reviewers])
 
@@ -591,7 +672,7 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
                                     const reviewerScore = sub.metadata?.review_history?.find((r: any) => r.reviewer_id === reviewer.id)?.total_score
                                     
                                     return (
-                                      <div key={sub.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
+                                      <div key={sub.id} className="p-3 flex items-center justify-between hover:bg-gray-50 group">
                                         <div className="flex items-center gap-3 min-w-0">
                                           <div className={cn(
                                             "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-medium",
@@ -613,6 +694,17 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
                                           ) : (
                                             <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full">Pending</span>
                                           )}
+                                          {/* Reassign button */}
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              openReassignModal(sub.id, reviewer.id)
+                                            }}
+                                            className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                                            title="Reassign to another reviewer"
+                                          >
+                                            <UserPlus className="w-3.5 h-3.5" />
+                                          </button>
                                         </div>
                                       </div>
                                     )
@@ -1137,6 +1229,98 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
                 )}
               >
                 {deleteAction === 'archive' ? 'Archive Reviewer' : 'Remove Reviewer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reassign Application Modal */}
+      {showReassignModal && reassignSubmissionId && reassignFromReviewerId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Reassign Application</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Transfer this application from{' '}
+              <span className="font-medium">{reviewers.find(r => r.id === reassignFromReviewerId)?.name}</span>{' '}
+              to another reviewer.
+            </p>
+            
+            {/* Target reviewer selection */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Assign to</label>
+              <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+                {activeReviewers.filter(r => r.id !== reassignFromReviewerId).length === 0 ? (
+                  <div className="p-3 text-center text-gray-500 text-sm">No other reviewers available</div>
+                ) : (
+                  activeReviewers.filter(r => r.id !== reassignFromReviewerId).map(reviewer => (
+                    <div
+                      key={reviewer.id}
+                      onClick={() => setReassignToReviewerId(reviewer.id)}
+                      className={cn(
+                        "flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 transition-colors",
+                        reassignToReviewerId === reviewer.id && "bg-blue-50 border-l-2 border-blue-500"
+                      )}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-sm font-medium text-purple-700">
+                        {reviewer.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">{reviewer.name}</p>
+                        <p className="text-xs text-gray-500">{reviewer.assignedCount} assigned</p>
+                      </div>
+                      {reviewer.role && (
+                        <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
+                          {reviewer.role}
+                        </span>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            
+            {/* Optional note */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Note <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <textarea
+                value={reassignNote}
+                onChange={(e) => setReassignNote(e.target.value)}
+                placeholder="Reason for reassignment..."
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                rows={2}
+              />
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowReassignModal(false)
+                  setReassignSubmissionId(null)
+                  setReassignFromReviewerId(null)
+                }}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReassignApplication}
+                disabled={isReassigning || !reassignToReviewerId}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isReassigning ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Reassigning...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-4 h-4" />
+                    Reassign
+                  </>
+                )}
               </button>
             </div>
           </div>
