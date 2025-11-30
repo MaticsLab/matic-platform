@@ -445,7 +445,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         {/* Main Content Area */}
         {activeTopTab === 'share' && (
           <div className="flex-1 overflow-auto bg-white">
-            <ShareTab formId={formId} isPublished={isPublished} workspaceId={workspaceId || undefined} />
+            <ShareTab key={`share-${formId}-${workspaceId}`} formId={formId} isPublished={isPublished} workspaceId={workspaceId || undefined} />
           </div>
         )}
         
