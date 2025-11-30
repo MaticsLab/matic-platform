@@ -141,7 +141,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
             <div className="h-10 bg-gray-200 rounded-lg w-3/4 mx-auto animate-pulse" />
           ) : (
             <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-              {form?.name || slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+              {form?.name || 'Application Portal'}
             </h1>
           )}
           {isFormLoading ? (
