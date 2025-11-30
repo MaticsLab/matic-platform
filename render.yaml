@@ -16,7 +16,7 @@ services:
       - key: GIN_MODE
         value: release
       - key: ALLOWED_ORIGINS
-        value: "http://localhost:3000,https://matic-platform.vercel.app,https://www.maticsapp.com,https://maticsapp.com"
+        value: "http://localhost:3000,https://matic-platform.vercel.app,https://www.maticsapp.com,https://maticsapp.com,https://forms.maticsapp.com,https://www.maticslab.com,https://maticslab.com"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
