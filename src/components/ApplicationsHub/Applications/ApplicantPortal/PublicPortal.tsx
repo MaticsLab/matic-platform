@@ -9,7 +9,12 @@ import { Label } from '@/ui-components/label'
 import { ApplicationForm, EMPTY_APPLICATION_STATE } from './ApplicationForm'
 import { Form } from '@/types/forms'
 
-export function PublicPortal({ slug }: { slug: string }) {
+interface PublicPortalProps {
+  slug: string
+  subdomain?: string
+}
+
+export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [email, setEmail] = useState('')
   const [isLogin, setIsLogin] = useState(true)
@@ -23,7 +28,14 @@ export function PublicPortal({ slug }: { slug: string }) {
     const fetchForm = async () => {
       try {
         const baseUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
-        const response = await fetch(`${baseUrl}/forms/by-slug/${slug}`)
+        
+        // If subdomain is provided, use subdomain+slug lookup
+        // Otherwise, try by slug (which handles both UUID and custom_slug)
+        const endpoint = subdomain 
+          ? `${baseUrl}/forms/by-subdomain/${subdomain}/${slug}`
+          : `${baseUrl}/forms/by-slug/${slug}`
+        
+        const response = await fetch(endpoint)
         if (response.ok) {
           const data = await response.json()
           setForm(data)
@@ -35,7 +47,7 @@ export function PublicPortal({ slug }: { slug: string }) {
       }
     }
     fetchForm()
-  }, [slug])
+  }, [slug, subdomain])
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
