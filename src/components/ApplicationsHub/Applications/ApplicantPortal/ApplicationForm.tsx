@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Form, FormField } from '@/types/forms'
 import { goClient } from '@/lib/api/go-client'
 import { supabase } from '@/lib/supabase'
+import { AddressField, AddressValue } from '@/components/Tables/AddressField'
 
 // Types
 type TabId = string
@@ -685,6 +686,15 @@ function DynamicSection({ fields, allFields = [], data, onChange }: { fields: an
                 onChange={e => onChange(field.name, e.target.value)}
                 placeholder={config.placeholder || "(555) 555-5555"}
                 className="h-11"
+              />
+            )}
+
+            {field.type === 'address' && (
+              <AddressField
+                value={data[field.name] as AddressValue | null}
+                onChange={(addressValue) => onChange(field.name, addressValue)}
+                placeholder={config.placeholder || 'Start typing an address...'}
+                isTableCell={false}
               />
             )}
 
