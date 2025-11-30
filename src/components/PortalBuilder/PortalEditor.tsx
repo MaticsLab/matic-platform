@@ -71,6 +71,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
   const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
+  const [shareTabKey, setShareTabKey] = useState(0)
 
   const activeSection = config.sections.find(s => s.id === activeSectionId)
 
@@ -392,7 +393,10 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                  Integrate
                </button>
                <button 
-                 onClick={() => setActiveTopTab('share')}
+                 onClick={() => {
+                   setActiveTopTab('share')
+                   setShareTabKey(prev => prev + 1) // Force ShareTab to remount and refetch
+                 }}
                  className={cn(
                    "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
                    activeTopTab === 'share' ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
@@ -445,7 +449,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         {/* Main Content Area */}
         {activeTopTab === 'share' && (
           <div className="flex-1 overflow-auto bg-white">
-            <ShareTab key={`share-${formId}-${workspaceId}`} formId={formId} isPublished={isPublished} workspaceId={workspaceId || undefined} />
+            <ShareTab key={`share-${formId}-${workspaceId}-${shareTabKey}`} formId={formId} isPublished={isPublished} workspaceId={workspaceId || undefined} />
           </div>
         )}
         

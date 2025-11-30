@@ -50,6 +50,8 @@ export async function goFetch<T>(
     ...fetchOptions,
     headers: {
       'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...fetchOptions.headers,
     },
