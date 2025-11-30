@@ -6,7 +6,7 @@ import {
   User, GraduationCap, DollarSign, FileText, Trophy, Upload, 
   CheckCircle2, AlertCircle, Save, ChevronRight, ArrowLeft, ArrowRight,
   Calendar as CalendarIcon, Plus, Trash2, GripVertical, Clock,
-  LayoutGrid, Mail, Star, Send, Printer, CheckCircle, AlertTriangle, ClipboardCheck, Lightbulb
+  LayoutGrid, Mail, Star, Send, Printer, CheckCircle, AlertTriangle, ClipboardCheck, Lightbulb, Info, HelpCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -30,6 +30,25 @@ import { FileUploadField } from '@/components/ui/FileUploadField'
 import { ProgressHeader } from './ProgressHeader'
 import { ApplicationSidebar } from './ApplicationSidebar'
 import { toast } from 'sonner'
+
+// Callout color configurations
+const CALLOUT_COLORS: Record<string, { bg: string; border: string; icon: string; title: string; text: string }> = {
+  blue: { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'text-blue-600', title: 'text-blue-900', text: 'text-blue-700' },
+  green: { bg: 'bg-green-50', border: 'border-green-200', icon: 'text-green-600', title: 'text-green-900', text: 'text-green-700' },
+  yellow: { bg: 'bg-yellow-50', border: 'border-yellow-200', icon: 'text-yellow-600', title: 'text-yellow-900', text: 'text-yellow-700' },
+  red: { bg: 'bg-red-50', border: 'border-red-200', icon: 'text-red-600', title: 'text-red-900', text: 'text-red-700' },
+  purple: { bg: 'bg-purple-50', border: 'border-purple-200', icon: 'text-purple-600', title: 'text-purple-900', text: 'text-purple-700' },
+  gray: { bg: 'bg-gray-50', border: 'border-gray-200', icon: 'text-gray-600', title: 'text-gray-900', text: 'text-gray-700' },
+}
+
+const CALLOUT_ICONS: Record<string, any> = {
+  lightbulb: Lightbulb,
+  info: Info,
+  warning: AlertTriangle,
+  error: AlertCircle,
+  success: CheckCircle,
+  help: HelpCircle,
+}
 
 // Types
 type TabId = string
@@ -1065,17 +1084,24 @@ function DynamicSection({ fields, allFields = [], data, onChange }: { fields: an
             )}
 
             {/* Callout / Spotlight Box */}
-            {field.type === 'callout' && (
-              <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <Lightbulb className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-blue-900">{field.label}</p>
-                  {config.description && (
-                    <p className="text-sm text-blue-700 mt-1">{config.description}</p>
-                  )}
+            {field.type === 'callout' && (() => {
+              const colorKey = (config.color as string) || 'blue'
+              const colors = CALLOUT_COLORS[colorKey] || CALLOUT_COLORS.blue
+              const iconKey = (config.icon as string) || 'lightbulb'
+              const CalloutIcon = CALLOUT_ICONS[iconKey] || Lightbulb
+              
+              return (
+                <div className={cn("flex items-start gap-3 p-4 border rounded-lg", colors.bg, colors.border)}>
+                  <CalloutIcon className={cn("w-5 h-5 mt-0.5 shrink-0", colors.icon)} />
+                  <div>
+                    <p className={cn("text-sm font-medium", colors.title)}>{field.label}</p>
+                    {config.description && (
+                      <p className={cn("text-sm mt-1", colors.text)}>{config.description}</p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {/* Rating - Star rating */}
             {field.type === 'rating' && (() => {

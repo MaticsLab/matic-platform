@@ -32,8 +32,27 @@ const FIELD_TYPES: { value: string; label: string }[] = [
   { value: 'divider', label: 'Divider' },
   { value: 'heading', label: 'Heading' },
   { value: 'paragraph', label: 'Paragraph' },
+  { value: 'callout', label: 'Callout Box' },
   { value: 'group', label: 'Group' },
   { value: 'repeater', label: 'Repeater' },
+]
+
+const CALLOUT_COLORS = [
+  { value: 'blue', label: 'Blue', bg: 'bg-blue-500' },
+  { value: 'green', label: 'Green', bg: 'bg-green-500' },
+  { value: 'yellow', label: 'Yellow', bg: 'bg-yellow-500' },
+  { value: 'red', label: 'Red', bg: 'bg-red-500' },
+  { value: 'purple', label: 'Purple', bg: 'bg-purple-500' },
+  { value: 'gray', label: 'Gray', bg: 'bg-gray-500' },
+]
+
+const CALLOUT_ICONS = [
+  { value: 'lightbulb', label: 'Lightbulb' },
+  { value: 'info', label: 'Info' },
+  { value: 'warning', label: 'Warning' },
+  { value: 'error', label: 'Error' },
+  { value: 'success', label: 'Success' },
+  { value: 'help', label: 'Help' },
 ]
 
 interface FieldSettingsPanelProps {
@@ -203,6 +222,48 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                   />
                   <p className="text-[10px] text-gray-400">Enter each option on a new line.</p>
                 </div>
+              )}
+
+              {/* Callout Settings */}
+              {selectedField.type === 'callout' && (
+                <>
+                  <div className="space-y-2 pt-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Color</Label>
+                    <div className="flex gap-2">
+                      {CALLOUT_COLORS.map(color => (
+                        <button
+                          key={color.value}
+                          type="button"
+                          onClick={() => handleConfigUpdate('color', color.value)}
+                          className={cn(
+                            "w-8 h-8 rounded-full transition-all",
+                            color.bg,
+                            selectedField.config?.color === color.value 
+                              ? "ring-2 ring-offset-2 ring-blue-500" 
+                              : "hover:scale-110"
+                          )}
+                          title={color.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Icon</Label>
+                    <Select 
+                      value={selectedField.config?.icon || 'lightbulb'} 
+                      onValueChange={(v) => handleConfigUpdate('icon', v)}
+                    >
+                      <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CALLOUT_ICONS.map(icon => (
+                          <SelectItem key={icon.value} value={icon.value}>{icon.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
               )}
             </AccordionContent>
           </AccordionItem>

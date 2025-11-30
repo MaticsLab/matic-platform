@@ -114,6 +114,7 @@ func GetDefaultFieldTypeID(fieldType string) string {
 		"section":     "section",
 		"heading":     "heading",
 		"paragraph":   "paragraph",
+		"callout":     "callout",
 		"divider":     "divider",
 		"signature":   "signature",
 		"rating":      "rating",

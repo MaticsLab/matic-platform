@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { useDrag, useDrop } from 'react-dnd'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useDrag, useDrop, DndProvider } from 'react-dnd'
+import { HTML5Backend } from 'react-dnd-html5-backend'
 import { 
   GripVertical, Trash2, Plus, Type, AlignLeft, Hash, Mail, Calendar, 
   CheckSquare, List, Image as ImageIcon, Phone, Link, Clock, PenTool, 
   Star, Minus, Heading, Pilcrow, CheckCircle2, Layout, X, Settings, Info, ArrowUpDown, MapPin,
-  Upload, MessageSquare, Lightbulb, FileText
+  Upload, MessageSquare, Lightbulb, FileText, AlertCircle, CheckCircle, AlertTriangle, HelpCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -16,6 +17,27 @@ import { Switch } from '@/ui-components/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
 import { Textarea } from '@/ui-components/textarea'
 import { Section, Field, FieldType } from '@/types/portal'
+
+// Callout color configurations
+const CALLOUT_COLORS = {
+  blue: { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'text-blue-600', title: 'text-blue-900', text: 'text-blue-700' },
+  green: { bg: 'bg-green-50', border: 'border-green-200', icon: 'text-green-600', title: 'text-green-900', text: 'text-green-700' },
+  yellow: { bg: 'bg-yellow-50', border: 'border-yellow-200', icon: 'text-yellow-600', title: 'text-yellow-900', text: 'text-yellow-700' },
+  red: { bg: 'bg-red-50', border: 'border-red-200', icon: 'text-red-600', title: 'text-red-900', text: 'text-red-700' },
+  purple: { bg: 'bg-purple-50', border: 'border-purple-200', icon: 'text-purple-600', title: 'text-purple-900', text: 'text-purple-700' },
+  gray: { bg: 'bg-gray-50', border: 'border-gray-200', icon: 'text-gray-600', title: 'text-gray-900', text: 'text-gray-700' },
+}
+
+const CALLOUT_ICONS: Record<string, any> = {
+  lightbulb: Lightbulb,
+  info: Info,
+  warning: AlertTriangle,
+  error: AlertCircle,
+  success: CheckCircle,
+  help: HelpCircle,
+}
+
+const FIELD_DND_TYPE = 'FORM_FIELD'
 
 interface FormBuilderProps {
   section: Section
@@ -60,6 +82,13 @@ export function FormBuilder({ section, onUpdate, selectedFieldId, onSelectField 
     })
   }
 
+  const moveField = useCallback((dragIndex: number, hoverIndex: number) => {
+    const newFields = [...section.fields]
+    const [draggedField] = newFields.splice(dragIndex, 1)
+    newFields.splice(hoverIndex, 0, draggedField)
+    onUpdate({ fields: newFields })
+  }, [section.fields, onUpdate])
+
   return (
     <div className="flex h-full">
       {/* Main Builder Area */}
@@ -86,15 +115,17 @@ export function FormBuilder({ section, onUpdate, selectedFieldId, onSelectField 
               Add fields from the sidebar
             </div>
           ) : (
-            section.fields.map((field) => (
-              <FieldEditor 
-                key={field.id} 
+            section.fields.map((field, index) => (
+              <DraggableFieldEditor 
+                key={field.id}
+                index={index}
                 field={field} 
                 selectedFieldId={selectedFieldId}
                 onSelectField={onSelectField}
                 onUpdate={(updates) => handleUpdateField(field.id, updates)}
                 onDelete={() => handleDeleteField(field.id)}
                 onAddChild={() => handleAddChildField(field.id)}
+                moveField={moveField}
               />
             ))
           )}
@@ -150,6 +181,81 @@ function findFieldRecursive(fields: Field[], targetId: string | null): Field | u
   return undefined
 }
 
+// Draggable wrapper for field editor
+function DraggableFieldEditor({
+  index,
+  field,
+  selectedFieldId,
+  onSelectField,
+  onUpdate,
+  onDelete,
+  onAddChild,
+  moveField
+}: {
+  index: number
+  field: Field
+  selectedFieldId: string | null
+  onSelectField: (id: string) => void
+  onUpdate: (u: Partial<Field>) => void
+  onDelete: () => void
+  onAddChild: () => void
+  moveField: (dragIndex: number, hoverIndex: number) => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  const [{ isDragging }, drag, preview] = useDrag({
+    type: FIELD_DND_TYPE,
+    item: () => ({ id: field.id, index }),
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging(),
+    }),
+  })
+
+  const [{ isOver }, drop] = useDrop({
+    accept: FIELD_DND_TYPE,
+    hover(item: { id: string; index: number }, monitor) {
+      if (!ref.current) return
+      const dragIndex = item.index
+      const hoverIndex = index
+
+      if (dragIndex === hoverIndex) return
+
+      const hoverBoundingRect = ref.current?.getBoundingClientRect()
+      const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2
+      const clientOffset = monitor.getClientOffset()
+      const hoverClientY = clientOffset!.y - hoverBoundingRect.top
+
+      if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY) return
+      if (dragIndex > hoverIndex && hoverClientY > hoverMiddleY) return
+
+      moveField(dragIndex, hoverIndex)
+      item.index = hoverIndex
+    },
+    collect: (monitor) => ({
+      isOver: monitor.isOver(),
+    }),
+  })
+
+  drag(drop(ref))
+
+  return (
+    <div 
+      ref={ref} 
+      style={{ opacity: isDragging ? 0.5 : 1 }}
+      className={cn(isOver && 'border-t-2 border-blue-500')}
+    >
+      <FieldEditor
+        field={field}
+        selectedFieldId={selectedFieldId}
+        onSelectField={onSelectField}
+        onUpdate={onUpdate}
+        onDelete={onDelete}
+        onAddChild={onAddChild}
+      />
+    </div>
+  )
+}
+
 function FieldEditor({ 
   field, 
   selectedFieldId, 
@@ -167,7 +273,10 @@ function FieldEditor({
 }) {
   const [isEditingLabel, setIsEditingLabel] = useState(false)
   const [editedLabel, setEditedLabel] = useState(field.label)
+  const [isEditingDescription, setIsEditingDescription] = useState(false)
+  const [editedDescription, setEditedDescription] = useState(field.placeholder || '')
   const labelInputRef = useRef<HTMLInputElement>(null)
+  const descriptionInputRef = useRef<HTMLTextAreaElement>(null)
   
   const isLayoutField = ['divider', 'heading', 'paragraph', 'callout'].includes(field.type)
   const isContainerField = ['group', 'repeater'].includes(field.type)
@@ -181,6 +290,21 @@ function FieldEditor({
     }
   }, [isEditingLabel])
 
+  useEffect(() => {
+    if (isEditingDescription && descriptionInputRef.current) {
+      descriptionInputRef.current.focus()
+      descriptionInputRef.current.select()
+    }
+  }, [isEditingDescription])
+
+  useEffect(() => {
+    setEditedLabel(field.label)
+  }, [field.label])
+
+  useEffect(() => {
+    setEditedDescription(field.placeholder || '')
+  }, [field.placeholder])
+
   const handleLabelSave = () => {
     if (editedLabel.trim()) {
       onUpdate({ label: editedLabel.trim() })
@@ -190,12 +314,27 @@ function FieldEditor({
     setIsEditingLabel(false)
   }
 
+  const handleDescriptionSave = () => {
+    onUpdate({ placeholder: editedDescription.trim() })
+    setIsEditingDescription(false)
+  }
+
   const handleLabelKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleLabelSave()
     } else if (e.key === 'Escape') {
       setEditedLabel(field.label)
       setIsEditingLabel(false)
+    }
+  }
+
+  const handleDescriptionKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleDescriptionSave()
+    } else if (e.key === 'Escape') {
+      setEditedDescription(field.placeholder || '')
+      setIsEditingDescription(false)
     }
   }
 
@@ -217,18 +356,64 @@ function FieldEditor({
           <p className="text-gray-600 text-sm leading-relaxed">{field.label}</p>
         )
         
-      case 'callout':
+      case 'callout': {
+        const colorKey = (field.config?.color as keyof typeof CALLOUT_COLORS) || 'blue'
+        const colors = CALLOUT_COLORS[colorKey] || CALLOUT_COLORS.blue
+        const iconKey = (field.config?.icon as string) || 'lightbulb'
+        const CalloutIcon = CALLOUT_ICONS[iconKey] || Lightbulb
+
         return (
-          <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <Lightbulb className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-blue-900">{field.label}</p>
-              {field.placeholder && (
-                <p className="text-sm text-blue-700 mt-1">{field.placeholder}</p>
+          <div className={cn("flex items-start gap-3 p-4 border rounded-lg pointer-events-auto", colors.bg, colors.border)}>
+            <CalloutIcon className={cn("w-5 h-5 mt-0.5 shrink-0", colors.icon)} />
+            <div className="flex-1 min-w-0">
+              {isEditingLabel ? (
+                <Input
+                  ref={labelInputRef}
+                  value={editedLabel}
+                  onChange={(e) => setEditedLabel(e.target.value)}
+                  onBlur={handleLabelSave}
+                  onKeyDown={handleLabelKeyDown}
+                  onClick={(e) => e.stopPropagation()}
+                  className={cn("text-sm font-medium border-none p-0 h-auto focus-visible:ring-1", colors.title)}
+                  placeholder="Callout title..."
+                />
+              ) : (
+                <p 
+                  className={cn("text-sm font-medium cursor-text hover:bg-white/50 rounded px-1 -mx-1 transition-colors", colors.title)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsEditingLabel(true)
+                  }}
+                >
+                  {field.label || 'Click to add title...'}
+                </p>
+              )}
+              {isEditingDescription ? (
+                <Textarea
+                  ref={descriptionInputRef}
+                  value={editedDescription}
+                  onChange={(e) => setEditedDescription(e.target.value)}
+                  onBlur={handleDescriptionSave}
+                  onKeyDown={handleDescriptionKeyDown}
+                  onClick={(e) => e.stopPropagation()}
+                  className={cn("text-sm border-none p-0 mt-1 min-h-[40px] resize-none focus-visible:ring-1", colors.text)}
+                  placeholder="Add description..."
+                />
+              ) : (
+                <p 
+                  className={cn("text-sm mt-1 cursor-text hover:bg-white/50 rounded px-1 -mx-1 transition-colors min-h-[20px]", colors.text)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsEditingDescription(true)
+                  }}
+                >
+                  {field.placeholder || 'Click to add description...'}
+                </p>
               )}
             </div>
           </div>
         )
+      }
         
       case 'text':
       case 'email':

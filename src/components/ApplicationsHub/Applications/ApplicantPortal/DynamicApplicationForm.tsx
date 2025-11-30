@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, ArrowRight, CheckCircle2, Save, Upload, Star, Calendar as CalendarIcon, Plus, Trash2, Lightbulb } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, Save, Upload, Star, Calendar as CalendarIcon, Plus, Trash2, Lightbulb, Info, AlertCircle, AlertTriangle, CheckCircle, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
@@ -169,22 +169,48 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false }: D
   )
 }
 
+// Callout color configurations
+const CALLOUT_COLORS: Record<string, { bg: string; border: string; icon: string; title: string; text: string }> = {
+  blue: { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'text-blue-600', title: 'text-blue-900', text: 'text-blue-700' },
+  green: { bg: 'bg-green-50', border: 'border-green-200', icon: 'text-green-600', title: 'text-green-900', text: 'text-green-700' },
+  yellow: { bg: 'bg-yellow-50', border: 'border-yellow-200', icon: 'text-yellow-600', title: 'text-yellow-900', text: 'text-yellow-700' },
+  red: { bg: 'bg-red-50', border: 'border-red-200', icon: 'text-red-600', title: 'text-red-900', text: 'text-red-700' },
+  purple: { bg: 'bg-purple-50', border: 'border-purple-200', icon: 'text-purple-600', title: 'text-purple-900', text: 'text-purple-700' },
+  gray: { bg: 'bg-gray-50', border: 'border-gray-200', icon: 'text-gray-600', title: 'text-gray-900', text: 'text-gray-700' },
+}
+
+const CALLOUT_ICONS: Record<string, any> = {
+  lightbulb: Lightbulb,
+  info: Info,
+  warning: AlertTriangle,
+  error: AlertCircle,
+  success: CheckCircle,
+  help: HelpCircle,
+}
+
 function FieldRenderer({ field, value, onChange, themeColor }: { field: Field, value: any, onChange: (val: any) => void, themeColor: string }) {
   // Layout Fields
   if (field.type === 'divider') return <Separator className="my-4" />
   if (field.type === 'heading') return <h3 className="text-lg font-semibold text-gray-900 mt-4 mb-2">{field.label}</h3>
   if (field.type === 'paragraph') return <p className="text-gray-600 text-sm leading-relaxed mb-4">{field.label}</p>
-  if (field.type === 'callout') return (
-    <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg my-4">
-      <Lightbulb className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
-      <div>
-        <p className="text-sm font-medium text-blue-900">{field.label}</p>
-        {field.placeholder && (
-          <p className="text-sm text-blue-700 mt-1">{field.placeholder}</p>
-        )}
+  if (field.type === 'callout') {
+    const colorKey = (field.config?.color as string) || 'blue'
+    const colors = CALLOUT_COLORS[colorKey] || CALLOUT_COLORS.blue
+    const iconKey = (field.config?.icon as string) || 'lightbulb'
+    const CalloutIcon = CALLOUT_ICONS[iconKey] || Lightbulb
+    
+    return (
+      <div className={cn("flex items-start gap-3 p-4 border rounded-lg my-4", colors.bg, colors.border)}>
+        <CalloutIcon className={cn("w-5 h-5 mt-0.5 shrink-0", colors.icon)} />
+        <div>
+          <p className={cn("text-sm font-medium", colors.title)}>{field.label}</p>
+          {field.placeholder && (
+            <p className={cn("text-sm mt-1", colors.text)}>{field.placeholder}</p>
+          )}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   // Container Fields
   if (field.type === 'group') {

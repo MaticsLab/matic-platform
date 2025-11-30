@@ -110,14 +110,15 @@ func AutoMigrate() error {
 func seedFieldTypeRegistry() error {
 	var count int64
 	DB.Model(&models.FieldTypeRegistry{}).Count(&count)
-	if count > 0 {
-		return nil // Already seeded
+	
+	// Only do full seed if empty, otherwise just add missing types
+	isInitialSeed := count == 0
+	if isInitialSeed {
+		log.Println("🌱 Seeding field type registry...")
 	}
 
-	log.Println("🌱 Seeding field type registry...")
-
 	fieldTypes := []models.FieldTypeRegistry{
-		// Primitive types
+		// Primitive text types
 		{ID: "text", Category: "primitive", Label: "Short Text", IsSearchable: true, IsSortable: true, IsFilterable: true, IsEditable: true,
 			StorageSchema: []byte(`{"type": "string", "maxLength": 500}`),
 			AISchema:      []byte(`{"embedding_strategy": "value_only", "privacy_level": "public"}`)},
@@ -130,24 +131,45 @@ func seedFieldTypeRegistry() error {
 		{ID: "phone", Category: "primitive", Label: "Phone", IsSearchable: true, IsSortable: true, IsFilterable: true, IsEditable: true, SupportsPII: true,
 			StorageSchema: []byte(`{"type": "string"}`),
 			AISchema:      []byte(`{"embedding_strategy": "skip", "privacy_level": "pii"}`)},
+		{ID: "url", Category: "primitive", Label: "URL", IsSearchable: true, IsSortable: true, IsFilterable: false, IsEditable: true,
+			StorageSchema: []byte(`{"type": "string", "format": "uri"}`),
+			AISchema:      []byte(`{"embedding_strategy": "skip", "privacy_level": "public"}`)},
+		{ID: "address", Category: "primitive", Label: "Address", IsSearchable: true, IsSortable: false, IsFilterable: true, IsEditable: true, SupportsPII: true,
+			StorageSchema: []byte(`{"type": "object", "properties": {"formatted": {"type": "string"}, "street": {"type": "string"}, "city": {"type": "string"}, "state": {"type": "string"}, "postal_code": {"type": "string"}, "country": {"type": "string"}, "lat": {"type": "number"}, "lng": {"type": "number"}}}`),
+			AISchema:      []byte(`{"embedding_strategy": "formatted_only", "privacy_level": "pii", "semantic_hint": "Physical address location"}`)},
+
+		// Numeric types
 		{ID: "number", Category: "primitive", Label: "Number", IsSearchable: false, IsSortable: true, IsFilterable: true, IsEditable: true,
 			StorageSchema: []byte(`{"type": "number"}`),
 			AISchema:      []byte(`{"embedding_strategy": "with_label", "privacy_level": "public"}`)},
+
+		// Date & Time types
 		{ID: "date", Category: "primitive", Label: "Date", IsSearchable: false, IsSortable: true, IsFilterable: true, IsEditable: true,
 			StorageSchema: []byte(`{"type": "string", "format": "date"}`),
 			AISchema:      []byte(`{"embedding_strategy": "with_label", "privacy_level": "public"}`)},
+		{ID: "datetime", Category: "primitive", Label: "Date & Time", IsSearchable: false, IsSortable: true, IsFilterable: true, IsEditable: true,
+			StorageSchema: []byte(`{"type": "string", "format": "date-time"}`),
+			AISchema:      []byte(`{"embedding_strategy": "with_label", "privacy_level": "public"}`)},
+		{ID: "time", Category: "primitive", Label: "Time", IsSearchable: false, IsSortable: true, IsFilterable: true, IsEditable: true,
+			StorageSchema: []byte(`{"type": "string", "format": "time"}`),
+			AISchema:      []byte(`{"embedding_strategy": "with_label", "privacy_level": "public"}`)},
+
+		// Selection types
 		{ID: "select", Category: "primitive", Label: "Dropdown", IsSearchable: true, IsSortable: true, IsFilterable: true, IsEditable: true,
 			StorageSchema: []byte(`{"type": "string"}`),
 			AISchema:      []byte(`{"embedding_strategy": "value_only", "privacy_level": "public"}`)},
 		{ID: "multiselect", Category: "primitive", Label: "Multi-Select", IsSearchable: true, IsSortable: false, IsFilterable: true, IsEditable: true,
 			StorageSchema: []byte(`{"type": "array", "items": {"type": "string"}}`),
 			AISchema:      []byte(`{"embedding_strategy": "value_only", "privacy_level": "public"}`)},
+		{ID: "radio", Category: "primitive", Label: "Single Choice", IsSearchable: true, IsSortable: true, IsFilterable: true, IsEditable: true,
+			StorageSchema: []byte(`{"type": "string"}`),
+			AISchema:      []byte(`{"embedding_strategy": "value_only", "privacy_level": "public"}`)},
 		{ID: "checkbox", Category: "primitive", Label: "Checkbox", IsSearchable: false, IsSortable: true, IsFilterable: true, IsEditable: true,
 			StorageSchema: []byte(`{"type": "boolean"}`),
 			AISchema:      []byte(`{"embedding_strategy": "skip", "privacy_level": "public"}`)},
-		{ID: "url", Category: "primitive", Label: "URL", IsSearchable: true, IsSortable: true, IsFilterable: false, IsEditable: true,
-			StorageSchema: []byte(`{"type": "string", "format": "uri"}`),
-			AISchema:      []byte(`{"embedding_strategy": "skip", "privacy_level": "public"}`)},
+		{ID: "rank", Category: "primitive", Label: "Rank", IsSearchable: false, IsSortable: true, IsFilterable: true, IsEditable: true,
+			StorageSchema: []byte(`{"type": "array", "items": {"type": "string"}, "description": "Ordered list of ranked options"}`),
+			AISchema:      []byte(`{"embedding_strategy": "value_only", "privacy_level": "public"}`)},
 
 		// Container types
 		{ID: "group", Category: "container", Label: "Field Group", IsContainer: true, IsSearchable: false, IsSortable: false, IsFilterable: false, IsEditable: true,
@@ -157,36 +179,54 @@ func seedFieldTypeRegistry() error {
 			StorageSchema: []byte(`{"type": "array", "items": {"type": "object", "additionalProperties": true}}`),
 			AISchema:      []byte(`{"embedding_strategy": "summarize_count", "summarization_template": "{count} items", "privacy_level": "inherit"}`)},
 
-		// Layout types
+		// Layout types (no data storage, display-only)
 		{ID: "divider", Category: "layout", Label: "Divider", IsSearchable: false, IsSortable: false, IsFilterable: false, IsEditable: false,
 			StorageSchema: []byte(`{"type": "null"}`),
 			AISchema:      []byte(`{"embedding_strategy": "skip"}`)},
 		{ID: "heading", Category: "layout", Label: "Heading", IsSearchable: false, IsSortable: false, IsFilterable: false, IsEditable: false,
 			StorageSchema: []byte(`{"type": "null"}`),
 			AISchema:      []byte(`{"embedding_strategy": "skip"}`)},
+		{ID: "paragraph", Category: "layout", Label: "Paragraph", IsSearchable: false, IsSortable: false, IsFilterable: false, IsEditable: false,
+			StorageSchema: []byte(`{"type": "null"}`),
+			AISchema:      []byte(`{"embedding_strategy": "skip"}`)},
+		{ID: "callout", Category: "layout", Label: "Callout Box", IsSearchable: false, IsSortable: false, IsFilterable: false, IsEditable: false,
+			StorageSchema: []byte(`{"type": "null"}`),
+			AISchema:      []byte(`{"embedding_strategy": "skip"}`)},
 		{ID: "section", Category: "layout", Label: "Section", IsContainer: true, IsSearchable: false, IsSortable: false, IsFilterable: false, IsEditable: false,
 			StorageSchema: []byte(`{"type": "null"}`),
 			AISchema:      []byte(`{"embedding_strategy": "skip"}`)},
 
-		// Special types
+		// Media & File types
 		{ID: "file", Category: "special", Label: "File Upload", IsSearchable: false, IsSortable: false, IsFilterable: false, IsEditable: true, SupportsPII: true,
-			StorageSchema: []byte(`{"type": "object", "properties": {"url": {"type": "string"}, "name": {"type": "string"}, "size": {"type": "number"}, "mime_type": {"type": "string"}}}`),
+			StorageSchema: []byte(`{"type": "object", "properties": {"url": {"type": "string"}, "name": {"type": "string"}, "size": {"type": "number"}, "type": {"type": "string"}}, "description": "Uploaded file with metadata"}`),
 			AISchema:      []byte(`{"embedding_strategy": "filename_only", "privacy_level": "sensitive"}`)},
+		{ID: "image", Category: "special", Label: "Image Upload", IsSearchable: false, IsSortable: false, IsFilterable: false, IsEditable: true, SupportsPII: true,
+			StorageSchema: []byte(`{"type": "object", "properties": {"url": {"type": "string"}, "name": {"type": "string"}, "size": {"type": "number"}, "type": {"type": "string"}, "width": {"type": "number"}, "height": {"type": "number"}}, "description": "Uploaded image with dimensions"}`),
+			AISchema:      []byte(`{"embedding_strategy": "skip", "privacy_level": "sensitive"}`)},
 		{ID: "signature", Category: "special", Label: "Signature", IsSearchable: false, IsSortable: false, IsFilterable: false, IsEditable: false, SupportsPII: true,
-			StorageSchema: []byte(`{"type": "string", "contentEncoding": "base64"}`),
+			StorageSchema: []byte(`{"type": "string", "contentEncoding": "base64", "description": "Digital signature as base64 image"}`),
 			AISchema:      []byte(`{"embedding_strategy": "skip", "privacy_level": "pii"}`)},
 		{ID: "rating", Category: "special", Label: "Rating", IsSearchable: false, IsSortable: true, IsFilterable: true, IsEditable: true,
-			StorageSchema: []byte(`{"type": "number", "minimum": 0, "maximum": 5}`),
+			StorageSchema: []byte(`{"type": "number", "minimum": 0, "maximum": 5, "description": "Star rating value"}`),
 			AISchema:      []byte(`{"embedding_strategy": "with_label", "privacy_level": "public"}`)},
 	}
 
+	addedCount := 0
 	for _, ft := range fieldTypes {
-		if err := DB.Create(&ft).Error; err != nil {
-			log.Printf("⚠️ Failed to create field type %s: %v", ft.ID, err)
+		// Use FirstOrCreate to only insert if not exists
+		result := DB.Where("id = ?", ft.ID).FirstOrCreate(&ft)
+		if result.Error != nil {
+			log.Printf("⚠️ Failed to create field type %s: %v", ft.ID, result.Error)
+		} else if result.RowsAffected > 0 {
+			addedCount++
 		}
 	}
 
-	log.Println("✅ Field type registry seeded")
+	if isInitialSeed {
+		log.Println("✅ Field type registry seeded")
+	} else if addedCount > 0 {
+		log.Printf("✅ Added %d new field types to registry", addedCount)
+	}
 
 	// Seed semantic field types
 	if err := seedSemanticFieldTypes(); err != nil {
