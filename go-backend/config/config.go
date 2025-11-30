@@ -20,9 +20,13 @@ func LoadConfig() *Config {
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 	origins := []string{
 		"http://localhost:3000",
+		"https://localhost:3000",
 		"https://www.maticsapp.com",
 		"https://maticsapp.com",
 		"https://forms.maticsapp.com",
+		"https://www.maticslab.com",
+		"https://maticslab.com",
+		"https://backend.maticslab.com",
 		"https://matics-platform.vercel.app", // Fallback for Vercel preview deployments
 	}
 	if allowedOrigins != "" {

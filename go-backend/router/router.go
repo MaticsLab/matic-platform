@@ -17,12 +17,16 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	// CORS configuration with dynamic origin checking for subdomains
 	corsConfig := cors.Config{
 		AllowOriginFunc: func(origin string) bool {
-			// Allow localhost for development
-			if strings.HasPrefix(origin, "http://localhost") {
+			// Allow localhost for development (http and https)
+			if strings.HasPrefix(origin, "http://localhost") || strings.HasPrefix(origin, "https://localhost") {
 				return true
 			}
-			// Allow any *.maticsapp.com subdomain
-			if strings.HasSuffix(origin, ".maticsapp.com") || origin == "https://maticsapp.com" {
+			// Allow any *.maticsapp.com subdomain (including forms.maticsapp.com, bpnc.maticsapp.com, etc.)
+			if strings.HasSuffix(origin, ".maticsapp.com") || origin == "https://maticsapp.com" || origin == "https://www.maticsapp.com" {
+				return true
+			}
+			// Allow any *.maticslab.com subdomain (for backend domain)
+			if strings.HasSuffix(origin, ".maticslab.com") || origin == "https://maticslab.com" || origin == "https://www.maticslab.com" {
 				return true
 			}
 			// Allow Vercel preview deployments
@@ -38,8 +42,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			return false
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept", "X-Requested-With"},
+		ExposeHeaders:    []string{"Content-Length", "Content-Type"},
 		AllowCredentials: true,
 	}
 	r.Use(cors.New(corsConfig))

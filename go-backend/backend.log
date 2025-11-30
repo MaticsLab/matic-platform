@@ -1,0 +1,316 @@
+2025/11/30 16:43:27 ✅ Database connected successfully
+2025/11/30 16:43:27 🔄 Running database migrations...
+
+2025/11/30 16:43:27 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/database/database.go:45
+[0m[33m[107.608ms] [34;1m[rows:1][0m SELECT count(*) FROM information_schema.tables WHERE table_schema = CURRENT_SCHEMA() AND table_name = 'organizations' AND table_type = 'BASE TABLE'
+
+2025/11/30 16:43:27 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/database/database.go:45
+[0m[33m[75.239ms] [34;1m[rows:1][0m SELECT CURRENT_DATABASE()
+
+2025/11/30 16:43:28 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/database/database.go:45
+[0m[33m[89.503ms] [34;1m[rows:-][0m SELECT c.column_name, c.is_nullable = 'YES', c.udt_name, c.character_maximum_length, c.numeric_precision, c.numeric_precision_radix, c.numeric_scale, c.datetime_precision, 8 * typlen, c.column_default, pd.description, c.identity_increment FROM information_schema.columns AS c JOIN pg_type AS pgt ON c.udt_name = pgt.typname LEFT JOIN pg_catalog.pg_description as pd ON pd.objsubid = c.ordinal_position AND pd.objoid = (SELECT oid FROM pg_catalog.pg_class WHERE relname = c.table_name AND relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = c.table_schema)) where table_catalog = 'postgres' AND table_schema = CURRENT_SCHEMA() AND table_name = 'organizations'
+
+2025/11/30 16:43:28 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/database/database.go:45
+[0m[33m[36.010ms] [34;1m[rows:-][0m SELECT * FROM "organizations" LIMIT 5
+
+2025/11/30 16:43:28 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/database/database.go:45
+[0m[33m[88.377ms] [34;1m[rows:-][0m SELECT constraint_name FROM information_schema.table_constraints tc JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_catalog, table_name, constraint_name) JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema AND tc.table_name = c.table_name AND ccu.column_name = c.column_name WHERE constraint_type IN ('PRIMARY KEY', 'UNIQUE') AND c.table_catalog = 'postgres' AND c.table_schema = CURRENT_SCHEMA() AND c.table_name = 'organizations' AND constraint_type = 'UNIQUE'
+
+2025/11/30 16:43:28 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/database/database.go:45
+[0m[33m[90.297ms] [34;1m[rows:-][0m SELECT c.column_name, constraint_name, constraint_type FROM information_schema.table_constraints tc JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_catalog, table_name, constraint_name) JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema AND tc.table_name = c.table_name AND ccu.column_name = c.column_name WHERE constraint_type IN ('PRIMARY KEY', 'UNIQUE') AND c.table_catalog = 'postgres' AND c.table_schema = CURRENT_SCHEMA() AND c.table_name = 'organizations'
+
+2025/11/30 16:43:28 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/database/database.go:45
+[0m[33m[82.023ms] [34;1m[rows:-][0m SELECT a.attname as column_name, format_type(a.atttypid, a.atttypmod) AS data_type
+		FROM pg_attribute a JOIN pg_class b ON a.attrelid = b.oid AND relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = CURRENT_SCHEMA())
+		WHERE a.attnum > 0 -- hide internal columns
+		AND NOT a.attisdropped -- hide deleted columns
+		AND b.relname = 'organizations'
+
+2025/11/30 16:43:28 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/database/database.go:45
+[0m[33m[72.886ms] [34;1m[rows:0][0m SELECT description FROM pg_catalog.pg_description WHERE objsubid = (SELECT ordinal_position FROM information_schema.columns WHERE table_schema = CURRENT_SCHEMA() AND table_name = 'organizations' AND column_name = 'id') AND objoid = (SELECT oid FROM pg_catalog.pg_class WHERE relname = 'organizations' AND relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = CURRENT_SCHEMA()))
+
+2025/11/30 16:43:28 [32m
+[0m[33m[46.371ms] [34;1m[rows:1][0m SELECT CURRENT_DATABASE()
+
+2025/11/30 16:43:28 [32m
+[0m[33m[42.666ms] [34;1m[rows:-][0m SELECT c.column_name, c.is_nullable = 'YES', c.udt_name, c.character_maximum_length, c.numeric_precision, c.numeric_precision_radix, c.numeric_scale, c.datetime_precision, 8 * typlen, c.column_default, pd.description, c.identity_increment FROM information_schema.columns AS c JOIN pg_type AS pgt ON c.udt_name = pgt.typname LEFT JOIN pg_catalog.pg_description as pd ON pd.objsubid = c.ordinal_position AND pd.objoid = (SELECT oid FROM pg_catalog.pg_class WHERE relname = c.table_name AND relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = c.table_schema)) where table_catalog = 'postgres' AND table_schema = CURRENT_SCHEMA() AND table_name = 'organizations'
+
+2025/11/30 16:43:28 [32m
+[0m[33m[37.176ms] [34;1m[rows:-][0m SELECT * FROM "organizations" LIMIT 5
+
+2025/11/30 16:43:28 [32m
+[0m[33m[46.191ms] [34;1m[rows:-][0m SELECT constraint_name FROM information_schema.table_constraints tc JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_catalog, table_name, constraint_name) JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema AND tc.table_name = c.table_name AND ccu.column_name = c.column_name WHERE constraint_type IN ('PRIMARY KEY', 'UNIQUE') AND c.table_catalog = 'postgres' AND c.table_schema = CURRENT_SCHEMA() AND c.table_name = 'organizations' AND constraint_type = 'UNIQUE'
+
+2025/11/30 16:43:28 [32m
+[0m[33m[42.061ms] [34;1m[rows:-][0m SELECT c.column_name, constraint_name, constraint_type FROM information_schema.table_constraints tc JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_catalog, table_name, constraint_name) JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema AND tc.table_name = c.table_name AND ccu.column_name = c.column_name WHERE constraint_type IN ('PRIMARY KEY', 'UNIQUE') AND c.table_catalog = 'postgres' AND c.table_schema = CURRENT_SCHEMA() AND c.table_name = 'organizations'
+
+2025/11/30 16:43:28 [32m
+[0m[33m[58.688ms] [34;1m[rows:-][0m SELECT a.attname as column_name, format_type(a.atttypid, a.atttypmod) AS data_type
+		FROM pg_attribute a JOIN pg_class b ON a.attrelid = b.oid AND relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = CURRENT_SCHEMA())
+		WHERE a.attnum > 0 -- hide internal columns
+		AND NOT a.attisdropped -- hide deleted columns
+		AND b.relname = 'organizations'
+
+2025/11/30 16:43:28 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/database/database.go:45
+[0m[33m[47.099ms] [34;1m[rows:0][0m SELECT description FROM pg_catalog.pg_description WHERE objsubid = (SELECT ordinal_position FROM information_schema.columns WHERE table_schema = CURRENT_SCHEMA() AND table_name = 'organizations' AND column_name = 'created_at') AND objoid = (SELECT oid FROM pg_catalog.pg_class WHERE relname = 'organizations' AND relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = CURRENT_SCHEMA()))
+
+2025/11/30 16:43:28 [32m
+[0m[33m[42.147ms] [34;1m[rows:1][0m SELECT CURRENT_DATABASE()
+
+2025/11/30 16:43:28 [32m
+[0m[33m[39.069ms] [34;1m[rows:-][0m SELECT c.column_name, c.is_nullable = 'YES', c.udt_name, c.character_maximum_length, c.numeric_precision, c.numeric_precision_radix, c.numeric_scale, c.datetime_precision, 8 * typlen, c.column_default, pd.description, c.identity_increment FROM information_schema.columns AS c JOIN pg_type AS pgt ON c.udt_name = pgt.typname LEFT JOIN pg_catalog.pg_description as pd ON pd.objsubid = c.ordinal_position AND pd.objoid = (SELECT oid FROM pg_catalog.pg_class WHERE relname = c.table_name AND relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = c.table_schema)) where table_catalog = 'postgres' AND table_schema = CURRENT_SCHEMA() AND table_name = 'organizations'
+
+2025/11/30 16:43:28 [32m
+[0m[33m[39.146ms] [34;1m[rows:-][0m SELECT * FROM "organizations" LIMIT 5
+
+2025/11/30 16:43:28 [32m
+[0m[33m[47.790ms] [34;1m[rows:-][0m SELECT constraint_name FROM information_schema.table_constraints tc JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_catalog, table_name, constraint_name) JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema AND tc.table_name = c.table_name AND ccu.column_name = c.column_name WHERE constraint_type IN ('PRIMARY KEY', 'UNIQUE') AND c.table_catalog = 'postgres' AND c.table_schema = CURRENT_SCHEMA() AND c.table_name = 'organizations' AND constraint_type = 'UNIQUE'
+
+2025/11/30 16:43:28 [32m
+[0m[33m[45.817ms] [34;1m[rows:-][0m SELECT c.column_name, constraint_name, constraint_type FROM information_schema.table_constraints tc JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_catalog, table_name, constraint_name) JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema AND tc.table_name = c.table_name AND ccu.column_name = c.column_name WHERE constraint_type IN ('PRIMARY KEY', 'UNIQUE') AND c.table_catalog = 'postgres' AND c.table_schema = CURRENT_SCHEMA() AND c.table_name = 'organizations'
+
+2025/11/30 16:43:28 [32m
+[0m[33m[36.034ms] [34;1m[rows:-][0m SELECT a.attname as column_name, format_type(a.atttypid, a.atttypmod) AS data_type
+		FROM pg_attribute a JOIN pg_class b ON a.attrelid = b.oid AND relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = CURRENT_SCHEMA())
+		WHERE a.attnum > 0 -- hide internal columns
+		AND NOT a.attisdropped -- hide deleted columns
+		AND b.relname = 'organizations'
+
+2025/11/30 16:43:29 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/database/database.go:45
+[0m[33m[37.075ms] [34;1m[rows:0][0m SELECT description FROM pg_catalog.pg_description WHERE objsubid = (SELECT ordinal_position FROM information_schema.columns WHERE table_schema = CURRENT_SCHEMA() AND table_name = 'organizations' AND column_name = 'updated_at') AND objoid = (SELECT oid FROM pg_catalog.pg_class WHERE relname = 'organizations' AND relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = CURRENT_SCHEMA()))
+
+2025/11/30 16:43:29 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/database/database.go:45
+[0m[33m[40.752ms] [34;1m[rows:0][0m SELECT description FROM pg_catalog.pg_description WHERE objsubid = (SELECT ordinal_position FROM information_schema.columns WHERE table_schema = CURRENT_SCHEMA() AND table_name = 'organizations' AND column_name = 'name') AND objoid = (SELECT oid FROM pg_catalog.pg_class WHERE relname = 'organizations' AND relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = CURRENT_SCHEMA()))
+
+2025/11/30 16:43:29 [31;1m [35;1mERROR: constraint "uni_organizations_slug" of relation "organizations" does not exist (SQLSTATE 42704)
+[0m[33m[33.714ms] [34;1m[rows:0][0m ALTER TABLE "organizations" DROP CONSTRAINT "uni_organizations_slug"
+2025/11/30 16:43:29 ⚠️  AutoMigrate warning: failed to run migrations: ERROR: constraint "uni_organizations_slug" of relation "organizations" does not exist (SQLSTATE 42704)
+
+2025/11/30 16:43:29 [32m/Users/jesussanchez/Downloads/matic-platform/go-backend/services/field_normalizer.go:31
+[0m[33m[111.067ms] [34;1m[rows:38][0m SELECT * FROM "field_type_registry"
+[AIReports] Service initialized with Cohere
+2025/11/30 16:43:29 🧠 AI services initialized (embeddings + reports)
+[GIN-debug] [WARNING] Creating an Engine instance with the Logger and Recovery middleware already attached.
+
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] Loaded HTML Templates (3): 
+	- api-docs.html
+	- api_docs.html
+	- 
+
+[GIN-debug] GET    /                         --> github.com/Jsanchez767/matic-platform/router.SetupRouter.func2 (4 handlers)
+[GIN-debug] GET    /api-info                 --> github.com/Jsanchez767/matic-platform/router.SetupRouter.func3 (4 handlers)
+[GIN-debug] GET    /health                   --> github.com/Jsanchez767/matic-platform/router.SetupRouter.func4 (4 handlers)
+[GIN-debug] GET    /api/v1                   --> github.com/Jsanchez767/matic-platform/router.SetupRouter.func5 (4 handlers)
+[GIN-debug] GET    /api/v1/docs              --> github.com/Jsanchez767/matic-platform/router.SetupRouter.func6 (4 handlers)
+[GIN-debug] GET    /api/v1/forms/by-slug/:slug --> github.com/Jsanchez767/matic-platform/handlers.GetFormBySlug (4 handlers)
+[GIN-debug] GET    /api/v1/forms/by-subdomain/:subdomain/:slug --> github.com/Jsanchez767/matic-platform/handlers.GetFormBySubdomainSlug (4 handlers)
+[GIN-debug] POST   /api/v1/forms/:id/submit  --> github.com/Jsanchez767/matic-platform/handlers.SubmitForm (4 handlers)
+[GIN-debug] GET    /api/v1/forms/:id/submission --> github.com/Jsanchez767/matic-platform/handlers.GetFormSubmission (4 handlers)
+[GIN-debug] GET    /api/v1/external-review/:token --> github.com/Jsanchez767/matic-platform/handlers.GetExternalReviewData (4 handlers)
+[GIN-debug] POST   /api/v1/external-review/:token/submit/:submission_id --> github.com/Jsanchez767/matic-platform/handlers.SubmitExternalReview (4 handlers)
+[GIN-debug] GET    /api/v1/organizations     --> github.com/Jsanchez767/matic-platform/handlers.ListOrganizations (5 handlers)
+[GIN-debug] POST   /api/v1/organizations     --> github.com/Jsanchez767/matic-platform/handlers.CreateOrganization (5 handlers)
+[GIN-debug] GET    /api/v1/organizations/:id --> github.com/Jsanchez767/matic-platform/handlers.GetOrganization (5 handlers)
+[GIN-debug] PATCH  /api/v1/organizations/:id --> github.com/Jsanchez767/matic-platform/handlers.UpdateOrganization (5 handlers)
+[GIN-debug] DELETE /api/v1/organizations/:id --> github.com/Jsanchez767/matic-platform/handlers.DeleteOrganization (5 handlers)
+[GIN-debug] GET    /api/v1/workspaces        --> github.com/Jsanchez767/matic-platform/handlers.ListWorkspaces (5 handlers)
+[GIN-debug] POST   /api/v1/workspaces        --> github.com/Jsanchez767/matic-platform/handlers.CreateWorkspace (5 handlers)
+[GIN-debug] GET    /api/v1/workspaces/:id    --> github.com/Jsanchez767/matic-platform/handlers.GetWorkspace (5 handlers)
+[GIN-debug] PATCH  /api/v1/workspaces/:id    --> github.com/Jsanchez767/matic-platform/handlers.UpdateWorkspace (5 handlers)
+[GIN-debug] DELETE /api/v1/workspaces/:id    --> github.com/Jsanchez767/matic-platform/handlers.DeleteWorkspace (5 handlers)
+[GIN-debug] GET    /api/v1/activities-hubs   --> github.com/Jsanchez767/matic-platform/handlers.ListActivitiesHubs (5 handlers)
+[GIN-debug] POST   /api/v1/activities-hubs   --> github.com/Jsanchez767/matic-platform/handlers.CreateActivitiesHub (5 handlers)
+[GIN-debug] GET    /api/v1/activities-hubs/by-slug/:slug --> github.com/Jsanchez767/matic-platform/handlers.GetActivitiesHubBySlug (5 handlers)
+[GIN-debug] GET    /api/v1/activities-hubs/:hub_id --> github.com/Jsanchez767/matic-platform/handlers.GetActivitiesHub (5 handlers)
+[GIN-debug] PATCH  /api/v1/activities-hubs/:hub_id --> github.com/Jsanchez767/matic-platform/handlers.UpdateActivitiesHub (5 handlers)
+[GIN-debug] DELETE /api/v1/activities-hubs/:hub_id --> github.com/Jsanchez767/matic-platform/handlers.DeleteActivitiesHub (5 handlers)
+[GIN-debug] GET    /api/v1/activities-hubs/:hub_id/tabs --> github.com/Jsanchez767/matic-platform/handlers.ListActivitiesHubTabs (5 handlers)
+[GIN-debug] POST   /api/v1/activities-hubs/:hub_id/tabs --> github.com/Jsanchez767/matic-platform/handlers.CreateActivitiesHubTab (5 handlers)
+[GIN-debug] PATCH  /api/v1/activities-hubs/:hub_id/tabs/:tab_id --> github.com/Jsanchez767/matic-platform/handlers.UpdateActivitiesHubTab (5 handlers)
+[GIN-debug] DELETE /api/v1/activities-hubs/:hub_id/tabs/:tab_id --> github.com/Jsanchez767/matic-platform/handlers.DeleteActivitiesHubTab (5 handlers)
+[GIN-debug] POST   /api/v1/activities-hubs/:hub_id/tabs/reorder --> github.com/Jsanchez767/matic-platform/handlers.ReorderActivitiesHubTabs (5 handlers)
+[GIN-debug] GET    /api/v1/tables            --> github.com/Jsanchez767/matic-platform/handlers.ListDataTables (5 handlers)
+[GIN-debug] POST   /api/v1/tables            --> github.com/Jsanchez767/matic-platform/handlers.CreateDataTable (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id        --> github.com/Jsanchez767/matic-platform/handlers.GetDataTable (5 handlers)
+[GIN-debug] PATCH  /api/v1/tables/:id        --> github.com/Jsanchez767/matic-platform/handlers.UpdateDataTable (5 handlers)
+[GIN-debug] DELETE /api/v1/tables/:id        --> github.com/Jsanchez767/matic-platform/handlers.DeleteDataTable (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/rows   --> github.com/Jsanchez767/matic-platform/handlers.ListTableRows (5 handlers)
+[GIN-debug] POST   /api/v1/tables/:id/rows   --> github.com/Jsanchez767/matic-platform/handlers.CreateTableRow (5 handlers)
+[GIN-debug] PATCH  /api/v1/tables/:id/rows/:row_id --> github.com/Jsanchez767/matic-platform/handlers.UpdateTableRow (5 handlers)
+[GIN-debug] DELETE /api/v1/tables/:id/rows/:row_id --> github.com/Jsanchez767/matic-platform/handlers.DeleteTableRow (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/rows/:row_id/history --> github.com/Jsanchez767/matic-platform/handlers.GetRowHistory (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/rows/:row_id/history/:version --> github.com/Jsanchez767/matic-platform/handlers.GetRowVersion (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/rows/:row_id/versions/:version --> github.com/Jsanchez767/matic-platform/handlers.GetRowVersion (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/rows/:row_id/diff/:v1/:v2 --> github.com/Jsanchez767/matic-platform/handlers.CompareVersions (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/rows/:row_id/compare-versions/:v1/:v2 --> github.com/Jsanchez767/matic-platform/handlers.CompareVersions (5 handlers)
+[GIN-debug] POST   /api/v1/tables/:id/rows/:row_id/restore/:version --> github.com/Jsanchez767/matic-platform/handlers.RestoreVersion (5 handlers)
+[GIN-debug] POST   /api/v1/tables/:id/columns --> github.com/Jsanchez767/matic-platform/handlers.CreateTableColumn (5 handlers)
+[GIN-debug] PATCH  /api/v1/tables/:id/columns/:column_id --> github.com/Jsanchez767/matic-platform/handlers.UpdateTableColumn (5 handlers)
+[GIN-debug] DELETE /api/v1/tables/:id/columns/:column_id --> github.com/Jsanchez767/matic-platform/handlers.DeleteTableColumn (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/search --> github.com/Jsanchez767/matic-platform/handlers.SearchTableRows (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/approvals --> github.com/Jsanchez767/matic-platform/handlers.ListApprovals (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/approvals/:approval_id --> github.com/Jsanchez767/matic-platform/handlers.GetApproval (5 handlers)
+[GIN-debug] POST   /api/v1/tables/:id/approvals/:approval_id/review --> github.com/Jsanchez767/matic-platform/handlers.ReviewApproval (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/schema/ai --> github.com/Jsanchez767/matic-platform/handlers.GetTableAISchema (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/ai/suggestions --> github.com/Jsanchez767/matic-platform/handlers.GetTableSuggestions (5 handlers)
+[GIN-debug] POST   /api/v1/tables/:id/ai/analyze --> github.com/Jsanchez767/matic-platform/handlers.AnalyzeTableForSuggestions (5 handlers)
+[GIN-debug] POST   /api/v1/tables/:id/ai/rows/:row_id/analyze --> github.com/Jsanchez767/matic-platform/handlers.AnalyzeRowForSuggestions (5 handlers)
+[GIN-debug] POST   /api/v1/tables/:id/ai/suggestions/:suggestion_id/apply --> github.com/Jsanchez767/matic-platform/handlers.ApplySuggestion (5 handlers)
+[GIN-debug] POST   /api/v1/tables/:id/ai/suggestions/:suggestion_id/dismiss --> github.com/Jsanchez767/matic-platform/handlers.DismissSuggestion (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/suggestions --> github.com/Jsanchez767/matic-platform/handlers.GetTableSuggestions (5 handlers)
+[GIN-debug] POST   /api/v1/tables/:id/suggestions/:suggestion_id/apply --> github.com/Jsanchez767/matic-platform/handlers.ApplySuggestion (5 handlers)
+[GIN-debug] POST   /api/v1/tables/:id/suggestions/:suggestion_id/dismiss --> github.com/Jsanchez767/matic-platform/handlers.DismissSuggestion (5 handlers)
+[GIN-debug] POST   /api/v1/versions/:version_id/archive --> github.com/Jsanchez767/matic-platform/handlers.ArchiveVersion (5 handlers)
+[GIN-debug] DELETE /api/v1/versions/:version_id --> github.com/Jsanchez767/matic-platform/handlers.DeleteVersion (5 handlers)
+[GIN-debug] GET    /api/v1/files             --> github.com/Jsanchez767/matic-platform/handlers.ListFiles (5 handlers)
+[GIN-debug] POST   /api/v1/files             --> github.com/Jsanchez767/matic-platform/handlers.CreateFile (5 handlers)
+[GIN-debug] GET    /api/v1/files/:id         --> github.com/Jsanchez767/matic-platform/handlers.GetFile (5 handlers)
+[GIN-debug] PATCH  /api/v1/files/:id         --> github.com/Jsanchez767/matic-platform/handlers.UpdateFile (5 handlers)
+[GIN-debug] DELETE /api/v1/files/:id         --> github.com/Jsanchez767/matic-platform/handlers.DeleteFile (5 handlers)
+[GIN-debug] GET    /api/v1/files/:id/versions --> github.com/Jsanchez767/matic-platform/handlers.GetFileVersions (5 handlers)
+[GIN-debug] POST   /api/v1/files/:id/versions --> github.com/Jsanchez767/matic-platform/handlers.CreateFileVersion (5 handlers)
+[GIN-debug] GET    /api/v1/rows/:row_id/files --> github.com/Jsanchez767/matic-platform/handlers.GetRowFiles (5 handlers)
+[GIN-debug] POST   /api/v1/rows/:row_id/files --> github.com/Jsanchez767/matic-platform/handlers.CreateRowFile (5 handlers)
+[GIN-debug] GET    /api/v1/rows/:row_id/files/stats --> github.com/Jsanchez767/matic-platform/handlers.GetFileStats (5 handlers)
+[GIN-debug] GET    /api/v1/tables/:id/files  --> github.com/Jsanchez767/matic-platform/handlers.GetTableFiles (5 handlers)
+[GIN-debug] GET    /api/v1/field-types       --> github.com/Jsanchez767/matic-platform/handlers.GetFieldTypes (5 handlers)
+[GIN-debug] GET    /api/v1/field-types/toolbox --> github.com/Jsanchez767/matic-platform/handlers.GetFieldTypesToolbox (5 handlers)
+[GIN-debug] GET    /api/v1/field-types/:type_id --> github.com/Jsanchez767/matic-platform/handlers.GetFieldType (5 handlers)
+[GIN-debug] GET    /api/v1/workspaces/:id/activity --> github.com/Jsanchez767/matic-platform/handlers.GetWorkspaceActivity (5 handlers)
+[GIN-debug] GET    /api/v1/table-links       --> github.com/Jsanchez767/matic-platform/handlers.ListTableLinks (5 handlers)
+[GIN-debug] POST   /api/v1/table-links       --> github.com/Jsanchez767/matic-platform/handlers.CreateTableLink (5 handlers)
+[GIN-debug] GET    /api/v1/table-links/:id   --> github.com/Jsanchez767/matic-platform/handlers.GetTableLink (5 handlers)
+[GIN-debug] PATCH  /api/v1/table-links/:id   --> github.com/Jsanchez767/matic-platform/handlers.UpdateTableLink (5 handlers)
+[GIN-debug] DELETE /api/v1/table-links/:id   --> github.com/Jsanchez767/matic-platform/handlers.DeleteTableLink (5 handlers)
+[GIN-debug] GET    /api/v1/row-links/rows/:row_id/linked --> github.com/Jsanchez767/matic-platform/handlers.GetLinkedRows (5 handlers)
+[GIN-debug] POST   /api/v1/row-links         --> github.com/Jsanchez767/matic-platform/handlers.CreateTableRowLink (5 handlers)
+[GIN-debug] PATCH  /api/v1/row-links/:id     --> github.com/Jsanchez767/matic-platform/handlers.UpdateTableRowLink (5 handlers)
+[GIN-debug] DELETE /api/v1/row-links/:id     --> github.com/Jsanchez767/matic-platform/handlers.DeleteTableRowLink (5 handlers)
+[GIN-debug] GET    /api/v1/forms             --> github.com/Jsanchez767/matic-platform/handlers.ListForms (5 handlers)
+[GIN-debug] POST   /api/v1/forms             --> github.com/Jsanchez767/matic-platform/handlers.CreateForm (5 handlers)
+[GIN-debug] GET    /api/v1/forms/:id         --> github.com/Jsanchez767/matic-platform/handlers.GetForm (5 handlers)
+[GIN-debug] PATCH  /api/v1/forms/:id         --> github.com/Jsanchez767/matic-platform/handlers.UpdateForm (5 handlers)
+[GIN-debug] PUT    /api/v1/forms/:id/structure --> github.com/Jsanchez767/matic-platform/handlers.UpdateFormStructure (5 handlers)
+[GIN-debug] PUT    /api/v1/forms/:id/custom-slug --> github.com/Jsanchez767/matic-platform/handlers.UpdateFormCustomSlug (5 handlers)
+[GIN-debug] DELETE /api/v1/forms/:id         --> github.com/Jsanchez767/matic-platform/handlers.DeleteForm (5 handlers)
+[GIN-debug] GET    /api/v1/forms/:id/submissions --> github.com/Jsanchez767/matic-platform/handlers.ListFormSubmissions (5 handlers)
+[GIN-debug] DELETE /api/v1/forms/:id/submissions/:submission_id --> github.com/Jsanchez767/matic-platform/handlers.DeleteFormSubmission (5 handlers)
+[GIN-debug] GET    /api/v1/forms/:id/search  --> github.com/Jsanchez767/matic-platform/handlers.SearchFormSubmissions (5 handlers)
+[GIN-debug] POST   /api/v1/forms/:id/reviewers/:reviewer_id/assign --> github.com/Jsanchez767/matic-platform/handlers.AssignReviewerApplications (5 handlers)
+[GIN-debug] POST   /api/v1/forms/:id/submissions/:submission_id/assign-workflow --> github.com/Jsanchez767/matic-platform/handlers.AssignSubmissionWorkflow (5 handlers)
+[GIN-debug] POST   /api/v1/forms/:id/submissions/:submission_id/move-stage --> github.com/Jsanchez767/matic-platform/handlers.MoveSubmissionToStage (5 handlers)
+[GIN-debug] PATCH  /api/v1/forms/:id/submissions/:submission_id/review-data --> github.com/Jsanchez767/matic-platform/handlers.UpdateSubmissionReviewData (5 handlers)
+[GIN-debug] POST   /api/v1/forms/:id/submissions/bulk-assign-workflow --> github.com/Jsanchez767/matic-platform/handlers.BulkAssignWorkflow (5 handlers)
+[GIN-debug] GET    /api/v1/search/smart      --> github.com/Jsanchez767/matic-platform/handlers.SmartSearch (5 handlers)
+[GIN-debug] POST   /api/v1/search/hybrid     --> github.com/Jsanchez767/matic-platform/handlers.HybridSearch (5 handlers)
+[GIN-debug] GET    /api/v1/search/hybrid     --> github.com/Jsanchez767/matic-platform/handlers.HybridSearch (5 handlers)
+[GIN-debug] GET    /api/v1/search/similar/:entity_id --> github.com/Jsanchez767/matic-platform/handlers.FindSimilar (5 handlers)
+[GIN-debug] POST   /api/v1/search/embeddings/generate --> github.com/Jsanchez767/matic-platform/handlers.GenerateEmbeddings (5 handlers)
+[GIN-debug] GET    /api/v1/search/embeddings/stats --> github.com/Jsanchez767/matic-platform/handlers.GetEmbeddingStats (5 handlers)
+[GIN-debug] POST   /api/v1/search/embeddings/queue --> github.com/Jsanchez767/matic-platform/handlers.QueueForEmbedding (5 handlers)
+[GIN-debug] POST   /api/v1/search/rebuild-index --> github.com/Jsanchez767/matic-platform/handlers.RebuildSearchIndex (5 handlers)
+[GIN-debug] GET    /api/v1/search/ai/table/:id --> github.com/Jsanchez767/matic-platform/handlers.GetTableSchemaForAI (5 handlers)
+[GIN-debug] GET    /api/v1/search/ai/workspace/:id --> github.com/Jsanchez767/matic-platform/handlers.GetWorkspaceSummaryForAI (5 handlers)
+[GIN-debug] GET    /api/v1/search            --> github.com/Jsanchez767/matic-platform/handlers.SearchWorkspace (5 handlers)
+[GIN-debug] GET    /api/v1/search/suggestions --> github.com/Jsanchez767/matic-platform/handlers.GetSearchSuggestions (5 handlers)
+[GIN-debug] GET    /api/v1/search/recent     --> github.com/Jsanchez767/matic-platform/handlers.GetRecentSearches (5 handlers)
+[GIN-debug] POST   /api/v1/search/history    --> github.com/Jsanchez767/matic-platform/handlers.SaveSearchHistory (5 handlers)
+[GIN-debug] GET    /api/v1/search/popular    --> github.com/Jsanchez767/matic-platform/handlers.GetPopularSearches (5 handlers)
+[GIN-debug] DELETE /api/v1/search/history/:workspace_id --> github.com/Jsanchez767/matic-platform/handlers.ClearSearchHistory (5 handlers)
+[GIN-debug] GET    /api/v1/workflows         --> github.com/Jsanchez767/matic-platform/handlers.ListReviewWorkflows (5 handlers)
+[GIN-debug] POST   /api/v1/workflows         --> github.com/Jsanchez767/matic-platform/handlers.CreateReviewWorkflow (5 handlers)
+[GIN-debug] GET    /api/v1/workflows/:id     --> github.com/Jsanchez767/matic-platform/handlers.GetReviewWorkflow (5 handlers)
+[GIN-debug] PATCH  /api/v1/workflows/:id     --> github.com/Jsanchez767/matic-platform/handlers.UpdateReviewWorkflow (5 handlers)
+[GIN-debug] DELETE /api/v1/workflows/:id     --> github.com/Jsanchez767/matic-platform/handlers.DeleteReviewWorkflow (5 handlers)
+[GIN-debug] GET    /api/v1/stages            --> github.com/Jsanchez767/matic-platform/handlers.ListApplicationStages (5 handlers)
+[GIN-debug] POST   /api/v1/stages            --> github.com/Jsanchez767/matic-platform/handlers.CreateApplicationStage (5 handlers)
+[GIN-debug] GET    /api/v1/stages/:id        --> github.com/Jsanchez767/matic-platform/handlers.GetApplicationStage (5 handlers)
+[GIN-debug] PATCH  /api/v1/stages/:id        --> github.com/Jsanchez767/matic-platform/handlers.UpdateApplicationStage (5 handlers)
+[GIN-debug] DELETE /api/v1/stages/:id        --> github.com/Jsanchez767/matic-platform/handlers.DeleteApplicationStage (5 handlers)
+[GIN-debug] GET    /api/v1/reviewer-types    --> github.com/Jsanchez767/matic-platform/handlers.ListReviewerTypes (5 handlers)
+[GIN-debug] POST   /api/v1/reviewer-types    --> github.com/Jsanchez767/matic-platform/handlers.CreateReviewerType (5 handlers)
+[GIN-debug] GET    /api/v1/reviewer-types/:id --> github.com/Jsanchez767/matic-platform/handlers.GetReviewerType (5 handlers)
+[GIN-debug] PATCH  /api/v1/reviewer-types/:id --> github.com/Jsanchez767/matic-platform/handlers.UpdateReviewerType (5 handlers)
+[GIN-debug] DELETE /api/v1/reviewer-types/:id --> github.com/Jsanchez767/matic-platform/handlers.DeleteReviewerType (5 handlers)
+[GIN-debug] GET    /api/v1/rubrics           --> github.com/Jsanchez767/matic-platform/handlers.ListRubrics (5 handlers)
+[GIN-debug] POST   /api/v1/rubrics           --> github.com/Jsanchez767/matic-platform/handlers.CreateRubric (5 handlers)
+[GIN-debug] GET    /api/v1/rubrics/:id       --> github.com/Jsanchez767/matic-platform/handlers.GetRubric (5 handlers)
+[GIN-debug] PATCH  /api/v1/rubrics/:id       --> github.com/Jsanchez767/matic-platform/handlers.UpdateRubric (5 handlers)
+[GIN-debug] DELETE /api/v1/rubrics/:id       --> github.com/Jsanchez767/matic-platform/handlers.DeleteRubric (5 handlers)
+[GIN-debug] GET    /api/v1/stage-reviewer-configs --> github.com/Jsanchez767/matic-platform/handlers.ListStageReviewerConfigs (5 handlers)
+[GIN-debug] POST   /api/v1/stage-reviewer-configs --> github.com/Jsanchez767/matic-platform/handlers.CreateStageReviewerConfig (5 handlers)
+[GIN-debug] PATCH  /api/v1/stage-reviewer-configs/:id --> github.com/Jsanchez767/matic-platform/handlers.UpdateStageReviewerConfig (5 handlers)
+[GIN-debug] DELETE /api/v1/stage-reviewer-configs/:id --> github.com/Jsanchez767/matic-platform/handlers.DeleteStageReviewerConfig (5 handlers)
+[GIN-debug] GET    /api/v1/application-groups --> github.com/Jsanchez767/matic-platform/handlers.ListApplicationGroups (5 handlers)
+[GIN-debug] POST   /api/v1/application-groups --> github.com/Jsanchez767/matic-platform/handlers.CreateApplicationGroup (5 handlers)
+[GIN-debug] GET    /api/v1/application-groups/:id --> github.com/Jsanchez767/matic-platform/handlers.GetApplicationGroup (5 handlers)
+[GIN-debug] PATCH  /api/v1/application-groups/:id --> github.com/Jsanchez767/matic-platform/handlers.UpdateApplicationGroup (5 handlers)
+[GIN-debug] DELETE /api/v1/application-groups/:id --> github.com/Jsanchez767/matic-platform/handlers.DeleteApplicationGroup (5 handlers)
+[GIN-debug] GET    /api/v1/application-groups/:id/applications --> github.com/Jsanchez767/matic-platform/handlers.GetGroupApplications (5 handlers)
+[GIN-debug] GET    /api/v1/workflow-actions  --> github.com/Jsanchez767/matic-platform/handlers.ListWorkflowActions (5 handlers)
+[GIN-debug] POST   /api/v1/workflow-actions  --> github.com/Jsanchez767/matic-platform/handlers.CreateWorkflowAction (5 handlers)
+[GIN-debug] GET    /api/v1/workflow-actions/:id --> github.com/Jsanchez767/matic-platform/handlers.GetWorkflowAction (5 handlers)
+[GIN-debug] PATCH  /api/v1/workflow-actions/:id --> github.com/Jsanchez767/matic-platform/handlers.UpdateWorkflowAction (5 handlers)
+[GIN-debug] DELETE /api/v1/workflow-actions/:id --> github.com/Jsanchez767/matic-platform/handlers.DeleteWorkflowAction (5 handlers)
+[GIN-debug] GET    /api/v1/stage-actions     --> github.com/Jsanchez767/matic-platform/handlers.ListStageActions (5 handlers)
+[GIN-debug] POST   /api/v1/stage-actions     --> github.com/Jsanchez767/matic-platform/handlers.CreateStageAction (5 handlers)
+[GIN-debug] PATCH  /api/v1/stage-actions/:id --> github.com/Jsanchez767/matic-platform/handlers.UpdateStageAction (5 handlers)
+[GIN-debug] DELETE /api/v1/stage-actions/:id --> github.com/Jsanchez767/matic-platform/handlers.DeleteStageAction (5 handlers)
+[GIN-debug] GET    /api/v1/stage-groups      --> github.com/Jsanchez767/matic-platform/handlers.ListStageGroups (5 handlers)
+[GIN-debug] POST   /api/v1/stage-groups      --> github.com/Jsanchez767/matic-platform/handlers.CreateStageGroup (5 handlers)
+[GIN-debug] GET    /api/v1/stage-groups/:id  --> github.com/Jsanchez767/matic-platform/handlers.GetStageGroup (5 handlers)
+[GIN-debug] PATCH  /api/v1/stage-groups/:id  --> github.com/Jsanchez767/matic-platform/handlers.UpdateStageGroup (5 handlers)
+[GIN-debug] DELETE /api/v1/stage-groups/:id  --> github.com/Jsanchez767/matic-platform/handlers.DeleteStageGroup (5 handlers)
+[GIN-debug] GET    /api/v1/custom-statuses   --> github.com/Jsanchez767/matic-platform/handlers.ListCustomStatuses (5 handlers)
+[GIN-debug] POST   /api/v1/custom-statuses   --> github.com/Jsanchez767/matic-platform/handlers.CreateCustomStatus (5 handlers)
+[GIN-debug] GET    /api/v1/custom-statuses/:id --> github.com/Jsanchez767/matic-platform/handlers.GetCustomStatus (5 handlers)
+[GIN-debug] PATCH  /api/v1/custom-statuses/:id --> github.com/Jsanchez767/matic-platform/handlers.UpdateCustomStatus (5 handlers)
+[GIN-debug] DELETE /api/v1/custom-statuses/:id --> github.com/Jsanchez767/matic-platform/handlers.DeleteCustomStatus (5 handlers)
+[GIN-debug] POST   /api/v1/actions/execute   --> github.com/Jsanchez767/matic-platform/handlers.ExecuteAction (5 handlers)
+[GIN-debug] POST   /api/v1/actions/execute-status --> github.com/Jsanchez767/matic-platform/handlers.ExecuteStatusAction (5 handlers)
+[GIN-debug] POST   /api/v1/actions/move-to-group --> github.com/Jsanchez767/matic-platform/handlers.MoveToGroup (5 handlers)
+[GIN-debug] POST   /api/v1/actions/move-to-stage-group --> github.com/Jsanchez767/matic-platform/handlers.MoveToStageGroup (5 handlers)
+[GIN-debug] POST   /api/v1/actions/restore-from-group --> github.com/Jsanchez767/matic-platform/handlers.RestoreFromGroup (5 handlers)
+[GIN-debug] GET    /api/v1/change-requests   --> github.com/Jsanchez767/matic-platform/handlers.ListChangeRequests (5 handlers)
+[GIN-debug] POST   /api/v1/change-requests   --> github.com/Jsanchez767/matic-platform/handlers.CreateChangeRequest (5 handlers)
+[GIN-debug] GET    /api/v1/change-requests/:id --> github.com/Jsanchez767/matic-platform/handlers.GetChangeRequest (5 handlers)
+[GIN-debug] POST   /api/v1/change-requests/:id/review --> github.com/Jsanchez767/matic-platform/handlers.ReviewChangeRequest (5 handlers)
+[GIN-debug] POST   /api/v1/change-requests/:id/cancel --> github.com/Jsanchez767/matic-platform/handlers.CancelChangeRequest (5 handlers)
+[GIN-debug] GET    /api/v1/change-requests/row/:row_id --> github.com/Jsanchez767/matic-platform/handlers.GetPendingChangesForRow (5 handlers)
+[GIN-debug] POST   /api/v1/reports/generate  --> github.com/Jsanchez767/matic-platform/handlers.GenerateReport (5 handlers)
+[GIN-debug] GET    /api/v1/reports/stats     --> github.com/Jsanchez767/matic-platform/handlers.GetWorkspaceStats (5 handlers)
+[GIN-debug] GET    /api/v1/reports/is-report-query --> github.com/Jsanchez767/matic-platform/handlers.IsReportQuery (5 handlers)
+[GIN-debug] GET    /api/v1/hubs/:hub_id/modules --> github.com/Jsanchez767/matic-platform/handlers.GetHubModulesWithFields (5 handlers)
+[GIN-debug] POST   /api/v1/hubs/:hub_id/modules/enable --> github.com/Jsanchez767/matic-platform/handlers.EnableModuleWithFields (5 handlers)
+[GIN-debug] GET    /api/v1/hubs/:hub_id/sub-modules --> github.com/Jsanchez767/matic-platform/handlers.ListSubModules (5 handlers)
+[GIN-debug] POST   /api/v1/hubs/:hub_id/sub-modules --> github.com/Jsanchez767/matic-platform/handlers.CreateSubModule (5 handlers)
+[GIN-debug] POST   /api/v1/hubs/:hub_id/sub-modules/reorder --> github.com/Jsanchez767/matic-platform/handlers.ReorderSubModules (5 handlers)
+[GIN-debug] GET    /api/v1/sub-modules/:sub_module_id --> github.com/Jsanchez767/matic-platform/handlers.GetSubModule (5 handlers)
+[GIN-debug] PATCH  /api/v1/sub-modules/:sub_module_id --> github.com/Jsanchez767/matic-platform/handlers.UpdateSubModule (5 handlers)
+[GIN-debug] DELETE /api/v1/sub-modules/:sub_module_id --> github.com/Jsanchez767/matic-platform/handlers.DeleteSubModule (5 handlers)
+[GIN-debug] GET    /api/v1/sub-modules/:sub_module_id/rows --> github.com/Jsanchez767/matic-platform/handlers.GetSubModuleRows (5 handlers)
+[GIN-debug] GET    /api/v1/modules/:module_id/fields --> github.com/Jsanchez767/matic-platform/handlers.GetModuleFields (5 handlers)
+[GIN-debug] GET    /api/v1/module-configs/:config_id/history-settings --> github.com/Jsanchez767/matic-platform/handlers.GetModuleHistorySettings (5 handlers)
+[GIN-debug] PUT    /api/v1/module-configs/:config_id/history-settings --> github.com/Jsanchez767/matic-platform/handlers.UpdateModuleHistorySettings (5 handlers)
+2025/11/30 16:43:29 🚀 Server starting on port 8080
+2025/11/30 16:43:29 � API: http://localhost:8080/api/v1
+2025/11/30 16:43:29 ❤️  Health: http://localhost:8080/health
+[GIN-debug] [WARNING] You trusted all proxies, this is NOT safe. We recommend you to set a value.
+Please check https://pkg.go.dev/github.com/gin-gonic/gin#readme-don-t-trust-all-proxies for details.
+[GIN-debug] Listening and serving HTTP on :8080
+[GIN] 2025/11/30 - 16:43:29 | 204 |       31.75µs |             ::1 | OPTIONS  "/api/v1/workspaces"
+[GIN] 2025/11/30 - 16:43:34 | 200 |      62.917µs |             ::1 | GET      "/health"
+[GIN] 2025/11/30 - 16:44:07 | 204 |      10.125µs |             ::1 | OPTIONS  "/api/v1/workspaces"
+[GIN] 2025/11/30 - 16:44:25 | 200 |      18.459µs |             ::1 | GET      "/health"
+[GIN] 2025/11/30 - 16:44:42 | 204 |       6.666µs |             ::1 | OPTIONS  "/api/v1/workspaces"
+[GIN] 2025/11/30 - 16:44:47 | 204 |       6.459µs |             ::1 | OPTIONS  "/api/v1/workspaces"
+[GIN] 2025/11/30 - 16:45:18 | 204 |       6.666µs |             ::1 | OPTIONS  "/api/v1/workspaces"
+[GIN] 2025/11/30 - 16:49:02 | 204 |       12.75µs |             ::1 | OPTIONS  "/api/v1/workspaces"
+[GIN] 2025/11/30 - 16:49:03 | 204 |       4.417µs |             ::1 | OPTIONS  "/api/v1/workspaces"
+[GIN] 2025/11/30 - 16:49:04 | 204 |       5.459µs |             ::1 | OPTIONS  "/api/v1/workspaces"
+[GIN] 2025/11/30 - 16:49:04 | 204 |       4.667µs |             ::1 | OPTIONS  "/api/v1/workspaces"
+[GIN] 2025/11/30 - 16:49:10 | 204 |       4.458µs |             ::1 | OPTIONS  "/api/v1/workspaces"

@@ -63,7 +63,6 @@ func GetWorkspace(c *gin.Context) {
 		Where("workspaces.id = ? AND workspace_members.user_id = ?", id, userID).
 		Preload("Members").
 		Preload("Tables").
-		Preload("ActivitiesHubs").
 		First(&workspace).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Workspace not found or access denied"})
 		return
