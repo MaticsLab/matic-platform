@@ -2081,7 +2081,6 @@ function AccordionQueueView({
             const originalIdx = apps.findIndex(a => a.id === app.id)
             const isExpanded = expandedId === app.id
             const displayName = getApplicationDisplayName(app, titleFieldName || null, hidePII || false)
-            const displayEmail = hidePII ? '••••••@••••••' : app.email
             
             
             return (
@@ -2117,7 +2116,6 @@ function AccordionQueueView({
                   {/* Name & email */}
                   <div className="flex-1 min-w-0 text-left">
                     <p className="font-medium text-gray-900 truncate">{displayName}</p>
-                    <p className="text-xs text-gray-500 truncate">{displayEmail}</p>
                   </div>
                   
                   {/* Score */}
@@ -2729,7 +2727,7 @@ function QueueView({
             const originalIdx = apps.findIndex(a => a.id === app.id)
             const isSelected = originalIdx === selectedIndex
             const displayName = getApplicationDisplayName(app, titleFieldName || null, hidePII || false)
-            const displayEmail = hidePII ? '••••••@••••••' : app.email
+          
             
             return (
             <button
@@ -3489,17 +3487,9 @@ function FocusReviewMode({
   
   // Get display title - uses Application # when PII mode is on or title field is redacted
   const getDisplayTitle = (): string => {
-    // If PII mode is enabled
+    // If PII mode is enabled, always show anonymized title
     if (hidePII) {
-      // Check if the title field is specifically in the hidden fields list
-      if (titleFieldName && hiddenPIIFields?.includes(titleFieldName)) {
-        return `Application #${appIndex + 1}`
-      }
-      // Also check the app.name which might contain PII
-      const nameField = form?.fields?.find(f => f.name === 'name' || f.label === 'Name')
-      if (nameField && (hiddenPIIFields?.includes(nameField.id) || hiddenPIIFields?.includes(nameField.name))) {
-        return `Application #${appIndex + 1}`
-      }
+      return `Application #${appIndex + 1}`
     }
     if (titleFieldName && app.raw_data[titleFieldName]) {
       return String(app.raw_data[titleFieldName])
@@ -3510,7 +3500,13 @@ function FocusReviewMode({
   // Render text with highlights
   const renderHighlightedText = (fieldName: string, text: string): React.ReactNode => {
     const fieldHighlights = textHighlights.filter(h => h.fieldName === fieldName)
-    if (fieldHighlights.length === 0) return text
+    
+    // If no highlights, just apply PII redaction and return
+    if (fieldHighlights.length === 0) {
+      return piiValuesToRedact.length > 0 
+        ? <RedactedText text={text} piiValues={piiValuesToRedact} />
+        : text
+    }
     
     // Sort highlights by their appearance in the text
     let result: React.ReactNode[] = []
