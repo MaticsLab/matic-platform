@@ -32,8 +32,10 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	// Skip auto-migration since tables already exist in Supabase
-	log.Println("📝 Using existing database schema (managed by Supabase migrations)")
+	// Run AutoMigrate to ensure new columns are added (e.g., hide_pii, hidden_pii_fields)
+	if err := database.AutoMigrate(); err != nil {
+		log.Printf("⚠️  AutoMigrate warning: %v", err)
+	}
 
 	// Initialize AI services with Cohere API key
 	cohereAPIKey := os.Getenv("COHERE_API_KEY")

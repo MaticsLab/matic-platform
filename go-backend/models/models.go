@@ -159,13 +159,15 @@ func (Field) TableName() string {
 // Row (Consolidated TableRow/FormSubmission)
 type Row struct {
 	BaseModel
-	TableID    uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
-	Data       datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"data"`
-	Metadata   datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"metadata"`
-	IsArchived bool           `gorm:"default:false" json:"is_archived"`
-	Position   int64          `gorm:"default:0" json:"position"` // bigint in database
-	CreatedBy  *uuid.UUID     `gorm:"type:uuid" json:"created_by,omitempty"`
-	UpdatedBy  *uuid.UUID     `gorm:"type:uuid" json:"updated_by,omitempty"`
+	TableID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
+	Data         datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"data"`
+	Metadata     datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"metadata"`
+	IsArchived   bool           `gorm:"default:false" json:"is_archived"`
+	Position     int64          `gorm:"default:0" json:"position"` // bigint in database
+	StageGroupID *uuid.UUID     `gorm:"type:uuid" json:"stage_group_id,omitempty"`
+	Tags         datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"tags"`
+	CreatedBy    *uuid.UUID     `gorm:"type:uuid" json:"created_by,omitempty"`
+	UpdatedBy    *uuid.UUID     `gorm:"type:uuid" json:"updated_by,omitempty"`
 }
 
 func (Row) TableName() string {

@@ -1,10 +1,14 @@
-import { ExternalReviewInterface } from '@/components/ApplicationsHub/Applications/Reviewers/ExternalReviewInterface'
+'use client'
+
+import { ReviewWorkspace } from '@/components/ApplicationsHub/Applications/Review/ReviewWorkspace'
 
 export default function ExternalReviewPage({ params }: { params: { token: string } }) {
-  // In a real app, we would validate the token here and fetch the reviewer's name
-  // For now, we'll mock it based on the token
-  
-  const reviewerName = params.token === 'demo' ? 'Demo Reviewer' : 'Guest Reviewer'
-
-  return <ExternalReviewInterface reviewerName={reviewerName} token={params.token} />
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <ReviewWorkspace 
+        mode="external"
+        token={params.token}
+      />
+    </div>
+  )
 }

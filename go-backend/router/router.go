@@ -461,11 +461,33 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				stageActions.DELETE("/:id", handlers.DeleteStageAction)
 			}
 
+			// Stage Groups (sub-groups within a stage, visible only in that stage)
+			stageGroups := protected.Group("/stage-groups")
+			{
+				stageGroups.GET("", handlers.ListStageGroups)
+				stageGroups.POST("", handlers.CreateStageGroup)
+				stageGroups.GET("/:id", handlers.GetStageGroup)
+				stageGroups.PATCH("/:id", handlers.UpdateStageGroup)
+				stageGroups.DELETE("/:id", handlers.DeleteStageGroup)
+			}
+
+			// Custom Statuses (action buttons in review interface)
+			customStatuses := protected.Group("/custom-statuses")
+			{
+				customStatuses.GET("", handlers.ListCustomStatuses)
+				customStatuses.POST("", handlers.CreateCustomStatus)
+				customStatuses.GET("/:id", handlers.GetCustomStatus)
+				customStatuses.PATCH("/:id", handlers.UpdateCustomStatus)
+				customStatuses.DELETE("/:id", handlers.DeleteCustomStatus)
+			}
+
 			// Action Execution
 			actions := protected.Group("/actions")
 			{
 				actions.POST("/execute", handlers.ExecuteAction)
+				actions.POST("/execute-status", handlers.ExecuteStatusAction)
 				actions.POST("/move-to-group", handlers.MoveToGroup)
+				actions.POST("/move-to-stage-group", handlers.MoveToStageGroup)
 				actions.POST("/restore-from-group", handlers.RestoreFromGroup)
 			}
 

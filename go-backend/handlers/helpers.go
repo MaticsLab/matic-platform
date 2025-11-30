@@ -19,6 +19,16 @@ func mapToJSON(m map[string]interface{}) datatypes.JSON {
 	return datatypes.JSON(jsonBytes)
 }
 
+// interfaceToJSON converts any interface to datatypes.JSON
+// Used for flexible JSON fields like actions arrays
+func interfaceToJSON(v interface{}) datatypes.JSON {
+	if v == nil {
+		return datatypes.JSON("[]")
+	}
+	jsonBytes, _ := json.Marshal(v)
+	return datatypes.JSON(jsonBytes)
+}
+
 // generateSlug creates a URL-friendly slug from a string
 func generateSlug(name string) string {
 	// Convert to lowercase

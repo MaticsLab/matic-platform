@@ -1,6 +1,101 @@
 import { goFetch } from './go-client';
 
 // Types
+
+// StatusOption - simple status option (for backward compatibility with custom_statuses JSON)
+export interface StatusOption {
+  name: string;
+  color: string; // green, red, yellow, blue, purple, gray
+  icon?: string; // check, x, clock, arrow-right, etc.
+}
+
+// Status action config defines what happens when a status is applied
+export interface StatusActionConfig {
+  action_type: 'move_to_stage' | 'move_to_group' | 'move_to_stage_group' | 'add_tags' | 'remove_tags' | 'send_email' | 'set_field';
+  target_stage_id?: string;       // For move_to_stage
+  target_group_id?: string;       // For move_to_group (application group)
+  target_stage_group_id?: string; // For move_to_stage_group
+  tags?: string[];                // For add_tags, remove_tags
+  email_template_id?: string;     // For send_email
+  field_name?: string;            // For set_field
+  field_value?: string;           // For set_field
+}
+
+// Legacy StatusActionConfig (for backward compatibility)
+export interface LegacyStatusActionConfig {
+  move_to_stage_id?: string;
+  move_to_group_id?: string;
+  add_tags?: string[];
+  remove_tags?: string[];
+  set_status?: string;
+  send_email?: boolean;
+  email_template_id?: string;
+  require_comment?: boolean;
+}
+
+// CustomStatus - proper model (stored in custom_statuses table)
+export interface CustomStatus {
+  id: string;
+  stage_id: string;
+  workspace_id: string;
+  name: string;
+  description?: string;
+  color: string;
+  icon: string;
+  is_primary: boolean;
+  order_index: number;
+  requires_comment: boolean;
+  requires_score: boolean;
+  actions: StatusActionConfig[];
+  created_at: string;
+  updated_at: string;
+}
+
+// StageGroup - sub-groups within a stage (visible only in that stage)
+export interface StageGroup {
+  id: string;
+  stage_id: string;
+  workspace_id: string;
+  name: string;
+  description?: string;
+  color: string;
+  icon: string;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// TagAutomation - automated actions triggered by tags
+export interface TagAutomation {
+  id: string;
+  workspace_id: string;
+  review_workflow_id: string;
+  stage_id?: string;
+  name: string;
+  description?: string;
+  trigger_type: 'tag_added' | 'tag_removed' | 'tag_present';
+  trigger_tag: string;
+  conditions?: Record<string, unknown>;
+  actions: StatusActionConfig[];
+  is_active: boolean;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// CustomTag - reusable tags for workflow
+export interface CustomTag {
+  id: string;
+  workspace_id: string;
+  review_workflow_id: string;
+  stage_id?: string;
+  name: string;
+  color: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ReviewWorkflow {
   id: string;
   workspace_id: string;
@@ -26,8 +121,9 @@ export interface ApplicationStage {
   start_date?: string;
   end_date?: string;
   relative_deadline?: string;
-  custom_statuses?: string[];
-  custom_tags?: string[];
+  custom_statuses?: (string | StatusOption)[];    // Status action buttons (supports both old string format and new object format)
+  custom_tags?: string[];                          // Available tags for this stage
+  status_actions?: Record<string, LegacyStatusActionConfig>; // Actions keyed by status name (legacy)
   logic_rules?: {
     auto_advance_condition?: string;
     auto_reject_condition?: string;
@@ -433,6 +529,87 @@ export const workflowsClient = {
     stage_id: string;
   }) => {
     return goFetch<{ message: string; stage_id: string }>('/actions/restore-from-group', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  
+  // Execute a status action from stage's custom_statuses
+  executeStatusAction: async (data: {
+    stage_id: string;
+    status_name: string;
+    submission_id: string;
+    comment?: string;
+  }) => {
+    return goFetch<{ message: string; status: string; action_applied: boolean }>('/actions/execute-status', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Stage Groups (sub-groups within a stage, visible only in that stage)
+  listStageGroups: async (stageId?: string, workspaceId?: string) => {
+    const params = new URLSearchParams();
+    if (stageId) params.append('stage_id', stageId);
+    if (workspaceId) params.append('workspace_id', workspaceId);
+    return goFetch<StageGroup[]>(`/stage-groups?${params.toString()}`);
+  },
+  createStageGroup: async (data: Partial<StageGroup>) => {
+    return goFetch<StageGroup>('/stage-groups', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  getStageGroup: async (id: string) => {
+    return goFetch<StageGroup>(`/stage-groups/${id}`);
+  },
+  updateStageGroup: async (id: string, data: Partial<StageGroup>) => {
+    return goFetch<StageGroup>(`/stage-groups/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+  deleteStageGroup: async (id: string) => {
+    return goFetch<void>(`/stage-groups/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Custom Statuses (action buttons in review interface - new comprehensive model)
+  listCustomStatuses: async (stageId?: string, workspaceId?: string) => {
+    const params = new URLSearchParams();
+    if (stageId) params.append('stage_id', stageId);
+    if (workspaceId) params.append('workspace_id', workspaceId);
+    return goFetch<CustomStatus[]>(`/custom-statuses?${params.toString()}`);
+  },
+  createCustomStatus: async (data: Partial<CustomStatus>) => {
+    return goFetch<CustomStatus>('/custom-statuses', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  getCustomStatus: async (id: string) => {
+    return goFetch<CustomStatus>(`/custom-statuses/${id}`);
+  },
+  updateCustomStatus: async (id: string, data: Partial<CustomStatus>) => {
+    return goFetch<CustomStatus>(`/custom-statuses/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+  deleteCustomStatus: async (id: string) => {
+    return goFetch<void>(`/custom-statuses/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Move to Stage Group
+  moveToStageGroup: async (data: {
+    submission_id: string;
+    stage_group_id?: string; // null to remove from group
+    comment?: string;
+  }) => {
+    return goFetch<{ message: string; stage_group_id?: string }>('/actions/move-to-stage-group', {
       method: 'POST',
       body: JSON.stringify(data),
     });

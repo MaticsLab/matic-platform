@@ -27,7 +27,9 @@ import {
   ReviewWorkflow,
   WorkflowAction,
   ApplicationGroup,
-  StageAction
+  StageAction,
+  StageGroup,
+  StatusOption
 } from '@/lib/api/workflows-client'
 import { Button } from '@/ui-components/button'
 import { Badge } from '@/ui-components/badge'
@@ -37,10 +39,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from '@/ui-components/dropdown-menu'
-import { useSearch, HubSearchContext } from '@/components/Search'
+import { useSearchSafe, HubSearchContext } from '@/components/Search'
 import { ReviewerManagement } from '../Reviewers/ReviewerManagement'
 import { CommunicationsCenter } from '../Communications/CommunicationsCenter'
+import { Circle, Folder, FolderOpen } from 'lucide-react'
 
 // Stage color palette - semantic colors for workflow stages
 const STAGE_COLORS = {
@@ -64,9 +68,25 @@ const getDefaultStageColor = (index: number): StageColorKey => {
   return colorOrder[index % colorOrder.length]
 }
 
+// Reviewer info for external review mode
+interface ReviewerInfo {
+  id: string
+  name: string
+  email?: string
+  reviewer_type_id?: string
+}
+
+// Review mode: 'internal' for staff/admin, 'external' for shareable link
+type ReviewMode = 'internal' | 'external'
+
 interface ReviewWorkspaceProps {
-  workspaceId: string
-  formId: string | null
+  // Internal mode props
+  workspaceId?: string
+  formId?: string | null
+  // External mode props
+  mode?: ReviewMode
+  token?: string
+  // UI control props
   showReviewersPanel?: boolean
   onToggleReviewersPanel?: () => void
   showCommunicationsPanel?: boolean
@@ -385,13 +405,28 @@ interface StageWithConfig extends ApplicationStage {
 type ViewMode = 'focus' | 'queue' | 'analytics'
 
 export function ReviewWorkspace({ 
-  workspaceId, 
-  formId, 
+  workspaceId: propWorkspaceId, 
+  formId: propFormId, 
+  mode = 'internal',
+  token,
   showReviewersPanel: externalShowReviewersPanel, 
   onToggleReviewersPanel,
   showCommunicationsPanel: externalShowCommunicationsPanel,
   onToggleCommunicationsPanel
 }: ReviewWorkspaceProps) {
+  // Determine if this is external review mode
+  const isExternalMode = mode === 'external' && !!token
+  
+  // Dynamic workspaceId and formId (will be set from token response in external mode)
+  const [workspaceId, setWorkspaceId] = useState<string>(propWorkspaceId || '')
+  const [formId, setFormId] = useState<string | null>(propFormId || null)
+  
+  // External reviewer state
+  const [reviewerInfo, setReviewerInfo] = useState<ReviewerInfo | null>(null)
+  const [reviewerConfig, setReviewerConfig] = useState<StageReviewerConfig | null>(null)
+  const [fieldVisibilityConfig, setFieldVisibilityConfig] = useState<Record<string, boolean | 'visible' | 'hidden' | 'score_only'>>({})
+  const [externalError, setExternalError] = useState<string | null>(null)
+  
   // Core state
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -403,7 +438,9 @@ export function ReviewWorkspace({
   const [rubrics, setRubrics] = useState<Rubric[]>([])
   const [form, setForm] = useState<Form | null>(null)
   const [workflowActions, setWorkflowActions] = useState<WorkflowAction[]>([])
-  const [groups, setGroups] = useState<ApplicationGroup[]>([])
+  const [groups, setGroups] = useState<ApplicationGroup[]>([]) // Application Groups (global, shown everywhere)
+  const [stageGroups, setStageGroups] = useState<StageGroup[]>([]) // Stage Groups (shown only within stage)
+  const [selectedStageGroupId, setSelectedStageGroupId] = useState<string | null>(null) // Filter by stage group
   const [stageActions, setStageActions] = useState<StageAction[]>([])
   
   // Form display settings
@@ -446,12 +483,15 @@ export function ReviewWorkspace({
   const [reviewTimer, setReviewTimer] = useState(0)
   const [timerActive, setTimerActive] = useState(false)
 
-  // Get search context
-  const { setHubContext, query: globalSearchQuery } = useSearch()
+  // Get search context (may be null in external mode)
+  const searchContext = useSearchSafe()
+  const globalSearchQuery = searchContext?.query || ''
 
   // Sync global search with local search
   useEffect(() => {
-    setSearchQuery(globalSearchQuery)
+    if (globalSearchQuery) {
+      setSearchQuery(globalSearchQuery)
+    }
   }, [globalSearchQuery])
 
   // Timer effect
@@ -463,17 +503,157 @@ export function ReviewWorkspace({
     return () => clearInterval(interval)
   }, [timerActive, isReviewMode])
 
-  // Load all data
+  // Load all data - different paths for internal vs external mode
   useEffect(() => {
-    if (!formId || !workspaceId) return
-    loadData()
-  }, [formId, workspaceId])
+    if (isExternalMode && token) {
+      loadExternalReviewData()
+    } else if (formId && workspaceId) {
+      loadData()
+    }
+  }, [isExternalMode, token, formId, workspaceId])
 
-  // Reload stages when workflow changes
+  // Load data for external review mode via token
+  const loadExternalReviewData = async () => {
+    if (!token) return
+    
+    setIsLoading(true)
+    setExternalError(null)
+    
+    try {
+      const response = await goClient.get<{
+        form: Form
+        submissions: Array<{ id: string; data: any; metadata: any; created_at: string }>
+        reviewer: { id: string; name: string; email?: string; reviewer_type_id?: string } | null
+        stage_config: StageReviewerConfig | null
+        rubric: Rubric | null
+        stage: ApplicationStage | null
+      }>(`/external-review/${token}`)
+      
+      const { form: loadedForm, submissions, reviewer, stage_config, rubric, stage } = response
+      
+      // Set form and workspace info
+      setForm(loadedForm)
+      setFormId(loadedForm.id)
+      setWorkspaceId(loadedForm.workspace_id)
+      
+      // Set reviewer info
+      if (reviewer) {
+        setReviewerInfo({
+          id: reviewer.id,
+          name: reviewer.name,
+          email: reviewer.email,
+          reviewer_type_id: reviewer.reviewer_type_id
+        })
+      }
+      
+      // Set reviewer config and permissions
+      if (stage_config) {
+        setReviewerConfig(stage_config)
+        // Parse field visibility config if present
+        if (stage_config.field_visibility_config) {
+          const visConfig = typeof stage_config.field_visibility_config === 'string'
+            ? JSON.parse(stage_config.field_visibility_config as string)
+            : stage_config.field_visibility_config
+          setFieldVisibilityConfig(visConfig || {})
+        }
+      }
+      
+      // Set up stages and rubrics from the stage config
+      if (stage) {
+        const stageWithConfig: StageWithConfig = {
+          ...stage,
+          reviewerConfigs: stage_config ? [stage_config] : [],
+          rubric: rubric || null,
+          applicationCount: submissions.length,
+          stageActions: []
+        }
+        setStages([stageWithConfig])
+        setSelectedStageId(stage.id)
+      }
+      
+      if (rubric) {
+        setRubrics([rubric])
+      }
+      
+      // Set title field
+      if (!titleFieldName && loadedForm.fields) {
+        const candidates = getTitleCandidateFields(loadedForm.fields)
+        const defaultTitleField = candidates.find(f => 
+          f.name.toLowerCase().includes('name') || 
+          f.label.toLowerCase().includes('name')
+        ) || candidates[0]
+        if (defaultTitleField) {
+          setTitleFieldName(defaultTitleField.name)
+        }
+      }
+      
+      // Map submissions to ApplicationData format
+      const mappedApplications: ApplicationData[] = submissions.map((sub, idx) => {
+        const data = typeof sub.data === 'string' ? JSON.parse(sub.data) : sub.data
+        const metadata = typeof sub.metadata === 'string' ? JSON.parse(sub.metadata) : (sub.metadata || {})
+        
+        const review = metadata.review || {}
+        const reviewHistory = Array.isArray(metadata.review_history) ? metadata.review_history : []
+        
+        return {
+          id: sub.id,
+          name: data.name || data.full_name || data.student_name || `Applicant ${idx + 1}`,
+          email: data.email || data.personal_email || '',
+          school: data.school || data.university || '',
+          major: data.major || data.intended_major || '',
+          gpa: data.gpa ? parseFloat(data.gpa) : null,
+          score: review.total_score || null,
+          maxScore: rubric?.max_score || 100,
+          status: metadata.status || 'pending',
+          stageId: stage?.id || '',
+          stageName: stage?.name || '',
+          workflowId: stage?.review_workflow_id || '',
+          workflowName: '',
+          tags: metadata.tags || [],
+          scores: review.scores || {},
+          notes: review.notes || {},
+          comments: review.overall_comments || '',
+          flagged: metadata.flagged || false,
+          assignedReviewers: metadata.assigned_reviewers || [],
+          reviewCount: reviewHistory.length,
+          raw_data: data,
+          createdAt: sub.created_at,
+          submittedAt: sub.created_at,
+          requiredReviews: metadata.required_reviews || 1,
+          reviewHistory: reviewHistory.map((rh: any) => ({
+            reviewer_id: rh.reviewer_id || '',
+            reviewer_name: rh.reviewer_name || 'Reviewer',
+            scores: rh.scores || {},
+            total_score: rh.total_score || 0,
+            notes: rh.notes || {},
+            submitted_at: rh.submitted_at || ''
+          }))
+        }
+      })
+      
+      setApplications(mappedApplications)
+      
+      // Start in focus review mode by default for external reviewers
+      if (mappedApplications.length > 0) {
+        setSelectedAppIndex(0)
+        setViewMode('focus')
+        setIsReviewMode(true)
+      }
+      
+    } catch (error: any) {
+      console.error('Failed to load external review data:', error)
+      setExternalError(error.message || 'Invalid review token or session expired')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Reload stages when workflow changes (internal mode only)
   useEffect(() => {
+    if (isExternalMode) return
     if (!workflow || !workspaceId) return
     loadStagesForWorkflow(workflow.id)
-  }, [workflow?.id])
+  }, [workflow?.id, isExternalMode])
 
   const loadStagesForWorkflow = async (workflowId: string) => {
     try {
@@ -552,13 +732,15 @@ export function ReviewWorkspace({
       if (activeWorkflow) {
         setWorkflow(activeWorkflow)
         
-        // Load workflow actions and groups
-        const [actionsData, groupsData] = await Promise.all([
+        // Load workflow actions, application groups (global), and stage groups (per stage)
+        const [actionsData, groupsData, stageGroupsData] = await Promise.all([
           workflowsClient.listWorkflowActions(activeWorkflow.id),
-          workflowsClient.listGroups(activeWorkflow.id)
+          workflowsClient.listGroups(activeWorkflow.id),
+          workflowsClient.listStageGroups(undefined, workspaceId) // Get all stage groups for this workspace
         ])
         setWorkflowActions(actionsData)
-        setGroups(groupsData)
+        setGroups(groupsData) // Application Groups - global, visible everywhere
+        setStageGroups(stageGroupsData) // Stage Groups - visible only in their linked stage
         
         const stagesData = await workflowsClient.listStages(workspaceId, activeWorkflow.id)
         
@@ -763,12 +945,18 @@ export function ReviewWorkspace({
       }
     }
 
-    setHubContext(hubContext)
+    // Only register hub context if search provider is available (internal mode)
+    if (searchContext?.setHubContext) {
+      searchContext.setHubContext(hubContext)
+    }
     
     return () => {
-      setHubContext(null)
+      if (searchContext?.setHubContext) {
+        searchContext.setHubContext(null)
+      }
     }
-  }, [formId, setHubContext, stageApps.length])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formId, stageApps.length])
 
   // Current application
   const currentApp = stageApps[selectedAppIndex] || null
@@ -776,8 +964,9 @@ export function ReviewWorkspace({
   const currentRubric = currentStage?.rubric || null
   
   // PII settings from stage (read-only, configured in stage settings)
-  const hidePII = currentStage?.hide_pii || false
+  // If hidden_pii_fields has entries, treat PII hiding as enabled (implied intent)
   const hiddenPIIFields = currentStage?.hidden_pii_fields || []
+  const hidePII = currentStage?.hide_pii || hiddenPIIFields.length > 0
 
   // Stats for current workflow
   const stats = useMemo(() => {
@@ -943,12 +1132,22 @@ export function ReviewWorkspace({
     try {
       const totalScore = Object.values(editingScores).reduce((sum, val) => sum + (val || 0), 0)
       
-      // Persist to backend
-      await workflowsClient.updateReviewData(formId, currentApp.id, {
-        scores: editingScores,
-        comments: editingComments,
-        status: 'in_review'
-      })
+      if (isExternalMode && token) {
+        // External mode: use external review endpoint (no auth, uses token)
+        await goClient.post(`/external-review/${token}/submit/${currentApp.id}`, {
+          scores: editingScores,
+          overall_comments: editingComments,
+          status: 'in_review',
+          is_draft: false
+        })
+      } else {
+        // Internal mode: use authenticated endpoint
+        await workflowsClient.updateReviewData(formId, currentApp.id, {
+          scores: editingScores,
+          comments: editingComments,
+          status: 'in_review'
+        })
+      }
       
       setApplications(prev => prev.map(app => 
         app.id === currentApp.id
@@ -971,26 +1170,38 @@ export function ReviewWorkspace({
     if (!currentApp || !formId) return
     
     try {
-      // Persist decision to backend
-      await workflowsClient.updateReviewData(formId, currentApp.id, {
-        decision,
-        status: decision
-      })
+      const totalScore = Object.values(editingScores).reduce((sum, val) => sum + (val || 0), 0)
+      
+      if (isExternalMode && token) {
+        // External mode: submit via external review endpoint
+        await goClient.post(`/external-review/${token}/submit/${currentApp.id}`, {
+          scores: editingScores,
+          overall_comments: editingComments,
+          status: decision,
+          is_draft: false
+        })
+      } else {
+        // Internal mode: persist decision to backend
+        await workflowsClient.updateReviewData(formId, currentApp.id, {
+          decision,
+          status: decision
+        })
+        
+        // If approved and there's a next stage, optionally move to it (internal only)
+        if (decision === 'approved') {
+          const currentStageIndex = stages.findIndex(s => s.id === currentApp.stageId)
+          if (currentStageIndex >= 0 && currentStageIndex < stages.length - 1) {
+            const nextStage = stages[currentStageIndex + 1]
+            await handleMoveToStage(currentApp.id, nextStage.id, 'Auto-advanced after approval')
+          }
+        }
+      }
       
       setApplications(prev => prev.map(app => 
         app.id === currentApp.id
-          ? { ...app, status: decision }
+          ? { ...app, status: decision, score: totalScore }
           : app
       ))
-      
-      // If approved and there's a next stage, optionally move to it
-      if (decision === 'approved') {
-        const currentStageIndex = stages.findIndex(s => s.id === currentApp.stageId)
-        if (currentStageIndex >= 0 && currentStageIndex < stages.length - 1) {
-          const nextStage = stages[currentStageIndex + 1]
-          await handleMoveToStage(currentApp.id, nextStage.id, 'Auto-advanced after approval')
-        }
-      }
       
       goToNext()
     } catch (error) {
@@ -1092,13 +1303,32 @@ export function ReviewWorkspace({
       <div className="h-full flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-500">Loading review workspace...</p>
+          <p className="text-gray-500">
+            {isExternalMode ? 'Loading your review session...' : 'Loading review workspace...'}
+          </p>
         </div>
       </div>
     )
   }
 
-  if (!workflow || stages.length === 0) {
+  // External mode error
+  if (isExternalMode && externalError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="text-center max-w-md bg-white rounded-2xl shadow-xl p-8">
+          <div className="w-20 h-20 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="w-10 h-10 text-red-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">Session Expired</h2>
+          <p className="text-gray-600">
+            {externalError}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isExternalMode && (!workflow || stages.length === 0)) {
     return (
       <div className="h-full flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-md">
@@ -1143,6 +1373,9 @@ export function ReviewWorkspace({
         hidePII={hidePII}
         hiddenPIIFields={hiddenPIIFields}
         sectionComments={sectionComments[currentApp.id] || {}}
+        isExternalMode={isExternalMode}
+        reviewerInfo={reviewerInfo}
+        fieldVisibilityConfig={fieldVisibilityConfig}
         onScoreChange={(cat, val) => setEditingScores(p => ({ ...p, [cat]: val }))}
         onCommentsChange={setEditingComments}
         onToggleTimer={() => setTimerActive(!timerActive)}
@@ -1153,8 +1386,11 @@ export function ReviewWorkspace({
         onPrev={goToPrev}
         onNext={goToNext}
         onExit={() => {
-          setIsReviewMode(false)
-          setTimerActive(false)
+          // In external mode, don't allow exiting to dashboard
+          if (!isExternalMode) {
+            setIsReviewMode(false)
+            setTimerActive(false)
+          }
         }}
       />
     )
@@ -1175,46 +1411,63 @@ export function ReviewWorkspace({
       <div className="bg-white border-b border-gray-200">
         {/* Top row - Workflow selector and actions */}
         <div className="px-4 py-3 flex items-center justify-between gap-4">
-          {/* Workflow Selector - Compact */}
+          {/* Left side - Workflow Selector (internal only) or Reviewer info (external) */}
           <div className="flex items-center gap-3">
-            <div className="relative">
-              <button
-                onClick={() => setShowWorkflowSelector(!showWorkflowSelector)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors"
-              >
-                <Layers className="w-4 h-4 text-gray-500" />
-                <span className="font-medium text-gray-900 text-sm">{workflow?.name || 'Select Workflow'}</span>
-                <ChevronDown className={cn("w-3.5 h-3.5 text-gray-400 transition-transform", showWorkflowSelector && "rotate-180")} />
-              </button>
-              
-              {showWorkflowSelector && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowWorkflowSelector(false)} />
-                  <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 min-w-[200px] overflow-hidden">
-                    <div className="max-h-64 overflow-y-auto py-1">
-                      {workflows.map(wf => (
-                        <button
-                          key={wf.id}
-                          onClick={() => handleSwitchWorkflow(wf)}
-                          className={cn(
-                            "w-full text-left px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors",
-                            workflow?.id === wf.id && "bg-blue-50"
-                          )}
-                        >
-                          <span className="font-medium text-gray-900 text-sm">{wf.name}</span>
-                          <div className="flex items-center gap-2">
-                            {wf.is_active && (
-                              <span className="text-[10px] font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded">Active</span>
-                            )}
-                            {workflow?.id === wf.id && <Check className="w-4 h-4 text-blue-600" />}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
+            {isExternalMode ? (
+              /* External mode: show reviewer info */
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
+                  <User className="w-4 h-4 text-blue-600" />
+                  <span className="font-medium text-blue-900 text-sm">{reviewerInfo?.name || 'Reviewer'}</span>
+                </div>
+                {stages[0] && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg">
+                    <span className="text-sm text-gray-600">Stage:</span>
+                    <span className="font-medium text-gray-900 text-sm">{stages[0].name}</span>
                   </div>
-                </>
-              )}
-            </div>
+                )}
+              </div>
+            ) : (
+              /* Internal mode: Workflow Selector */
+              <div className="relative">
+                <button
+                  onClick={() => setShowWorkflowSelector(!showWorkflowSelector)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors"
+                >
+                  <Layers className="w-4 h-4 text-gray-500" />
+                  <span className="font-medium text-gray-900 text-sm">{workflow?.name || 'Select Workflow'}</span>
+                  <ChevronDown className={cn("w-3.5 h-3.5 text-gray-400 transition-transform", showWorkflowSelector && "rotate-180")} />
+                </button>
+                
+                {showWorkflowSelector && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowWorkflowSelector(false)} />
+                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 min-w-[200px] overflow-hidden">
+                      <div className="max-h-64 overflow-y-auto py-1">
+                        {workflows.map(wf => (
+                          <button
+                            key={wf.id}
+                            onClick={() => handleSwitchWorkflow(wf)}
+                            className={cn(
+                              "w-full text-left px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors",
+                              workflow?.id === wf.id && "bg-blue-50"
+                            )}
+                          >
+                            <span className="font-medium text-gray-900 text-sm">{wf.name}</span>
+                            <div className="flex items-center gap-2">
+                              {wf.is_active && (
+                                <span className="text-[10px] font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded">Active</span>
+                              )}
+                              {workflow?.id === wf.id && <Check className="w-4 h-4 text-blue-600" />}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             
             {/* View Toggle */}
             <div className="flex bg-gray-100 rounded-lg p-0.5">
@@ -1227,27 +1480,32 @@ export function ReviewWorkspace({
               >
                 Queue
               </button>
-              <button
-                onClick={() => setViewMode('analytics')}
-                className={cn(
-                  "px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-                  viewMode === 'analytics' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                )}
-              >
-                Analytics
-              </button>
+              {/* Analytics tab - internal only */}
+              {!isExternalMode && (
+                <button
+                  onClick={() => setViewMode('analytics')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                    viewMode === 'analytics' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  Analytics
+                </button>
+              )}
             </div>
 
-            {/* Contact Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={setShowCommunicationsPanel}
-              className="flex items-center gap-2"
-            >
-              <MessageSquare className="w-4 h-4" />
-              Contact
-            </Button>
+            {/* Contact Button - internal only */}
+            {!isExternalMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={setShowCommunicationsPanel}
+                className="flex items-center gap-2"
+              >
+                <MessageSquare className="w-4 h-4" />
+                Contact
+              </Button>
+            )}
           </div>
           
           {/* Right side - Stats summary + Actions */}
@@ -1534,6 +1792,9 @@ export function ReviewWorkspace({
               onDelete={handleDeleteApplication}
               workflowActions={workflowActions}
               groups={groups}
+              stageGroups={stageGroups}
+              selectedStageGroupId={selectedStageGroupId}
+              onSelectStageGroup={setSelectedStageGroupId}
               onExecuteAction={handleExecuteAction}
             />
           )}
@@ -1566,14 +1827,14 @@ export function ReviewWorkspace({
             </div>
           )}
 
-          {viewMode === 'analytics' && (
+          {viewMode === 'analytics' && !isExternalMode && (
             <AnalyticsView stats={stats} stages={stages} applications={applications} />
           )}
         </div>
       </div>
 
-      {/* Reviewers Slide-over Panel */}
-      {showReviewersPanel && (
+      {/* Reviewers Slide-over Panel - Internal mode only */}
+      {!isExternalMode && showReviewersPanel && (
         <div className="fixed inset-0 z-50 flex">
           {/* Backdrop */}
           <div 
@@ -1610,8 +1871,8 @@ export function ReviewWorkspace({
         </div>
       )}
 
-      {/* Communications Slide-over Panel */}
-      {showCommunicationsPanel && (
+      {/* Communications Slide-over Panel - Internal mode only */}
+      {!isExternalMode && showCommunicationsPanel && (
         <div className="fixed inset-0 z-50 flex">
           {/* Backdrop */}
           <div 
@@ -1670,6 +1931,9 @@ function AccordionQueueView({
   onDelete,
   workflowActions,
   groups,
+  stageGroups,
+  selectedStageGroupId,
+  onSelectStageGroup,
   onExecuteAction
 }: {
   apps: ApplicationData[]
@@ -1688,12 +1952,21 @@ function AccordionQueueView({
   onDecision?: (decision: string) => void
   onDelete?: (appId: string) => void
   workflowActions?: WorkflowAction[]
-  groups?: ApplicationGroup[]
+  groups?: ApplicationGroup[] // Application Groups - global
+  stageGroups?: StageGroup[] // Stage Groups - for current stage only
+  selectedStageGroupId?: string | null
+  onSelectStageGroup?: (groupId: string | null) => void
   onExecuteAction?: (action: WorkflowAction | StageAction) => void
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'data' | 'reviews'>('data')
   const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'highest' | 'lowest'>('recent')
+
+  // Get stage groups for current stage
+  const currentStageGroups = useMemo(() => {
+    if (!stage || !stageGroups) return []
+    return stageGroups.filter(g => g.stage_id === stage.id)
+  }, [stage, stageGroups])
 
   const sortedApps = useMemo(() => {
     const sorted = [...apps]
@@ -1736,6 +2009,53 @@ function AccordionQueueView({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Stage Groups Filter Bar (only shown if stage has groups) */}
+      {currentStageGroups.length > 0 && (
+        <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2 overflow-x-auto">
+          <span className="text-xs text-gray-500 shrink-0">Filter:</span>
+          <button
+            onClick={() => onSelectStageGroup?.(null)}
+            className={cn(
+              "px-3 py-1 text-xs rounded-full border transition-colors shrink-0",
+              selectedStageGroupId === null
+                ? "bg-blue-100 border-blue-200 text-blue-700"
+                : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+            )}
+          >
+            All ({apps.length})
+          </button>
+          {currentStageGroups.map(group => {
+            // Count apps in this group - would need stage_group_id on apps
+            const groupColors: Record<string, { bg: string; border: string; text: string }> = {
+              blue: { bg: 'bg-blue-100', border: 'border-blue-200', text: 'text-blue-700' },
+              green: { bg: 'bg-green-100', border: 'border-green-200', text: 'text-green-700' },
+              yellow: { bg: 'bg-yellow-100', border: 'border-yellow-200', text: 'text-yellow-700' },
+              orange: { bg: 'bg-orange-100', border: 'border-orange-200', text: 'text-orange-700' },
+              red: { bg: 'bg-red-100', border: 'border-red-200', text: 'text-red-700' },
+              purple: { bg: 'bg-purple-100', border: 'border-purple-200', text: 'text-purple-700' },
+              gray: { bg: 'bg-gray-100', border: 'border-gray-200', text: 'text-gray-700' },
+            }
+            const colors = groupColors[group.color] || groupColors.gray
+            
+            return (
+              <button
+                key={group.id}
+                onClick={() => onSelectStageGroup?.(group.id)}
+                className={cn(
+                  "px-3 py-1 text-xs rounded-full border transition-colors shrink-0 flex items-center gap-1.5",
+                  selectedStageGroupId === group.id
+                    ? `${colors.bg} ${colors.border} ${colors.text}`
+                    : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                )}
+              >
+                <FolderOpen className="w-3 h-3" />
+                {group.name}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {/* Sort bar */}
       <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center justify-between">
         <span className="text-sm text-gray-500">{apps.length} application{apps.length !== 1 ? 's' : ''}</span>
@@ -1762,6 +2082,7 @@ function AccordionQueueView({
             const isExpanded = expandedId === app.id
             const displayName = getApplicationDisplayName(app, titleFieldName || null, hidePII || false)
             const displayEmail = hidePII ? '••••••@••••••' : app.email
+            
             
             return (
               <div key={app.id} className={cn("bg-white", isExpanded && "bg-gray-50")}>
@@ -1905,8 +2226,61 @@ function AccordionQueueView({
                     <div className="pt-4 max-h-[400px] overflow-y-auto">
                       {activeTab === 'data' ? (
                         <div className="space-y-3">
-                          {form?.fields && form.fields.length > 0 ? (
-                            (() => {
+                          {(() => {
+                            // PII redaction helpers for accordion view
+                            const isFieldHidden = (fieldId: string, fieldName?: string, fieldLabel?: string): boolean => {
+                              if (!hidePII || !hiddenPIIFields || hiddenPIIFields.length === 0) return false
+                              return hiddenPIIFields.includes(fieldId) || 
+                                     (fieldName ? hiddenPIIFields.includes(fieldName) : false) || 
+                                     (fieldLabel ? hiddenPIIFields.includes(fieldLabel) : false)
+                            }
+                            
+                            // Collect PII values from hidden fields using form field definitions
+                            const piiValues: string[] = (() => {
+                              if (!hidePII || !hiddenPIIFields || hiddenPIIFields.length === 0) return []
+                              if (!form?.fields) return []
+                              
+                              const values: string[] = []
+                              form.fields.forEach(field => {
+                                // Check if this field is in the hidden list (by id, name, or label)
+                                if (hiddenPIIFields.includes(field.id) || 
+                                    hiddenPIIFields.includes(field.name) || 
+                                    (field.label && hiddenPIIFields.includes(field.label))) {
+                                  const val = app.raw_data[field.name] || app.raw_data[field.label || '']
+                                  if (val && typeof val === 'string' && val.trim().length >= 2) {
+                                    values.push(val.trim())
+                                    // Also add parts for names like "John Smith"
+                                    const parts = val.trim().split(/[\s,]+/).filter((p: string) => p.length >= 2)
+                                    values.push(...parts)
+                                  }
+                                }
+                              })
+                              return [...new Set(values)]
+                            })()
+                            
+                            // Render value with PII redaction
+                            const renderPIIValue = (fieldId: string, fieldName: string, fieldLabel: string | undefined, value: any) => {
+                              // Check if this specific field is hidden
+                              if (isFieldHidden(fieldId, fieldName, fieldLabel)) {
+                                return (
+                                  <span className="bg-gray-900 text-gray-900 rounded px-1 select-none cursor-help" title="Hidden for privacy">
+                                    ████████████
+                                  </span>
+                                )
+                              }
+                              
+                              // For string values, apply inline PII redaction
+                              if (typeof value === 'string') {
+                                if (piiValues.length > 0) {
+                                  return <RedactedText text={value} piiValues={piiValues} />
+                                }
+                                return value
+                              }
+                              
+                              return JSON.stringify(value)
+                            }
+                            
+                            if (form?.fields && form.fields.length > 0) {
                               const { sections, ungroupedFields } = groupFieldsBySections(form.fields, form.settings)
                               const allFields = [...ungroupedFields, ...sections.flatMap(s => s.fields)]
                               
@@ -1920,27 +2294,27 @@ function AccordionQueueView({
                                       {(field.label || field.name).replace(/_/g, ' ')}
                                     </span>
                                     <span className="text-sm text-gray-900 flex-1 min-w-0">
-                                      {typeof value === 'string' ? value : JSON.stringify(value)}
+                                      {renderPIIValue(field.id, field.name, field.label, value)}
                                     </span>
                                   </div>
                                 )
                               })
-                            })()
-                          ) : (
-                            Object.entries(app.raw_data).slice(0, 8).map(([key, value]) => {
-                              if (key.startsWith('_') || key === 'id' || !value) return null
-                              return (
-                                <div key={key} className="flex gap-3">
-                                  <span className="text-xs font-medium text-gray-500 w-28 shrink-0 pt-0.5">
-                                    {key.replace(/_/g, ' ')}
-                                  </span>
-                                  <span className="text-sm text-gray-900 flex-1 min-w-0">
-                                    {typeof value === 'string' ? value : JSON.stringify(value)}
-                                  </span>
-                                </div>
-                              )
-                            })
-                          )}
+                            } else {
+                              return Object.entries(app.raw_data).slice(0, 8).map(([key, value]) => {
+                                if (key.startsWith('_') || key === 'id' || !value) return null
+                                return (
+                                  <div key={key} className="flex gap-3">
+                                    <span className="text-xs font-medium text-gray-500 w-28 shrink-0 pt-0.5">
+                                      {key.replace(/_/g, ' ')}
+                                    </span>
+                                    <span className="text-sm text-gray-900 flex-1 min-w-0">
+                                      {renderPIIValue(key, key, key, value)}
+                                    </span>
+                                  </div>
+                                )
+                              })
+                            }
+                          })()}
                           <button className="text-xs text-blue-600 hover:text-blue-700 font-medium mt-2">
                             View full application →
                           </button>
@@ -1988,8 +2362,104 @@ function AccordionQueueView({
                         <Clock className="w-3.5 h-3.5" />
                         Submitted {new Date(app.submittedAt).toLocaleDateString()}
                       </div>
-                      {/* Custom Actions - Stage actions first, then workflow actions */}
-                      {(stage?.stageActions?.length || workflowActions?.length || onDecision) && (
+                      {/* Custom Status Actions Dropdown */}
+                      {stage?.custom_statuses && stage.custom_statuses.length > 0 ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5">
+                              <Zap className="w-3.5 h-3.5" />
+                              Actions
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            {stage.custom_statuses.map((status, idx) => {
+                              const statusObj = typeof status === 'string' 
+                                ? { name: status, color: 'gray', icon: 'circle' } 
+                                : status
+                              const statusColors: Record<string, string> = {
+                                gray: 'text-gray-600',
+                                red: 'text-red-600',
+                                orange: 'text-orange-600',
+                                yellow: 'text-yellow-600',
+                                green: 'text-green-600',
+                                blue: 'text-blue-600',
+                                purple: 'text-purple-600',
+                                pink: 'text-pink-600',
+                              }
+                              const colorClass = statusColors[statusObj.color] || statusColors.gray
+                              
+                              return (
+                                <DropdownMenuItem
+                                  key={idx}
+                                  onClick={() => onExecuteAction?.({ 
+                                    id: `status-${statusObj.name}`,
+                                    name: statusObj.name,
+                                    color: statusObj.color,
+                                    action_type: 'set_status',
+                                    status_value: statusObj.name
+                                  } as any)}
+                                  className={cn("cursor-pointer", colorClass)}
+                                >
+                                  {statusObj.icon === 'check' && <Check className="w-4 h-4 mr-2" />}
+                                  {statusObj.icon === 'x' && <X className="w-4 h-4 mr-2" />}
+                                  {statusObj.icon === 'clock' && <Clock className="w-4 h-4 mr-2" />}
+                                  {statusObj.icon === 'arrow-right' && <ArrowRight className="w-4 h-4 mr-2" />}
+                                  {!['check', 'x', 'clock', 'arrow-right'].includes(statusObj.icon || '') && (
+                                    <Circle className="w-4 h-4 mr-2" />
+                                  )}
+                                  {statusObj.name}
+                                </DropdownMenuItem>
+                              )
+                            })}
+                            {groups && groups.length > 0 && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuLabel className="text-xs text-gray-500">Move to Group</DropdownMenuLabel>
+                                {groups.map((group) => (
+                                  <DropdownMenuItem
+                                    key={group.id}
+                                    onClick={() => onExecuteAction?.({
+                                      id: `group-${group.id}`,
+                                      name: `Move to ${group.name}`,
+                                      color: group.color,
+                                      action_type: 'move_to_group',
+                                      target_group_id: group.id
+                                    } as any)}
+                                    className="cursor-pointer"
+                                  >
+                                    <Folder className="w-4 h-4 mr-2" />
+                                    {group.name}
+                                  </DropdownMenuItem>
+                                ))}
+                              </>
+                            )}
+                            {/* Stage Groups - visible only in this stage */}
+                            {currentStageGroups && currentStageGroups.length > 0 && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuLabel className="text-xs text-gray-500">Move to Stage Group</DropdownMenuLabel>
+                                {currentStageGroups.map((group) => (
+                                  <DropdownMenuItem
+                                    key={group.id}
+                                    onClick={() => onExecuteAction?.({
+                                      id: `stage-group-${group.id}`,
+                                      name: `Move to ${group.name}`,
+                                      color: group.color,
+                                      action_type: 'move_to_stage_group',
+                                      target_stage_group_id: group.id
+                                    } as any)}
+                                    className="cursor-pointer"
+                                  >
+                                    <FolderOpen className="w-4 h-4 mr-2" />
+                                    {group.name}
+                                  </DropdownMenuItem>
+                                ))}
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (stage?.stageActions?.length || workflowActions?.length || onDecision) ? (
                         <div className="flex items-center gap-2">
                           {/* Stage-specific actions */}
                           {stage?.stageActions?.map((action) => {
@@ -2080,7 +2550,7 @@ function AccordionQueueView({
                             </>
                           )}
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 )}
@@ -2457,14 +2927,20 @@ function QueueView({
                                  (field.label && hiddenPIIFields.includes(field.label))
                         }
                         
-                        // Get PII values to redact from hidden fields
-                        const piiValuesToRedact: string[] = form.fields
-                          .filter(f => isFieldHidden(f))
-                          .map(f => {
+                        // Get PII values to redact from hidden fields (including name parts)
+                        const piiValuesToRedact: string[] = (() => {
+                          const values: string[] = []
+                          form.fields.filter(f => isFieldHidden(f)).forEach(f => {
                             const val = currentApp.raw_data[f.name] || currentApp.raw_data[f.label || '']
-                            return typeof val === 'string' ? val : null
+                            if (typeof val === 'string' && val.trim().length >= 2) {
+                              values.push(val.trim())
+                              // Also add parts for names like "John Smith"
+                              const parts = val.trim().split(/[\s,]+/).filter((p: string) => p.length >= 2)
+                              values.push(...parts)
+                            }
                           })
-                          .filter((v): v is string => v !== null && v.length >= 2)
+                          return [...new Set(values)]
+                        })()
                         
                         // Helper to render field value with PII redaction
                         const renderWithPII = (field: { id: string; name: string; label?: string }, value: any) => {
@@ -2546,18 +3022,62 @@ function QueueView({
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      {Object.entries(currentApp.raw_data).map(([key, value]) => {
-                        if (key.startsWith('_') || key === 'id') return null
+                      {(() => {
+                        // Fallback PII redaction for forms without field definitions
+                        const isFieldHidden = (key: string): boolean => {
+                          if (!hidePII || !hiddenPIIFields || hiddenPIIFields.length === 0) return false
+                          return hiddenPIIFields.includes(key)
+                        }
                         
-                        return (
-                          <div key={key} className="bg-white rounded-xl px-6 py-5 border border-gray-200 shadow-sm">
-                            <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">
-                              {key.replace(/_/g, ' ')}
-                            </p>
-                            <div className="text-gray-800 text-[15px] leading-relaxed">{renderFieldValue(key, value)}</div>
-                          </div>
-                        )
-                      })}
+                        // Collect PII values from hidden fields
+                        const piiValuesToRedact: string[] = hidePII && hiddenPIIFields && hiddenPIIFields.length > 0
+                          ? hiddenPIIFields.flatMap(fieldName => {
+                              const val = currentApp.raw_data[fieldName]
+                              if (val && typeof val === 'string' && val.trim().length >= 2) {
+                                const parts = val.trim().split(/[\s,]+/).filter(p => p.length >= 2)
+                                return [val.trim(), ...parts]
+                              }
+                              return []
+                            }).filter((v, i, arr) => arr.indexOf(v) === i)
+                          : []
+                        
+                        return Object.entries(currentApp.raw_data).map(([key, value]) => {
+                          if (key.startsWith('_') || key === 'id') return null
+                          
+                          // Check if this field is hidden
+                          if (isFieldHidden(key)) {
+                            return (
+                              <div key={key} className="bg-white rounded-xl px-6 py-5 border border-gray-200 shadow-sm">
+                                <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">
+                                  {key.replace(/_/g, ' ')}
+                                </p>
+                                <div className="text-gray-800 text-[15px] leading-relaxed">
+                                  <span className="bg-gray-900 text-gray-900 rounded px-2 py-0.5 select-none cursor-help" title="Hidden for privacy">
+                                    ████████████████
+                                  </span>
+                                </div>
+                              </div>
+                            )
+                          }
+                          
+                          // Apply inline PII redaction if applicable
+                          const renderValue = () => {
+                            if (typeof value === 'string' && piiValuesToRedact.length > 0) {
+                              return <RedactedText text={value} piiValues={piiValuesToRedact} />
+                            }
+                            return renderFieldValue(key, value)
+                          }
+                          
+                          return (
+                            <div key={key} className="bg-white rounded-xl px-6 py-5 border border-gray-200 shadow-sm">
+                              <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">
+                                {key.replace(/_/g, ' ')}
+                              </p>
+                              <div className="text-gray-800 text-[15px] leading-relaxed">{renderValue()}</div>
+                            </div>
+                          )
+                        })
+                      })()}
                     </div>
                   )}
                   
@@ -2782,6 +3302,9 @@ function FocusReviewMode({
   hidePII,
   hiddenPIIFields,
   sectionComments,
+  isExternalMode,
+  reviewerInfo,
+  fieldVisibilityConfig,
   onScoreChange,
   onCommentsChange,
   onToggleTimer,
@@ -2814,6 +3337,9 @@ function FocusReviewMode({
   hidePII: boolean
   hiddenPIIFields: string[]
   sectionComments: Record<string, string>
+  isExternalMode?: boolean
+  reviewerInfo?: ReviewerInfo | null
+  fieldVisibilityConfig?: Record<string, boolean | 'visible' | 'hidden' | 'score_only'>
   onScoreChange: (cat: string, val: number) => void
   onCommentsChange: (c: string) => void
   onToggleTimer: () => void
@@ -2905,11 +3431,27 @@ function FocusReviewMode({
   }
   
   // PII redaction helper - checks field id, name, and label
+  // If hiddenPIIFields has entries, we treat it as implied PII hiding (even if hidePII is false)
   const isFieldRedacted = (field: { id: string; name: string; label?: string }): boolean => {
-    if (!hidePII || !hiddenPIIFields || hiddenPIIFields.length === 0) return false
+    // If hidePII is explicitly false AND hiddenPIIFields is empty, no redaction
+    // If hidePII is true OR hiddenPIIFields has entries, check if this field should be redacted
+    const shouldCheckPII = hidePII || (hiddenPIIFields && hiddenPIIFields.length > 0)
+    if (!shouldCheckPII) return false
+    if (!hiddenPIIFields || hiddenPIIFields.length === 0) return false
+    
     return hiddenPIIFields.includes(field.id) || 
            hiddenPIIFields.includes(field.name) || 
            (field.label ? hiddenPIIFields.includes(field.label) : false)
+  }
+  
+  // Helper to check if a field is visible based on per-reviewer-type visibility config
+  const isFieldVisible = (fieldId: string): boolean => {
+    if (!fieldVisibilityConfig) return true
+    const visibility = fieldVisibilityConfig[fieldId]
+    if (visibility === undefined) return true // Default to visible
+    if (visibility === 'hidden') return false
+    if (visibility === false) return false
+    return true // 'visible', 'score_only', or true
   }
   
   // PII redaction helper - creates visual black box effect
@@ -2920,32 +3462,49 @@ function FocusReviewMode({
   }
   
   // Collect PII values from hidden fields for inline redaction in all text
+  // Need to use form fields to map from field ID to actual data key
   const piiValuesToRedact: string[] = useMemo(() => {
     if (!hidePII || !hiddenPIIFields || hiddenPIIFields.length === 0) return []
+    if (!form?.fields) return []
+    
     const values: string[] = []
-    hiddenPIIFields.forEach(fieldName => {
-      const value = app.raw_data[fieldName]
-      if (value && typeof value === 'string' && value.trim().length >= 2) {
-        values.push(value.trim())
-        // Also split by common separators for names like "John Smith"
-        const parts = value.trim().split(/[\s,]+/)
-        parts.forEach(p => {
-          if (p.length >= 2) values.push(p)
-        })
+    form.fields.forEach(field => {
+      // Check if this field is in the hidden list (by id, name, or label)
+      if (hiddenPIIFields.includes(field.id) || 
+          hiddenPIIFields.includes(field.name) || 
+          (field.label && hiddenPIIFields.includes(field.label))) {
+        const value = app.raw_data[field.name] || app.raw_data[field.label || '']
+        if (value && typeof value === 'string' && value.trim().length >= 2) {
+          values.push(value.trim())
+          // Also split by common separators for names like "John Smith"
+          const parts = value.trim().split(/[\s,]+/)
+          parts.forEach(p => {
+            if (p.length >= 2) values.push(p)
+          })
+        }
       }
     })
     return [...new Set(values)]
-  }, [app.raw_data, hidePII, hiddenPIIFields])
+  }, [app.raw_data, hidePII, hiddenPIIFields, form?.fields])
   
-  // Get display title - uses Application # when PII mode is on
+  // Get display title - uses Application # when PII mode is on or title field is redacted
   const getDisplayTitle = (): string => {
+    // If PII mode is enabled
     if (hidePII) {
-      return `Application #${appIndex + 1}`
+      // Check if the title field is specifically in the hidden fields list
+      if (titleFieldName && hiddenPIIFields?.includes(titleFieldName)) {
+        return `Application #${appIndex + 1}`
+      }
+      // Also check the app.name which might contain PII
+      const nameField = form?.fields?.find(f => f.name === 'name' || f.label === 'Name')
+      if (nameField && (hiddenPIIFields?.includes(nameField.id) || hiddenPIIFields?.includes(nameField.name))) {
+        return `Application #${appIndex + 1}`
+      }
     }
     if (titleFieldName && app.raw_data[titleFieldName]) {
       return String(app.raw_data[titleFieldName])
     }
-    return app.name
+    return app.name || `Application #${appIndex + 1}`
   }
   
   // Render text with highlights
@@ -3093,10 +3652,27 @@ function FocusReviewMode({
       {/* Top Bar */}
       <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6">
         <div className="flex items-center gap-4">
-          <button onClick={onExit} className="text-gray-500 hover:text-gray-900 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-          <div className="h-6 w-px bg-gray-200" />
+          {/* Only show exit button for internal mode */}
+          {!isExternalMode && (
+            <>
+              <button onClick={onExit} className="text-gray-500 hover:text-gray-900 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+              <div className="h-6 w-px bg-gray-200" />
+            </>
+          )}
+          {/* Show reviewer name for external mode */}
+          {isExternalMode && reviewerInfo?.name && (
+            <>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                  <User className="w-4 h-4 text-blue-600" />
+                </div>
+                <span className="text-gray-900 font-medium text-sm">{reviewerInfo.name}</span>
+              </div>
+              <div className="h-6 w-px bg-gray-200" />
+            </>
+          )}
           <span className="text-gray-500 text-sm">
             Reviewing <span className="text-gray-900 font-medium">{appIndex + 1}</span> of <span className="text-gray-900">{totalApps}</span>
           </span>
@@ -3183,7 +3759,7 @@ function FocusReviewMode({
                     </div>
                   )}
                 </div>
-                <p className={cn("text-gray-500", hidePII && "blur-sm select-none")}>{hidePII ? '▓▓▓▓▓▓▓▓▓▓@▓▓▓▓▓.▓▓▓' : app.email}</p>
+                
               </div>
               {app.flagged && (
                 <Badge className="bg-red-100 text-red-700 border-red-200">
@@ -3233,16 +3809,32 @@ function FocusReviewMode({
                 {(() => {
                   const { sections, ungroupedFields } = groupFieldsBySections(form.fields, form.settings)
                   
+                  // Filter ungrouped fields based on role visibility
+                  const visibleUngroupedFields = ungroupedFields.filter(f => isFieldVisible(f.id))
+                  
+                  // Filter out fields that have data AND are all PII redacted
+                  const ungroupedFieldsWithData = visibleUngroupedFields.filter(f => {
+                    const val = app.raw_data[f.name] || app.raw_data[f.label]
+                    return val !== undefined && val !== null && val !== ''
+                  })
+                  const allUngroupedPIIRedacted = ungroupedFieldsWithData.length > 0 && 
+                    ungroupedFieldsWithData.every(f => isFieldRedacted(f))
+                  
+                  // Hide ungrouped section if all fields are PII redacted
+                  const showUngroupedSection = visibleUngroupedFields.length > 0 && !allUngroupedPIIRedacted
+                  
                   return (
                     <>
                       {/* Ungrouped fields first (if any) */}
-                      {ungroupedFields.length > 0 && (
+                      {showUngroupedSection && (
                         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                           <div className="p-4 space-y-4">
-                            {ungroupedFields.map(field => {
+                            {visibleUngroupedFields.map(field => {
                               const rawValue = app.raw_data[field.name] || app.raw_data[field.label]
                               if (rawValue === undefined || rawValue === null || rawValue === '') return null
-                              const value = redactValue(field, rawValue)
+                              
+                              // Check if field is redacted (PII) - show with redacted value
+                              const isPIIRedacted = isFieldRedacted(field)
                               
                               return (
                                 <div key={field.id} className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
@@ -3250,34 +3842,35 @@ function FocusReviewMode({
                                     <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">
                                       {field.label || field.name.replace(/_/g, ' ')}
                                     </span>
-                                    {isFieldRedacted(field) && (
+                                    {isPIIRedacted && (
                                       <Badge className="bg-gray-900 text-white border-gray-700 text-xs">
-                                        <EyeOff className="w-3 h-3 mr-1" />
-                                        Redacted
+                                        <Shield className="w-3 h-3 mr-1" />
+                                        Private
                                       </Badge>
                                     )}
-                                    {!isFieldRedacted(field) && textHighlights.some(h => h.fieldName === field.name) && (
+                                    {!isPIIRedacted && textHighlights.some(h => h.fieldName === field.name) && (
                                       <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs">
                                         <Sparkles className="w-3 h-3 mr-1" />
                                         {textHighlights.filter(h => h.fieldName === field.name).length}
                                       </Badge>
                                     )}
                                   </div>
-                                  {isFieldRedacted(field) ? (
-                                    <div className="bg-gray-900 text-gray-400 px-3 py-2 rounded-lg text-sm font-mono select-none">
-                                      ████████████████
-                                    </div>
-                                  ) : (
-                                    <div 
-                                      className="text-gray-800 text-sm leading-relaxed select-text cursor-text"
-                                      onMouseUp={() => handleTextSelection(field.name)}
-                                    >
-                                      {typeof value === 'string' 
-                                        ? renderHighlightedText(field.name, value)
-                                        : renderFieldValueWithPII(field.name, value)
-                                      }
-                                    </div>
-                                  )}
+                                  <div 
+                                    className={cn(
+                                      "text-sm leading-relaxed",
+                                      isPIIRedacted 
+                                        ? "text-gray-900 bg-gray-900 rounded px-1 select-none" 
+                                        : "text-gray-800 select-text cursor-text"
+                                    )}
+                                    onMouseUp={() => !isPIIRedacted && handleTextSelection(field.name)}
+                                  >
+                                    {isPIIRedacted 
+                                      ? '████████████████'
+                                      : (typeof rawValue === 'string' 
+                                          ? renderHighlightedText(field.name, rawValue)
+                                          : renderFieldValueWithPII(field.name, rawValue))
+                                    }
+                                  </div>
                                 </div>
                               )
                             })}
@@ -3293,7 +3886,19 @@ function FocusReviewMode({
                           return val !== undefined && val !== null && val !== ''
                         })
                         
-                        if (!hasData) return null
+                        // Check if all fields in section are hidden by role visibility config
+                        const allFieldsHiddenByRole = section.fields.every(f => !isFieldVisible(f.id))
+                        
+                        // Check if all fields with data in section are PII redacted - hide entire section
+                        const fieldsWithData = section.fields.filter(f => {
+                          const val = app.raw_data[f.name] || app.raw_data[f.label]
+                          return val !== undefined && val !== null && val !== ''
+                        })
+                        const allFieldsPIIRedacted = fieldsWithData.length > 0 && 
+                          fieldsWithData.every(f => isFieldRedacted(f))
+                        
+                        // Hide section if: no data, all fields hidden by role, OR all fields are PII redacted
+                        if (!hasData || allFieldsHiddenByRole || allFieldsPIIRedacted) return null
                         
                         return (
                           <div key={section.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -3333,9 +3938,15 @@ function FocusReviewMode({
                             {!isCollapsed && (
                               <div className="p-4 space-y-4">
                                 {section.fields.map(field => {
+                                  // Skip fields hidden by visibility config (role-based)
+                                  if (!isFieldVisible(field.id)) return null
+                                  
                                   const rawValue = app.raw_data[field.name] || app.raw_data[field.label]
                                   if (rawValue === undefined || rawValue === null || rawValue === '') return null
-                                  const value = redactValue(field, rawValue)
+                                  
+                                  // Check if field is redacted (PII) - show with redacted value
+                                  const isPIIRedacted = isFieldRedacted(field)
+                                  const displayValue = isPIIRedacted ? '████████████████' : rawValue
                                   
                                   return (
                                     <div key={field.id} className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
@@ -3343,34 +3954,35 @@ function FocusReviewMode({
                                         <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">
                                           {field.label || field.name.replace(/_/g, ' ')}
                                         </span>
-                                        {isFieldRedacted(field) && (
+                                        {isPIIRedacted && (
                                           <Badge className="bg-gray-900 text-white border-gray-700 text-xs">
-                                            <EyeOff className="w-3 h-3 mr-1" />
-                                            Redacted
+                                            <Shield className="w-3 h-3 mr-1" />
+                                            Private
                                           </Badge>
                                         )}
-                                        {!isFieldRedacted(field) && textHighlights.some(h => h.fieldName === field.name) && (
+                                        {!isPIIRedacted && textHighlights.some(h => h.fieldName === field.name) && (
                                           <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs">
                                             <Sparkles className="w-3 h-3 mr-1" />
                                             {textHighlights.filter(h => h.fieldName === field.name).length} note(s)
                                           </Badge>
                                         )}
                                       </div>
-                                      {isFieldRedacted(field) ? (
-                                        <div className="bg-gray-900 text-gray-400 px-3 py-2 rounded-lg text-sm font-mono select-none">
-                                          ████████████████
-                                        </div>
-                                      ) : (
-                                        <div 
-                                          className="text-gray-800 text-sm leading-relaxed select-text cursor-text"
-                                          onMouseUp={() => handleTextSelection(field.name)}
-                                        >
-                                          {typeof value === 'string' 
-                                            ? renderHighlightedText(field.name, value)
-                                            : renderFieldValueWithPII(field.name, value)
-                                          }
-                                        </div>
-                                      )}
+                                      <div 
+                                        className={cn(
+                                          "text-sm leading-relaxed",
+                                          isPIIRedacted 
+                                            ? "text-gray-900 bg-gray-900 rounded px-1 select-none" 
+                                            : "text-gray-800 select-text cursor-text"
+                                        )}
+                                        onMouseUp={() => !isPIIRedacted && handleTextSelection(field.name)}
+                                      >
+                                        {isPIIRedacted 
+                                          ? displayValue
+                                          : (typeof rawValue === 'string' 
+                                              ? renderHighlightedText(field.name, rawValue)
+                                              : renderFieldValueWithPII(field.name, rawValue))
+                                        }
+                                      </div>
                                     </div>
                                   )
                                 })}
@@ -3404,12 +4016,41 @@ function FocusReviewMode({
                   {Object.entries(app.raw_data).map(([key, value]) => {
                     if (key.startsWith('_') || key === 'id') return null
                     
+                    // Check if field is hidden by visibility config
+                    if (!isFieldVisible(key)) return null
+                    
+                    // Check if this field is hidden by PII settings
+                    const isHidden = hidePII && hiddenPIIFields && hiddenPIIFields.includes(key)
+                    
+                    // Render with PII handling
+                    const renderValue = () => {
+                      if (isHidden) {
+                        return (
+                          <span className="bg-gray-900 text-gray-900 rounded px-2 py-0.5 select-none cursor-help" title="Hidden for privacy">
+                            ████████████████
+                          </span>
+                        )
+                      }
+                      if (typeof value === 'string' && piiValuesToRedact.length > 0) {
+                        return <RedactedText text={value} piiValues={piiValuesToRedact} />
+                      }
+                      return renderFieldValue(key, value)
+                    }
+                    
                     return (
                       <div key={key} className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
-                        <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-1.5 block">
-                          {key.replace(/_/g, ' ')}
-                        </span>
-                        <div className="text-gray-800 text-sm leading-relaxed">{renderFieldValue(key, value)}</div>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">
+                            {key.replace(/_/g, ' ')}
+                          </span>
+                          {isHidden && (
+                            <Badge className="bg-gray-900 text-white border-gray-700 text-xs">
+                              <EyeOff className="w-3 h-3 mr-1" />
+                              Redacted
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-gray-800 text-sm leading-relaxed">{renderValue()}</div>
                       </div>
                     )
                   })}
@@ -3484,11 +4125,14 @@ function FocusReviewMode({
                   </div>
                   <h3 className="font-semibold text-gray-900 mb-2">No Rubric Configured</h3>
                   <p className="text-sm text-gray-500 mb-6 max-w-xs mx-auto">
-                    Add a scoring rubric to this stage to enable structured evaluation
+                    {isExternalMode 
+                      ? "A scoring rubric has not been set up for this review stage."
+                      : "Add a scoring rubric to this stage to enable structured evaluation"
+                    }
                   </p>
                   
-                  {/* Rubric selection dropdown or creation */}
-                  {availableRubrics.length > 0 ? (
+                  {/* Rubric selection dropdown or creation - only for internal users */}
+                  {!isExternalMode && availableRubrics.length > 0 ? (
                     <div className="space-y-3">
                       {!showRubricSelector ? (
                         <Button 
@@ -3536,7 +4180,7 @@ function FocusReviewMode({
                         Or configure rubrics in Workflow Settings
                       </p>
                     </div>
-                  ) : (
+                  ) : !isExternalMode ? (
                     <div className="space-y-3">
                       <p className="text-sm text-gray-500">
                         No rubrics available. Create one in Workflow Settings.
@@ -3546,7 +4190,7 @@ function FocusReviewMode({
                         Configure Rubrics
                       </Button>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </div>
             )}
@@ -3599,9 +4243,14 @@ function FocusReviewMode({
               
               {/* Custom Status Dropdown - uses stage.custom_statuses if available */}
               {(() => {
-                const customStatuses = stage.custom_statuses && Array.isArray(stage.custom_statuses) && stage.custom_statuses.length > 0
-                  ? stage.custom_statuses
-                  : ['Approved', 'Rejected', 'Pending'] // Default statuses
+                // Normalize custom_statuses to string array (can be string[] or StatusOption[])
+                const normalizeStatuses = (statuses: any): string[] => {
+                  if (!statuses || !Array.isArray(statuses) || statuses.length === 0) {
+                    return ['Approved', 'Rejected', 'Pending']
+                  }
+                  return statuses.map((s: any) => typeof s === 'string' ? s : s.name)
+                }
+                const customStatuses = normalizeStatuses(stage.custom_statuses)
                 
                 const getStatusColor = (status: string) => {
                   const lower = status.toLowerCase()

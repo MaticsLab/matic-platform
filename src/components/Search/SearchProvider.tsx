@@ -123,6 +123,12 @@ export function useSearch() {
   return context
 }
 
+// Safe version of useSearch that returns null when outside provider
+export function useSearchSafe() {
+  const context = useContext(SearchContext)
+  return context ?? null
+}
+
 // Hook to register hub context
 export function useHubSearch(context: HubSearchContext) {
   const { setHubContext } = useSearch()

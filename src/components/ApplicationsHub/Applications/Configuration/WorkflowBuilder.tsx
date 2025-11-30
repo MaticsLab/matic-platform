@@ -5,12 +5,12 @@ import {
   Plus, Trash2, Save, ChevronRight, Users, FileText, Layers, Edit2, X, 
   GripVertical, Check, Loader2, Sparkles, Settings, Award, 
   Link2, Zap, Target, ClipboardList, ChevronDown, CheckCircle, Search,
-  Shield, EyeOff, Folder, Archive, XCircle, Clock, FolderOpen, ArchiveX
+  Shield, EyeOff, Folder, Archive, XCircle, Clock, FolderOpen, ArchiveX, Tag
 } from 'lucide-react'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { cn } from '@/lib/utils'
-import { workflowsClient, ReviewWorkflow, ApplicationStage, ReviewerType, Rubric, StageReviewerConfig, ApplicationGroup, WorkflowAction } from '@/lib/api/workflows-client'
+import { workflowsClient, ReviewWorkflow, ApplicationStage, ReviewerType, Rubric, StageReviewerConfig, ApplicationGroup, WorkflowAction, StageGroup, StatusOption, CustomStatus, StatusActionConfig } from '@/lib/api/workflows-client'
 
 // Stage color palette - semantic colors for workflow stages
 const STAGE_COLORS = {
@@ -58,7 +58,7 @@ interface WorkflowBuilderProps {
   formId?: string | null
 }
 
-type ActivePanel = 'none' | 'workflow' | 'stage' | 'reviewer' | 'rubric' | 'stage-config' | 'stage-settings' | 'group' | 'workflow-action' | 'stage-action'
+type ActivePanel = 'none' | 'workflow' | 'stage' | 'reviewer' | 'rubric' | 'stage-config' | 'stage-settings' | 'group' | 'stage-group' | 'workflow-action' | 'stage-action'
 
 interface PanelState {
   type: ActivePanel
@@ -76,7 +76,8 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
   const [reviewerTypes, setReviewerTypes] = useState<ReviewerType[]>([])
   const [rubrics, setRubrics] = useState<Rubric[]>([])
   const [stageConfigs, setStageConfigs] = useState<StageReviewerConfig[]>([])
-  const [groups, setGroups] = useState<ApplicationGroup[]>([])
+  const [groups, setGroups] = useState<ApplicationGroup[]>([]) // Application Groups - global
+  const [stageGroups, setStageGroups] = useState<StageGroup[]>([]) // Stage Groups - per stage
   const [workflowActions, setWorkflowActions] = useState<WorkflowAction[]>([])
   
   // Form sections for field visibility config
@@ -194,12 +195,13 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
     if (!selectedWorkflow) return
     setIsLoading(true)
     try {
-      const [stagesData, typesData, rubricsData, groupsData, actionsData] = await Promise.all([
+      const [stagesData, typesData, rubricsData, groupsData, actionsData, stageGroupsData] = await Promise.all([
         workflowsClient.listStages(workspaceId, selectedWorkflow.id),
         workflowsClient.listReviewerTypes(workspaceId),
         workflowsClient.listRubrics(workspaceId),
         workflowsClient.listGroups(selectedWorkflow.id),
-        workflowsClient.listWorkflowActions(selectedWorkflow.id)
+        workflowsClient.listWorkflowActions(selectedWorkflow.id),
+        workflowsClient.listStageGroups(undefined, workspaceId) // Get all stage groups for workspace
       ])
       
       setStages(stagesData)
@@ -207,6 +209,7 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
       setRubrics(rubricsData)
       setGroups(groupsData)
       setWorkflowActions(actionsData)
+      setStageGroups(stageGroupsData)
 
       // Fetch stage configs if we have a selected stage
       if (selectedStageId) {
@@ -1055,23 +1058,35 @@ function SidePanel({
     rubric: panel.mode === 'create' ? 'New Rubric' : 'Edit Rubric',
     'stage-config': 'Configure Stage Reviewers',
     'stage-settings': 'Stage Settings',
+    'stage-group': panel.mode === 'create' ? 'New Stage Group' : 'Edit Stage Group',
     'group': panel.mode === 'create' ? 'New Application Group' : 'Edit Application Group',
     'workflow-action': panel.mode === 'create' ? 'New Workflow Action' : 'Edit Workflow Action',
     'stage-action': panel.mode === 'create' ? 'New Stage Action' : 'Edit Stage Action'
   }
 
+  // Use wider panel for stage settings
+  const isWidePanel = panel.type === 'stage-settings'
+
   return (
-    <div className="fixed right-2 top-2 bottom-2 w-[560px] bg-white border border-gray-200 rounded-xl shadow-xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
-      {/* Panel Header */}
-      <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-        <h2 className="text-lg font-semibold text-gray-900">{titles[panel.type]}</h2>
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <X className="w-5 h-5" />
-        </Button>
-      </div>
+    <div className={cn(
+      "fixed right-2 top-2 bottom-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 flex flex-col animate-in slide-in-from-right duration-300",
+      isWidePanel ? "w-[780px]" : "w-[560px]"
+    )}>
+      {/* Panel Header - Hide for stage-settings since it has its own */}
+      {!isWidePanel && (
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+          <h2 className="text-lg font-semibold text-gray-900">{titles[panel.type]}</h2>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
+      )}
 
       {/* Panel Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className={cn(
+        "flex-1 overflow-hidden",
+        isWidePanel ? "" : "overflow-y-auto p-6"
+      )}>
         {panel.type === 'workflow' && (
           <WorkflowForm
             initial={panel.mode === 'edit' ? panel.data : undefined}
@@ -1164,7 +1179,7 @@ function SidePanel({
   )
 }
 
-// Combined Stage Settings Component with Tabs
+// Combined Stage Settings Component with Clean Design
 function CombinedStageSettings({
   stage,
   workspaceId,
@@ -1186,91 +1201,133 @@ function CombinedStageSettings({
   onSave: () => void
   onCancel: () => void
 }) {
-  const [activeTab, setActiveTab] = useState<'general' | 'reviewers' | 'automation' | 'privacy'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'reviewers' | 'actions' | 'automation' | 'groups' | 'privacy'>('general')
   
   // Get stage color
   const stageColorKey: StageColorKey = ((stage as any).color as StageColorKey) || getDefaultStageColor(stage.order_index || 0)
   const stageColor = STAGE_COLORS[stageColorKey]
 
   const tabs = [
-    { id: 'general' as const, label: 'General', icon: FileText },
-    { id: 'reviewers' as const, label: 'Reviewers', icon: Users },
-    { id: 'automation' as const, label: 'Automation', icon: Zap },
-    { id: 'privacy' as const, label: 'Privacy', icon: Shield },
+    { id: 'general' as const, label: 'General', icon: FileText, description: 'Basic stage settings' },
+    { id: 'reviewers' as const, label: 'Reviewers', icon: Users, description: 'Who reviews applications' },
+    { id: 'actions' as const, label: 'Actions', icon: Sparkles, description: 'Status action buttons' },
+    { id: 'automation' as const, label: 'Automation', icon: Zap, description: 'Rules & triggers' },
+    { id: 'groups' as const, label: 'Groups', icon: Folder, description: 'Organize applications' },
+    { id: 'privacy' as const, label: 'Privacy', icon: Shield, description: 'Hide sensitive fields' },
   ]
 
   return (
-    <div className="flex flex-col h-full -m-6">
-      {/* Stage Header */}
-      <div className={cn("px-6 py-4 border-b", stageColor.bgLight, stageColor.border)}>
-        <div className="flex items-center gap-3">
-          <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold", stageColor.bg)}>
-            {(stage.order_index || 0) + 1}
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900">{stage.name}</h3>
-            <p className="text-sm text-gray-500">{stage.stage_type} stage</p>
+    <div className="flex h-full bg-white">
+      {/* Left Sidebar with Tabs */}
+      <div className="w-56 flex-shrink-0 border-r bg-gray-50 flex flex-col">
+        {/* Header */}
+        <div className="p-4 border-b bg-white">
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              "w-10 h-10 rounded-lg flex items-center justify-center text-white font-semibold shadow-sm",
+              stageColor.bg
+            )}>
+              {(stage.order_index || 0) + 1}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-sm font-semibold text-gray-900 truncate">{stage.name}</h2>
+              <p className="text-xs text-gray-500">Stage {(stage.order_index || 0) + 1} of {stageCount}</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="px-4 border-b border-gray-200 bg-gray-50">
-        <div className="flex gap-1">
+        {/* Navigation */}
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-[1px] transition-colors",
+                "w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left transition-all",
                 activeTab === tab.id
-                  ? `${stageColor.text} border-current`
-                  : "text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300"
+                  ? cn("bg-white shadow-sm border", stageColor.text)
+                  : "text-gray-600 hover:bg-white/60 hover:text-gray-900"
               )}
             >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
+              <tab.icon className={cn(
+                "w-4 h-4 mt-0.5 flex-shrink-0",
+                activeTab === tab.id ? stageColor.text : "text-gray-400"
+              )} />
+              <div className="min-w-0">
+                <div className="text-sm font-medium">{tab.label}</div>
+                <div className="text-xs text-gray-400 truncate">{tab.description}</div>
+              </div>
             </button>
           ))}
+        </nav>
+
+        {/* Close button at bottom */}
+        <div className="p-3 border-t">
+          <button
+            onClick={onCancel}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg transition-colors"
+          >
+            <X className="w-4 h-4" />
+            Close
+          </button>
         </div>
       </div>
 
-      {/* Tab Content */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {activeTab === 'general' && (
-          <GeneralStageSettings
-            stage={stage}
-            workspaceId={workspaceId}
-            workflowId={workflowId}
-            stageCount={stageCount}
-            onSave={onSave}
-            onCancel={onCancel}
-          />
-        )}
-        {activeTab === 'reviewers' && (
-          <ReviewerStageSettings
-            stage={stage}
-            reviewerTypes={reviewerTypes}
-            rubrics={rubrics}
-            formSections={formSections}
-            onSave={onSave}
-          />
-        )}
-        {activeTab === 'automation' && (
-          <AutomationStageSettings
-            stage={stage}
-            formSections={formSections}
-            reviewerTypes={reviewerTypes}
-            onSave={onSave}
-          />
-        )}
-        {activeTab === 'privacy' && (
-          <PrivacyStageSettings
-            stage={stage}
-            formSections={formSections}
-            onSave={onSave}
-          />
-        )}
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-6 min-h-full">
+          {activeTab === 'general' && (
+            <GeneralStageSettings
+              stage={stage}
+              workspaceId={workspaceId}
+              workflowId={workflowId}
+              stageCount={stageCount}
+              onSave={onSave}
+              onCancel={onCancel}
+            />
+          )}
+          {activeTab === 'reviewers' && (
+            <ReviewerStageSettings
+              stage={stage}
+              reviewerTypes={reviewerTypes}
+              rubrics={rubrics}
+              formSections={formSections}
+              onSave={onSave}
+            />
+          )}
+          {activeTab === 'actions' && (
+            <StatusActionsSettings
+              stage={stage}
+              workspaceId={workspaceId}
+              workflowId={workflowId}
+              onSave={onSave}
+            />
+          )}
+          {activeTab === 'automation' && (
+            <AdvancedAutomationSettings
+              stage={stage}
+              workspaceId={workspaceId}
+              workflowId={workflowId}
+              formSections={formSections}
+              reviewerTypes={reviewerTypes}
+              onSave={onSave}
+            />
+          )}
+          {activeTab === 'groups' && (
+            <StageGroupsSettings
+              stage={stage}
+              workspaceId={workspaceId}
+              onSave={onSave}
+            />
+          )}
+          {activeTab === 'privacy' && (
+            <PrivacyStageSettings
+              stage={stage}
+              formSections={formSections}
+              onSave={onSave}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
@@ -1431,7 +1488,12 @@ function StageForm({
   const [startDate, setStartDate] = useState(initial?.start_date?.split('T')[0] || '')
   const [endDate, setEndDate] = useState(initial?.end_date?.split('T')[0] || '')
   const [relativeDeadline, setRelativeDeadline] = useState(initial?.relative_deadline || '')
-  const [customStatuses, setCustomStatuses] = useState<string[]>(initial?.custom_statuses || ['Pending', 'In Progress', 'Complete'])
+  // Normalize custom_statuses to string array (it can be string[] or StatusOption[])
+  const normalizeStatuses = (statuses: any): string[] => {
+    if (!statuses) return ['Pending', 'In Progress', 'Complete']
+    return statuses.map((s: any) => typeof s === 'string' ? s : s.name)
+  }
+  const [customStatuses, setCustomStatuses] = useState<string[]>(normalizeStatuses(initial?.custom_statuses))
   const [customTags, setCustomTags] = useState<string[]>(initial?.custom_tags || [])
   const [newStatus, setNewStatus] = useState('')
   const [newTag, setNewTag] = useState('')
@@ -2351,7 +2413,12 @@ function GeneralStageSettings({
   const [startDate, setStartDate] = useState(stage.start_date?.split('T')[0] || '')
   const [endDate, setEndDate] = useState(stage.end_date?.split('T')[0] || '')
   const [relativeDeadline, setRelativeDeadline] = useState(stage.relative_deadline || '')
-  const [customStatuses, setCustomStatuses] = useState<string[]>(stage.custom_statuses || ['Pending', 'In Progress', 'Complete'])
+  // Normalize custom_statuses to string array (it can be string[] or StatusOption[])
+  const normalizeStatusesLocal = (statuses: any): string[] => {
+    if (!statuses) return ['Pending', 'In Progress', 'Complete']
+    return statuses.map((s: any) => typeof s === 'string' ? s : s.name)
+  }
+  const [customStatuses, setCustomStatuses] = useState<string[]>(normalizeStatusesLocal(stage.custom_statuses))
   const [customTags, setCustomTags] = useState<string[]>(stage.custom_tags || [])
   const [newStatus, setNewStatus] = useState('')
   const [newTag, setNewTag] = useState('')
@@ -2409,49 +2476,92 @@ function GeneralStageSettings({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="space-y-2">
-        <Label htmlFor="stage-name">Stage Name *</Label>
-        <Input
-          id="stage-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g., Initial Review, Committee Review"
-          required
-        />
-      </div>
+      {/* Basic Info Card */}
+      <div className="p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-200">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-gradient-to-br from-gray-600 to-gray-800 rounded-xl flex items-center justify-center">
+            <FileText className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900">Basic Information</h4>
+            <p className="text-xs text-gray-500">Name, type, and description</p>
+          </div>
+        </div>
+        
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="stage-name" className="text-sm font-medium">Stage Name *</Label>
+            <Input
+              id="stage-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., Initial Review, Committee Review"
+              className="border-2 focus:border-blue-400"
+              required
+            />
+          </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="stage-type">Stage Type</Label>
-        <Select value={stageType} onValueChange={setStageType}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="review">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-blue-500" />
-                <span>Review Stage</span>
-              </div>
-            </SelectItem>
-            <SelectItem value="processing">
-              <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-green-500" />
-                <span>Processing Stage</span>
-              </div>
-            </SelectItem>
-            <SelectItem value="decision">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-purple-500" />
-                <span>Decision Stage</span>
-              </div>
-            </SelectItem>
-          </SelectContent>
-        </Select>
+          <div className="space-y-2">
+            <Label htmlFor="stage-type" className="text-sm font-medium">Stage Type</Label>
+            <Select value={stageType} onValueChange={setStageType}>
+              <SelectTrigger className="border-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="review">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Users className="w-3.5 h-3.5 text-blue-600" />
+                    </div>
+                    <span>Review Stage</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="processing">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 bg-green-100 rounded-lg flex items-center justify-center">
+                      <Zap className="w-3.5 h-3.5 text-green-600" />
+                    </div>
+                    <span>Processing Stage</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="decision">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <CheckCircle className="w-3.5 h-3.5 text-purple-600" />
+                    </div>
+                    <span>Decision Stage</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="stage-desc" className="text-sm font-medium">Description</Label>
+            <Textarea
+              id="stage-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What happens in this stage?"
+              rows={2}
+              className="border-2 focus:border-blue-400"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Stage Color Picker */}
-      <div className="space-y-2">
-        <Label>Stage Color</Label>
+      <div className="p-4 bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl border border-purple-200">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900">Stage Color</h4>
+            <p className="text-xs text-gray-500">Visual identifier in the workflow</p>
+          </div>
+        </div>
+        
         <div className="flex flex-wrap gap-2">
           {(Object.entries(STAGE_COLORS) as [StageColorKey, typeof STAGE_COLORS[StageColorKey]][]).map(([key, color]) => (
             <button
@@ -2459,122 +2569,153 @@ function GeneralStageSettings({
               type="button"
               onClick={() => setStageColor(key)}
               className={cn(
-                "w-8 h-8 rounded-lg transition-all flex items-center justify-center",
+                "w-10 h-10 rounded-xl transition-all flex items-center justify-center",
                 color.bg,
-                stageColor === key ? "ring-2 ring-offset-2 ring-gray-900 scale-110" : "hover:scale-105"
+                stageColor === key 
+                  ? "ring-2 ring-offset-2 ring-gray-900 scale-110" 
+                  : "hover:scale-105 opacity-70 hover:opacity-100"
               )}
               title={color.label}
             >
-              {stageColor === key && <Check className="w-4 h-4 text-white" />}
+              {stageColor === key && <Check className="w-5 h-5 text-white" />}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="stage-desc">Description</Label>
-        <Textarea
-          id="stage-desc"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="What happens in this stage?"
-          rows={2}
-        />
-      </div>
-
       {/* Timeline Section */}
-      <div className="space-y-3">
-        <Label className="text-sm font-medium">Timeline</Label>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="start-date" className="text-xs text-gray-500">Start Date</Label>
-            <Input
-              id="start-date"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
+      <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
+            <Clock className="w-5 h-5 text-white" />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="end-date" className="text-xs text-gray-500">End Date</Label>
-            <Input
-              id="end-date"
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
+          <div>
+            <h4 className="font-semibold text-gray-900">Timeline</h4>
+            <p className="text-xs text-gray-500">Set deadlines for this stage</p>
           </div>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="relative-deadline" className="text-xs text-gray-500">Or Relative Deadline</Label>
-          <Select value={relativeDeadline} onValueChange={setRelativeDeadline}>
-            <SelectTrigger>
-              <SelectValue placeholder="No relative deadline" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No relative deadline</SelectItem>
-              <SelectItem value="3d">3 days after assignment</SelectItem>
-              <SelectItem value="1w">1 week after assignment</SelectItem>
-              <SelectItem value="2w">2 weeks after assignment</SelectItem>
-              <SelectItem value="1m">1 month after assignment</SelectItem>
-            </SelectContent>
-          </Select>
+        
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="start-date" className="text-xs font-medium text-gray-600">Start Date</Label>
+              <Input
+                id="start-date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="border-2 focus:border-amber-400"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="end-date" className="text-xs font-medium text-gray-600">End Date</Label>
+              <Input
+                id="end-date"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="border-2 focus:border-amber-400"
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="relative-deadline" className="text-xs font-medium text-gray-600">Or Relative Deadline</Label>
+            <Select value={relativeDeadline} onValueChange={setRelativeDeadline}>
+              <SelectTrigger className="border-2">
+                <SelectValue placeholder="No relative deadline" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No relative deadline</SelectItem>
+                <SelectItem value="3d">3 days after assignment</SelectItem>
+                <SelectItem value="1w">1 week after assignment</SelectItem>
+                <SelectItem value="2w">2 weeks after assignment</SelectItem>
+                <SelectItem value="1m">1 month after assignment</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
       {/* Custom Statuses */}
-      <div className="space-y-2">
-        <Label className="text-sm">Custom Statuses</Label>
-        <div className="flex flex-wrap gap-2 mb-2">
+      <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-200">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center">
+            <CheckCircle className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900">Custom Statuses</h4>
+            <p className="text-xs text-gray-500">Define status options for this stage</p>
+          </div>
+        </div>
+        
+        <div className="flex flex-wrap gap-2 mb-3">
           {customStatuses.map(status => (
-            <span key={status} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-md text-sm">
+            <span key={status} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium shadow-sm">
               {status}
-              <button type="button" onClick={() => removeStatus(status)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-3 h-3" />
+              <button type="button" onClick={() => removeStatus(status)} className="text-gray-400 hover:text-red-500 transition-colors">
+                <X className="w-3.5 h-3.5" />
               </button>
             </span>
           ))}
+          {customStatuses.length === 0 && (
+            <span className="text-sm text-gray-400 italic">No custom statuses</span>
+          )}
         </div>
         <div className="flex gap-2">
           <Input
             value={newStatus}
             onChange={(e) => setNewStatus(e.target.value)}
             placeholder="Add status..."
+            className="border-2 focus:border-emerald-400"
             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addStatus())}
           />
-          <Button type="button" variant="outline" size="icon" onClick={addStatus}>
+          <Button type="button" variant="outline" size="icon" onClick={addStatus} className="border-2 hover:border-emerald-400 hover:bg-emerald-50">
             <Plus className="w-4 h-4" />
           </Button>
         </div>
       </div>
 
       {/* Custom Tags */}
-      <div className="space-y-2">
-        <Label className="text-sm">Custom Tags</Label>
-        <div className="flex flex-wrap gap-2 mb-2">
+      <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+            <Tag className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900">Custom Tags</h4>
+            <p className="text-xs text-gray-500">Tags for categorizing applications</p>
+          </div>
+        </div>
+        
+        <div className="flex flex-wrap gap-2 mb-3">
           {customTags.map(tag => (
-            <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm">
+            <span key={tag} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium">
+              <Tag className="w-3 h-3" />
               {tag}
-              <button type="button" onClick={() => removeTag(tag)} className="text-blue-400 hover:text-blue-600">
-                <X className="w-3 h-3" />
+              <button type="button" onClick={() => removeTag(tag)} className="text-blue-400 hover:text-blue-600 transition-colors">
+                <X className="w-3.5 h-3.5" />
               </button>
             </span>
           ))}
+          {customTags.length === 0 && (
+            <span className="text-sm text-gray-400 italic">No custom tags</span>
+          )}
         </div>
         <div className="flex gap-2">
           <Input
             value={newTag}
             onChange={(e) => setNewTag(e.target.value)}
             placeholder="Add tag..."
+            className="border-2 focus:border-blue-400"
             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
           />
-          <Button type="button" variant="outline" size="icon" onClick={addTag}>
+          <Button type="button" variant="outline" size="icon" onClick={addTag} className="border-2 hover:border-blue-400 hover:bg-blue-50">
             <Plus className="w-4 h-4" />
           </Button>
         </div>
       </div>
 
-      <Button type="submit" disabled={!name.trim() || isSaving} className="w-full">
+      <Button type="submit" disabled={!name.trim() || isSaving} size="lg" className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/25">
         {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
         Save General Settings
       </Button>
@@ -2904,6 +3045,678 @@ interface LogicCondition {
   value: string
 }
 
+// Automation Rule Types
+interface AutomationRule {
+  id: string
+  name: string
+  description?: string
+  trigger: {
+    type: 'field_change' | 'score_threshold' | 'review_complete' | 'time_elapsed' | 'manual_status' | 'all_reviews_done' | 'tag_applied'
+    config: Record<string, any>
+  }
+  conditions: AutomationCondition[]
+  conditionLogic: 'AND' | 'OR'
+  actions: StatusActionConfig[]
+  isActive: boolean
+  priority: number
+}
+
+interface AutomationCondition {
+  id: string
+  field: string
+  operator: string
+  value: string
+}
+
+// Advanced Automation Settings - Full control over workflows
+function AdvancedAutomationSettings({
+  stage,
+  workspaceId,
+  workflowId,
+  formSections,
+  reviewerTypes,
+  onSave
+}: {
+  stage: ApplicationStage
+  workspaceId: string
+  workflowId: string
+  formSections: FormSection[]
+  reviewerTypes: ReviewerType[]
+  onSave: () => void
+}) {
+  const [rules, setRules] = useState<AutomationRule[]>([])
+  const [stages, setStages] = useState<ApplicationStage[]>([])
+  const [stageGroups, setStageGroups] = useState<StageGroup[]>([])
+  const [applicationGroups, setApplicationGroups] = useState<ApplicationGroup[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [editingRule, setEditingRule] = useState<AutomationRule | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Rule form state
+  const [ruleName, setRuleName] = useState('')
+  const [ruleDescription, setRuleDescription] = useState('')
+  const [triggerType, setTriggerType] = useState<AutomationRule['trigger']['type']>('score_threshold')
+  const [triggerConfig, setTriggerConfig] = useState<Record<string, any>>({})
+  const [conditions, setConditions] = useState<AutomationCondition[]>([])
+  const [conditionLogic, setConditionLogic] = useState<'AND' | 'OR'>('AND')
+  const [actions, setActions] = useState<StatusActionConfig[]>([])
+  const [isActive, setIsActive] = useState(true)
+
+  useEffect(() => {
+    loadData()
+  }, [stage.id])
+
+  const loadData = async () => {
+    setIsLoading(true)
+    try {
+      const [stageData, groupData, appGroupData] = await Promise.all([
+        workflowsClient.listStages(workflowId),
+        workflowsClient.listStageGroups(stage.id),
+        workflowsClient.listGroups(workflowId)
+      ])
+      setStages(stageData)
+      setStageGroups(groupData)
+      setApplicationGroups(appGroupData)
+      
+      // Parse existing rules from stage.logic_rules
+      if (stage.logic_rules) {
+        const parsedRules: AutomationRule[] = []
+        if (stage.logic_rules.auto_advance_condition) {
+          try {
+            const advanceData = JSON.parse(stage.logic_rules.auto_advance_condition)
+            if (Array.isArray(advanceData)) {
+              advanceData.forEach((rule: any, idx: number) => {
+                parsedRules.push({
+                  id: `advance-${idx}`,
+                  name: `Auto-Advance Rule ${idx + 1}`,
+                  trigger: { type: 'score_threshold', config: {} },
+                  conditions: rule.conditions || [],
+                  conditionLogic: rule.conditionLogic || 'AND',
+                  actions: [{ action_type: 'move_to_stage', target_stage_id: '' }],
+                  isActive: true,
+                  priority: idx
+                })
+              })
+            }
+          } catch {}
+        }
+        setRules(parsedRules)
+      }
+    } catch (error) {
+      console.error('Failed to load data:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const triggerTypes = [
+    { value: 'score_threshold', label: 'Score Threshold', icon: Award, description: 'When average score reaches a value' },
+    { value: 'all_reviews_done', label: 'All Reviews Complete', icon: CheckCircle, description: 'When all assigned reviewers finish' },
+    { value: 'review_complete', label: 'Any Review Complete', icon: Check, description: 'When any reviewer submits' },
+    { value: 'manual_status', label: 'Status Change', icon: Target, description: 'When status is manually set' },
+    { value: 'field_change', label: 'Field Value', icon: FileText, description: 'When a field matches a value' },
+    { value: 'tag_applied', label: 'Tag Applied', icon: Tag, description: 'When a specific tag is added' },
+    { value: 'time_elapsed', label: 'Time Elapsed', icon: Clock, description: 'After X days in this stage' },
+  ]
+
+  const actionTypes = [
+    { value: 'move_to_stage', label: 'Move to Stage', icon: ChevronRight, color: 'green' },
+    { value: 'move_to_group', label: 'Move to Group', icon: Archive, color: 'purple' },
+    { value: 'move_to_stage_group', label: 'Move to Stage Group', icon: Folder, color: 'blue' },
+    { value: 'add_tags', label: 'Add Tags', icon: Tag, color: 'amber' },
+    { value: 'remove_tags', label: 'Remove Tags', icon: X, color: 'gray' },
+    { value: 'send_email', label: 'Send Email', icon: FileText, color: 'indigo' },
+  ]
+
+  const operatorOptions = [
+    { value: '>=', label: 'is at least' },
+    { value: '<=', label: 'is at most' },
+    { value: '==', label: 'equals' },
+    { value: '!=', label: 'does not equal' },
+    { value: '>', label: 'is greater than' },
+    { value: '<', label: 'is less than' },
+    { value: 'contains', label: 'contains' },
+    { value: 'not_contains', label: 'does not contain' },
+  ]
+
+  const fieldOptions = [
+    { value: 'average_score', label: 'Average Score', type: 'number' },
+    { value: 'total_score', label: 'Total Score', type: 'number' },
+    { value: 'review_count', label: 'Review Count', type: 'number' },
+    { value: 'status', label: 'Current Status', type: 'select' },
+    { value: 'days_in_stage', label: 'Days in Stage', type: 'number' },
+    ...formSections.flatMap(section => 
+      section.fields.map(field => ({
+        value: `field.${field.id}`,
+        label: field.label,
+        type: 'text'
+      }))
+    )
+  ]
+
+  const startCreate = () => {
+    setEditingRule(null)
+    setRuleName('')
+    setRuleDescription('')
+    setTriggerType('score_threshold')
+    setTriggerConfig({})
+    setConditions([])
+    setConditionLogic('AND')
+    setActions([])
+    setIsActive(true)
+    setIsCreating(true)
+  }
+
+  const startEdit = (rule: AutomationRule) => {
+    setEditingRule(rule)
+    setRuleName(rule.name)
+    setRuleDescription(rule.description || '')
+    setTriggerType(rule.trigger.type)
+    setTriggerConfig(rule.trigger.config)
+    setConditions(rule.conditions)
+    setConditionLogic(rule.conditionLogic)
+    setActions(rule.actions)
+    setIsActive(rule.isActive)
+    setIsCreating(false)
+  }
+
+  const cancelEdit = () => {
+    setEditingRule(null)
+    setIsCreating(false)
+  }
+
+  const addCondition = () => {
+    setConditions([...conditions, {
+      id: String(Date.now()),
+      field: 'average_score',
+      operator: '>=',
+      value: ''
+    }])
+  }
+
+  const updateCondition = (id: string, updates: Partial<AutomationCondition>) => {
+    setConditions(conditions.map(c => c.id === id ? { ...c, ...updates } : c))
+  }
+
+  const removeCondition = (id: string) => {
+    setConditions(conditions.filter(c => c.id !== id))
+  }
+
+  const addAction = (actionType: string) => {
+    setActions([...actions, { action_type: actionType as any }])
+  }
+
+  const updateAction = (index: number, updates: Partial<StatusActionConfig>) => {
+    const updated = [...actions]
+    updated[index] = { ...updated[index], ...updates }
+    setActions(updated)
+  }
+
+  const removeAction = (index: number) => {
+    setActions(actions.filter((_, i) => i !== index))
+  }
+
+  const handleSave = async () => {
+    if (!ruleName.trim() || actions.length === 0) return
+    setIsSaving(true)
+    try {
+      const newRule: AutomationRule = {
+        id: editingRule?.id || String(Date.now()),
+        name: ruleName,
+        description: ruleDescription,
+        trigger: { type: triggerType, config: triggerConfig },
+        conditions,
+        conditionLogic,
+        actions,
+        isActive,
+        priority: editingRule?.priority || rules.length
+      }
+
+      const updatedRules = editingRule
+        ? rules.map(r => r.id === editingRule.id ? newRule : r)
+        : [...rules, newRule]
+      
+      // Save to stage.logic_rules
+      const logicRules = {
+        auto_advance_condition: JSON.stringify(updatedRules.filter(r => r.isActive).map(r => ({
+          conditions: r.conditions,
+          conditionLogic: r.conditionLogic,
+          action: r.actions[0]?.action_type || 'move_to_next',
+          trigger: r.trigger
+        })))
+      }
+      
+      await workflowsClient.updateStage(stage.id, { logic_rules: logicRules })
+      setRules(updatedRules)
+      showToast('Automation rule saved', 'success')
+      cancelEdit()
+      onSave()
+    } catch (error: any) {
+      console.error('Failed to save rule:', error)
+      showToast(error.message || 'Failed to save', 'error')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDelete = (ruleId: string) => {
+    if (!confirm('Delete this automation rule?')) return
+    const updatedRules = rules.filter(r => r.id !== ruleId)
+    setRules(updatedRules)
+  }
+
+  const toggleRule = async (ruleId: string) => {
+    const updatedRules = rules.map(r => 
+      r.id === ruleId ? { ...r, isActive: !r.isActive } : r
+    )
+    setRules(updatedRules)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Compact Stats Row */}
+      <div className="flex items-center gap-6 text-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-green-500"></div>
+          <span className="text-gray-600"><span className="font-semibold text-gray-900">{rules.filter(r => r.isActive).length}</span> Active</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+          <span className="text-gray-600"><span className="font-semibold text-gray-900">{rules.reduce((acc, r) => acc + r.actions.length, 0)}</span> Actions</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+          <span className="text-gray-600"><span className="font-semibold text-gray-900">{stages.length}</span> Stages</span>
+        </div>
+        <div className="flex-1"></div>
+        {rules.length > 0 && !isCreating && !editingRule && (
+          <Button size="sm" onClick={startCreate} className="h-8">
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            Add Rule
+          </Button>
+        )}
+      </div>
+
+      {/* Rules List */}
+      {rules.length > 0 && !isCreating && !editingRule && (
+        <div className="border rounded-xl divide-y overflow-hidden">
+          {rules.map((rule, index) => {
+            const trigger = triggerTypes.find(t => t.value === rule.trigger.type)
+            const TriggerIcon = trigger?.icon || Zap
+            return (
+              <div
+                key={rule.id}
+                className={cn(
+                  "p-4 transition-colors",
+                  rule.isActive ? "bg-white hover:bg-gray-50" : "bg-gray-50 opacity-60"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={rule.isActive}
+                    onCheckedChange={() => toggleRule(rule.id)}
+                  />
+                  <TriggerIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900">{rule.name}</span>
+                      <span className="text-xs text-gray-400">•</span>
+                      <span className="text-xs text-gray-500">{trigger?.label}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      {rule.actions.slice(0, 3).map((action, idx) => {
+                        const actionDef = actionTypes.find(a => a.value === action.action_type)
+                        return (
+                          <span key={idx} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
+                            {actionDef?.label || action.action_type}
+                          </span>
+                        )
+                      })}
+                      {rule.actions.length > 3 && (
+                        <span className="text-xs text-gray-400">+{rule.actions.length - 3} more</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => startEdit(rule)}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(rule.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {rules.length === 0 && !isCreating && (
+        <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl">
+          <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <Zap className="w-6 h-6 text-blue-600" />
+          </div>
+          <h3 className="font-medium text-gray-900 mb-1">No automation rules</h3>
+          <p className="text-sm text-gray-500 mb-4">Automate actions based on triggers and conditions</p>
+          <Button onClick={startCreate} size="sm">
+            <Plus className="w-4 h-4 mr-1.5" />
+            Create Rule
+          </Button>
+        </div>
+      )}
+
+      {/* Create/Edit Form - Clean Stepped Design */}
+      {(isCreating || editingRule) && (
+        <div className="border rounded-xl overflow-hidden">
+          {/* Header */}
+          <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-blue-600" />
+              <h3 className="font-medium text-gray-900">{editingRule ? 'Edit Rule' : 'New Rule'}</h3>
+            </div>
+            <button onClick={cancelEdit} className="p-1 hover:bg-gray-200 rounded">
+              <X className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
+
+          <div className="p-4 space-y-5">
+            {/* Name & Description */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-gray-500 mb-1.5 block">Rule Name</Label>
+                <Input
+                  value={ruleName}
+                  onChange={(e) => setRuleName(e.target.value)}
+                  placeholder="e.g., Auto-advance high scorers"
+                  className="h-9"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500 mb-1.5 block">Description (optional)</Label>
+                <Input
+                  value={ruleDescription}
+                  onChange={(e) => setRuleDescription(e.target.value)}
+                  placeholder="Brief description"
+                  className="h-9"
+                />
+              </div>
+            </div>
+
+            {/* Trigger Selection */}
+            <div>
+              <Label className="text-xs text-gray-500 mb-2 block">When this happens...</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {triggerTypes.map(trigger => (
+                  <button
+                    key={trigger.value}
+                    type="button"
+                    onClick={() => setTriggerType(trigger.value as any)}
+                    className={cn(
+                      "p-2.5 rounded-lg border text-left transition-all",
+                      triggerType === trigger.value
+                        ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
+                        : "border-gray-200 hover:border-gray-300 bg-white"
+                    )}
+                  >
+                    <trigger.icon className={cn(
+                      "w-4 h-4 mb-1",
+                      triggerType === trigger.value ? "text-blue-600" : "text-gray-400"
+                    )} />
+                    <div className="text-xs font-medium text-gray-900 truncate">{trigger.label}</div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Trigger Config - Inline */}
+              {triggerType === 'score_threshold' && (
+                <div className="mt-3 p-3 bg-gray-50 rounded-lg flex items-center gap-2 text-sm">
+                  <span className="text-gray-600">When score</span>
+                  <Select value={triggerConfig.operator || '>='} onValueChange={(v) => setTriggerConfig({ ...triggerConfig, operator: v })}>
+                    <SelectTrigger className="w-28 h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value=">=">≥ at least</SelectItem>
+                      <SelectItem value="<=">≤ at most</SelectItem>
+                      <SelectItem value="==">= equals</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    value={triggerConfig.value || ''}
+                    onChange={(e) => setTriggerConfig({ ...triggerConfig, value: e.target.value })}
+                    placeholder="80"
+                    className="w-16 h-8"
+                  />
+                </div>
+              )}
+              {triggerType === 'time_elapsed' && (
+                <div className="mt-3 p-3 bg-gray-50 rounded-lg flex items-center gap-2 text-sm">
+                  <span className="text-gray-600">After</span>
+                  <Input
+                    type="number"
+                    value={triggerConfig.days || ''}
+                    onChange={(e) => setTriggerConfig({ ...triggerConfig, days: e.target.value })}
+                    placeholder="7"
+                    className="w-16 h-8"
+                  />
+                  <span className="text-gray-600">days in stage</span>
+                </div>
+              )}
+              {triggerType === 'tag_applied' && (
+                <div className="mt-3 p-3 bg-gray-50 rounded-lg flex items-center gap-2 text-sm">
+                  <span className="text-gray-600">When tag</span>
+                  <Input
+                    value={triggerConfig.tag || ''}
+                    onChange={(e) => setTriggerConfig({ ...triggerConfig, tag: e.target.value })}
+                    placeholder="e.g., priority"
+                    className="w-32 h-8"
+                  />
+                  <span className="text-gray-600">is applied</span>
+                </div>
+              )}
+            </div>
+
+            {/* Conditions */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-xs text-gray-500">Additional conditions (optional)</Label>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={addCondition}>
+                  <Plus className="w-3 h-3 mr-1" />
+                  Add
+                </Button>
+              </div>
+              {conditions.length > 0 ? (
+                <div className="space-y-2">
+                  {conditions.map((condition, index) => (
+                    <div key={condition.id} className="flex items-center gap-2 text-sm">
+                      <span className={cn(
+                        "w-10 text-center text-xs font-medium py-1 rounded",
+                        index === 0 ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"
+                      )}>
+                        {index === 0 ? 'IF' : conditionLogic}
+                      </span>
+                      <Select value={condition.field} onValueChange={(v) => updateCondition(condition.id, { field: v })}>
+                        <SelectTrigger className="w-36 h-8">
+                          <SelectValue placeholder="Field" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {fieldOptions.map(f => (
+                            <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={condition.operator} onValueChange={(v) => updateCondition(condition.id, { operator: v })}>
+                        <SelectTrigger className="w-28 h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {operatorOptions.map(o => (
+                            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        value={condition.value}
+                        onChange={(e) => updateCondition(condition.id, { value: e.target.value })}
+                        placeholder="Value"
+                        className="w-24 h-8"
+                      />
+                      <button onClick={() => removeCondition(condition.id)} className="p-1 text-gray-400 hover:text-red-500">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {conditions.length > 1 && (
+                    <button
+                      onClick={() => setConditionLogic(conditionLogic === 'AND' ? 'OR' : 'AND')}
+                      className="text-xs text-blue-600 hover:text-blue-700 ml-12"
+                    >
+                      Switch to {conditionLogic === 'AND' ? 'OR' : 'AND'} logic
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic">Trigger alone will activate this rule</p>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div>
+              <Label className="text-xs text-gray-500 mb-2 block">Then do this...</Label>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {actionTypes.map(action => (
+                  <button
+                    key={action.value}
+                    type="button"
+                    onClick={() => addAction(action.value)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-dashed border-gray-300 text-gray-600 hover:border-gray-400 hover:bg-gray-50 transition-colors"
+                  >
+                    <action.icon className="w-3.5 h-3.5" />
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+              {actions.length > 0 ? (
+                <div className="space-y-2">
+                  {actions.map((action, index) => {
+                    const actionDef = actionTypes.find(a => a.value === action.action_type)
+                    const ActionIcon = actionDef?.icon || Target
+                    return (
+                      <div key={index} className="flex items-center gap-2 p-2.5 bg-green-50 border border-green-200 rounded-lg text-sm">
+                        <span className="w-5 h-5 bg-green-500 text-white rounded text-xs flex items-center justify-center font-medium">
+                          {index + 1}
+                        </span>
+                        <ActionIcon className="w-4 h-4 text-green-600" />
+                        <span className="text-gray-700">{actionDef?.label}</span>
+
+                        {action.action_type === 'move_to_stage' && (
+                          <Select
+                            value={action.target_stage_id || ''}
+                            onValueChange={(v) => updateAction(index, { target_stage_id: v })}
+                          >
+                            <SelectTrigger className="w-36 h-7 ml-auto">
+                              <SelectValue placeholder="Select stage" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {stages.filter(s => s.id !== stage.id).map(s => (
+                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {action.action_type === 'move_to_group' && (
+                          <Select
+                            value={action.target_group_id || ''}
+                            onValueChange={(v) => updateAction(index, { target_group_id: v })}
+                          >
+                            <SelectTrigger className="w-36 h-7 ml-auto">
+                              <SelectValue placeholder="Select group" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {applicationGroups.map(g => (
+                                <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {action.action_type === 'move_to_stage_group' && (
+                          <Select
+                            value={action.target_stage_group_id || ''}
+                            onValueChange={(v) => updateAction(index, { target_stage_group_id: v })}
+                          >
+                            <SelectTrigger className="w-36 h-7 ml-auto">
+                              <SelectValue placeholder="Select group" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {stageGroups.map(g => (
+                                <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {(action.action_type === 'add_tags' || action.action_type === 'remove_tags') && (
+                          <Input
+                            value={action.tags?.join(', ') || ''}
+                            onChange={(e) => updateAction(index, { 
+                              tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean)
+                            })}
+                            placeholder="tag1, tag2"
+                            className="w-32 h-7 ml-auto"
+                          />
+                        )}
+                        <button onClick={() => removeAction(index)} className="p-1 text-gray-400 hover:text-red-500 ml-1">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-red-500">Add at least one action</p>
+              )}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="px-4 py-3 bg-gray-50 border-t flex items-center justify-between">
+            <label className="flex items-center gap-2">
+              <Switch checked={isActive} onCheckedChange={setIsActive} />
+              <span className="text-sm text-gray-600">Active</span>
+            </label>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={cancelEdit}>Cancel</Button>
+              <Button 
+                size="sm"
+                onClick={handleSave} 
+                disabled={!ruleName.trim() || actions.length === 0 || isSaving}
+              >
+                {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+                {editingRule ? 'Update' : 'Create'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface LogicRule {
   id: string
   conditions: LogicCondition[]
@@ -2923,6 +3736,7 @@ function AutomationStageSettings({
   onSave: () => void
 }) {
   const [isSaving, setIsSaving] = useState(false)
+  const [activeSection, setActiveSection] = useState<'rules' | 'visibility' | 'notifications'>('rules')
   
   // Custom statuses and tags from the stage
   const customStatuses = stage.custom_statuses || ['Pending', 'In Progress', 'Complete']
@@ -2946,6 +3760,7 @@ function AutomationStageSettings({
   const [activeConditionPicker, setActiveConditionPicker] = useState<{ ruleType: 'advance' | 'reject', ruleId: string, conditionId: string } | null>(null)
   const [fieldSearchQuery, setFieldSearchQuery] = useState('')
   const [expandedGroups, setExpandedGroups] = useState<string[]>(['status', 'review'])
+  const [rulesEnabled, setRulesEnabled] = useState(true)
 
   // Parse existing rules on mount
   useEffect(() => {
@@ -3330,9 +4145,14 @@ function AutomationStageSettings({
       {/* Field Picker Modal */}
       {activeConditionPicker && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setActiveConditionPicker(null)}>
-          <div className="bg-white rounded-xl shadow-2xl w-[400px] max-h-[60vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="p-4 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-900 mb-3">Select a Field</h3>
+          <div className="bg-white rounded-2xl shadow-2xl w-[420px] max-h-[70vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-gray-100 bg-gradient-to-b from-gray-50 to-white">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900">Select a Field</h3>
+                <button onClick={() => setActiveConditionPicker(null)} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -3340,35 +4160,35 @@ function AutomationStageSettings({
                   value={fieldSearchQuery}
                   onChange={e => setFieldSearchQuery(e.target.value)}
                   placeholder="Search fields..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   autoFocus
                 />
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-2">
+            <div className="flex-1 overflow-y-auto p-3">
               {filteredFieldGroups.map(group => (
-                <div key={group.id} className="mb-2">
+                <div key={group.id} className="mb-1">
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.id)}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg"
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
                   >
-                    <ChevronRight className={cn("w-4 h-4 text-gray-400 transition-transform", expandedGroups.includes(group.id) && "rotate-90")} />
+                    <ChevronRight className={cn("w-4 h-4 text-gray-400 transition-transform duration-200", expandedGroups.includes(group.id) && "rotate-90")} />
                     <span>{group.name}</span>
-                    <span className="ml-auto text-xs text-gray-400">{group.fields.length}</span>
+                    <Badge variant="secondary" className="ml-auto text-xs">{group.fields.length}</Badge>
                   </button>
                   {expandedGroups.includes(group.id) && (
-                    <div className="ml-6 space-y-1 mt-1">
+                    <div className="ml-6 space-y-0.5 mt-1 mb-2">
                       {group.fields.map(field => (
                         <button
                           key={field.value}
                           type="button"
                           onClick={() => selectField(field.value)}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors"
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition-colors group"
                         >
                           <span className="flex-1 text-left">{field.label}</span>
                           {'options' in field && Array.isArray(field.options) && field.options.length > 0 && (
-                            <span className="text-xs text-gray-400">{field.options.length} options</span>
+                            <span className="text-xs text-gray-400 group-hover:text-blue-500">{field.options.length} options</span>
                           )}
                         </button>
                       ))}
@@ -3381,121 +4201,1216 @@ function AutomationStageSettings({
         </div>
       )}
 
-      {/* Auto-Advance Rules */}
-      <div className="rounded-xl border border-green-200 overflow-hidden">
-        <div className="bg-green-50 px-4 py-3 flex items-center gap-2">
-          <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-            <ChevronRight className="w-4 h-4 text-white" />
-          </div>
-          <div className="flex-1">
-            <Label className="text-sm font-semibold text-green-900">Auto-Advance Rule</Label>
-            <p className="text-xs text-green-700">Move applications forward when conditions are met</p>
-          </div>
-        </div>
-        
-        {advanceRules.map(rule => (
-          <div key={rule.id} className="p-4 space-y-3 bg-white border-t border-green-100">
-            {rule.conditions.map((condition, idx) => 
-              renderCondition('advance', rule, condition, idx, idx === rule.conditions.length - 1)
-            )}
-            
-            <div className="flex items-center gap-2 pt-2 border-t border-gray-100 mt-3">
-              <span className="px-2 py-1 bg-green-100 rounded text-xs font-bold text-green-700">THEN</span>
-              <Select value={rule.action} onValueChange={(v) => updateRuleAction('advance', rule.id, v)}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="move_to_next">Move to next stage</SelectItem>
-                  <SelectItem value="set_approved">Set status to Approved</SelectItem>
-                  <SelectItem value="complete">Complete workflow</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        ))}
+      {/* Section Navigation Pills */}
+      <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+        <button
+          onClick={() => setActiveSection('rules')}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+            activeSection === 'rules' ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
+          )}
+        >
+          <Zap className="w-4 h-4" />
+          Automation Rules
+        </button>
+        <button
+          onClick={() => setActiveSection('visibility')}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+            activeSection === 'visibility' ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
+          )}
+        >
+          <Users className="w-4 h-4" />
+          Visibility
+        </button>
       </div>
 
-      {/* Auto-Reject Rules */}
-      <div className="rounded-xl border border-red-200 overflow-hidden">
-        <div className="bg-red-50 px-4 py-3 flex items-center gap-2">
-          <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
-            <X className="w-4 h-4 text-white" />
-          </div>
-          <div className="flex-1">
-            <Label className="text-sm font-semibold text-red-900">Auto-Reject Rule</Label>
-            <p className="text-xs text-red-700">Reject applications that don't meet requirements</p>
-          </div>
-        </div>
-        
-        {rejectRules.map(rule => (
-          <div key={rule.id} className="p-4 space-y-3 bg-white border-t border-red-100">
-            {rule.conditions.map((condition, idx) => 
-              renderCondition('reject', rule, condition, idx, idx === rule.conditions.length - 1)
-            )}
-            
-            <div className="flex items-center gap-2 pt-2 border-t border-gray-100 mt-3">
-              <span className="px-2 py-1 bg-red-100 rounded text-xs font-bold text-red-700">THEN</span>
-              <Select value={rule.action} onValueChange={(v) => updateRuleAction('reject', rule.id, v)}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="set_ineligible">Set Ineligible & stop workflow</SelectItem>
-                  <SelectItem value="set_declined">Set status to Declined</SelectItem>
-                  <SelectItem value="flag_review">Flag for manual review</SelectItem>
-                </SelectContent>
-              </Select>
+      {activeSection === 'rules' && (
+        <>
+          {/* Master Toggle */}
+          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100/50 rounded-xl border border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Automation Rules</p>
+                <p className="text-xs text-gray-500">Automatically process applications based on conditions</p>
+              </div>
             </div>
+            <Switch checked={rulesEnabled} onCheckedChange={setRulesEnabled} />
           </div>
-        ))}
-      </div>
 
-      {/* Visibility Rule */}
-      <div className="rounded-xl border border-purple-200 overflow-hidden">
-        <div className="bg-purple-50 px-4 py-3 flex items-center gap-2">
-          <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
-            <Users className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <Label className="text-sm font-semibold text-purple-900">Stage Visibility</Label>
-            <p className="text-xs text-purple-700">Restrict which reviewer types can see this stage</p>
-          </div>
-        </div>
-        <div className="p-4 bg-white">
-          {reviewerTypes.length === 0 ? (
-            <p className="text-sm text-gray-500">No reviewer types defined. All reviewers will see this stage.</p>
-          ) : (
-            <div className="space-y-2">
-              {reviewerTypes.map(rt => (
-                <label key={rt.id} className="flex items-center gap-2 cursor-pointer p-2 hover:bg-purple-50 rounded-lg">
-                  <input
-                    type="checkbox"
-                    checked={visibilityReviewerTypes.includes(rt.name)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setVisibilityReviewerTypes([...visibilityReviewerTypes, rt.name])
-                      } else {
-                        setVisibilityReviewerTypes(visibilityReviewerTypes.filter(n => n !== rt.name))
-                      }
-                    }}
-                    className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                  />
-                  <span className="text-sm text-gray-700">{rt.name}</span>
-                </label>
-              ))}
-              {visibilityReviewerTypes.length === 0 && (
-                <p className="text-xs text-amber-600">⚠️ No types selected = all reviewers can see this stage</p>
-              )}
+          {rulesEnabled && (
+            <div className="space-y-4">
+              {/* Auto-Advance Rule Card */}
+              <div className="rounded-2xl border-2 border-green-200 overflow-hidden bg-white shadow-sm">
+                <div className="bg-gradient-to-r from-green-500 to-emerald-600 px-5 py-4 flex items-center gap-3">
+                  <div className="w-9 h-9 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
+                    <ChevronRight className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-white">Auto-Advance</h4>
+                    <p className="text-xs text-green-100">Move applications forward automatically</p>
+                  </div>
+                  <Badge className="bg-white/20 text-white border-0">{advanceRules[0]?.conditions.length || 0} conditions</Badge>
+                </div>
+                
+                {advanceRules.map(rule => (
+                  <div key={rule.id} className="p-5 space-y-4">
+                    {/* Conditions */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        <Target className="w-3.5 h-3.5" />
+                        When these conditions are met
+                      </div>
+                      
+                      {rule.conditions.map((condition, idx) => (
+                        <div key={condition.id} className="flex items-center gap-2 flex-wrap">
+                          {idx === 0 ? (
+                            <span className="px-3 py-1.5 bg-green-100 rounded-lg text-xs font-bold text-green-700 min-w-[44px] text-center">IF</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => updateRuleLogic('advance', rule.id, rule.conditionLogic === 'AND' ? 'OR' : 'AND')}
+                              className={cn(
+                                "px-3 py-1.5 rounded-lg text-xs font-bold min-w-[44px] text-center transition-all hover:scale-105",
+                                rule.conditionLogic === 'AND' 
+                                  ? "bg-blue-100 text-blue-700 hover:bg-blue-200" 
+                                  : "bg-purple-100 text-purple-700 hover:bg-purple-200"
+                              )}
+                            >
+                              {rule.conditionLogic}
+                            </button>
+                          )}
+                          
+                          <button
+                            type="button"
+                            onClick={() => setActiveConditionPicker({ ruleType: 'advance', ruleId: rule.id, conditionId: condition.id })}
+                            className="px-3 py-2 bg-white border-2 border-gray-200 rounded-xl transition-all flex items-center gap-2 hover:border-green-400 hover:shadow-sm group"
+                          >
+                            <FileText className="w-4 h-4 text-gray-400 group-hover:text-green-500" />
+                            <span className="font-medium text-gray-700">{getFieldLabel(condition.field)}</span>
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          </button>
+                          
+                          <Select value={condition.operator} onValueChange={(v) => updateCondition('advance', rule.id, condition.id, { operator: v })}>
+                            <SelectTrigger className="w-36 border-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getOperatorsForField(condition.field).map(opt => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          
+                          {(() => {
+                            const fieldInfo = getFieldInfo(condition.field)
+                            const hasOptions = fieldInfo && 'options' in fieldInfo && Array.isArray(fieldInfo.options) && fieldInfo.options.length > 0
+                            return hasOptions ? (
+                              <Select value={condition.value} onValueChange={(v) => updateCondition('advance', rule.id, condition.id, { value: v })}>
+                                <SelectTrigger className="w-36 border-2">
+                                  <SelectValue placeholder="Select..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(fieldInfo.options as string[]).map(opt => (
+                                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input 
+                                value={condition.value} 
+                                onChange={(e) => updateCondition('advance', rule.id, condition.id, { value: e.target.value })}
+                                className="w-24 border-2"
+                                placeholder="Value"
+                              />
+                            )
+                          })()}
+                          
+                          {rule.conditions.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeConditionFromRule('advance', rule.id, condition.id)}
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      
+                      <button
+                        type="button"
+                        onClick={() => addConditionToRule('advance', rule.id)}
+                        className="ml-14 text-sm font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-green-600 hover:bg-green-50 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add condition
+                      </button>
+                    </div>
+                    
+                    {/* Arrow connector */}
+                    <div className="flex items-center gap-3 px-4">
+                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-green-200 to-transparent" />
+                      <ChevronDown className="w-5 h-5 text-green-400" />
+                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-green-200 to-transparent" />
+                    </div>
+                    
+                    {/* Action */}
+                    <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl border border-green-200">
+                      <span className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-bold">THEN</span>
+                      <Select value={rule.action} onValueChange={(v) => updateRuleAction('advance', rule.id, v)}>
+                        <SelectTrigger className="flex-1 bg-white border-2 border-green-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="move_to_next">
+                            <div className="flex items-center gap-2">
+                              <ChevronRight className="w-4 h-4 text-green-500" />
+                              Move to next stage
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="set_approved">
+                            <div className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-green-500" />
+                              Set status to Approved
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="complete">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4 text-green-500" />
+                              Complete workflow
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Auto-Reject Rule Card */}
+              <div className="rounded-2xl border-2 border-red-200 overflow-hidden bg-white shadow-sm">
+                <div className="bg-gradient-to-r from-red-500 to-rose-600 px-5 py-4 flex items-center gap-3">
+                  <div className="w-9 h-9 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
+                    <XCircle className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-white">Auto-Reject</h4>
+                    <p className="text-xs text-red-100">Reject applications that don't meet requirements</p>
+                  </div>
+                  <Badge className="bg-white/20 text-white border-0">{rejectRules[0]?.conditions.length || 0} conditions</Badge>
+                </div>
+                
+                {rejectRules.map(rule => (
+                  <div key={rule.id} className="p-5 space-y-4">
+                    {/* Conditions */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        <Target className="w-3.5 h-3.5" />
+                        When these conditions are met
+                      </div>
+                      
+                      {rule.conditions.map((condition, idx) => (
+                        <div key={condition.id} className="flex items-center gap-2 flex-wrap">
+                          {idx === 0 ? (
+                            <span className="px-3 py-1.5 bg-red-100 rounded-lg text-xs font-bold text-red-700 min-w-[44px] text-center">IF</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => updateRuleLogic('reject', rule.id, rule.conditionLogic === 'AND' ? 'OR' : 'AND')}
+                              className={cn(
+                                "px-3 py-1.5 rounded-lg text-xs font-bold min-w-[44px] text-center transition-all hover:scale-105",
+                                rule.conditionLogic === 'AND' 
+                                  ? "bg-blue-100 text-blue-700 hover:bg-blue-200" 
+                                  : "bg-purple-100 text-purple-700 hover:bg-purple-200"
+                              )}
+                            >
+                              {rule.conditionLogic}
+                            </button>
+                          )}
+                          
+                          <button
+                            type="button"
+                            onClick={() => setActiveConditionPicker({ ruleType: 'reject', ruleId: rule.id, conditionId: condition.id })}
+                            className="px-3 py-2 bg-white border-2 border-gray-200 rounded-xl transition-all flex items-center gap-2 hover:border-red-400 hover:shadow-sm group"
+                          >
+                            <FileText className="w-4 h-4 text-gray-400 group-hover:text-red-500" />
+                            <span className="font-medium text-gray-700">{getFieldLabel(condition.field)}</span>
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          </button>
+                          
+                          <Select value={condition.operator} onValueChange={(v) => updateCondition('reject', rule.id, condition.id, { operator: v })}>
+                            <SelectTrigger className="w-36 border-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getOperatorsForField(condition.field).map(opt => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          
+                          {(() => {
+                            const fieldInfo = getFieldInfo(condition.field)
+                            const hasOptions = fieldInfo && 'options' in fieldInfo && Array.isArray(fieldInfo.options) && fieldInfo.options.length > 0
+                            return hasOptions ? (
+                              <Select value={condition.value} onValueChange={(v) => updateCondition('reject', rule.id, condition.id, { value: v })}>
+                                <SelectTrigger className="w-36 border-2">
+                                  <SelectValue placeholder="Select..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(fieldInfo.options as string[]).map(opt => (
+                                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input 
+                                value={condition.value} 
+                                onChange={(e) => updateCondition('reject', rule.id, condition.id, { value: e.target.value })}
+                                className="w-24 border-2"
+                                placeholder="Value"
+                              />
+                            )
+                          })()}
+                          
+                          {rule.conditions.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeConditionFromRule('reject', rule.id, condition.id)}
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      
+                      <button
+                        type="button"
+                        onClick={() => addConditionToRule('reject', rule.id)}
+                        className="ml-14 text-sm font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add condition
+                      </button>
+                    </div>
+                    
+                    {/* Arrow connector */}
+                    <div className="flex items-center gap-3 px-4">
+                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-red-200 to-transparent" />
+                      <ChevronDown className="w-5 h-5 text-red-400" />
+                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-red-200 to-transparent" />
+                    </div>
+                    
+                    {/* Action */}
+                    <div className="flex items-center gap-3 p-4 bg-red-50 rounded-xl border border-red-200">
+                      <span className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-bold">THEN</span>
+                      <Select value={rule.action} onValueChange={(v) => updateRuleAction('reject', rule.id, v)}>
+                        <SelectTrigger className="flex-1 bg-white border-2 border-red-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="set_ineligible">
+                            <div className="flex items-center gap-2">
+                              <XCircle className="w-4 h-4 text-red-500" />
+                              Set Ineligible & stop workflow
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="set_declined">
+                            <div className="flex items-center gap-2">
+                              <X className="w-4 h-4 text-red-500" />
+                              Set status to Declined
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="flag_review">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-amber-500" />
+                              Flag for manual review
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
+        </>
+      )}
+
+      {activeSection === 'visibility' && (
+        <div className="space-y-4">
+          {/* Visibility Card */}
+          <div className="rounded-2xl border-2 border-purple-200 overflow-hidden bg-white shadow-sm">
+            <div className="bg-gradient-to-r from-purple-500 to-violet-600 px-5 py-4 flex items-center gap-3">
+              <div className="w-9 h-9 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
+                <Shield className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-white">Stage Visibility</h4>
+                <p className="text-xs text-purple-100">Control who can see this stage</p>
+              </div>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                Select which reviewer types can see and interact with applications in this stage. 
+                Leave all unchecked to allow all reviewers access.
+              </p>
+              
+              {reviewerTypes.length === 0 ? (
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
+                  <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Users className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-amber-800">No reviewer types defined</p>
+                    <p className="text-sm text-amber-600 mt-0.5">Create reviewer types first to configure visibility rules.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-2">
+                  {reviewerTypes.map(rt => (
+                    <label 
+                      key={rt.id} 
+                      className={cn(
+                        "flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all",
+                        visibilityReviewerTypes.includes(rt.name)
+                          ? "border-purple-300 bg-purple-50"
+                          : "border-gray-200 hover:border-purple-200 hover:bg-purple-50/50"
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={visibilityReviewerTypes.includes(rt.name)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setVisibilityReviewerTypes([...visibilityReviewerTypes, rt.name])
+                          } else {
+                            setVisibilityReviewerTypes(visibilityReviewerTypes.filter(n => n !== rt.name))
+                          }
+                        }}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-5 h-5"
+                      />
+                      <div className="flex-1">
+                        <span className="font-medium text-gray-900">{rt.name}</span>
+                        {rt.description && (
+                          <p className="text-xs text-gray-500 mt-0.5">{rt.description}</p>
+                        )}
+                      </div>
+                      {visibilityReviewerTypes.includes(rt.name) && (
+                        <Check className="w-5 h-5 text-purple-500" />
+                      )}
+                    </label>
+                  ))}
+                </div>
+              )}
+              
+              {visibilityReviewerTypes.length > 0 && (
+                <div className="p-3 bg-purple-50 rounded-xl border border-purple-200">
+                  <p className="text-sm text-purple-700">
+                    <span className="font-medium">{visibilityReviewerTypes.length}</span> reviewer type{visibilityReviewerTypes.length !== 1 ? 's' : ''} can access this stage: {visibilityReviewerTypes.join(', ')}
+                  </p>
+                </div>
+              )}
+              
+              {visibilityReviewerTypes.length === 0 && reviewerTypes.length > 0 && (
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">All reviewers</span> can see this stage (no restrictions)
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save Button */}
+      <Button onClick={handleSave} disabled={isSaving} size="lg" className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/25">
+        {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+        Save Automation Settings
+      </Button>
+    </div>
+  )
+}
+
+// Stage Groups Settings Tab Component
+// Manage sub-groups within this stage (visible only in this stage)
+function StageGroupsSettings({
+  stage,
+  workspaceId,
+  onSave
+}: {
+  stage: ApplicationStage
+  workspaceId: string
+  onSave: () => void
+}) {
+  const [groups, setGroups] = useState<StageGroup[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [editingGroup, setEditingGroup] = useState<StageGroup | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
+
+  // Form state for creating/editing
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [color, setColor] = useState('blue')
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    loadGroups()
+  }, [stage.id])
+
+  const loadGroups = async () => {
+    setIsLoading(true)
+    try {
+      const data = await workflowsClient.listStageGroups(stage.id)
+      setGroups(data)
+    } catch (error) {
+      console.error('Failed to load stage groups:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const colors = [
+    { value: 'blue', label: 'Blue', bg: 'bg-blue-500', bgLight: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' },
+    { value: 'green', label: 'Green', bg: 'bg-green-500', bgLight: 'bg-green-50', text: 'text-green-600', border: 'border-green-200' },
+    { value: 'yellow', label: 'Yellow', bg: 'bg-yellow-500', bgLight: 'bg-yellow-50', text: 'text-yellow-600', border: 'border-yellow-200' },
+    { value: 'orange', label: 'Orange', bg: 'bg-orange-500', bgLight: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-200' },
+    { value: 'red', label: 'Red', bg: 'bg-red-500', bgLight: 'bg-red-50', text: 'text-red-600', border: 'border-red-200' },
+    { value: 'purple', label: 'Purple', bg: 'bg-purple-500', bgLight: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200' },
+    { value: 'pink', label: 'Pink', bg: 'bg-pink-500', bgLight: 'bg-pink-50', text: 'text-pink-600', border: 'border-pink-200' },
+    { value: 'gray', label: 'Gray', bg: 'bg-gray-500', bgLight: 'bg-gray-50', text: 'text-gray-600', border: 'border-gray-200' },
+  ]
+
+  const startEdit = (group: StageGroup) => {
+    setEditingGroup(group)
+    setName(group.name)
+    setDescription(group.description || '')
+    setColor(group.color)
+    setIsCreating(false)
+  }
+
+  const startCreate = () => {
+    setEditingGroup(null)
+    setName('')
+    setDescription('')
+    setColor('blue')
+    setIsCreating(true)
+  }
+
+  const cancelEdit = () => {
+    setEditingGroup(null)
+    setIsCreating(false)
+    setName('')
+    setDescription('')
+    setColor('blue')
+  }
+
+  const handleSave = async () => {
+    if (!name.trim()) return
+    setIsSaving(true)
+    try {
+      if (editingGroup) {
+        await workflowsClient.updateStageGroup(editingGroup.id, {
+          name: name.trim(),
+          description: description.trim() || undefined,
+          color,
+        })
+      } else {
+        await workflowsClient.createStageGroup({
+          stage_id: stage.id,
+          workspace_id: workspaceId,
+          name: name.trim(),
+          description: description.trim() || undefined,
+          color,
+        })
+      }
+      await loadGroups()
+      cancelEdit()
+      onSave()
+    } catch (error) {
+      console.error('Failed to save stage group:', error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDelete = async (groupId: string) => {
+    if (!confirm('Delete this stage group? Applications in this group will be moved back to the main queue.')) return
+    try {
+      await workflowsClient.deleteStageGroup(groupId)
+      await loadGroups()
+      cancelEdit()
+      onSave()
+    } catch (error) {
+      console.error('Failed to delete stage group:', error)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-3" />
+        <p className="text-sm text-gray-500">Loading groups...</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start gap-4 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100">
+        <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <Folder className="w-6 h-6 text-white" />
+        </div>
+        <div className="flex-1">
+          <h4 className="font-semibold text-gray-900 mb-1">Stage Groups</h4>
+          <p className="text-sm text-gray-600">
+            Create sub-groups within this stage to organize applications. Groups are only visible in this stage and help you categorize work.
+          </p>
         </div>
       </div>
 
-      <Button onClick={handleSave} disabled={isSaving} className="w-full">
-        {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-        Save Automation Rules
-      </Button>
+      {/* Existing Groups */}
+      {groups.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h5 className="text-sm font-medium text-gray-500 uppercase tracking-wide">Your Groups</h5>
+            <Badge variant="secondary">{groups.length} group{groups.length !== 1 ? 's' : ''}</Badge>
+          </div>
+          <div className="grid gap-3">
+            {groups.map((group) => {
+              const colorDef = colors.find(c => c.value === group.color) || colors[0]
+              const isEditing = editingGroup?.id === group.id
+              return (
+                <div
+                  key={group.id}
+                  className={cn(
+                    "group relative p-4 rounded-xl border-2 transition-all duration-200",
+                    isEditing 
+                      ? "border-blue-400 bg-blue-50 shadow-lg shadow-blue-500/10" 
+                      : cn("hover:shadow-md", colorDef.border, colorDef.bgLight)
+                  )}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={cn(
+                      "w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm transition-transform group-hover:scale-105",
+                      colorDef.bg
+                    )}>
+                      <FolderOpen className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-gray-900">{group.name}</p>
+                        <Badge variant="outline" className={cn("text-xs", colorDef.text, colorDef.border)}>
+                          {colorDef.label}
+                        </Badge>
+                      </div>
+                      {group.description && (
+                        <p className="text-sm text-gray-500 truncate mt-0.5">{group.description}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => startEdit(group)}
+                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                        title="Edit group"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(group.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                        title="Delete group"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {groups.length === 0 && !isCreating && (
+        <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
+          <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <FolderOpen className="w-8 h-8 text-gray-400" />
+          </div>
+          <p className="text-lg font-medium text-gray-900 mb-2">No stage groups yet</p>
+          <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
+            Create groups to organize applications within this stage, like "Needs Review", "Pending Info", or "Ready to Advance"
+          </p>
+          <Button onClick={startCreate} className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 shadow-lg shadow-indigo-500/25">
+            <Plus className="w-4 h-4 mr-2" />
+            Create Your First Group
+          </Button>
+        </div>
+      )}
+
+      {/* Create/Edit Form */}
+      {(isCreating || editingGroup) && (
+        <div className="p-5 bg-white rounded-2xl border-2 border-blue-200 shadow-lg shadow-blue-500/10 space-y-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                {editingGroup ? <Edit2 className="w-5 h-5 text-white" /> : <Plus className="w-5 h-5 text-white" />}
+              </div>
+              <h5 className="font-semibold text-gray-900">
+                {editingGroup ? 'Edit Stage Group' : 'Create New Group'}
+              </h5>
+            </div>
+            <button onClick={cancelEdit} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="group-name" className="text-sm font-medium text-gray-700">Group Name *</Label>
+              <Input
+                id="group-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Needs More Info, Under Review"
+                className="mt-1.5 border-2 focus:border-blue-400"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="group-desc" className="text-sm font-medium text-gray-700">Description</Label>
+              <Input
+                id="group-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="What is this group for?"
+                className="mt-1.5 border-2 focus:border-blue-400"
+              />
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Color</Label>
+              <div className="flex gap-2 mt-2">
+                {colors.map((c) => (
+                  <button
+                    key={c.value}
+                    onClick={() => setColor(c.value)}
+                    className={cn(
+                      "w-10 h-10 rounded-xl transition-all flex items-center justify-center",
+                      c.bg,
+                      color === c.value 
+                        ? "ring-2 ring-offset-2 ring-gray-900 scale-110" 
+                        : "hover:scale-105 opacity-70 hover:opacity-100"
+                    )}
+                    title={c.label}
+                  >
+                    {color === c.value && <Check className="w-5 h-5 text-white" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              onClick={handleSave}
+              disabled={!name.trim() || isSaving}
+              className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700"
+            >
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+              {editingGroup ? 'Update Group' : 'Create Group'}
+            </Button>
+            <Button variant="outline" onClick={cancelEdit} className="px-6">
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Add Button (when not in create mode and groups exist) */}
+      {!isCreating && !editingGroup && groups.length > 0 && (
+        <Button variant="outline" onClick={startCreate} className="w-full border-2 border-dashed hover:border-solid hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-600">
+          <Plus className="w-4 h-4 mr-2" />
+          Add Another Group
+        </Button>
+      )}
+    </div>
+  )
+}
+
+// Status Actions Settings Tab Component
+// Configure action buttons (CustomStatus) that appear in the review interface
+function StatusActionsSettings({
+  stage,
+  workspaceId,
+  workflowId,
+  onSave
+}: {
+  stage: ApplicationStage
+  workspaceId: string
+  workflowId: string
+  onSave: () => void
+}) {
+  const [statuses, setStatuses] = useState<CustomStatus[]>([])
+  const [stageGroups, setStageGroups] = useState<StageGroup[]>([])
+  const [applicationGroups, setApplicationGroups] = useState<ApplicationGroup[]>([])
+  const [stages, setStages] = useState<ApplicationStage[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [editingStatus, setEditingStatus] = useState<CustomStatus | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Form state
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [color, setColor] = useState<'blue' | 'green' | 'red' | 'yellow' | 'purple' | 'gray'>('blue')
+  const [icon, setIcon] = useState('circle')
+  const [isPrimary, setIsPrimary] = useState(false)
+  const [requiresComment, setRequiresComment] = useState(false)
+  const [requiresScore, setRequiresScore] = useState(false)
+  const [actions, setActions] = useState<StatusActionConfig[]>([])
+
+  useEffect(() => {
+    loadData()
+  }, [stage.id])
+
+  const loadData = async () => {
+    setIsLoading(true)
+    try {
+      const [statusData, groupData, appGroupData, stageData] = await Promise.all([
+        workflowsClient.listCustomStatuses(stage.id),
+        workflowsClient.listStageGroups(stage.id),
+        workflowsClient.listGroups(workflowId),
+        workflowsClient.listStages(workflowId)
+      ])
+      setStatuses(statusData)
+      setStageGroups(groupData)
+      setApplicationGroups(appGroupData)
+      setStages(stageData)
+    } catch (error) {
+      console.error('Failed to load data:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const colors = [
+    { value: 'green' as const, label: 'Green (Approve)', bg: 'bg-green-500', bgLight: 'bg-green-50', text: 'text-green-600' },
+    { value: 'red' as const, label: 'Red (Reject)', bg: 'bg-red-500', bgLight: 'bg-red-50', text: 'text-red-600' },
+    { value: 'blue' as const, label: 'Blue (Info)', bg: 'bg-blue-500', bgLight: 'bg-blue-50', text: 'text-blue-600' },
+    { value: 'yellow' as const, label: 'Yellow (Warning)', bg: 'bg-yellow-500', bgLight: 'bg-yellow-50', text: 'text-yellow-600' },
+    { value: 'purple' as const, label: 'Purple', bg: 'bg-purple-500', bgLight: 'bg-purple-50', text: 'text-purple-600' },
+    { value: 'gray' as const, label: 'Gray (Neutral)', bg: 'bg-gray-500', bgLight: 'bg-gray-50', text: 'text-gray-600' },
+  ]
+
+  const actionTypes = [
+    { value: 'move_to_stage', label: 'Move to Stage', icon: ChevronRight, description: 'Advance to another stage' },
+    { value: 'move_to_group', label: 'Move to Group', icon: Archive, description: 'Move out of pipeline to a group' },
+    { value: 'move_to_stage_group', label: 'Move to Stage Group', icon: Folder, description: 'Organize within this stage' },
+    { value: 'add_tags', label: 'Add Tags', icon: Tag, description: 'Apply tags to the application' },
+    { value: 'remove_tags', label: 'Remove Tags', icon: X, description: 'Remove existing tags' },
+    { value: 'send_email', label: 'Send Email', icon: FileText, description: 'Send notification email' },
+  ]
+
+  const startCreate = () => {
+    setEditingStatus(null)
+    setName('')
+    setDescription('')
+    setColor('blue')
+    setIcon('circle')
+    setIsPrimary(false)
+    setRequiresComment(false)
+    setRequiresScore(false)
+    setActions([])
+    setIsCreating(true)
+  }
+
+  const startEdit = (status: CustomStatus) => {
+    setEditingStatus(status)
+    setName(status.name)
+    setDescription(status.description || '')
+    setColor(status.color as typeof color)
+    setIcon(status.icon)
+    setIsPrimary(status.is_primary)
+    setRequiresComment(status.requires_comment)
+    setRequiresScore(status.requires_score)
+    setActions(status.actions || [])
+    setIsCreating(false)
+  }
+
+  const cancelEdit = () => {
+    setEditingStatus(null)
+    setIsCreating(false)
+    setActions([])
+  }
+
+  const addAction = (actionType: string) => {
+    const newAction: StatusActionConfig = { action_type: actionType as any }
+    setActions([...actions, newAction])
+  }
+
+  const updateAction = (index: number, updates: Partial<StatusActionConfig>) => {
+    const updated = [...actions]
+    updated[index] = { ...updated[index], ...updates }
+    setActions(updated)
+  }
+
+  const removeAction = (index: number) => {
+    setActions(actions.filter((_, i) => i !== index))
+  }
+
+  const handleSave = async () => {
+    if (!name.trim()) return
+    setIsSaving(true)
+    try {
+      const statusData = {
+        stage_id: stage.id,
+        workspace_id: workspaceId,
+        name: name.trim(),
+        description: description.trim() || undefined,
+        color,
+        icon,
+        is_primary: isPrimary,
+        requires_comment: requiresComment,
+        requires_score: requiresScore,
+        actions,
+      }
+
+      if (editingStatus) {
+        await workflowsClient.updateCustomStatus(editingStatus.id, statusData)
+        showToast('Status action updated', 'success')
+      } else {
+        await workflowsClient.createCustomStatus(statusData)
+        showToast('Status action created', 'success')
+      }
+      await loadData()
+      cancelEdit()
+      onSave()
+    } catch (error: any) {
+      console.error('Failed to save status:', error)
+      showToast(error.message || 'Failed to save', 'error')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDelete = async (statusId: string) => {
+    if (!confirm('Delete this status action? This cannot be undone.')) return
+    try {
+      await workflowsClient.deleteCustomStatus(statusId)
+      await loadData()
+      cancelEdit()
+      showToast('Status action deleted', 'success')
+      onSave()
+    } catch (error) {
+      console.error('Failed to delete status:', error)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-3" />
+        <p className="text-sm text-gray-500">Loading status actions...</p>
+      </div>
+    )
+  }
+
+  const getColorDef = (c: string) => colors.find(col => col.value === c) || colors[2]
+
+  return (
+    <div className="space-y-5">
+      {/* Compact Header */}
+      <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
+        <Sparkles className="w-5 h-5 text-amber-600" />
+        <div className="flex-1">
+          <h4 className="font-medium text-gray-900 text-sm">Status Action Buttons</h4>
+          <p className="text-xs text-gray-500">
+            Buttons reviewers click to take action on applications
+          </p>
+        </div>
+        {!isCreating && !editingStatus && (
+          <Button size="sm" onClick={startCreate} className="h-8">
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            Add
+          </Button>
+        )}
+      </div>
+
+      {/* Existing Statuses - Compact List */}
+      {statuses.length > 0 && !isCreating && !editingStatus && (
+        <div className="border rounded-xl divide-y overflow-hidden">
+          {statuses.map((status) => {
+            const colorDef = getColorDef(status.color)
+            return (
+              <div
+                key={status.id}
+                className="p-3 hover:bg-gray-50 transition-colors flex items-center gap-3"
+              >
+                <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center text-white", colorDef.bg)}>
+                  {status.is_primary ? <CheckCircle className="w-4 h-4" /> : <Target className="w-4 h-4" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-900 text-sm">{status.name}</span>
+                    {status.is_primary && (
+                      <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">Primary</span>
+                    )}
+                  </div>
+                  {status.actions && status.actions.length > 0 && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      {status.actions.slice(0, 2).map((action, idx) => (
+                        <span key={idx} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
+                          {actionTypes.find(t => t.value === action.action_type)?.label || action.action_type}
+                        </span>
+                      ))}
+                      {status.actions.length > 2 && (
+                        <span className="text-xs text-gray-400">+{status.actions.length - 2}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => startEdit(status)}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleDelete(status.id)}
+                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {statuses.length === 0 && !isCreating && (
+        <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl">
+          <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <Sparkles className="w-6 h-6 text-amber-600" />
+          </div>
+          <h3 className="font-medium text-gray-900 mb-1">No action buttons</h3>
+          <p className="text-sm text-gray-500 mb-4">Create "Approve", "Reject", or custom actions</p>
+          <Button onClick={startCreate} size="sm">
+            <Plus className="w-4 h-4 mr-1.5" />
+            Create Action
+          </Button>
+        </div>
+      )}
+
+      {/* Create/Edit Form - Clean Design */}
+      {(isCreating || editingStatus) && (
+        <div className="border rounded-xl overflow-hidden">
+          {/* Header */}
+          <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <h3 className="font-medium text-gray-900">{editingStatus ? 'Edit Action' : 'New Action'}</h3>
+            </div>
+            <button onClick={cancelEdit} className="p-1 hover:bg-gray-200 rounded">
+              <X className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
+
+          <div className="p-4 space-y-4">
+            {/* Name & Color */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2">
+                <Label className="text-xs text-gray-500 mb-1.5 block">Button Name</Label>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g., Approve, Request Info"
+                  className="h-9"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500 mb-1.5 block">Color</Label>
+                <Select value={color} onValueChange={(v) => setColor(v as typeof color)}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {colors.map(c => (
+                      <SelectItem key={c.value} value={c.value}>
+                        <div className="flex items-center gap-2">
+                          <div className={cn("w-3 h-3 rounded-full", c.bg)} />
+                          <span className="text-sm">{c.label.split(' ')[0]}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div>
+              <Label className="text-xs text-gray-500 mb-1.5 block">Description (optional)</Label>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="What does this action do?"
+                className="h-9"
+              />
+            </div>
+
+            {/* Options Row */}
+            <div className="flex items-center gap-4 text-sm">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isPrimary}
+                  onChange={(e) => setIsPrimary(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600"
+                />
+                <span className="text-gray-600">Primary</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={requiresComment}
+                  onChange={(e) => setRequiresComment(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600"
+                />
+                <span className="text-gray-600">Require comment</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={requiresScore}
+                  onChange={(e) => setRequiresScore(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600"
+                />
+                <span className="text-gray-600">Require score</span>
+              </label>
+            </div>
+
+            {/* Actions */}
+            <div>
+              <Label className="text-xs text-gray-500 mb-2 block">Triggered Actions</Label>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {actionTypes.map(type => (
+                  <button
+                    key={type.value}
+                    type="button"
+                    onClick={() => addAction(type.value)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-dashed border-gray-300 text-gray-600 hover:border-gray-400 hover:bg-gray-50 transition-colors"
+                  >
+                    <type.icon className="w-3.5 h-3.5" />
+                    {type.label}
+                  </button>
+                ))}
+              </div>
+
+              {actions.length > 0 && (
+                <div className="space-y-2">
+                  {actions.map((action, index) => {
+                    const actionDef = actionTypes.find(t => t.value === action.action_type)
+                    const ActionIcon = actionDef?.icon || Target
+                    return (
+                      <div key={index} className="flex items-center gap-2 p-2.5 bg-gray-50 border rounded-lg text-sm">
+                        <span className="w-5 h-5 bg-gray-200 text-gray-600 rounded text-xs flex items-center justify-center font-medium">
+                          {index + 1}
+                        </span>
+                        <ActionIcon className="w-4 h-4 text-gray-500" />
+                        <span className="text-gray-700">{actionDef?.label}</span>
+
+                        {action.action_type === 'move_to_stage' && (
+                          <Select
+                            value={action.target_stage_id || ''}
+                            onValueChange={(v) => updateAction(index, { target_stage_id: v })}
+                          >
+                            <SelectTrigger className="w-36 h-7 ml-auto">
+                              <SelectValue placeholder="Select stage" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {stages.filter(s => s.id !== stage.id).map(s => (
+                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {action.action_type === 'move_to_group' && (
+                          <Select
+                            value={action.target_group_id || ''}
+                            onValueChange={(v) => updateAction(index, { target_group_id: v })}
+                          >
+                            <SelectTrigger className="w-36 h-7 ml-auto">
+                              <SelectValue placeholder="Select group" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {applicationGroups.map(g => (
+                                <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {action.action_type === 'move_to_stage_group' && (
+                          <Select
+                            value={action.target_stage_group_id || ''}
+                            onValueChange={(v) => updateAction(index, { target_stage_group_id: v })}
+                          >
+                            <SelectTrigger className="w-36 h-7 ml-auto">
+                              <SelectValue placeholder="Select group" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {stageGroups.map(g => (
+                                <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {(action.action_type === 'add_tags' || action.action_type === 'remove_tags') && (
+                          <Input
+                            value={action.tags?.join(', ') || ''}
+                            onChange={(e) => updateAction(index, { 
+                              tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean)
+                            })}
+                            placeholder="tag1, tag2"
+                            className="w-32 h-7 ml-auto"
+                          />
+                        )}
+                        <button onClick={() => removeAction(index)} className="p-1 text-gray-400 hover:text-red-500 ml-1">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="px-4 py-3 bg-gray-50 border-t flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={cancelEdit}>Cancel</Button>
+            <Button 
+              size="sm"
+              onClick={handleSave} 
+              disabled={!name.trim() || isSaving}
+            >
+              {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+              {editingStatus ? 'Update' : 'Create'}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
