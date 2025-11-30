@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   User, GraduationCap, DollarSign, FileText, Trophy, Upload, 
@@ -26,6 +26,9 @@ import { Form, FormField } from '@/types/forms'
 import { goClient } from '@/lib/api/go-client'
 import { supabase } from '@/lib/supabase'
 import { AddressField, AddressValue } from '@/components/Tables/AddressField'
+import { ProgressHeader } from './ProgressHeader'
+import { ApplicationSidebar } from './ApplicationSidebar'
+import { toast } from 'sonner'
 
 // Types
 type TabId = string
@@ -189,6 +192,12 @@ export const EMPTY_APPLICATION_STATE: ApplicationState = {
   }
 }
 
+// Version history entry type
+interface VersionEntry {
+  date: Date
+  data: any
+}
+
 export function ApplicationForm({ 
   onBack, 
   onSave,
@@ -224,35 +233,113 @@ export function ApplicationForm({
 
   // Add Review tab at the end for both dynamic and static forms
   const baseTabs = isDynamic && sections.length > 0
-    ? sections.map(s => ({ id: s.id, label: s.title, icon: FileText }))
+    ? sections.map(s => ({ id: s.id, title: s.title, icon: FileText }))
     : [
-        { id: 'personal', label: 'Personal Info', icon: User },
-        { id: 'academic', label: 'Academic Info', icon: GraduationCap },
-        { id: 'financial', label: 'Financial Info', icon: DollarSign },
-        { id: 'essays', label: 'Essays', icon: FileText },
-        { id: 'activities', label: 'Activities', icon: Trophy },
-        { id: 'documents', label: 'Documents', icon: Upload },
+        { id: 'personal', title: 'Personal Info', icon: User },
+        { id: 'academic', title: 'Academic Info', icon: GraduationCap },
+        { id: 'financial', title: 'Financial Info', icon: DollarSign },
+        { id: 'essays', title: 'Essays', icon: FileText },
+        { id: 'activities', title: 'Activities', icon: Trophy },
+        { id: 'documents', title: 'Documents', icon: Upload },
       ]
   
-  const TABS = [...baseTabs, { id: 'review', label: 'Review & Submit', icon: ClipboardCheck }]
+  const TABS = [...baseTabs, { id: 'review', title: 'Review & Submit', icon: ClipboardCheck }]
 
-  const [activeTab, setActiveTab] = useState<TabId>(TABS[0]?.id || 'personal')
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [formData, setFormData] = useState<any>(initialData || (isDynamic ? {} : EMPTY_APPLICATION_STATE))
-  const [lastSaved, setLastSaved] = useState<Date>(new Date())
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [versionHistory, setVersionHistory] = useState<VersionEntry[]>([])
 
-  // Autosave simulation
+  const activeTab = TABS[currentSectionIndex]?.id || TABS[0]?.id
+
+  // Load saved data and version history on mount
   useEffect(() => {
-    const timer = setInterval(() => {
-      setIsSaving(true)
-      setTimeout(() => {
-        setLastSaved(new Date())
-        setIsSaving(false)
-      }, 800)
-    }, 30000) // Every 30s
+    const storageKey = formDefinition?.id || 'scholarship-application'
+    const saved = localStorage.getItem(storageKey)
+    const savedHistory = localStorage.getItem(`${storageKey}-history`)
+    
+    if (saved && !initialData) {
+      try {
+        const data = JSON.parse(saved)
+        setFormData(data.formData || data)
+      } catch (e) {
+        console.error('Failed to load saved form data:', e)
+      }
+    }
+    
+    if (savedHistory) {
+      try {
+        const history = JSON.parse(savedHistory)
+        setVersionHistory(history.map((h: any) => ({ ...h, date: new Date(h.date) })))
+      } catch (e) {
+        console.error('Failed to load version history:', e)
+      }
+    }
+  }, [formDefinition?.id, initialData])
 
-    return () => clearInterval(timer)
-  }, [formData])
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + S to save version
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        saveVersion()
+      }
+      
+      // Ctrl/Cmd + Right Arrow to go to next section
+      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowRight') {
+        e.preventDefault()
+        if (currentSectionIndex < TABS.length - 1) {
+          setCurrentSectionIndex(currentSectionIndex + 1)
+        }
+      }
+      
+      // Ctrl/Cmd + Left Arrow to go to previous section
+      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowLeft') {
+        e.preventDefault()
+        if (currentSectionIndex > 0) {
+          setCurrentSectionIndex(currentSectionIndex - 1)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [currentSectionIndex, formData])
+
+  // Autosave to localStorage
+  useEffect(() => {
+    const storageKey = formDefinition?.id || 'scholarship-application'
+    const timer = setTimeout(() => {
+      localStorage.setItem(storageKey, JSON.stringify({ formData, lastSaved: new Date().toISOString() }))
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [formData, formDefinition?.id])
+
+  const saveVersion = useCallback(() => {
+    const newVersion: VersionEntry = {
+      date: new Date(),
+      data: { ...formData }
+    }
+    
+    const newHistory = [...versionHistory, newVersion].slice(-10) // Keep last 10 versions
+    setVersionHistory(newHistory)
+    
+    const storageKey = formDefinition?.id || 'scholarship-application'
+    localStorage.setItem(`${storageKey}-history`, JSON.stringify(
+      newHistory.map(h => ({ ...h, date: h.date.toISOString() }))
+    ))
+    
+    toast.success('Version saved successfully!')
+  }, [formData, versionHistory, formDefinition?.id])
+
+  const restoreVersion = useCallback((version: VersionEntry) => {
+    setFormData(version.data)
+    toast.success(`Restored version from ${version.date.toLocaleString()}`)
+  }, [])
 
   const handleSave = async (exit = false) => {
     setIsSaving(true)
@@ -282,8 +369,11 @@ export function ApplicationForm({
             }
           })
         }
+        
+        toast.success('Application saved successfully!')
       } catch (error) {
         console.error('Failed to save:', error)
+        toast.error('Failed to save application')
       }
     }
 
@@ -319,7 +409,8 @@ export function ApplicationForm({
     }
   }
 
-  const calculateProgress = () => {
+  // Calculate overall progress
+  const calculateProgress = useCallback(() => {
     if (isDynamic && formDefinition?.fields) {
       const requiredFields = formDefinition.fields.filter(f => (f.config as any)?.is_required)
       if (requiredFields.length === 0) return 100
@@ -332,168 +423,204 @@ export function ApplicationForm({
       return Math.round((filledFields.length / requiredFields.length) * 100)
     }
     // Simplified progress calculation for static form
-    return 65 
+    const staticFields = [
+      formData?.personal?.studentName,
+      formData?.personal?.personalEmail,
+      formData?.academic?.gpa,
+      formData?.essays?.whyScholarship
+    ]
+    const filledCount = staticFields.filter(f => f && f !== '').length
+    return Math.round((filledCount / staticFields.length) * 100)
+  }, [formData, formDefinition?.fields, isDynamic])
+
+  // Calculate completion for a specific section
+  const getSectionCompletion = useCallback((sectionIndex: number) => {
+    const section = TABS[sectionIndex]
+    if (!section || section.id === 'review') return 100
+
+    if (isDynamic && formDefinition?.fields) {
+      const sectionFields = formDefinition.fields.filter(f => {
+        const config = f.config as any
+        if (sections.length === 1 && sections[0].id === 'default') return true
+        return config?.section_id === section.id
+      })
+      
+      const requiredSectionFields = sectionFields.filter(f => (f.config as any)?.is_required)
+      if (requiredSectionFields.length === 0) return 100
+      
+      const filledFields = requiredSectionFields.filter(f => {
+        const val = formData[f.name]
+        return val !== undefined && val !== '' && val !== null && (Array.isArray(val) ? val.length > 0 : true)
+      })
+      
+      return Math.round((filledFields.length / requiredSectionFields.length) * 100)
+    }
+    
+    // Static form section completion
+    const sectionData = formData?.[section.id]
+    if (!sectionData) return 0
+    
+    const values = Object.values(sectionData).filter(v => v !== undefined && v !== '' && v !== null)
+    const total = Object.keys(sectionData).length
+    return total > 0 ? Math.round((values.length / total) * 100) : 0
+  }, [TABS, formData, formDefinition?.fields, isDynamic, sections])
+
+  const isSectionComplete = useCallback((sectionIndex: number) => {
+    return getSectionCompletion(sectionIndex) === 100
+  }, [getSectionCompletion])
+
+  const goToSection = (index: number) => {
+    setCurrentSectionIndex(index)
+    // Close sidebar on mobile after navigation
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false)
+    }
   }
 
+  const nextSection = () => {
+    if (currentSectionIndex < TABS.length - 1) {
+      setCurrentSectionIndex(currentSectionIndex + 1)
+    }
+  }
+
+  const prevSection = () => {
+    if (currentSectionIndex > 0) {
+      setCurrentSectionIndex(currentSectionIndex - 1)
+    }
+  }
+
+  // Convert TABS to sidebar sections format
+  const sidebarSections = TABS.map(tab => ({
+    id: tab.id,
+    title: tab.title,
+    icon: tab.icon
+  }))
+
   return (
-    <div className={cn("min-h-screen flex flex-col", isExternal ? "bg-white" : "bg-gray-50")}>
-      {/* Top Bar */}
-      <div className={cn(
-        "sticky top-0 z-30 transition-all",
-        isExternal ? "bg-white/80 backdrop-blur-md border-b border-gray-100" : "bg-white border-b border-gray-200"
-      )}>
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            {!isExternal && (
-              <Button variant="ghost" size="sm" onClick={onBack}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Dashboard
-              </Button>
-            )}
-            {!isExternal && <Separator orientation="vertical" className="h-6" />}
-            
-            {isExternal ? (
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center text-white font-bold">M</div>
-                <span className="font-semibold text-gray-900">{formDefinition?.name || 'Scholarship Application'}</span>
-              </div>
-            ) : (
-              <h1 className="font-semibold text-gray-900">{formDefinition?.name || 'Scholarship Application'}</h1>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-6">
-            <div className="text-right hidden sm:block">
-              <div className="text-xs text-gray-500 mb-1">
-                {isSaving ? 'Saving...' : `Saved ${lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
-              </div>
-              <Progress value={calculateProgress()} className="w-32 h-2" />
+    <div className={cn("h-screen flex overflow-hidden", isExternal ? "bg-white" : "bg-gray-50")}>
+      {/* Sidebar */}
+      <ApplicationSidebar
+        sections={sidebarSections}
+        currentSection={currentSectionIndex}
+        onSectionChange={goToSection}
+        getSectionCompletion={getSectionCompletion}
+        isSectionComplete={isSectionComplete}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        formName={formDefinition?.name || 'Scholarship Application'}
+        formDescription={formDefinition?.description || undefined}
+        helpEmail="support@example.com"
+        isExternal={isExternal}
+      />
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Progress Header */}
+        <ProgressHeader
+          progress={calculateProgress()}
+          isSaving={isSaving}
+          lastSaved={lastSaved}
+          onSave={saveVersion}
+          onSaveAndExit={() => handleSave(true)}
+          versionHistory={versionHistory}
+          onRestoreVersion={restoreVersion}
+          formName={formDefinition?.name}
+          isExternal={isExternal}
+        />
+
+        {/* Form Content */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* Section Header */}
+            <div className="mb-8">
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                {TABS[currentSectionIndex]?.title}
+              </h1>
+              <p className="text-gray-600">
+                {activeTab === 'review' 
+                  ? 'Review your application and submit when ready.'
+                  : 'Please fill out all required fields to continue.'
+                }
+              </p>
             </div>
-            <Button 
-              className={cn(isExternal && "bg-gray-900 hover:bg-gray-800")}
-              onClick={() => handleSave(true)}
-              disabled={isSaving}
-            >
-              {isSaving ? 'Saving...' : 'Save & Exit'}
-            </Button>
-          </div>
-        </div>
-      </div>
 
-      <div className="flex-1 max-w-7xl mx-auto w-full flex flex-col lg:flex-row items-start gap-6 lg:gap-8 p-4 lg:p-6">
-        {/* Side Navigation */}
-        <div className="w-full lg:w-64 shrink-0 sticky top-[4rem] lg:top-24 z-20 bg-white/95 backdrop-blur lg:bg-transparent -mx-4 px-4 lg:mx-0 lg:px-0 py-2 lg:py-0 border-b lg:border-none border-gray-100">
-          <nav className="flex lg:block overflow-x-auto gap-2 lg:space-y-1 pb-1 lg:pb-0 scrollbar-none">
-            {TABS.map((tab) => {
-              const Icon = tab.icon
-              const isActive = activeTab === tab.id
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as TabId)}
-                  className={cn(
-                    "flex-shrink-0 flex items-center gap-3 px-4 py-2.5 lg:py-3 text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap",
-                    isActive 
-                      ? (isExternal ? "bg-gray-100 text-gray-900" : "bg-blue-50 text-blue-700")
-                      : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-                  )}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Card className={cn(isExternal ? "border-none shadow-none bg-transparent" : "")}>
+                  <CardContent className={cn("space-y-8 pt-6", isExternal ? "px-0" : "")}>
+                    {activeTab === 'review' ? (
+                      <ReviewSection
+                        formData={formData}
+                        formDefinition={formDefinition}
+                        sections={sections}
+                        isDynamic={isDynamic}
+                        onSubmit={() => handleSave(true)}
+                        onNavigateToSection={(sectionId) => {
+                          const idx = TABS.findIndex(t => t.id === sectionId)
+                          if (idx >= 0) setCurrentSectionIndex(idx)
+                        }}
+                        isExternal={isExternal}
+                      />
+                    ) : isDynamic ? (
+                      <DynamicSection
+                        fields={(formDefinition?.fields || []).filter(f => {
+                          const config = f.config as any
+                          // If we are using the synthesized default section, show all fields
+                          if (sections.length === 1 && sections[0].id === 'default') return true
+                          return config?.section_id === activeTab
+                        })}
+                        allFields={formDefinition?.fields || []}
+                        data={formData}
+                        onChange={(field, value) => updateField(activeTab, field, value)}
+                      />
+                    ) : (
+                      <>
+                        {activeTab === 'personal' && <PersonalSection data={formData.personal} onChange={(f, v) => updateField('personal', f, v)} />}
+                        {activeTab === 'academic' && <AcademicSection data={formData.academic} onChange={(f, v) => updateField('academic', f, v)} />}
+                        {activeTab === 'financial' && <FinancialSection data={formData.financial} top3Universities={formData.academic.top3} onChange={(f, v) => updateField('financial', f, v)} />}
+                        {activeTab === 'essays' && <EssaysSection data={formData.essays} onChange={(f, v) => updateField('essays', f, v)} />}
+                        {activeTab === 'activities' && <ActivitiesSection data={formData.activities} onChange={(f, v) => updateField('activities', f, v)} />}
+                        {activeTab === 'documents' && <DocumentsSection data={formData.documents} onChange={(f, v) => updateField('documents', f, v)} />}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Navigation Buttons */}
+            {activeTab !== 'review' && (
+              <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
+                <Button 
+                  variant="outline" 
+                  onClick={prevSection}
+                  disabled={currentSectionIndex === 0}
                 >
-                  <Icon className={cn("w-4 h-4", isActive ? (isExternal ? "text-gray-900" : "text-blue-600") : "text-gray-400")} />
-                  {tab.label}
-                  {isActive && <motion.div layoutId="activeTab" className="ml-auto w-1.5 h-1.5 rounded-full bg-current hidden lg:block" />}
-                </button>
-              )
-            })}
-          </nav>
-        </div>
-
-        {/* Main Content Area */}
-        <div className="flex-1 min-w-0 space-y-6 pb-20 w-full">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              <Card className={cn(isExternal ? "border-none shadow-none" : "")}>
-                <CardHeader className={cn(isExternal ? "px-0" : "")}>
-                  <CardTitle className="text-2xl">{TABS.find(t => t.id === activeTab)?.label}</CardTitle>
-                  <CardDescription>
-                    {activeTab === 'review' 
-                      ? 'Review your application and submit when ready.'
-                      : 'Please fill out all required fields.'
-                    }
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className={cn("space-y-8", isExternal ? "px-0" : "")}>
-                  {activeTab === 'review' ? (
-                    <ReviewSection
-                      formData={formData}
-                      formDefinition={formDefinition}
-                      sections={sections}
-                      isDynamic={isDynamic}
-                      onSubmit={() => handleSave(true)}
-                      onNavigateToSection={(sectionId) => setActiveTab(sectionId)}
-                      isExternal={isExternal}
-                    />
-                  ) : isDynamic ? (
-                    <DynamicSection
-                      fields={(formDefinition?.fields || []).filter(f => {
-                        const config = f.config as any
-                        // If we are using the synthesized default section, show all fields
-                        if (sections.length === 1 && sections[0].id === 'default') return true
-                        return config?.section_id === activeTab
-                      })}
-                      allFields={formDefinition?.fields || []}
-                      data={formData}
-                      onChange={(field, value) => updateField(activeTab, field, value)}
-                    />
-                  ) : (
-                    <>
-                      {activeTab === 'personal' && <PersonalSection data={formData.personal} onChange={(f, v) => updateField('personal', f, v)} />}
-                      {activeTab === 'academic' && <AcademicSection data={formData.academic} onChange={(f, v) => updateField('academic', f, v)} />}
-                      {activeTab === 'financial' && <FinancialSection data={formData.financial} top3Universities={formData.academic.top3} onChange={(f, v) => updateField('financial', f, v)} />}
-                      {activeTab === 'essays' && <EssaysSection data={formData.essays} onChange={(f, v) => updateField('essays', f, v)} />}
-                      {activeTab === 'activities' && <ActivitiesSection data={formData.activities} onChange={(f, v) => updateField('activities', f, v)} />}
-                      {activeTab === 'documents' && <DocumentsSection data={formData.documents} onChange={(f, v) => updateField('documents', f, v)} />}
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-          </AnimatePresence>
-
-          <div className="flex justify-between pt-6 border-t border-gray-100">
-            <Button 
-              variant="ghost" 
-              onClick={() => {
-                const idx = TABS.findIndex(t => t.id === activeTab)
-                if (idx > 0) setActiveTab(TABS[idx - 1].id as TabId)
-              }}
-              disabled={activeTab === TABS[0].id}
-              className="text-gray-500"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Previous Step
-            </Button>
-            <Button 
-              onClick={() => {
-                const idx = TABS.findIndex(t => t.id === activeTab)
-                if (idx < TABS.length - 1) setActiveTab(TABS[idx + 1].id as TabId)
-              }}
-              className={cn(isExternal && "bg-gray-900 hover:bg-gray-800")}
-            >
-              Save & Continue
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Previous
+                </Button>
+                <Button 
+                  onClick={nextSection}
+                  className={cn(isExternal && "bg-gray-900 hover:bg-gray-800")}
+                >
+                  {currentSectionIndex === TABS.length - 2 ? 'Review Application' : 'Next Section'}
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </div>
   )
 }
+
 
 // Section Components
 
