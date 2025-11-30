@@ -566,6 +566,7 @@ export function ApplicationForm({
                           if (idx >= 0) setCurrentSectionIndex(idx)
                         }}
                         isExternal={isExternal}
+                        userEmail={userEmail}
                       />
                     ) : isDynamic ? (
                       <DynamicSection
@@ -1149,6 +1150,7 @@ interface ReviewSectionProps {
   onSubmit: () => void
   onNavigateToSection: (sectionId: string) => void
   isExternal?: boolean
+  userEmail?: string
 }
 
 function ReviewSection({ 
@@ -1158,7 +1160,8 @@ function ReviewSection({
   isDynamic, 
   onSubmit, 
   onNavigateToSection,
-  isExternal = false 
+  isExternal = false,
+  userEmail
 }: ReviewSectionProps) {
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [agreedToAccuracy, setAgreedToAccuracy] = useState(false)
@@ -1352,8 +1355,8 @@ function ReviewSection({
               <span class="meta-value">${submissionDate}</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">Applicant</span>
-              <span class="meta-value">${formData?.['First Name'] || formData?.personal?.studentName || formData?.firstName || 'N/A'} ${formData?.['Last Name'] || formData?.lastName || ''}</span>
+              <span class="meta-label">Applicant Email</span>
+              <span class="meta-value">${userEmail || formData?.['Personal Email'] || formData?.['CPS email'] || formData?.email || 'N/A'}</span>
             </div>
           </div>
         </div>
