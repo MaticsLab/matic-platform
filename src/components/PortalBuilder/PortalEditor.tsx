@@ -489,6 +489,19 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   activeId={activeSectionId} 
                   onSelect={setActiveSectionId}
                   onReorder={(sections: Section[]) => setConfig(prev => ({ ...prev, sections }))}
+                  onDelete={(sectionId: string) => {
+                    setConfig(prev => ({
+                      ...prev,
+                      sections: prev.sections.filter(s => s.id !== sectionId)
+                    }));
+                    // Select first remaining section if active one was deleted
+                    if (activeSectionId === sectionId) {
+                      const remaining = config.sections.filter(s => s.id !== sectionId);
+                      if (remaining.length > 0) {
+                        setActiveSectionId(remaining[0].id);
+                      }
+                    }
+                  }}
                 />
               </ScrollArea>
             </TabsContent>

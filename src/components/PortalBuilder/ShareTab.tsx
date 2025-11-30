@@ -37,13 +37,36 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
   const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   const devBaseUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
+  // Load data on mount and when formId/workspaceId changes
   useEffect(() => {
-    if (formId) {
-      loadForm()
+    const load = async () => {
+      setIsLoading(true)
+      try {
+        const promises: Promise<any>[] = []
+        if (formId) {
+          promises.push(
+            formsClient.get(formId).then((formData) => {
+              setForm(formData)
+              setCustomSlug(formData.custom_slug || '')
+            })
+          )
+        }
+        if (workspaceId) {
+          promises.push(
+            workspacesClient.get(workspaceId).then((wsData) => {
+              setWorkspace(wsData)
+              setSubdomain(wsData.custom_subdomain || '')
+            })
+          )
+        }
+        await Promise.all(promises)
+      } catch (err) {
+        console.error('Failed to load share data:', err)
+      } finally {
+        setIsLoading(false)
+      }
     }
-    if (workspaceId) {
-      loadWorkspace()
-    }
+    load()
   }, [formId, workspaceId])
 
   const loadForm = async () => {
@@ -166,6 +189,9 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
 
   // Check if pretty URL is available
   const hasPrettyUrl = !!workspace?.custom_subdomain && !!form?.custom_slug
+  
+  // Check if subdomain is set but slug is missing (incomplete setup)
+  const hasIncompleteSetup = !!workspace?.custom_subdomain && !form?.custom_slug
 
   const isValidSlug = (slug: string): boolean => {
     if (!slug) return true // Empty is valid (means remove custom slug)
@@ -280,6 +306,20 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
               <ExternalLink className="w-4 h-4" />
             </Button>
           </div>
+
+          {/* Incomplete Setup Warning */}
+          {hasIncompleteSetup && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm text-amber-800 font-medium">Almost there!</p>
+                <p className="text-xs text-amber-700">
+                  Your subdomain <span className="font-mono font-medium">{workspace?.custom_subdomain}</span> is set up. 
+                  Click "Customize your link" to add a custom slug and activate your pretty URL.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Customize Button */}
           <Button
