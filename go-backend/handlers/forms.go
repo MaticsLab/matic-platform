@@ -426,15 +426,25 @@ func SubmitForm(c *gin.Context) {
 	// Check for existing submission if email is present
 	email := input.Email
 	if email == "" {
+		// Try to get email from various locations in the data
 		if personal, ok := data["personal"].(map[string]interface{}); ok {
 			if e, ok := personal["personalEmail"].(string); ok {
+				email = e
+			}
+		}
+		// Also check for email field at root level (dynamic forms)
+		if email == "" {
+			if e, ok := data["email"].(string); ok {
 				email = e
 			}
 		}
 	}
 
 	if email != "" {
-		// Ensure email is saved in data for future reference if not already there
+		// Always store _applicant_email at root level for reliable lookups
+		data["_applicant_email"] = email
+		
+		// Also ensure email is saved in data["personal"] for backwards compatibility
 		if _, ok := data["personal"]; !ok {
 			data["personal"] = map[string]interface{}{
 				"personalEmail": email,
@@ -445,8 +455,22 @@ func SubmitForm(c *gin.Context) {
 		}
 
 		var existingRow models.Row
-		// Postgres JSONB query: data->'personal'->>'personalEmail' = ?
-		if err := database.DB.Where("table_id = ? AND data->'personal'->>'personalEmail' = ?", formID, email).First(&existingRow).Error; err == nil {
+		// Try multiple locations where email might be stored
+		queries := []string{
+			"table_id = ? AND data->>'_applicant_email' = ?",
+			"table_id = ? AND data->'personal'->>'personalEmail' = ?",
+			"table_id = ? AND data->>'email' = ?",
+		}
+		
+		var found bool
+		for _, query := range queries {
+			if err := database.DB.Where(query, formID, email).First(&existingRow).Error; err == nil {
+				found = true
+				break
+			}
+		}
+		
+		if found {
 			// Update existing row with transaction - create version in same transaction
 			tx := database.DB.Begin()
 			defer func() {
@@ -742,7 +766,26 @@ func GetFormSubmission(c *gin.Context) {
 	}
 
 	var row models.Row
-	if err := database.DB.Where("table_id = ? AND data->'personal'->>'personalEmail' = ?", formID, email).First(&row).Error; err != nil {
+	
+	// Try multiple locations where email might be stored:
+	// 1. data->'personal'->>'personalEmail' (static forms)
+	// 2. data->>'_applicant_email' (dynamic forms - new field)
+	// 3. data->>'email' (dynamic forms - field named email)
+	queries := []string{
+		"table_id = ? AND data->'personal'->>'personalEmail' = ?",
+		"table_id = ? AND data->>'_applicant_email' = ?",
+		"table_id = ? AND data->>'email' = ?",
+	}
+	
+	var found bool
+	for _, query := range queries {
+		if err := database.DB.Where(query, formID, email).First(&row).Error; err == nil {
+			found = true
+			break
+		}
+	}
+	
+	if !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
 	}
