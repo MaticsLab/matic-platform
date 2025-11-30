@@ -63,6 +63,7 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
   const [isLoading, setIsLoading] = useState(true)
   const [formSettings, setFormSettings] = useState<any>({})
   const [showAIInsights, setShowAIInsights] = useState(true)
+  const [reviewersMap, setReviewersMap] = useState<Record<string, { name: string; email: string }>>({})
 
   useEffect(() => {
     const fetchData = async () => {
@@ -73,6 +74,19 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
         // Fetch form
         const form = await goClient.get<Form>(`/forms/${formId}`)
         setFormSettings(form.settings || {})
+        
+        // Build reviewers map from form settings
+        const reviewers = (form.settings?.reviewers as any[]) || []
+        const rMap: Record<string, { name: string; email: string }> = {}
+        reviewers.forEach((r: any) => {
+          if (r.id) {
+            rMap[r.id] = { 
+              name: r.name || r.email?.split('@')[0] || 'Unknown Reviewer',
+              email: r.email || ''
+            }
+          }
+        })
+        setReviewersMap(rMap)
         
         // Fetch submissions
         const data = await goClient.get<FormSubmission[]>(`/forms/${formId}/submissions`)
@@ -202,12 +216,34 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
     }))
   }, [applications, stages])
 
-  // Reviewer metrics
+  // Reviewer metrics - also check formSettings directly as backup
   const reviewerMetrics = useMemo(() => {
-    const reviewerMap: Record<string, { 
+    // Build a local map from formSettings as backup (for name lookups)
+    const localReviewersMap: Record<string, { name: string; email: string }> = { ...reviewersMap }
+    const settingsReviewers = (formSettings?.reviewers as any[]) || []
+    
+    // Build set of active (non-removed) reviewer IDs
+    const activeReviewerIds = new Set(
+      settingsReviewers
+        .filter((r: any) => !r.removed)
+        .map((r: any) => r.id)
+    )
+    
+    settingsReviewers.forEach((r: any) => {
+      if (r.id && !localReviewersMap[r.id]) {
+        localReviewersMap[r.id] = {
+          name: r.name || r.email?.split('@')[0] || 'Unknown',
+          email: r.email || ''
+        }
+      }
+    })
+
+    const reviewerData: Record<string, { 
       id: string; 
       name: string; 
+      email: string;
       completedCount: number; 
+      assignedCount: number;
       avgScore: number;
       scores: number[];
       variance: number;
@@ -215,23 +251,30 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
     
     applications.forEach(app => {
       app.assignedReviewers.forEach(reviewerId => {
-        if (!reviewerMap[reviewerId]) {
-          reviewerMap[reviewerId] = { 
+        // Skip removed reviewers
+        if (!activeReviewerIds.has(reviewerId)) return
+        
+        if (!reviewerData[reviewerId]) {
+          const reviewerInfo = localReviewersMap[reviewerId]
+          reviewerData[reviewerId] = { 
             id: reviewerId, 
-            name: `Reviewer ${reviewerId.substring(0, 4)}`,
+            name: reviewerInfo?.name || `Reviewer ${reviewerId.substring(0, 4)}`,
+            email: reviewerInfo?.email || '',
             completedCount: 0, 
+            assignedCount: 0,
             avgScore: 0,
             scores: [],
             variance: 0
           }
         }
+        reviewerData[reviewerId].assignedCount++
         if (app.reviewCount > 0) {
-          reviewerMap[reviewerId].completedCount++
+          reviewerData[reviewerId].completedCount++
         }
       })
     })
     
-    Object.values(reviewerMap).forEach(reviewer => {
+    Object.values(reviewerData).forEach(reviewer => {
       if (reviewer.scores.length > 0) {
         reviewer.avgScore = Math.round(reviewer.scores.reduce((a, b) => a + b, 0) / reviewer.scores.length)
         const mean = reviewer.avgScore
@@ -241,8 +284,8 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
       }
     })
     
-    return Object.values(reviewerMap).sort((a, b) => b.completedCount - a.completedCount)
-  }, [applications])
+    return Object.values(reviewerData).sort((a, b) => b.assignedCount - a.assignedCount)
+  }, [applications, reviewersMap, formSettings])
 
   // Tags distribution
   const tagDistribution = useMemo(() => {
@@ -262,14 +305,14 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="absolute inset-0 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     )
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 bg-gray-50">
+    <div className="absolute inset-0 overflow-y-auto p-8 bg-gray-50">
       {/* Header with AI Badge */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -574,11 +617,8 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
               </thead>
               <tbody>
                 {reviewerMetrics.slice(0, 8).map((reviewer) => {
-                  const assignedCount = applications.filter(a => 
-                    a.assignedReviewers.includes(reviewer.id)
-                  ).length
-                  const completionRate = assignedCount > 0 
-                    ? Math.round((reviewer.completedCount / assignedCount) * 100) 
+                  const completionRate = reviewer.assignedCount > 0 
+                    ? Math.round((reviewer.completedCount / reviewer.assignedCount) * 100) 
                     : 0
                   
                   return (
@@ -588,10 +628,15 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
                           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
                             <User className="w-4 h-4 text-white" />
                           </div>
-                          <span className="text-gray-900 font-medium">{reviewer.name}</span>
+                          <div>
+                            <span className="text-gray-900 font-medium block">{reviewer.name}</span>
+                            {reviewer.email && (
+                              <span className="text-xs text-gray-500">{reviewer.email}</span>
+                            )}
+                          </div>
                         </div>
                       </td>
-                      <td className="text-center py-3 px-4 text-gray-600">{assignedCount}</td>
+                      <td className="text-center py-3 px-4 text-gray-600">{reviewer.assignedCount}</td>
                       <td className="text-center py-3 px-4 text-gray-900 font-medium">{reviewer.completedCount}</td>
                       <td className="text-center py-3 px-4">
                         {reviewer.avgScore > 0 ? (

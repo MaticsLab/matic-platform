@@ -93,50 +93,78 @@ interface ReviewWorkspaceProps {
   onToggleCommunicationsPanel?: () => void
 }
 
+// Helper to format field labels nicely (handle snake_case, camelCase, etc.)
+function formatFieldLabel(key: string): string {
+  return key
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, c => c.toUpperCase())
+}
+
+// Helper function to parse value if it's a JSON string
+function parseValueIfNeeded(value: any): any {
+  if (typeof value === 'string' && value.length > 0) {
+    // Check if it looks like JSON (starts with [ or {)
+    const trimmed = value.trim()
+    if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || 
+        (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+      try {
+        return JSON.parse(value)
+      } catch {
+        return value
+      }
+    }
+  }
+  return value
+}
+
 // Helper function to render nested data (groups, repeaters, objects) nicely
 function renderFieldValue(key: string, value: any, depth: number = 0): React.ReactNode {
-  if (value === null || value === undefined || value === '') {
+  // First, try to parse JSON strings
+  const parsedValue = parseValueIfNeeded(value)
+  
+  if (parsedValue === null || parsedValue === undefined || parsedValue === '') {
     return <span className="text-gray-400 italic">Not provided</span>
   }
   
-  if (typeof value === 'boolean') {
-    return <span className={value ? 'text-green-600' : 'text-gray-500'}>{value ? 'Yes' : 'No'}</span>
+  if (typeof parsedValue === 'boolean') {
+    return <span className={parsedValue ? 'text-green-600' : 'text-gray-500'}>{parsedValue ? 'Yes' : 'No'}</span>
   }
   
-  if (typeof value === 'number') {
-    return <span className="font-medium">{value}</span>
+  if (typeof parsedValue === 'number') {
+    return <span className="font-medium">{parsedValue.toLocaleString()}</span>
   }
   
-  if (typeof value === 'string') {
+  if (typeof parsedValue === 'string') {
     // Check if it's a long text
-    if (value.length > 200) {
-      return <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{value}</p>
+    if (parsedValue.length > 200) {
+      return <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{parsedValue}</p>
     }
-    return <span className="text-gray-900">{value}</span>
+    return <span className="text-gray-900">{parsedValue}</span>
   }
   
   // Handle arrays (repeaters)
-  if (Array.isArray(value)) {
-    if (value.length === 0) {
+  if (Array.isArray(parsedValue)) {
+    if (parsedValue.length === 0) {
       return <span className="text-gray-400 italic">None</span>
     }
     
     // Check if it's an array of primitives
-    if (value.every(v => typeof v !== 'object')) {
-      return <span className="text-gray-900">{value.join(', ')}</span>
+    if (parsedValue.every(v => typeof v !== 'object')) {
+      return <span className="text-gray-900">{parsedValue.join(', ')}</span>
     }
     
     // Array of objects (repeater items)
     return (
       <div className="space-y-3 mt-2">
-        {value.map((item, idx) => (
+        {parsedValue.map((item, idx) => (
           <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
             <div className="text-xs font-medium text-gray-500 uppercase mb-2">Item {idx + 1}</div>
             <div className="grid gap-2">
               {typeof item === 'object' && item !== null ? (
                 Object.entries(item).map(([k, v]) => (
                   <div key={k} className="flex flex-wrap gap-x-2">
-                    <span className="text-xs font-medium text-gray-500 min-w-[80px]">{k.replace(/_/g, ' ')}:</span>
+                    <span className="text-xs font-medium text-gray-500 min-w-[80px]">{formatFieldLabel(k)}:</span>
                     <span className="text-sm text-gray-900">{renderFieldValue(k, v, depth + 1)}</span>
                   </div>
                 ))
@@ -151,8 +179,8 @@ function renderFieldValue(key: string, value: any, depth: number = 0): React.Rea
   }
   
   // Handle objects (groups)
-  if (typeof value === 'object') {
-    const entries = Object.entries(value).filter(([k]) => !k.startsWith('_'))
+  if (typeof parsedValue === 'object') {
+    const entries = Object.entries(parsedValue).filter(([k]) => !k.startsWith('_'))
     
     if (entries.length === 0) {
       return <span className="text-gray-400 italic">Empty</span>
@@ -167,7 +195,7 @@ function renderFieldValue(key: string, value: any, depth: number = 0): React.Rea
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {entries.map(([k, v]) => (
             <span key={k} className="text-sm">
-              <span className="text-gray-500">{k.replace(/_/g, ' ')}:</span>{' '}
+              <span className="text-gray-500">{formatFieldLabel(k)}:</span>{' '}
               <span className="text-gray-900 font-medium">{v === null || v === '' ? '-' : String(v)}</span>
             </span>
           ))}
@@ -182,7 +210,7 @@ function renderFieldValue(key: string, value: any, depth: number = 0): React.Rea
           {entries.map(([k, v]) => (
             <div key={k} className="px-3 py-2">
               <div className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">
-                {k.replace(/_/g, ' ')}
+                {formatFieldLabel(k)}
               </div>
               <div className="text-gray-900">{renderFieldValue(k, v, depth + 1)}</div>
             </div>
@@ -192,7 +220,7 @@ function renderFieldValue(key: string, value: any, depth: number = 0): React.Rea
     )
   }
   
-  return <span className="text-gray-900">{String(value)}</span>
+  return <span className="text-gray-900">{String(parsedValue)}</span>
 }
 
 // Types for section-based field grouping
@@ -443,6 +471,9 @@ export function ReviewWorkspace({
   const [selectedStageGroupId, setSelectedStageGroupId] = useState<string | null>(null) // Filter by stage group
   const [stageActions, setStageActions] = useState<StageAction[]>([])
   
+  // Reviewers map for looking up names
+  const [reviewersMap, setReviewersMap] = useState<Record<string, { name: string; email?: string; role?: string }>>({})
+  
   // Form display settings
   const [titleFieldName, setTitleFieldName] = useState<string | null>(null)
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
@@ -569,6 +600,24 @@ export function ReviewWorkspace({
         }
         setStages([stageWithConfig])
         setSelectedStageId(stage.id)
+      } else if (rubric) {
+        // Create a default stage for external review when we have a rubric but no stage
+        const defaultStage: StageWithConfig = {
+          id: 'external-review',
+          name: 'Review',
+          order_index: 0,
+          stage_type: 'review',
+          reviewerConfigs: stage_config ? [stage_config] : [],
+          rubric: rubric,
+          applicationCount: submissions.length,
+          stageActions: [],
+          review_workflow_id: '',
+          workspace_id: loadedForm.workspace_id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        setStages([defaultStage])
+        setSelectedStageId('external-review')
       }
       
       if (rubric) {
@@ -698,6 +747,16 @@ export function ReviewWorkspace({
       const loadedForm = await goClient.get<Form>(`/forms/${formId}`)
       setForm(loadedForm)
       
+      // Build reviewers map from form settings
+      const formReviewers = (loadedForm.settings as any)?.reviewers || []
+      const revMap: Record<string, { name: string; email?: string; role?: string }> = {}
+      formReviewers.forEach((r: any) => {
+        if (r.id) {
+          revMap[r.id] = { name: r.name || 'Unknown', email: r.email, role: r.role }
+        }
+      })
+      setReviewersMap(revMap)
+      
       // Set default title field if not already set
       if (!titleFieldName && loadedForm.fields) {
         const candidates = getTitleCandidateFields(loadedForm.fields)
@@ -780,7 +839,7 @@ export function ReviewWorkspace({
         
         loadedStages = loadedStages.sort((a, b) => a.order_index - b.order_index)
         setStages(loadedStages)
-        if (loadedStages.length > 0) setSelectedStageId(loadedStages[0].id)
+        // Keep selectedStageId as 'all' by default - users can pin a stage if they prefer
       }
 
       const submissions = await goClient.get<FormSubmission[]>(`/forms/${formId}/submissions`)
@@ -1678,7 +1737,7 @@ export function ReviewWorkspace({
         )}
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Slim Stage Sidebar */}
         <div className="w-14 bg-white border-r border-gray-100 flex flex-col items-center py-3 gap-1">
           {/* All stages */}
@@ -1772,7 +1831,7 @@ export function ReviewWorkspace({
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           {viewMode === 'queue' && (
             <AccordionQueueView
               apps={stageApps}
@@ -1796,6 +1855,7 @@ export function ReviewWorkspace({
               selectedStageGroupId={selectedStageGroupId}
               onSelectStageGroup={setSelectedStageGroupId}
               onExecuteAction={handleExecuteAction}
+              reviewersMap={reviewersMap}
             />
           )}
           
@@ -1828,7 +1888,13 @@ export function ReviewWorkspace({
           )}
 
           {viewMode === 'analytics' && !isExternalMode && (
-            <AnalyticsView stats={stats} stages={stages} applications={applications} />
+            <AnalyticsView 
+              stats={stats} 
+              stages={stages} 
+              applications={applications}
+              reviewersMap={reviewersMap}
+              formSettings={form?.settings as Record<string, any>}
+            />
           )}
         </div>
       </div>
@@ -1912,7 +1978,7 @@ export function ReviewWorkspace({
   )
 }
 
-// New Accordion Queue View - Clean single-column with expandable rows
+// New Accordion Queue View - Clean single-column with slide-out sidebar for details
 function AccordionQueueView({
   apps,
   selectedIndex,
@@ -1934,7 +2000,8 @@ function AccordionQueueView({
   stageGroups,
   selectedStageGroupId,
   onSelectStageGroup,
-  onExecuteAction
+  onExecuteAction,
+  reviewersMap
 }: {
   apps: ApplicationData[]
   selectedIndex: number
@@ -1957,10 +2024,16 @@ function AccordionQueueView({
   selectedStageGroupId?: string | null
   onSelectStageGroup?: (groupId: string | null) => void
   onExecuteAction?: (action: WorkflowAction | StageAction) => void
+  reviewersMap?: Record<string, { name: string; email?: string; role?: string }>
 }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'data' | 'reviews'>('data')
   const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'highest' | 'lowest'>('recent')
+
+  // Get the selected app for the sidebar
+  const selectedApp = useMemo(() => {
+    return apps.find(a => a.id === selectedAppId) || null
+  }, [apps, selectedAppId])
 
   // Get stage groups for current stage
   const currentStageGroups = useMemo(() => {
@@ -1985,10 +2058,10 @@ function AccordionQueueView({
   }, [apps, sortBy])
 
   const toggleExpand = (appId: string, idx: number) => {
-    if (expandedId === appId) {
-      setExpandedId(null)
+    if (selectedAppId === appId) {
+      setSelectedAppId(null)
     } else {
-      setExpandedId(appId)
+      setSelectedAppId(appId)
       onSelect(idx)
     }
   }
@@ -2008,89 +2081,94 @@ function AccordionQueueView({
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Stage Groups Filter Bar (only shown if stage has groups) */}
-      {currentStageGroups.length > 0 && (
-        <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2 overflow-x-auto">
-          <span className="text-xs text-gray-500 shrink-0">Filter:</span>
-          <button
-            onClick={() => onSelectStageGroup?.(null)}
-            className={cn(
-              "px-3 py-1 text-xs rounded-full border transition-colors shrink-0",
-              selectedStageGroupId === null
-                ? "bg-blue-100 border-blue-200 text-blue-700"
-                : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-            )}
-          >
-            All ({apps.length})
-          </button>
-          {currentStageGroups.map(group => {
-            // Count apps in this group - would need stage_group_id on apps
-            const groupColors: Record<string, { bg: string; border: string; text: string }> = {
-              blue: { bg: 'bg-blue-100', border: 'border-blue-200', text: 'text-blue-700' },
-              green: { bg: 'bg-green-100', border: 'border-green-200', text: 'text-green-700' },
-              yellow: { bg: 'bg-yellow-100', border: 'border-yellow-200', text: 'text-yellow-700' },
-              orange: { bg: 'bg-orange-100', border: 'border-orange-200', text: 'text-orange-700' },
-              red: { bg: 'bg-red-100', border: 'border-red-200', text: 'text-red-700' },
-              purple: { bg: 'bg-purple-100', border: 'border-purple-200', text: 'text-purple-700' },
-              gray: { bg: 'bg-gray-100', border: 'border-gray-200', text: 'text-gray-700' },
-            }
-            const colors = groupColors[group.color] || groupColors.gray
-            
-            return (
-              <button
-                key={group.id}
-                onClick={() => onSelectStageGroup?.(group.id)}
-                className={cn(
-                  "px-3 py-1 text-xs rounded-full border transition-colors shrink-0 flex items-center gap-1.5",
-                  selectedStageGroupId === group.id
-                    ? `${colors.bg} ${colors.border} ${colors.text}`
-                    : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                )}
-              >
-                <FolderOpen className="w-3 h-3" />
-                {group.name}
-              </button>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Sort bar */}
-      <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center justify-between">
-        <span className="text-sm text-gray-500">{apps.length} application{apps.length !== 1 ? 's' : ''}</span>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">Sort:</span>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="text-sm text-gray-700 bg-transparent border-none focus:ring-0 cursor-pointer pr-6"
-          >
-            <option value="recent">Most Recent</option>
-            <option value="oldest">Oldest First</option>
-            <option value="highest">Highest Score</option>
-            <option value="lowest">Lowest Score</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Application list with accordion */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="divide-y divide-gray-100">
-          {sortedApps.map((app, idx) => {
-            const originalIdx = apps.findIndex(a => a.id === app.id)
-            const isExpanded = expandedId === app.id
-            const displayName = getApplicationDisplayName(app, titleFieldName || null, hidePII || false)
-            
-            
-            return (
-              <div key={app.id} className={cn("bg-white", isExpanded && "bg-gray-50")}>
-                {/* Row header - always visible */}
+    <div className="flex-1 flex overflow-hidden">
+      {/* Left side - Application list */}
+      <div className={cn(
+        "flex flex-col overflow-hidden transition-all duration-300 border-r border-gray-200",
+        selectedApp ? "w-1/2" : "w-full"
+      )}>
+        {/* Stage Groups Filter Bar (only shown if stage has groups) */}
+        {currentStageGroups.length > 0 && (
+          <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2 overflow-x-auto">
+            <span className="text-xs text-gray-500 shrink-0">Filter:</span>
+            <button
+              onClick={() => onSelectStageGroup?.(null)}
+              className={cn(
+                "px-3 py-1 text-xs rounded-full border transition-colors shrink-0",
+                selectedStageGroupId === null
+                  ? "bg-blue-100 border-blue-200 text-blue-700"
+                  : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+              )}
+            >
+              All ({apps.length})
+            </button>
+            {currentStageGroups.map(group => {
+              const groupColors: Record<string, { bg: string; border: string; text: string }> = {
+                blue: { bg: 'bg-blue-100', border: 'border-blue-200', text: 'text-blue-700' },
+                green: { bg: 'bg-green-100', border: 'border-green-200', text: 'text-green-700' },
+                yellow: { bg: 'bg-yellow-100', border: 'border-yellow-200', text: 'text-yellow-700' },
+                orange: { bg: 'bg-orange-100', border: 'border-orange-200', text: 'text-orange-700' },
+                red: { bg: 'bg-red-100', border: 'border-red-200', text: 'text-red-700' },
+                purple: { bg: 'bg-purple-100', border: 'border-purple-200', text: 'text-purple-700' },
+                gray: { bg: 'bg-gray-100', border: 'border-gray-200', text: 'text-gray-700' },
+              }
+              const colors = groupColors[group.color] || groupColors.gray
+              
+              return (
                 <button
+                  key={group.id}
+                  onClick={() => onSelectStageGroup?.(group.id)}
+                  className={cn(
+                    "px-3 py-1 text-xs rounded-full border transition-colors shrink-0 flex items-center gap-1.5",
+                    selectedStageGroupId === group.id
+                      ? `${colors.bg} ${colors.border} ${colors.text}`
+                      : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                  )}
+                >
+                  <FolderOpen className="w-3 h-3" />
+                  {group.name}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Sort bar */}
+        <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center justify-between">
+          <span className="text-sm text-gray-500">{apps.length} application{apps.length !== 1 ? 's' : ''}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="text-sm text-gray-700 bg-transparent border-none focus:ring-0 cursor-pointer pr-6"
+            >
+              <option value="recent">Most Recent</option>
+              <option value="oldest">Oldest First</option>
+              <option value="highest">Highest Score</option>
+              <option value="lowest">Lowest Score</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Application list */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="divide-y divide-gray-100">
+            {sortedApps.map((app, idx) => {
+              const originalIdx = apps.findIndex(a => a.id === app.id)
+              const isSelected = selectedAppId === app.id
+              const displayName = getApplicationDisplayName(app, titleFieldName || null, hidePII || false)
+              const assignedReviewerNames = app.assignedReviewers
+                ?.slice(0, 3)
+                .map(id => reviewersMap?.[id]?.name?.[0]?.toUpperCase() || '?')
+              
+              return (
+                <button
+                  key={app.id}
                   onClick={() => toggleExpand(app.id, originalIdx)}
                   className={cn(
-                    "w-full px-4 py-3 flex items-center gap-4 hover:bg-gray-50 transition-colors",
-                    isExpanded && "bg-blue-50/50"
+                    "w-full px-4 py-3 flex items-center gap-4 hover:bg-gray-50 transition-colors text-left",
+                    isSelected && "bg-blue-50 border-l-2 border-l-blue-500"
                   )}
                 >
                   {/* Status indicator */}
@@ -2113,9 +2191,36 @@ function AccordionQueueView({
                     {hidePII ? '#' : displayName.charAt(0).toUpperCase()}
                   </div>
                   
-                  {/* Name & email */}
-                  <div className="flex-1 min-w-0 text-left">
+                  {/* Name + Assigned Reviewers */}
+                  <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900 truncate">{displayName}</p>
+                    {assignedReviewerNames && assignedReviewerNames.length > 0 && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <div className="flex -space-x-1">
+                          {assignedReviewerNames.map((initial, i) => (
+                            <div 
+                              key={i} 
+                              className={cn(
+                                "w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold border border-white",
+                                app.reviewHistory.some(r => r.reviewer_id === app.assignedReviewers?.[i])
+                                  ? "bg-green-500 text-white"
+                                  : "bg-gray-300 text-gray-600"
+                              )}
+                            >
+                              {initial}
+                            </div>
+                          ))}
+                          {(app.assignedReviewers?.length || 0) > 3 && (
+                            <div className="w-4 h-4 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center text-[8px] font-bold border border-white">
+                              +{app.assignedReviewers!.length - 3}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-gray-400">
+                          {app.reviewHistory.length}/{app.assignedReviewers?.length || 0} reviewed
+                        </span>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Score */}
@@ -2138,425 +2243,432 @@ function AccordionQueueView({
                     {app.stageName}
                   </Badge>
                   
-                  {/* Expand icon */}
-                  <ChevronDown className={cn(
-                    "w-4 h-4 text-gray-400 transition-transform shrink-0",
-                    isExpanded && "rotate-180"
+                  {/* Chevron */}
+                  <ChevronRight className={cn(
+                    "w-4 h-4 text-gray-400 shrink-0 transition-transform",
+                    isSelected && "text-blue-500"
                   )} />
                 </button>
-                
-                {/* Expanded content */}
-                {isExpanded && (
-                  <div className="px-4 pb-4 border-t border-gray-100">
-                    {/* Action bar */}
-                    <div className="py-3 flex items-center justify-between border-b border-gray-100">
-                      {/* Tabs */}
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => setActiveTab('data')}
-                          className={cn(
-                            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                            activeTab === 'data' ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
-                          )}
-                        >
-                          Application
-                        </button>
-                        <button
-                          onClick={() => setActiveTab('reviews')}
-                          className={cn(
-                            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5",
-                            activeTab === 'reviews' ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
-                          )}
-                        >
-                          Reviews
-                          {app.reviewHistory.length > 0 && (
-                            <span className={cn(
-                              "w-5 h-5 rounded-full text-xs flex items-center justify-center",
-                              activeTab === 'reviews' ? "bg-white/20" : "bg-gray-200"
-                            )}>
-                              {app.reviewHistory.length}
-                            </span>
-                          )}
-                        </button>
-                      </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Right side - Application details sidebar */}
+      {selectedApp && (
+        <div className="w-1/2 flex flex-col bg-white overflow-hidden animate-in slide-in-from-right duration-200">
+          {/* Sidebar header */}
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={cn(
+                "w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold shrink-0",
+                selectedApp.status === 'approved' ? "bg-green-100 text-green-700" :
+                selectedApp.status === 'rejected' ? "bg-red-100 text-red-700" :
+                selectedApp.status === 'in_review' ? "bg-blue-100 text-blue-700" :
+                "bg-gray-100 text-gray-600"
+              )}>
+                {hidePII ? '#' : getApplicationDisplayName(selectedApp, titleFieldName || null, false).charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-gray-900 truncate">
+                  {getApplicationDisplayName(selectedApp, titleFieldName || null, hidePII || false)}
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Submitted {new Date(selectedApp.submittedAt).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedAppId(null)}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Tab navigation */}
+          <div className="px-6 py-3 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex gap-1">
+              <button
+                onClick={() => setActiveTab('data')}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium rounded-lg transition-colors",
+                  activeTab === 'data' ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
+                )}
+              >
+                Application
+              </button>
+              <button
+                onClick={() => setActiveTab('reviews')}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2",
+                  activeTab === 'reviews' ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
+                )}
+              >
+                Reviews
+                {selectedApp.reviewHistory.length > 0 && (
+                  <span className={cn(
+                    "w-5 h-5 rounded-full text-xs flex items-center justify-center",
+                    activeTab === 'reviews' ? "bg-white/20" : "bg-gray-200"
+                  )}>
+                    {selectedApp.reviewHistory.length}
+                  </span>
+                )}
+              </button>
+            </div>
+            
+            {/* Stage selector */}
+            {stages && stages.length > 1 && onMoveToStage && (
+              <select
+                value={selectedApp.stageId}
+                onChange={(e) => onMoveToStage(selectedApp.id, e.target.value)}
+                className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg bg-white"
+              >
+                {stages.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Tab content */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {activeTab === 'data' ? (
+              <div className="space-y-4">
+                {(() => {
+                  // PII redaction helpers for sidebar view
+                  const isFieldHidden = (fieldId: string, fieldName?: string, fieldLabel?: string): boolean => {
+                    if (!hidePII || !hiddenPIIFields || hiddenPIIFields.length === 0) return false
+                    return hiddenPIIFields.includes(fieldId) || 
+                           (fieldName ? hiddenPIIFields.includes(fieldName) : false) || 
+                           (fieldLabel ? hiddenPIIFields.includes(fieldLabel) : false)
+                  }
+                  
+                  // Collect PII values from hidden fields using form field definitions
+                  const piiValues: string[] = (() => {
+                    if (!hidePII || !hiddenPIIFields || hiddenPIIFields.length === 0) return []
+                    if (!form?.fields) return []
+                    
+                    const values: string[] = []
+                    form.fields.forEach(field => {
+                      if (hiddenPIIFields.includes(field.id) || 
+                          hiddenPIIFields.includes(field.name) || 
+                          (field.label && hiddenPIIFields.includes(field.label))) {
+                        const val = selectedApp.raw_data[field.name] || selectedApp.raw_data[field.label || '']
+                        if (val && typeof val === 'string' && val.trim().length >= 2) {
+                          values.push(val.trim())
+                          const parts = val.trim().split(/[\s,]+/).filter((p: string) => p.length >= 2)
+                          values.push(...parts)
+                        }
+                      }
+                    })
+                    return [...new Set(values)]
+                  })()
+                  
+                  // Render value with PII redaction
+                  const renderPIIValue = (fieldId: string, fieldName: string, fieldLabel: string | undefined, value: any) => {
+                    if (isFieldHidden(fieldId, fieldName, fieldLabel)) {
+                      return (
+                        <span className="bg-gray-900 text-gray-900 rounded px-1 select-none cursor-help" title="Hidden for privacy">
+                          ████████████
+                        </span>
+                      )
+                    }
+                    
+                    if (typeof value === 'string') {
+                      if (piiValues.length > 0) {
+                        return <RedactedText text={value} piiValues={piiValues} />
+                      }
+                      return value
+                    }
+                    
+                    return JSON.stringify(value)
+                  }
+                  
+                  if (form?.fields && form.fields.length > 0) {
+                    const { sections, ungroupedFields } = groupFieldsBySections(form.fields, form.settings)
+                    const allFields = [...ungroupedFields, ...sections.flatMap(s => s.fields)]
+                    
+                    return allFields.map(field => {
+                      const value = selectedApp.raw_data[field.name] || selectedApp.raw_data[field.label]
+                      if (value === undefined || value === null || value === '') return null
                       
-                      {/* Quick actions */}
-                      <div className="flex items-center gap-2">
-                        {stages && stages.length > 1 && onMoveToStage && (
-                          <select
-                            value={app.stageId}
-                            onChange={(e) => onMoveToStage(app.id, e.target.value)}
-                            className="text-xs px-2 py-1 border border-gray-200 rounded-md bg-white"
-                          >
-                            {stages.map(s => (
-                              <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                          </select>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={onStartReview}
-                          className="text-xs h-7"
-                        >
-                          <Play className="w-3 h-3 mr-1" />
-                          Review
-                        </Button>
-                        {onDelete && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              if (confirm('Are you sure you want to delete this application? This action cannot be undone.')) {
-                                onDelete(app.id)
-                              }
-                            }}
-                            className="text-xs h-7 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Tab content */}
-                    <div className="pt-4 max-h-[400px] overflow-y-auto">
-                      {activeTab === 'data' ? (
-                        <div className="space-y-3">
-                          {(() => {
-                            // PII redaction helpers for accordion view
-                            const isFieldHidden = (fieldId: string, fieldName?: string, fieldLabel?: string): boolean => {
-                              if (!hidePII || !hiddenPIIFields || hiddenPIIFields.length === 0) return false
-                              return hiddenPIIFields.includes(fieldId) || 
-                                     (fieldName ? hiddenPIIFields.includes(fieldName) : false) || 
-                                     (fieldLabel ? hiddenPIIFields.includes(fieldLabel) : false)
-                            }
-                            
-                            // Collect PII values from hidden fields using form field definitions
-                            const piiValues: string[] = (() => {
-                              if (!hidePII || !hiddenPIIFields || hiddenPIIFields.length === 0) return []
-                              if (!form?.fields) return []
-                              
-                              const values: string[] = []
-                              form.fields.forEach(field => {
-                                // Check if this field is in the hidden list (by id, name, or label)
-                                if (hiddenPIIFields.includes(field.id) || 
-                                    hiddenPIIFields.includes(field.name) || 
-                                    (field.label && hiddenPIIFields.includes(field.label))) {
-                                  const val = app.raw_data[field.name] || app.raw_data[field.label || '']
-                                  if (val && typeof val === 'string' && val.trim().length >= 2) {
-                                    values.push(val.trim())
-                                    // Also add parts for names like "John Smith"
-                                    const parts = val.trim().split(/[\s,]+/).filter((p: string) => p.length >= 2)
-                                    values.push(...parts)
-                                  }
-                                }
-                              })
-                              return [...new Set(values)]
-                            })()
-                            
-                            // Render value with PII redaction
-                            const renderPIIValue = (fieldId: string, fieldName: string, fieldLabel: string | undefined, value: any) => {
-                              // Check if this specific field is hidden
-                              if (isFieldHidden(fieldId, fieldName, fieldLabel)) {
-                                return (
-                                  <span className="bg-gray-900 text-gray-900 rounded px-1 select-none cursor-help" title="Hidden for privacy">
-                                    ████████████
-                                  </span>
-                                )
-                              }
-                              
-                              // For string values, apply inline PII redaction
-                              if (typeof value === 'string') {
-                                if (piiValues.length > 0) {
-                                  return <RedactedText text={value} piiValues={piiValues} />
-                                }
-                                return value
-                              }
-                              
-                              return JSON.stringify(value)
-                            }
-                            
-                            if (form?.fields && form.fields.length > 0) {
-                              const { sections, ungroupedFields } = groupFieldsBySections(form.fields, form.settings)
-                              const allFields = [...ungroupedFields, ...sections.flatMap(s => s.fields)]
-                              
-                              return allFields.slice(0, 8).map(field => {
-                                const value = app.raw_data[field.name] || app.raw_data[field.label]
-                                if (value === undefined || value === null || value === '') return null
-                                
-                                return (
-                                  <div key={field.id} className="flex gap-3">
-                                    <span className="text-xs font-medium text-gray-500 w-28 shrink-0 pt-0.5">
-                                      {(field.label || field.name).replace(/_/g, ' ')}
-                                    </span>
-                                    <span className="text-sm text-gray-900 flex-1 min-w-0">
-                                      {renderPIIValue(field.id, field.name, field.label, value)}
-                                    </span>
-                                  </div>
-                                )
-                              })
-                            } else {
-                              return Object.entries(app.raw_data).slice(0, 8).map(([key, value]) => {
-                                if (key.startsWith('_') || key === 'id' || !value) return null
-                                return (
-                                  <div key={key} className="flex gap-3">
-                                    <span className="text-xs font-medium text-gray-500 w-28 shrink-0 pt-0.5">
-                                      {key.replace(/_/g, ' ')}
-                                    </span>
-                                    <span className="text-sm text-gray-900 flex-1 min-w-0">
-                                      {renderPIIValue(key, key, key, value)}
-                                    </span>
-                                  </div>
-                                )
-                              })
-                            }
-                          })()}
-                          <button className="text-xs text-blue-600 hover:text-blue-700 font-medium mt-2">
-                            View full application →
-                          </button>
+                      return (
+                        <div key={field.id} className="border-b border-gray-100 pb-3 last:border-0">
+                          <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide block mb-1">
+                            {(field.label || field.name).replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-sm text-gray-900">
+                            {renderPIIValue(field.id, field.name, field.label, value)}
+                          </span>
                         </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {app.reviewHistory.length > 0 ? (
-                            app.reviewHistory.map((review, idx) => {
-                              const total = review.total_score || Object.values(review.scores || {}).reduce((a, b) => a + (Number(b) || 0), 0)
-                              return (
-                                <div key={idx} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-100">
-                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-xs shrink-0">
-                                    {(review.reviewer_name || 'R')[0].toUpperCase()}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between">
-                                      <p className="font-medium text-gray-900 text-sm">{review.reviewer_name || `Reviewer ${idx + 1}`}</p>
-                                      <span className="text-sm font-bold text-gray-900">{total} pts</span>
-                                    </div>
-                                    <p className="text-xs text-gray-500">
-                                      {review.reviewed_at ? new Date(review.reviewed_at).toLocaleDateString() : 'No date'}
-                                    </p>
-                                    {(review.notes || review.comments) && (
-                                      <p className="mt-2 text-sm text-gray-600 line-clamp-2">
-                                        {review.notes || review.comments}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              )
-                            })
-                          ) : (
-                            <div className="text-center py-6 text-gray-500">
-                              <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                              <p className="text-sm">No reviews yet</p>
+                      )
+                    })
+                  } else {
+                    return Object.entries(selectedApp.raw_data).map(([key, value]) => {
+                      if (key.startsWith('_') || key === 'id' || !value) return null
+                      return (
+                        <div key={key} className="border-b border-gray-100 pb-3 last:border-0">
+                          <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide block mb-1">
+                            {key.replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-sm text-gray-900">
+                            {renderPIIValue(key, key, key, value)}
+                          </span>
+                        </div>
+                      )
+                    })
+                  }
+                })()}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Assigned Reviewers Summary */}
+                {selectedApp.assignedReviewers && selectedApp.assignedReviewers.length > 0 && (
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                    <p className="text-xs font-semibold text-blue-700 mb-2 uppercase tracking-wider">Assigned Reviewers</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedApp.assignedReviewers.map((reviewerId, idx) => {
+                        const reviewer = reviewersMap?.[reviewerId]
+                        const hasReviewed = selectedApp.reviewHistory.some(r => r.reviewer_id === reviewerId)
+                        return (
+                          <div key={reviewerId} className={cn(
+                            "flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs",
+                            hasReviewed ? "bg-green-100 text-green-700" : "bg-white text-gray-600 border border-gray-200"
+                          )}>
+                            <div className={cn(
+                              "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold",
+                              hasReviewed ? "bg-green-600 text-white" : "bg-gray-300 text-gray-600"
+                            )}>
+                              {hasReviewed ? <Check className="w-3 h-3" /> : (reviewer?.name?.[0]?.toUpperCase() || '?')}
                             </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Decision footer */}
-                    <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <Clock className="w-3.5 h-3.5" />
-                        Submitted {new Date(app.submittedAt).toLocaleDateString()}
-                      </div>
-                      {/* Custom Status Actions Dropdown */}
-                      {stage?.custom_statuses && stage.custom_statuses.length > 0 ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5">
-                              <Zap className="w-3.5 h-3.5" />
-                              Actions
-                              <ChevronDown className="w-3.5 h-3.5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
-                            {stage.custom_statuses.map((status, idx) => {
-                              const statusObj = typeof status === 'string' 
-                                ? { name: status, color: 'gray', icon: 'circle' } 
-                                : status
-                              const statusColors: Record<string, string> = {
-                                gray: 'text-gray-600',
-                                red: 'text-red-600',
-                                orange: 'text-orange-600',
-                                yellow: 'text-yellow-600',
-                                green: 'text-green-600',
-                                blue: 'text-blue-600',
-                                purple: 'text-purple-600',
-                                pink: 'text-pink-600',
-                              }
-                              const colorClass = statusColors[statusObj.color] || statusColors.gray
-                              
-                              return (
-                                <DropdownMenuItem
-                                  key={idx}
-                                  onClick={() => onExecuteAction?.({ 
-                                    id: `status-${statusObj.name}`,
-                                    name: statusObj.name,
-                                    color: statusObj.color,
-                                    action_type: 'set_status',
-                                    status_value: statusObj.name
-                                  } as any)}
-                                  className={cn("cursor-pointer", colorClass)}
-                                >
-                                  {statusObj.icon === 'check' && <Check className="w-4 h-4 mr-2" />}
-                                  {statusObj.icon === 'x' && <X className="w-4 h-4 mr-2" />}
-                                  {statusObj.icon === 'clock' && <Clock className="w-4 h-4 mr-2" />}
-                                  {statusObj.icon === 'arrow-right' && <ArrowRight className="w-4 h-4 mr-2" />}
-                                  {!['check', 'x', 'clock', 'arrow-right'].includes(statusObj.icon || '') && (
-                                    <Circle className="w-4 h-4 mr-2" />
-                                  )}
-                                  {statusObj.name}
-                                </DropdownMenuItem>
-                              )
-                            })}
-                            {groups && groups.length > 0 && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuLabel className="text-xs text-gray-500">Move to Group</DropdownMenuLabel>
-                                {groups.map((group) => (
-                                  <DropdownMenuItem
-                                    key={group.id}
-                                    onClick={() => onExecuteAction?.({
-                                      id: `group-${group.id}`,
-                                      name: `Move to ${group.name}`,
-                                      color: group.color,
-                                      action_type: 'move_to_group',
-                                      target_group_id: group.id
-                                    } as any)}
-                                    className="cursor-pointer"
-                                  >
-                                    <Folder className="w-4 h-4 mr-2" />
-                                    {group.name}
-                                  </DropdownMenuItem>
-                                ))}
-                              </>
+                            <span className="font-medium">{reviewer?.name || `Reviewer ${idx + 1}`}</span>
+                            {reviewer?.role && (
+                              <span className="text-gray-400">• {reviewer.role}</span>
                             )}
-                            {/* Stage Groups - visible only in this stage */}
-                            {currentStageGroups && currentStageGroups.length > 0 && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuLabel className="text-xs text-gray-500">Move to Stage Group</DropdownMenuLabel>
-                                {currentStageGroups.map((group) => (
-                                  <DropdownMenuItem
-                                    key={group.id}
-                                    onClick={() => onExecuteAction?.({
-                                      id: `stage-group-${group.id}`,
-                                      name: `Move to ${group.name}`,
-                                      color: group.color,
-                                      action_type: 'move_to_stage_group',
-                                      target_stage_group_id: group.id
-                                    } as any)}
-                                    className="cursor-pointer"
-                                  >
-                                    <FolderOpen className="w-4 h-4 mr-2" />
-                                    {group.name}
-                                  </DropdownMenuItem>
-                                ))}
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : (stage?.stageActions?.length || workflowActions?.length || onDecision) ? (
-                        <div className="flex items-center gap-2">
-                          {/* Stage-specific actions */}
-                          {stage?.stageActions?.map((action) => {
-                            const actionColors: Record<string, { bg: string, text: string, border: string, hover: string }> = {
-                              gray: { bg: 'bg-gray-600', text: 'text-gray-600', border: 'border-gray-200', hover: 'hover:bg-gray-50' },
-                              red: { bg: 'bg-red-600', text: 'text-red-600', border: 'border-red-200', hover: 'hover:bg-red-50' },
-                              orange: { bg: 'bg-orange-600', text: 'text-orange-600', border: 'border-orange-200', hover: 'hover:bg-orange-50' },
-                              yellow: { bg: 'bg-yellow-600', text: 'text-yellow-600', border: 'border-yellow-200', hover: 'hover:bg-yellow-50' },
-                              green: { bg: 'bg-green-600', text: 'text-green-600', border: 'border-green-200', hover: 'hover:bg-green-50' },
-                              blue: { bg: 'bg-blue-600', text: 'text-blue-600', border: 'border-blue-200', hover: 'hover:bg-blue-50' },
-                              purple: { bg: 'bg-purple-600', text: 'text-purple-600', border: 'border-purple-200', hover: 'hover:bg-purple-50' },
-                              pink: { bg: 'bg-pink-600', text: 'text-pink-600', border: 'border-pink-200', hover: 'hover:bg-pink-50' },
-                            }
-                            const colors = actionColors[action.color] || actionColors.gray
-                            const isPositive = action.action_type === 'advance_stage' || action.color === 'green'
-                            
-                            return (
-                              <Button
-                                key={action.id}
-                                size="sm"
-                                variant={isPositive ? "default" : "outline"}
-                                onClick={() => onExecuteAction?.(action)}
-                                className={cn(
-                                  "h-8 text-xs",
-                                  isPositive 
-                                    ? `${colors.bg} hover:opacity-90 text-white` 
-                                    : `${colors.text} ${colors.border} ${colors.hover}`
-                                )}
-                              >
-                                {action.name}
-                              </Button>
-                            )
-                          })}
-                          
-                          {/* Workflow-level actions */}
-                          {workflowActions?.map((action) => {
-                            const actionColors: Record<string, { bg: string, text: string, border: string, hover: string }> = {
-                              gray: { bg: 'bg-gray-600', text: 'text-gray-600', border: 'border-gray-200', hover: 'hover:bg-gray-50' },
-                              red: { bg: 'bg-red-600', text: 'text-red-600', border: 'border-red-200', hover: 'hover:bg-red-50' },
-                              orange: { bg: 'bg-orange-600', text: 'text-orange-600', border: 'border-orange-200', hover: 'hover:bg-orange-50' },
-                              yellow: { bg: 'bg-yellow-600', text: 'text-yellow-600', border: 'border-yellow-200', hover: 'hover:bg-yellow-50' },
-                              green: { bg: 'bg-green-600', text: 'text-green-600', border: 'border-green-200', hover: 'hover:bg-green-50' },
-                              blue: { bg: 'bg-blue-600', text: 'text-blue-600', border: 'border-blue-200', hover: 'hover:bg-blue-50' },
-                              purple: { bg: 'bg-purple-600', text: 'text-purple-600', border: 'border-purple-200', hover: 'hover:bg-purple-50' },
-                              pink: { bg: 'bg-pink-600', text: 'text-pink-600', border: 'border-pink-200', hover: 'hover:bg-pink-50' },
-                            }
-                            const colors = actionColors[action.color] || actionColors.gray
-                            const isPositive = action.action_type === 'move_to_stage' || action.color === 'green'
-                            
-                            return (
-                              <Button
-                                key={action.id}
-                                size="sm"
-                                variant={isPositive ? "default" : "outline"}
-                                onClick={() => onExecuteAction?.(action)}
-                                className={cn(
-                                  "h-8 text-xs",
-                                  isPositive 
-                                    ? `${colors.bg} hover:opacity-90 text-white` 
-                                    : `${colors.text} ${colors.border} ${colors.hover}`
-                                )}
-                              >
-                                {action.name}
-                              </Button>
-                            )
-                          })}
-                          
-                          {/* Fallback to legacy approve/reject if no custom actions */}
-                          {!stage?.stageActions?.length && !workflowActions?.length && onDecision && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => onDecision('rejected')}
-                                className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs"
-                              >
-                                <ThumbsDown className="w-3.5 h-3.5 mr-1" />
-                                Reject
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => onDecision('approved')}
-                                className="bg-green-600 hover:bg-green-700 h-8 text-xs"
-                              >
-                                <ThumbsUp className="w-3.5 h-3.5 mr-1" />
-                                Approve
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      ) : null}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
+
+                {/* Review History Details */}
+                {selectedApp.reviewHistory.length > 0 ? (
+                  selectedApp.reviewHistory.map((review, idx) => {
+                    const total = review.total_score || Object.values(review.scores || {}).reduce((a, b) => a + (Number(b) || 0), 0)
+                    const reviewerName = reviewersMap?.[review.reviewer_id]?.name || review.reviewer_name || `Reviewer ${idx + 1}`
+                    const reviewerRole = reviewersMap?.[review.reviewer_id]?.role
+                    const scores = review.scores || {}
+                    const notes = review.notes || {}
+                    const hasDetailedScores = Object.keys(scores).length > 0
+                    
+                    return (
+                      <div key={idx} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                        {/* Reviewer Header */}
+                        <div className="flex items-center gap-3 p-4 bg-gray-50 border-b border-gray-100">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                            {reviewerName[0].toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-gray-900">{reviewerName}</p>
+                              {reviewerRole && (
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                  {reviewerRole}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              {review.reviewed_at ? new Date(review.reviewed_at).toLocaleDateString('en-US', {
+                                month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                              }) : 'Date not recorded'}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div className="flex items-center gap-1">
+                              <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                              <span className="text-lg font-bold text-gray-900">{total}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-400 uppercase">Total Score</p>
+                          </div>
+                        </div>
+                        
+                        {/* Score Breakdown */}
+                        {hasDetailedScores && (
+                          <div className="p-4 space-y-2">
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Category Scores</p>
+                            {Object.entries(scores).map(([categoryId, score]) => {
+                              const category = rubric?.categories?.find(c => c.id === categoryId || c.name === categoryId)
+                              const categoryName = category?.name || categoryId.replace(/_/g, ' ')
+                              const maxPoints = category?.max_points || 10
+                              const percentage = Math.min((Number(score) / maxPoints) * 100, 100)
+                              const note = typeof notes === 'object' ? (notes as Record<string, string>)[categoryId] : null
+                              
+                              return (
+                                <div key={categoryId} className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm text-gray-700">{categoryName}</span>
+                                    <span className="text-sm font-semibold text-gray-900">{score}/{maxPoints}</span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div 
+                                      className={cn(
+                                        "h-full rounded-full",
+                                        percentage >= 80 ? "bg-green-500" :
+                                        percentage >= 60 ? "bg-blue-500" :
+                                        percentage >= 40 ? "bg-amber-500" : "bg-red-500"
+                                      )}
+                                      style={{ width: `${percentage}%` }}
+                                    />
+                                  </div>
+                                  {note && (
+                                    <p className="text-xs text-gray-500 italic pl-2 border-l-2 border-gray-200 mt-1">
+                                      {note}
+                                    </p>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                        
+                        {/* Overall Comments */}
+                        {(review.comments || (typeof review.notes === 'string' && review.notes)) && (
+                          <div className="p-4 bg-gray-50 border-t border-gray-100">
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Comments</p>
+                            <p className="text-sm text-gray-700 leading-relaxed">
+                              {review.comments || (typeof review.notes === 'string' ? review.notes : '')}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                ) : (
+                  <div className="text-center py-12 text-gray-500">
+                    <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="font-medium">No reviews yet</p>
+                    <p className="text-sm text-gray-400 mt-1">Start a review to score this application</p>
+                  </div>
+                )}
               </div>
-            )
-          })}
+            )}
+          </div>
+
+          {/* Footer with actions */}
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <Clock className="w-4 h-4" />
+              Submitted {new Date(selectedApp.submittedAt).toLocaleDateString()}
+            </div>
+            
+            <div className="flex items-center gap-2">
+              {onDelete && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this application? This action cannot be undone.')) {
+                      onDelete(selectedApp.id)
+                      setSelectedAppId(null)
+                    }
+                  }}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
+              
+              {/* Custom Status Actions Dropdown */}
+              {stage?.custom_statuses && stage.custom_statuses.length > 0 ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline" className="gap-1.5">
+                      <Zap className="w-4 h-4" />
+                      Actions
+                      <ChevronDown className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    {stage.custom_statuses.map((status, idx) => {
+                      const statusObj = typeof status === 'string' 
+                        ? { name: status, color: 'gray', icon: 'circle' } 
+                        : status
+                      const statusColors: Record<string, string> = {
+                        gray: 'text-gray-600',
+                        red: 'text-red-600',
+                        orange: 'text-orange-600',
+                        yellow: 'text-yellow-600',
+                        green: 'text-green-600',
+                        blue: 'text-blue-600',
+                        purple: 'text-purple-600',
+                        pink: 'text-pink-600',
+                      }
+                      const colorClass = statusColors[statusObj.color] || statusColors.gray
+                      
+                      return (
+                        <DropdownMenuItem
+                          key={idx}
+                          onClick={() => onExecuteAction?.({ 
+                            id: `status-${statusObj.name}`,
+                            name: statusObj.name,
+                            color: statusObj.color,
+                            action_type: 'set_status',
+                            status_value: statusObj.name
+                          } as any)}
+                          className={cn("cursor-pointer", colorClass)}
+                        >
+                          {statusObj.icon === 'check' && <Check className="w-4 h-4 mr-2" />}
+                          {statusObj.icon === 'x' && <X className="w-4 h-4 mr-2" />}
+                          {statusObj.icon === 'clock' && <Clock className="w-4 h-4 mr-2" />}
+                          {statusObj.icon === 'arrow-right' && <ArrowRight className="w-4 h-4 mr-2" />}
+                          {!['check', 'x', 'clock', 'arrow-right'].includes(statusObj.icon || '') && (
+                            <Circle className="w-4 h-4 mr-2" />
+                          )}
+                          {statusObj.name}
+                        </DropdownMenuItem>
+                      )
+                    })}
+                    {groups && groups.length > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-xs text-gray-500">Move to Group</DropdownMenuLabel>
+                        {groups.map((group) => (
+                          <DropdownMenuItem
+                            key={group.id}
+                            onClick={() => onExecuteAction?.({
+                              id: `group-${group.id}`,
+                              name: `Move to ${group.name}`,
+                              color: group.color,
+                              action_type: 'move_to_group',
+                              target_group_id: group.id
+                            } as any)}
+                            className="cursor-pointer"
+                          >
+                            <Folder className="w-4 h-4 mr-2" />
+                            {group.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
+              
+              <Button
+                size="sm"
+                onClick={onStartReview}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Play className="w-4 h-4 mr-1.5" />
+                Review
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -2727,7 +2839,6 @@ function QueueView({
             const originalIdx = apps.findIndex(a => a.id === app.id)
             const isSelected = originalIdx === selectedIndex
             const displayName = getApplicationDisplayName(app, titleFieldName || null, hidePII || false)
-          
             
             return (
             <button
@@ -2758,7 +2869,6 @@ function QueueView({
                     )}>{displayName}</p>
                     {app.flagged && <Flag className="w-3.5 h-3.5 text-red-500 shrink-0" />}
                   </div>
-                  <p className="text-xs text-gray-500 truncate mt-0.5">{displayEmail}</p>
                   <div className="flex items-center gap-2 mt-2.5 flex-wrap">
                     {app.stageName && (
                       <Badge className={cn(
@@ -3862,9 +3972,15 @@ function FocusReviewMode({
                                   >
                                     {isPIIRedacted 
                                       ? '████████████████'
-                                      : (typeof rawValue === 'string' 
-                                          ? renderHighlightedText(field.name, rawValue)
-                                          : renderFieldValueWithPII(field.name, rawValue))
+                                      : (() => {
+                                          // Check if it's a plain string (not JSON)
+                                          const isPlainString = typeof rawValue === 'string' && 
+                                            !rawValue.trim().startsWith('[') && 
+                                            !rawValue.trim().startsWith('{')
+                                          return isPlainString 
+                                            ? renderHighlightedText(field.name, rawValue)
+                                            : renderFieldValueWithPII(field.name, rawValue)
+                                        })()
                                     }
                                   </div>
                                 </div>
@@ -3974,9 +4090,15 @@ function FocusReviewMode({
                                       >
                                         {isPIIRedacted 
                                           ? displayValue
-                                          : (typeof rawValue === 'string' 
-                                              ? renderHighlightedText(field.name, rawValue)
-                                              : renderFieldValueWithPII(field.name, rawValue))
+                                          : (() => {
+                                              // Check if it's a plain string (not JSON)
+                                              const isPlainString = typeof rawValue === 'string' && 
+                                                !rawValue.trim().startsWith('[') && 
+                                                !rawValue.trim().startsWith('{')
+                                              return isPlainString 
+                                                ? renderHighlightedText(field.name, rawValue)
+                                                : renderFieldValueWithPII(field.name, rawValue)
+                                            })()
                                         }
                                       </div>
                                     </div>
@@ -4239,38 +4361,51 @@ function FocusReviewMode({
               
               {/* Custom Status Dropdown - uses stage.custom_statuses if available */}
               {(() => {
-                // Normalize custom_statuses to string array (can be string[] or StatusOption[])
-                const normalizeStatuses = (statuses: any): string[] => {
+                interface StatusOption {
+                  name: string
+                  color: string
+                  icon?: string
+                }
+                
+                // Normalize custom_statuses to StatusOption array
+                const normalizeStatuses = (statuses: any): StatusOption[] => {
                   if (!statuses || !Array.isArray(statuses) || statuses.length === 0) {
-                    return ['Approved', 'Rejected', 'Pending']
+                    return [
+                      { name: 'Approved', color: 'green', icon: 'check' },
+                      { name: 'Rejected', color: 'red', icon: 'x' },
+                      { name: 'Pending', color: 'yellow', icon: 'clock' }
+                    ]
                   }
-                  return statuses.map((s: any) => typeof s === 'string' ? s : s.name)
+                  return statuses.map((s: any) => 
+                    typeof s === 'string' 
+                      ? { name: s, color: 'gray', icon: 'circle' } 
+                      : { name: s.name, color: s.color || 'gray', icon: s.icon || 'circle' }
+                  )
                 }
                 const customStatuses = normalizeStatuses(stage.custom_statuses)
                 
-                const getStatusColor = (status: string) => {
-                  const lower = status.toLowerCase()
-                  if (lower.includes('approv') || lower.includes('accept') || lower.includes('complete')) {
-                    return 'text-green-600 hover:bg-green-50'
-                  }
-                  if (lower.includes('reject') || lower.includes('deny') || lower.includes('decline')) {
-                    return 'text-red-600 hover:bg-red-50'
-                  }
-                  if (lower.includes('pend') || lower.includes('wait') || lower.includes('review')) {
-                    return 'text-amber-600 hover:bg-amber-50'
-                  }
-                  return 'text-blue-600 hover:bg-blue-50'
+                const statusColors: Record<string, string> = {
+                  gray: 'text-gray-600 hover:bg-gray-50',
+                  red: 'text-red-600 hover:bg-red-50',
+                  orange: 'text-orange-600 hover:bg-orange-50',
+                  yellow: 'text-yellow-600 hover:bg-yellow-50',
+                  green: 'text-green-600 hover:bg-green-50',
+                  blue: 'text-blue-600 hover:bg-blue-50',
+                  purple: 'text-purple-600 hover:bg-purple-50',
+                  pink: 'text-pink-600 hover:bg-pink-50',
                 }
                 
-                const getStatusIcon = (status: string) => {
-                  const lower = status.toLowerCase()
-                  if (lower.includes('approv') || lower.includes('accept') || lower.includes('complete')) {
-                    return <ThumbsUp className="w-4 h-4 mr-2" />
+                const renderStatusIcon = (icon: string) => {
+                  switch (icon) {
+                    case 'check': return <Check className="w-4 h-4 mr-2" />
+                    case 'x': return <X className="w-4 h-4 mr-2" />
+                    case 'clock': return <Clock className="w-4 h-4 mr-2" />
+                    case 'arrow-right': return <ArrowRight className="w-4 h-4 mr-2" />
+                    case 'thumbs-up': return <ThumbsUp className="w-4 h-4 mr-2" />
+                    case 'thumbs-down': return <ThumbsDown className="w-4 h-4 mr-2" />
+                    case 'star': return <Star className="w-4 h-4 mr-2" />
+                    default: return <Circle className="w-4 h-4 mr-2" />
                   }
-                  if (lower.includes('reject') || lower.includes('deny') || lower.includes('decline')) {
-                    return <ThumbsDown className="w-4 h-4 mr-2" />
-                  }
-                  return <Check className="w-4 h-4 mr-2" />
                 }
                 
                 return (
@@ -4285,12 +4420,12 @@ function FocusReviewMode({
                     <DropdownMenuContent align="end" className="w-56">
                       {customStatuses.map((status) => (
                         <DropdownMenuItem
-                          key={status}
-                          onClick={() => onDecision(status.toLowerCase().replace(/\s+/g, '_'))}
-                          className={cn("cursor-pointer", getStatusColor(status))}
+                          key={status.name}
+                          onClick={() => onDecision(status.name.toLowerCase().replace(/\s+/g, '_'))}
+                          className={cn("cursor-pointer", statusColors[status.color] || statusColors.gray)}
                         >
-                          {getStatusIcon(status)}
-                          {status}
+                          {renderStatusIcon(status.icon || 'circle')}
+                          {status.name}
                         </DropdownMenuItem>
                       ))}
                     </DropdownMenuContent>
@@ -4309,11 +4444,15 @@ function FocusReviewMode({
 function AnalyticsView({ 
   stats, 
   stages, 
-  applications 
+  applications,
+  reviewersMap,
+  formSettings
 }: { 
   stats: { pending: number; inReview: number; approved: number; rejected: number; avgScore: number; total: number }
   stages: StageWithConfig[]
   applications: ApplicationData[]
+  reviewersMap: Record<string, { name: string; email?: string; role?: string }>
+  formSettings?: Record<string, any>
 }) {
   // Calculate score distribution buckets (0-20, 20-40, 40-60, 60-80, 80-100)
   const scoredApps = applications.filter(a => a.score !== null)
@@ -4382,6 +4521,14 @@ function AnalyticsView({
 
   // Calculate reviewer performance metrics
   const reviewerMetrics = useMemo(() => {
+    // Get active reviewers from form settings (exclude removed)
+    const formReviewers = (formSettings?.reviewers as any[]) || []
+    const activeReviewerIds = new Set(
+      formReviewers
+        .filter((r: any) => !r.removed)
+        .map((r: any) => r.id)
+    )
+    
     const reviewerMap: Record<string, { 
       id: string; 
       name: string; 
@@ -4398,10 +4545,14 @@ function AnalyticsView({
       // We need to access review_history which is in the original metadata
       // For now, use assigned reviewers count
       app.assignedReviewers.forEach(reviewerId => {
+        // Only include reviewers that are still active
+        if (!activeReviewerIds.has(reviewerId)) return
+        
         if (!reviewerMap[reviewerId]) {
+          const reviewerInfo = reviewersMap[reviewerId]
           reviewerMap[reviewerId] = { 
             id: reviewerId, 
-            name: `Reviewer ${reviewerId.substring(0, 4)}`,
+            name: reviewerInfo?.name || `Reviewer ${reviewerId.substring(0, 4)}`,
             completedCount: 0, 
             totalScore: 0,
             scores: [],
@@ -4427,7 +4578,7 @@ function AnalyticsView({
     })
     
     return Object.values(reviewerMap).sort((a, b) => b.completedCount - a.completedCount)
-  }, [applications])
+  }, [applications, formSettings, reviewersMap])
 
   // Tags distribution
   const tagDistribution = useMemo(() => {
@@ -4446,7 +4597,7 @@ function AnalyticsView({
   const maxDistributionCount = Math.max(...scoreDistribution.map(b => b.count), 1)
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 bg-gray-50">
+    <div className="flex-1 overflow-y-auto p-8 bg-gray-50 min-h-0">
       <h2 className="text-xl font-bold text-gray-900 mb-6">Review Analytics</h2>
       
       {/* Overview Cards */}

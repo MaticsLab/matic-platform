@@ -566,7 +566,7 @@ type FieldInput struct {
 	IsRequired  bool                   `json:"required"`
 	Placeholder string                 `json:"placeholder"`
 	Options     []string               `json:"options"`
-	Width       string                 `json:"width"`
+	Width       interface{}            `json:"width"` // Can be string ("full", "half") or number
 	Children    []FieldInput           `json:"children"`
 	Validation  map[string]interface{} `json:"validation"`
 	Config      map[string]interface{} `json:"config"` // Additional config like dynamicOptions, sourceField, etc.
@@ -655,8 +655,19 @@ func UpdateFormStructure(c *gin.Context) {
 			if len(fieldInput.Options) > 0 {
 				config["items"] = fieldInput.Options
 			}
-			if fieldInput.Width != "" {
-				config["width"] = fieldInput.Width
+			// Handle width (can be string or number)
+			if fieldInput.Width != nil && fieldInput.Width != "" {
+				switch w := fieldInput.Width.(type) {
+				case string:
+					if w != "" {
+						config["width"] = w
+					}
+				case float64:
+					// Convert number to string width name if needed
+					config["width"] = fmt.Sprintf("%.0f", w)
+				default:
+					config["width"] = fmt.Sprintf("%v", w)
+				}
 			}
 			config["section_id"] = section.ID
 			config["is_required"] = fieldInput.IsRequired
@@ -833,9 +844,42 @@ func GetExternalReviewData(c *gin.Context) {
 	}
 
 	// If we have a reviewer_type_id, try to find the stage config
-	if reviewerTypeID != "" {
+	// NEW: Also check for stage_assignments for stage-specific roles
+	var stageAssignments []map[string]interface{}
+	if reviewerInfo != nil {
+		if sa, ok := reviewerInfo["stage_assignments"].([]interface{}); ok {
+			for _, a := range sa {
+				if aMap, ok := a.(map[string]interface{}); ok {
+					stageAssignments = append(stageAssignments, aMap)
+				}
+			}
+		}
+	}
+
+	// Helper function to find reviewer's role for a given stage
+	findRoleForStage := func(stageID string) string {
+		for _, assignment := range stageAssignments {
+			if sid, ok := assignment["stage_id"].(string); ok && sid == stageID {
+				if rtID, ok := assignment["reviewer_type_id"].(string); ok {
+					return rtID
+				}
+			}
+		}
+		return reviewerTypeID // fallback to primary role
+	}
+
+	if reviewerTypeID != "" || len(stageAssignments) > 0 {
+		// If we have stage assignments, we'll determine the rubric per stage
+		// For now, we get the config for the primary role or first assignment
+		effectiveReviewerTypeID := reviewerTypeID
+		if effectiveReviewerTypeID == "" && len(stageAssignments) > 0 {
+			if rtID, ok := stageAssignments[0]["reviewer_type_id"].(string); ok {
+				effectiveReviewerTypeID = rtID
+			}
+		}
+
 		var stageConfigs []models.StageReviewerConfig
-		if err := database.DB.Where("reviewer_type_id = ?", reviewerTypeID).Find(&stageConfigs).Error; err == nil && len(stageConfigs) > 0 {
+		if err := database.DB.Where("reviewer_type_id = ?", effectiveReviewerTypeID).Find(&stageConfigs).Error; err == nil && len(stageConfigs) > 0 {
 			// Use the first matching config (typically one stage per reviewer type)
 			response.StageConfig = &stageConfigs[0]
 
@@ -843,19 +887,29 @@ func GetExternalReviewData(c *gin.Context) {
 			var stage models.ApplicationStage
 			if err := database.DB.First(&stage, "id = ?", stageConfigs[0].StageID).Error; err == nil {
 				response.Stage = &stage
+
+				// Now check if reviewer has a different role for this specific stage
+				stageSpecificRole := findRoleForStage(stage.ID.String())
+				if stageSpecificRole != "" && stageSpecificRole != effectiveReviewerTypeID {
+					// Find the stage config for this specific role on this stage
+					var specificConfig models.StageReviewerConfig
+					if err := database.DB.Where("stage_id = ? AND reviewer_type_id = ?", stage.ID, stageSpecificRole).First(&specificConfig).Error; err == nil {
+						response.StageConfig = &specificConfig
+					}
+				}
 			}
 
 			// If the stage config has an assigned rubric, fetch it
 			// Priority: AssignedRubricID > RubricID > Workflow DefaultRubricID
-			rubricID := stageConfigs[0].AssignedRubricID
+			rubricID := response.StageConfig.AssignedRubricID
 			if rubricID == nil {
-				rubricID = stageConfigs[0].RubricID
+				rubricID = response.StageConfig.RubricID
 			}
 
 			// Fall back to workflow's default rubric if no stage-specific rubric
-			if rubricID == nil && stage.ReviewWorkflowID != uuid.Nil {
+			if rubricID == nil && response.Stage != nil && response.Stage.ReviewWorkflowID != uuid.Nil {
 				var workflow models.ReviewWorkflow
-				if err := database.DB.First(&workflow, "id = ?", stage.ReviewWorkflowID).Error; err == nil {
+				if err := database.DB.First(&workflow, "id = ?", response.Stage.ReviewWorkflowID).Error; err == nil {
 					rubricID = workflow.DefaultRubricID
 				}
 			}
@@ -864,6 +918,29 @@ func GetExternalReviewData(c *gin.Context) {
 				var rubric models.Rubric
 				if err := database.DB.First(&rubric, "id = ?", rubricID).Error; err == nil {
 					response.Rubric = &rubric
+				}
+			}
+		}
+	}
+
+	// Fallback: if no rubric found yet, try to get default rubric from any workflow in this workspace
+	if response.Rubric == nil {
+		var workflows []models.ReviewWorkflow
+		if err := database.DB.Where("workspace_id = ?", table.WorkspaceID).Find(&workflows).Error; err == nil {
+			for _, wf := range workflows {
+				if wf.DefaultRubricID != nil {
+					var rubric models.Rubric
+					if err := database.DB.First(&rubric, "id = ?", wf.DefaultRubricID).Error; err == nil {
+						response.Rubric = &rubric
+						// Also try to get the first stage if we don't have one
+						if response.Stage == nil {
+							var stage models.ApplicationStage
+							if err := database.DB.Where("review_workflow_id = ?", wf.ID).Order("order_index ASC").First(&stage).Error; err == nil {
+								response.Stage = &stage
+							}
+						}
+						break
+					}
 				}
 			}
 		}

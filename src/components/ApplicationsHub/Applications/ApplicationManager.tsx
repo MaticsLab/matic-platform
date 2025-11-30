@@ -360,7 +360,7 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
       </Dialog>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden relative">
         {activeTab === 'review' && (
           <ReviewWorkspace 
             workspaceId={workspaceId} 

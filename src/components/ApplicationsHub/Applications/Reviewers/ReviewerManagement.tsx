@@ -11,8 +11,16 @@ import {
 import { cn } from '@/lib/utils'
 import { goClient } from '@/lib/api/go-client'
 import { Form } from '@/types/forms'
-import { workflowsClient, ReviewerType as WorkflowReviewerType } from '@/lib/api/workflows-client'
+import { workflowsClient, ReviewerType as WorkflowReviewerType, ApplicationStage } from '@/lib/api/workflows-client'
 import { showToast } from '@/lib/toast'
+
+// Stage assignment - a reviewer can have different roles on different stages
+interface StageAssignment {
+  stage_id: string
+  stage_name: string
+  reviewer_type_id: string
+  role_name: string
+}
 
 interface Reviewer {
   id: string
@@ -21,10 +29,13 @@ interface Reviewer {
   token: string
   assignedCount: number
   completedCount: number
-  status: 'active' | 'completed' | 'expired'
+  status: 'active' | 'completed' | 'expired' | 'removed'
   lastActive: string
-  role: string
-  reviewer_type_id?: string
+  role: string // Primary role (for backward compat / display)
+  reviewer_type_id?: string // Primary role id (for backward compat)
+  stage_assignments?: StageAssignment[] // Multiple stage-role assignments
+  removed?: boolean // Soft delete flag
+  removed_at?: string // When removed
 }
 
 interface Submission {
@@ -44,6 +55,7 @@ interface ReviewerManagementProps {
 
 export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementProps) {
   const [reviewerTypes, setReviewerTypes] = useState<WorkflowReviewerType[]>([])
+  const [stages, setStages] = useState<ApplicationStage[]>([])
   const [reviewers, setReviewers] = useState<Reviewer[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -56,6 +68,7 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
   const [newReviewerName, setNewReviewerName] = useState('')
   const [newReviewerEmail, setNewReviewerEmail] = useState('')
   const [selectedReviewerTypeId, setSelectedReviewerTypeId] = useState<string>('')
+  const [stageAssignments, setStageAssignments] = useState<StageAssignment[]>([]) // Multi-stage assignments
   const [assignmentStrategy, setAssignmentStrategy] = useState<'random' | 'manual'>('random')
   const [assignmentCount, setAssignmentCount] = useState(10)
   const [onlyUnassigned, setOnlyUnassigned] = useState(true) // New: only assign unassigned apps
@@ -68,22 +81,31 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
   // New: For assigning more apps to existing reviewer
   const [assignToExistingReviewer, setAssignToExistingReviewer] = useState<Reviewer | null>(null)
   const [showAssignModal, setShowAssignModal] = useState(false)
+  
+  // Delete confirmation dialog
+  const [reviewerToDelete, setReviewerToDelete] = useState<Reviewer | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deleteAction, setDeleteAction] = useState<'archive' | 'remove_completely' | 'reassign'>('archive')
 
   useEffect(() => {
     if (formId) fetchReviewers()
   }, [formId])
 
   useEffect(() => {
-    const fetchReviewerTypes = async () => {
+    const fetchWorkflowData = async () => {
       if (!workspaceId) return
       try {
-        const types = await workflowsClient.listReviewerTypes(workspaceId)
+        const [types, stagesData] = await Promise.all([
+          workflowsClient.listReviewerTypes(workspaceId),
+          workflowsClient.listStages(workspaceId)
+        ])
         setReviewerTypes(types)
+        setStages(stagesData)
       } catch (error) {
-        console.error('Failed to fetch reviewer types:', error)
+        console.error('Failed to fetch workflow data:', error)
       }
     }
-    fetchReviewerTypes()
+    fetchWorkflowData()
   }, [workspaceId])
 
   useEffect(() => {
@@ -137,13 +159,41 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
 
   const generateToken = () => 'rev_' + Math.random().toString(36).substr(2, 8)
 
+  // Ensure role is configured on each assigned stage
+  const ensureStageConfigs = async () => {
+    for (const assignment of stageAssignments) {
+      try {
+        // Check if this role already exists on the stage
+        const existingConfigs = await workflowsClient.listStageConfigs(assignment.stage_id)
+        const roleExists = existingConfigs.some(c => c.reviewer_type_id === assignment.reviewer_type_id)
+        
+        if (!roleExists) {
+          // Auto-add the role to the stage
+          await workflowsClient.createStageConfig({
+            stage_id: assignment.stage_id,
+            reviewer_type_id: assignment.reviewer_type_id,
+            min_reviews_required: 1
+          })
+        }
+      } catch (error) {
+        console.error(`Failed to ensure stage config for stage ${assignment.stage_id}:`, error)
+      }
+    }
+  }
+
   const handleCreateReviewer = async () => {
     if (!formId || !newReviewerName.trim()) return
+    if (stageAssignments.length === 0) {
+      showToast('Please assign the reviewer to at least one stage', 'error')
+      return
+    }
     setIsAssigning(true)
     
     try {
       const reviewerId = Date.now().toString()
-      const selectedType = reviewerTypes.find(t => t.id === selectedReviewerTypeId)
+      // Use the first assignment's role as the primary role for display
+      const primaryAssignment = stageAssignments[0]
+      const primaryRole = reviewerTypes.find(t => t.id === primaryAssignment?.reviewer_type_id)
       
       const newReviewer: Reviewer = {
         id: reviewerId,
@@ -154,9 +204,13 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
         completedCount: 0,
         status: 'active',
         lastActive: 'Just now',
-        role: selectedType?.name || 'External Reviewer',
-        reviewer_type_id: selectedReviewerTypeId || undefined
+        role: primaryRole?.name || 'External Reviewer',
+        reviewer_type_id: primaryAssignment?.reviewer_type_id,
+        stage_assignments: stageAssignments
       }
+      
+      // Ensure roles are configured on stages
+      await ensureStageConfigs()
       
       const updated = [...reviewers, newReviewer]
       await saveReviewers(updated)
@@ -165,7 +219,7 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
         const response = await goClient.post<{count: number}>(`/forms/${formId}/reviewers/${reviewerId}/assign`, {
           strategy: 'random', 
           count: assignmentCount, 
-          reviewer_type_id: selectedReviewerTypeId || undefined,
+          reviewer_type_id: primaryAssignment?.reviewer_type_id || undefined,
           only_unassigned: onlyUnassigned
         })
         setReviewers(updated.map(r => r.id === reviewerId ? { ...r, assignedCount: response.count } : r))
@@ -174,7 +228,7 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
         const response = await goClient.post<{count: number}>(`/forms/${formId}/reviewers/${reviewerId}/assign`, {
           strategy: 'manual', 
           submission_ids: selectedSubmissionIds, 
-          reviewer_type_id: selectedReviewerTypeId || undefined
+          reviewer_type_id: primaryAssignment?.reviewer_type_id || undefined
         })
         setReviewers(updated.map(r => r.id === reviewerId ? { ...r, assignedCount: response.count } : r))
         await fetchSubmissions() // Refresh to update assignment status
@@ -195,6 +249,7 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
     setNewReviewerName('')
     setNewReviewerEmail('')
     setSelectedReviewerTypeId('')
+    setStageAssignments([])
     setAssignmentStrategy('random')
     setAssignmentCount(10)
     setOnlyUnassigned(true)
@@ -260,10 +315,59 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
     }
   }
 
-  const handleDeleteReviewer = async (id: string) => {
-    if (!confirm('Remove this reviewer?')) return
-    await saveReviewers(reviewers.filter(r => r.id !== id))
-    showToast('Reviewer removed', 'success')
+  const openDeleteDialog = (reviewer: Reviewer) => {
+    setReviewerToDelete(reviewer)
+    setDeleteAction('archive')
+    setShowDeleteDialog(true)
+  }
+
+  const handleDeleteReviewer = async () => {
+    if (!reviewerToDelete) return
+    
+    const id = reviewerToDelete.id
+    
+    if (deleteAction === 'archive') {
+      // Soft delete - mark as removed but keep data for history
+      const updatedReviewers = reviewers.map(r => 
+        r.id === id ? { ...r, status: 'removed' as const, removed: true, removed_at: new Date().toISOString() } : r
+      )
+      await saveReviewers(updatedReviewers)
+      showToast('Reviewer archived - their reviews are preserved', 'success')
+    } else if (deleteAction === 'remove_completely') {
+      // Hard delete - remove completely and unassign from all applications
+      await saveReviewers(reviewers.filter(r => r.id !== id))
+      
+      // Also remove from all submissions' assigned_reviewers
+      if (formId && submissions.length > 0) {
+        const updatedSubmissions = submissions.filter(s => 
+          s.metadata?.assigned_reviewers?.includes(id)
+        )
+        for (const sub of updatedSubmissions) {
+          const newAssigned = (sub.metadata?.assigned_reviewers || []).filter((rid: string) => rid !== id)
+          await goClient.patch(`/forms/${formId}/submissions/${sub.id}`, {
+            metadata: { ...sub.metadata, assigned_reviewers: newAssigned }
+          })
+        }
+      }
+      showToast('Reviewer and all assignments removed', 'success')
+    } else if (deleteAction === 'reassign') {
+      // Get another active reviewer to reassign to
+      const activeReviewers = reviewers.filter(r => r.id !== id && r.status === 'active' && !r.removed)
+      if (activeReviewers.length === 0) {
+        showToast('No other active reviewers to reassign to', 'error')
+        return
+      }
+      
+      // For now, just archive - reassignment would need more UI
+      const updatedReviewers = reviewers.map(r => 
+        r.id === id ? { ...r, status: 'removed' as const, removed: true, removed_at: new Date().toISOString() } : r
+      )
+      await saveReviewers(updatedReviewers)
+      showToast('Reviewer archived. Reassign applications manually from the review workspace.', 'success')
+    }
+    
+    setShowDeleteDialog(false)
+    setReviewerToDelete(null)
   }
 
   const handleUpdateReviewerRole = async (reviewerId: string, newRoleId: string) => {
@@ -284,18 +388,21 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
     setTimeout(() => setCopiedId(null), 2000)
   }
 
+  // Active reviewers (not removed) for display and stats
+  const activeReviewers = useMemo(() => reviewers.filter(r => !r.removed), [reviewers])
+
   const filteredReviewers = useMemo(() => {
-    return reviewers.filter(r => {
+    return activeReviewers.filter(r => {
       const matchesSearch = r.name.toLowerCase().includes(searchQuery.toLowerCase()) || r.email.toLowerCase().includes(searchQuery.toLowerCase())
       return matchesSearch && (filterStatus === 'all' || r.status === filterStatus)
     })
-  }, [reviewers, searchQuery, filterStatus])
+  }, [activeReviewers, searchQuery, filterStatus])
 
   const stats = {
-    total: reviewers.length,
-    active: reviewers.filter(r => r.status === 'active').length,
-    totalAssigned: reviewers.reduce((acc, r) => acc + r.assignedCount, 0),
-    totalCompleted: reviewers.reduce((acc, r) => acc + r.completedCount, 0)
+    total: activeReviewers.length,
+    active: activeReviewers.filter(r => r.status === 'active').length,
+    totalAssigned: activeReviewers.reduce((acc, r) => acc + r.assignedCount, 0),
+    totalCompleted: activeReviewers.reduce((acc, r) => acc + r.completedCount, 0)
   }
   const completionRate = stats.totalAssigned > 0 ? Math.round((stats.totalCompleted / stats.totalAssigned) * 100) : 0
 
@@ -409,28 +516,25 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
                     {isExpanded && (
                       <div className="px-4 pb-4 pt-0 border-t border-gray-100 bg-gray-50/50">
                         <div className="pt-4 space-y-4">
-                          {/* Role Assignment */}
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2">
+                          {/* Stage Assignments */}
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
                               <Shield className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm font-medium text-gray-700">Role:</span>
+                              <span className="text-sm font-medium text-gray-700">Stage Assignments</span>
                             </div>
-                            {reviewerTypes.length > 0 ? (
-                              <select
-                                value={reviewerTypes.find(t => t.name === reviewer.role)?.id || ''}
-                                onChange={(e) => handleUpdateReviewerRole(reviewer.id, e.target.value)}
-                                className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              >
-                                <option value="" disabled>Select role...</option>
-                                {reviewerTypes.map(type => (
-                                  <option key={type.id} value={type.id}>
-                                    {type.name}
-                                  </option>
+                            {reviewer.stage_assignments && reviewer.stage_assignments.length > 0 ? (
+                              <div className="flex flex-wrap gap-2">
+                                {reviewer.stage_assignments.map((assignment, idx) => (
+                                  <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs">
+                                    <span className="font-medium text-gray-700">{assignment.stage_name}</span>
+                                    <span className="text-gray-400">→</span>
+                                    <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">{assignment.role_name}</span>
+                                  </div>
                                 ))}
-                              </select>
+                              </div>
                             ) : (
                               <span className="px-2.5 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
-                                {reviewer.role}
+                                {reviewer.role} (all stages)
                               </span>
                             )}
                           </div>
@@ -442,17 +546,26 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
                                 <LinkIcon className="w-3.5 h-3.5 text-gray-400" />
                                 <code className="text-xs text-gray-600">/external-review/{reviewer.token}</code>
                               </div>
-                              <span className={cn("px-2 py-1 text-xs font-medium rounded-full", reviewer.status === 'active' && "bg-green-100 text-green-700", reviewer.status === 'completed' && "bg-blue-100 text-blue-700", reviewer.status === 'expired' && "bg-gray-100 text-gray-600")}>
+                              <span className={cn("px-2 py-1 text-xs font-medium rounded-full", 
+                                reviewer.status === 'active' && "bg-green-100 text-green-700", 
+                                reviewer.status === 'completed' && "bg-blue-100 text-blue-700", 
+                                reviewer.status === 'expired' && "bg-gray-100 text-gray-600",
+                                reviewer.status === 'removed' && "bg-red-100 text-red-700"
+                              )}>
                                 {reviewer.status.charAt(0).toUpperCase() + reviewer.status.slice(1)}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <button onClick={() => openAssignMoreModal(reviewer)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200">
-                                <Target className="w-4 h-4" />Assign More
-                              </button>
-                              <button onClick={() => handleDeleteReviewer(reviewer.id)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg">
-                                <Trash2 className="w-4 h-4" />Remove
-                              </button>
+                              {reviewer.status !== 'removed' && (
+                                <>
+                                  <button onClick={() => openAssignMoreModal(reviewer)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-200">
+                                    <Target className="w-4 h-4" />Assign More
+                                  </button>
+                                  <button onClick={() => openDeleteDialog(reviewer)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg">
+                                    <Trash2 className="w-4 h-4" />Remove
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
                           
@@ -533,7 +646,7 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
                   <div className="text-center mb-6">
                     <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3"><UserPlus className="w-6 h-6 text-blue-600" /></div>
                     <h2 className="text-lg font-semibold text-gray-900">Reviewer Details</h2>
-                    <p className="text-sm text-gray-500">Enter the reviewer&apos;s information</p>
+                    <p className="text-sm text-gray-500">Enter the reviewer&apos;s information and stage assignments</p>
                   </div>
                   <div className="space-y-4">
                     <div>
@@ -544,30 +657,117 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
                       <input type="email" value={newReviewerEmail} onChange={(e) => setNewReviewerEmail(e.target.value)} placeholder="reviewer@university.edu" className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
+                    
+                    {/* Stage Assignments Section */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Reviewer Role <span className="text-red-500">*</span>
+                        Stage Assignments <span className="text-red-500">*</span>
                       </label>
-                      {reviewerTypes.length > 0 ? (
-                        <select value={selectedReviewerTypeId} onChange={(e) => setSelectedReviewerTypeId(e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                          <option value="">Select a role...</option>
-                          {reviewerTypes.map(type => (<option key={type.id} value={type.id}>{type.name}{type.description ? ` - ${type.description}` : ''}</option>))}
-                        </select>
-                      ) : (
+                      <p className="text-xs text-gray-500 mb-3">Assign different roles for different stages. The reviewer can have a different role in each stage.</p>
+                      
+                      {stages.length === 0 || reviewerTypes.length === 0 ? (
                         <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                          <p className="text-sm text-amber-800 font-medium">No roles configured</p>
-                          <p className="text-xs text-amber-600 mt-1">Go to Workflows → Reviewer Roles to create roles first, then come back to invite reviewers.</p>
+                          <p className="text-sm text-amber-800 font-medium">
+                            {stages.length === 0 ? 'No stages configured' : 'No roles configured'}
+                          </p>
+                          <p className="text-xs text-amber-600 mt-1">
+                            {stages.length === 0 
+                              ? 'Go to Workflows to create stages first, then come back to invite reviewers.'
+                              : 'Go to Workflows → Reviewer Roles to create roles first, then come back to invite reviewers.'}
+                          </p>
                         </div>
-                      )}
-                      {selectedReviewerTypeId && (
-                        <p className="text-xs text-gray-500 mt-1.5">
-                          {reviewerTypes.find(t => t.id === selectedReviewerTypeId)?.description || 'This role determines what the reviewer can access and evaluate.'}
-                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {/* Existing assignments */}
+                          {stageAssignments.map((assignment, idx) => (
+                            <div key={idx} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                              <div className="flex-1 grid grid-cols-2 gap-2">
+                                <div>
+                                  <span className="text-xs text-gray-500">Stage</span>
+                                  <p className="text-sm font-medium text-gray-900">{assignment.stage_name}</p>
+                                </div>
+                                <div>
+                                  <span className="text-xs text-gray-500">Role</span>
+                                  <p className="text-sm font-medium text-gray-900">{assignment.role_name}</p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => setStageAssignments(prev => prev.filter((_, i) => i !== idx))}
+                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                          
+                          {/* Add new assignment */}
+                          {stageAssignments.length < stages.length && (
+                            <div className="flex items-end gap-2">
+                              <div className="flex-1">
+                                <label className="block text-xs text-gray-500 mb-1">Stage</label>
+                                <select
+                                  id="new-stage-select"
+                                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                  defaultValue=""
+                                >
+                                  <option value="">Select stage...</option>
+                                  {stages
+                                    .filter(s => !stageAssignments.some(a => a.stage_id === s.id))
+                                    .map(stage => (
+                                      <option key={stage.id} value={stage.id}>{stage.name}</option>
+                                    ))}
+                                </select>
+                              </div>
+                              <div className="flex-1">
+                                <label className="block text-xs text-gray-500 mb-1">Role</label>
+                                <select
+                                  id="new-role-select"
+                                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                  defaultValue=""
+                                >
+                                  <option value="">Select role...</option>
+                                  {reviewerTypes.map(type => (
+                                    <option key={type.id} value={type.id}>{type.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  const stageSelect = document.getElementById('new-stage-select') as HTMLSelectElement
+                                  const roleSelect = document.getElementById('new-role-select') as HTMLSelectElement
+                                  const stageId = stageSelect?.value
+                                  const roleId = roleSelect?.value
+                                  if (stageId && roleId) {
+                                    const stage = stages.find(s => s.id === stageId)
+                                    const role = reviewerTypes.find(r => r.id === roleId)
+                                    if (stage && role) {
+                                      setStageAssignments(prev => [...prev, {
+                                        stage_id: stageId,
+                                        stage_name: stage.name,
+                                        reviewer_type_id: roleId,
+                                        role_name: role.name
+                                      }])
+                                      stageSelect.value = ''
+                                      roleSelect.value = ''
+                                    }
+                                  }
+                                }}
+                                className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+                              >
+                                Add
+                              </button>
+                            </div>
+                          )}
+                          
+                          {stageAssignments.length === 0 && (
+                            <p className="text-xs text-amber-600 mt-1">Add at least one stage assignment to continue.</p>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
                   <div className="flex justify-end pt-4">
-                    <button onClick={() => setInviteStep(2)} disabled={!newReviewerName.trim() || !selectedReviewerTypeId} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button onClick={() => setInviteStep(2)} disabled={!newReviewerName.trim() || stageAssignments.length === 0} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
                       Continue<ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -867,6 +1067,76 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
                 className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
                 {isAssigning ? <><RefreshCw className="w-4 h-4 animate-spin" />Assigning...</> : <><Target className="w-4 h-4" />Assign</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Reviewer Confirmation Dialog */}
+      {showDeleteDialog && reviewerToDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Remove Reviewer</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              What would you like to do with <span className="font-medium">{reviewerToDelete.name}</span>'s assignments and reviews?
+            </p>
+            
+            <div className="space-y-3 mb-6">
+              <label className={cn(
+                "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                deleteAction === 'archive' ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"
+              )}>
+                <input
+                  type="radio"
+                  name="deleteAction"
+                  value="archive"
+                  checked={deleteAction === 'archive'}
+                  onChange={() => setDeleteAction('archive')}
+                  className="mt-0.5"
+                />
+                <div>
+                  <p className="font-medium text-gray-900">Archive reviewer</p>
+                  <p className="text-sm text-gray-500">Keep their name, email, and reviews for historical records. They won't appear in the active list.</p>
+                </div>
+              </label>
+              
+              <label className={cn(
+                "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                deleteAction === 'remove_completely' ? "border-red-500 bg-red-50" : "border-gray-200 hover:bg-gray-50"
+              )}>
+                <input
+                  type="radio"
+                  name="deleteAction"
+                  value="remove_completely"
+                  checked={deleteAction === 'remove_completely'}
+                  onChange={() => setDeleteAction('remove_completely')}
+                  className="mt-0.5"
+                />
+                <div>
+                  <p className="font-medium text-red-700">Remove completely</p>
+                  <p className="text-sm text-gray-500">Delete the reviewer and unassign them from all applications. Reviews they've submitted will remain.</p>
+                </div>
+              </label>
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => { setShowDeleteDialog(false); setReviewerToDelete(null) }}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteReviewer}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium rounded-lg",
+                  deleteAction === 'remove_completely' 
+                    ? "bg-red-600 text-white hover:bg-red-700"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                )}
+              >
+                {deleteAction === 'archive' ? 'Archive Reviewer' : 'Remove Reviewer'}
               </button>
             </div>
           </div>

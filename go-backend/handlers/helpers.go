@@ -104,6 +104,7 @@ func GetDefaultFieldTypeID(fieldType string) string {
 		"radio":       "radio",
 		"file":        "file",
 		"image":       "image",
+		"address":     "address",
 		"link":        "link",
 		"lookup":      "lookup",
 		"rollup":      "rollup",

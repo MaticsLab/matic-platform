@@ -395,7 +395,7 @@ export const FIELD_CATEGORIES: Record<FieldCategory, FieldTypeId[]> = {
   special: ['file', 'image', 'signature', 'rating', 'rank', 'item_list'],
 }
 
-export const PII_FIELD_TYPES: FieldTypeId[] = ['email', 'phone', 'signature']
+export const PII_FIELD_TYPES: FieldTypeId[] = ['email', 'phone', 'signature', 'address']
 
 export const CONTAINER_FIELD_TYPES: FieldTypeId[] = ['group', 'repeater', 'section']
 

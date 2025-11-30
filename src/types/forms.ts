@@ -12,6 +12,7 @@ export type FieldType =
   | 'phone'
   | 'number'
   | 'url'
+  | 'address'
   | 'select'
   | 'multiselect'
   | 'radio'

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { 
   Plus, Trash2, Save, ChevronRight, Users, FileText, Layers, Edit2, X, 
   GripVertical, Check, Loader2, Sparkles, Settings, Award, 
@@ -818,6 +818,7 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
         onClose={closePanel}
         workspaceId={workspaceId}
         workflowId={selectedWorkflow?.id}
+        formId={formId || undefined}
         stageCount={stages.length}
         reviewerTypes={reviewerTypes}
         rubrics={rubrics}
@@ -1024,6 +1025,7 @@ function SidePanel({
   onClose,
   workspaceId,
   workflowId,
+  formId,
   stageCount,
   reviewerTypes,
   rubrics,
@@ -1038,6 +1040,7 @@ function SidePanel({
   onClose: () => void
   workspaceId: string
   workflowId?: string
+  formId?: string
   stageCount: number
   reviewerTypes: ReviewerType[]
   rubrics: Rubric[]
@@ -1145,6 +1148,7 @@ function SidePanel({
             stage={panel.data}
             workspaceId={workspaceId}
             workflowId={workflowId}
+            formId={formId}
             stageCount={stageCount}
             reviewerTypes={reviewerTypes}
             rubrics={rubrics}
@@ -1184,6 +1188,7 @@ function CombinedStageSettings({
   stage,
   workspaceId,
   workflowId,
+  formId,
   stageCount,
   reviewerTypes,
   rubrics,
@@ -1194,6 +1199,7 @@ function CombinedStageSettings({
   stage: ApplicationStage
   workspaceId: string
   workflowId: string
+  formId?: string
   stageCount: number
   reviewerTypes: ReviewerType[]
   rubrics: Rubric[]
@@ -1292,6 +1298,7 @@ function CombinedStageSettings({
               reviewerTypes={reviewerTypes}
               rubrics={rubrics}
               formSections={formSections}
+              formId={formId}
               onSave={onSave}
             />
           )}
@@ -2423,6 +2430,57 @@ function GeneralStageSettings({
   const [newStatus, setNewStatus] = useState('')
   const [newTag, setNewTag] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isInitialMount = useRef(true)
+
+  // Autosave effect
+  useEffect(() => {
+    // Skip initial mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
+    // Don't save if name is empty
+    if (!name.trim()) return
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+
+    // Debounce save by 800ms
+    saveTimeoutRef.current = setTimeout(async () => {
+      setIsSaving(true)
+      try {
+        const stageData = {
+          name: name.trim(),
+          description: description.trim() || undefined,
+          stage_type: stageType,
+          color: stageColor,
+          start_date: startDate ? new Date(startDate).toISOString() : undefined,
+          end_date: endDate ? new Date(endDate).toISOString() : undefined,
+          relative_deadline: relativeDeadline && relativeDeadline !== 'none' ? relativeDeadline : undefined,
+          custom_statuses: customStatuses.length > 0 ? customStatuses : undefined,
+          custom_tags: customTags.length > 0 ? customTags : undefined,
+        }
+        
+        await workflowsClient.updateStage(stage.id, stageData)
+        onSave()
+      } catch (error: any) {
+        console.error('Failed to save stage:', error)
+        showToast(error.message || 'Failed to save stage', 'error')
+      } finally {
+        setIsSaving(false)
+      }
+    }, 800)
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [name, description, stageType, stageColor, startDate, endDate, relativeDeadline, customStatuses, customTags, stage.id, onSave])
 
   const addStatus = () => {
     if (newStatus.trim() && !customStatuses.includes(newStatus.trim())) {
@@ -2446,36 +2504,8 @@ function GeneralStageSettings({
     setCustomTags(customTags.filter(t => t !== tag))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!name.trim()) return
-    setIsSaving(true)
-    try {
-      const stageData = {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        stage_type: stageType,
-        color: stageColor,
-        start_date: startDate ? new Date(startDate).toISOString() : undefined,
-        end_date: endDate ? new Date(endDate).toISOString() : undefined,
-        relative_deadline: relativeDeadline && relativeDeadline !== 'none' ? relativeDeadline : undefined,
-        custom_statuses: customStatuses.length > 0 ? customStatuses : undefined,
-        custom_tags: customTags.length > 0 ? customTags : undefined,
-      }
-      
-      await workflowsClient.updateStage(stage.id, stageData)
-      showToast('Stage updated successfully', 'success')
-      onSave()
-    } catch (error: any) {
-      console.error('Failed to save stage:', error)
-      showToast(error.message || 'Failed to save stage', 'error')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="space-y-6">
       {/* Basic Info Card */}
       <div className="p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-200">
         <div className="flex items-center gap-3 mb-4">
@@ -2715,12 +2745,32 @@ function GeneralStageSettings({
         </div>
       </div>
 
-      <Button type="submit" disabled={!name.trim() || isSaving} size="lg" className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/25">
-        {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-        Save General Settings
-      </Button>
-    </form>
+      {/* Autosave indicator */}
+      {isSaving && (
+        <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Saving...
+        </div>
+      )}
+    </div>
   )
+}
+
+// Stage assignment type for reviewers
+interface StageAssignmentInfo {
+  stage_id: string
+  stage_name: string
+  reviewer_type_id: string
+  role_name: string
+}
+
+interface ReviewerInfo {
+  id: string
+  name: string
+  email?: string
+  stage_assignments?: StageAssignmentInfo[]
+  reviewer_type_id?: string
+  role?: string
 }
 
 // Reviewer Stage Settings Tab Component
@@ -2729,22 +2779,101 @@ function ReviewerStageSettings({
   reviewerTypes,
   rubrics,
   formSections,
+  formId,
   onSave
 }: {
   stage: ApplicationStage
   reviewerTypes: ReviewerType[]
   rubrics: Rubric[]
   formSections: FormSection[]
+  formId?: string
   onSave: () => void
 }) {
   const [configs, setConfigs] = useState<Partial<StageReviewerConfig>[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [expandedConfig, setExpandedConfig] = useState<number | null>(null)
+  const [formReviewers, setFormReviewers] = useState<ReviewerInfo[]>([])
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isInitialLoad = useRef(true)
 
   useEffect(() => {
     loadConfigs()
   }, [stage.id])
+
+  // Fetch form reviewers to show who is assigned to each role
+  useEffect(() => {
+    const fetchFormReviewers = async () => {
+      if (!formId) return
+      try {
+        const form = await goClient.get<{ settings?: { reviewers?: ReviewerInfo[] } }>(`/forms/${formId}`)
+        if (form.settings?.reviewers) {
+          setFormReviewers(form.settings.reviewers)
+        }
+      } catch (error) {
+        console.error('Failed to fetch form reviewers:', error)
+      }
+    }
+    fetchFormReviewers()
+  }, [formId])
+
+  // Helper to get reviewers assigned to a specific role on this stage
+  const getReviewersForRole = (reviewerTypeId: string): ReviewerInfo[] => {
+    return formReviewers.filter(r => {
+      // Check stage_assignments first
+      if (r.stage_assignments && r.stage_assignments.length > 0) {
+        return r.stage_assignments.some(
+          a => a.stage_id === stage.id && a.reviewer_type_id === reviewerTypeId
+        )
+      }
+      // Fallback to legacy reviewer_type_id (applies to all stages)
+      return r.reviewer_type_id === reviewerTypeId
+    })
+  }
+
+  // Autosave effect
+  useEffect(() => {
+    // Skip initial load
+    if (isInitialLoad.current) {
+      return
+    }
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+
+    // Debounce save by 800ms
+    saveTimeoutRef.current = setTimeout(async () => {
+      setIsSaving(true)
+      try {
+        for (const config of configs) {
+          if (config.id) {
+            await workflowsClient.updateStageConfig(config.id, config as StageReviewerConfig)
+          } else if (config.reviewer_type_id) {
+            const created = await workflowsClient.createStageConfig(config as StageReviewerConfig)
+            // Update local config with new ID
+            const idx = configs.findIndex(c => c === config)
+            if (idx >= 0) {
+              configs[idx] = { ...configs[idx], id: created.id }
+            }
+          }
+        }
+        onSave()
+      } catch (error) {
+        console.error('Failed to save configs:', error)
+        showToast('Failed to save reviewer settings', 'error')
+      } finally {
+        setIsSaving(false)
+      }
+    }, 800)
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [configs, onSave])
 
   const loadConfigs = async () => {
     try {
@@ -2754,6 +2883,7 @@ function ReviewerStageSettings({
       console.error('Failed to load configs:', error)
     } finally {
       setIsLoading(false)
+      isInitialLoad.current = false
     }
   }
 
@@ -2788,26 +2918,7 @@ function ReviewerStageSettings({
       }
     }
     setConfigs(configs.filter((_, i) => i !== index))
-  }
-
-  const handleSave = async () => {
-    setIsSaving(true)
-    try {
-      for (const config of configs) {
-        if (config.id) {
-          await workflowsClient.updateStageConfig(config.id, config as StageReviewerConfig)
-        } else if (config.reviewer_type_id) {
-          await workflowsClient.createStageConfig(config as StageReviewerConfig)
-        }
-      }
-      showToast('Reviewer settings saved', 'success')
-      onSave()
-    } catch (error) {
-      console.error('Failed to save configs:', error)
-      showToast('Failed to save reviewer settings', 'error')
-    } finally {
-      setIsSaving(false)
-    }
+    onSave() // Trigger refresh
   }
 
   if (isLoading) {
@@ -2889,6 +3000,30 @@ function ReviewerStageSettings({
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Show assigned reviewers for this role on this stage */}
+                  {config.reviewer_type_id && (
+                    <div className="bg-white rounded-lg border p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-sm text-gray-600">Assigned Reviewers</Label>
+                        <span className="text-xs text-gray-400">{getReviewersForRole(config.reviewer_type_id).length} reviewer(s)</span>
+                      </div>
+                      {getReviewersForRole(config.reviewer_type_id).length === 0 ? (
+                        <p className="text-xs text-gray-400 italic">No reviewers assigned to this role on this stage. Invite reviewers from the Reviewers tab and assign them to this stage.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {getReviewersForRole(config.reviewer_type_id).map(r => (
+                            <div key={r.id} className="flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+                              <div className="w-4 h-4 rounded-full bg-blue-200 flex items-center justify-center text-[10px] font-semibold">
+                                {r.name.charAt(0).toUpperCase()}
+                              </div>
+                              {r.name}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label className="text-sm">Assigned Rubric</Label>
@@ -3028,10 +3163,13 @@ function ReviewerStageSettings({
         )}
       </div>
 
-      <Button onClick={handleSave} disabled={isSaving} className="w-full">
-        {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-        Save Reviewer Settings
-      </Button>
+      {/* Autosave indicator */}
+      {isSaving && (
+        <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Saving...
+        </div>
+      )}
     </div>
   )
 }
@@ -5428,23 +5566,45 @@ function PrivacyStageSettings({
   const [hidePII, setHidePII] = useState(stage.hide_pii || false)
   const [hiddenPIIFields, setHiddenPIIFields] = useState<string[]>(stage.hidden_pii_fields || [])
   const [isSaving, setIsSaving] = useState(false)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isInitialMount = useRef(true)
 
-  const handleSave = async () => {
-    setIsSaving(true)
-    try {
-      await workflowsClient.updateStage(stage.id, {
-        hide_pii: hidePII,
-        hidden_pii_fields: hiddenPIIFields.length > 0 ? hiddenPIIFields : undefined,
-      })
-      showToast('Privacy settings saved', 'success')
-      onSave()
-    } catch (error: any) {
-      console.error('Failed to save privacy settings:', error)
-      showToast(error.message || 'Failed to save', 'error')
-    } finally {
-      setIsSaving(false)
+  // Autosave effect
+  useEffect(() => {
+    // Skip initial mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
     }
-  }
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+
+    // Debounce save by 800ms
+    saveTimeoutRef.current = setTimeout(async () => {
+      setIsSaving(true)
+      try {
+        await workflowsClient.updateStage(stage.id, {
+          hide_pii: hidePII,
+          hidden_pii_fields: hiddenPIIFields.length > 0 ? hiddenPIIFields : undefined,
+        })
+        onSave()
+      } catch (error: any) {
+        console.error('Failed to save privacy settings:', error)
+        showToast(error.message || 'Failed to save', 'error')
+      } finally {
+        setIsSaving(false)
+      }
+    }, 800)
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [hidePII, hiddenPIIFields, stage.id, onSave])
 
   return (
     <div className="space-y-6">
@@ -5521,10 +5681,13 @@ function PrivacyStageSettings({
         </div>
       )}
 
-      <Button onClick={handleSave} disabled={isSaving} className="w-full">
-        {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-        Save Privacy Settings
-      </Button>
+      {/* Autosave indicator */}
+      {isSaving && (
+        <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Saving...
+        </div>
+      )}
     </div>
   )
 }
