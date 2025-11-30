@@ -443,7 +443,7 @@ func SubmitForm(c *gin.Context) {
 	if email != "" {
 		// Always store _applicant_email at root level for reliable lookups
 		data["_applicant_email"] = email
-		
+
 		// Also ensure email is saved in data["personal"] for backwards compatibility
 		if _, ok := data["personal"]; !ok {
 			data["personal"] = map[string]interface{}{
@@ -461,7 +461,7 @@ func SubmitForm(c *gin.Context) {
 			"table_id = ? AND data->'personal'->>'personalEmail' = ?",
 			"table_id = ? AND data->>'email' = ?",
 		}
-		
+
 		var found bool
 		for _, query := range queries {
 			if err := database.DB.Where(query, formID, email).First(&existingRow).Error; err == nil {
@@ -469,7 +469,7 @@ func SubmitForm(c *gin.Context) {
 				break
 			}
 		}
-		
+
 		if found {
 			// Update existing row with transaction - create version in same transaction
 			tx := database.DB.Begin()
@@ -766,7 +766,7 @@ func GetFormSubmission(c *gin.Context) {
 	}
 
 	var row models.Row
-	
+
 	// Try multiple locations where email might be stored:
 	// 1. data->'personal'->>'personalEmail' (static forms)
 	// 2. data->>'_applicant_email' (dynamic forms - new field)
@@ -776,7 +776,7 @@ func GetFormSubmission(c *gin.Context) {
 		"table_id = ? AND data->>'_applicant_email' = ?",
 		"table_id = ? AND data->>'email' = ?",
 	}
-	
+
 	var found bool
 	for _, query := range queries {
 		if err := database.DB.Where(query, formID, email).First(&row).Error; err == nil {
@@ -784,7 +784,7 @@ func GetFormSubmission(c *gin.Context) {
 			break
 		}
 	}
-	
+
 	if !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
