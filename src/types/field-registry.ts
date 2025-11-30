@@ -1,14 +1,35 @@
 /**
  * Field Registry Types
  * Universal field type definitions for consistent data handling
+ * 
+ * NOTE: Core field types are now defined in field-types.ts
+ * This file re-exports those types and adds history/version types
  */
 
 // ============================================================
-// FIELD TYPE REGISTRY
+// RE-EXPORTS FROM FIELD-TYPES.TS (NEW CANONICAL SOURCE)
 // ============================================================
 
-export type FieldCategory = 'primitive' | 'container' | 'layout' | 'special'
+// Import for local use
+import type { FieldCategory as FC } from './field-types';
 
+export type { 
+  FieldCategory, 
+  FieldTypeRegistry, 
+  AISchema,
+  Field,
+  EffectiveFieldConfig,
+  FieldTypeSummary,
+  FieldTypesByCategory,
+} from './field-types';
+
+export { 
+  FIELD_TYPES, 
+  isContainerField,
+  getFieldTypeId,
+} from './field-types';
+
+// Legacy type alias for backwards compatibility
 export type FieldTypeId =
   | 'text' | 'textarea' | 'email' | 'phone' | 'url' | 'address'
   | 'number' | 'rating'
@@ -18,55 +39,6 @@ export type FieldTypeId =
   | 'divider' | 'heading' | 'paragraph'
   | 'file' | 'image' | 'signature'
   | 'rank' | 'item_list'
-
-export interface AISchema {
-  embedding_strategy: 'value_only' | 'with_label' | 'summarize_count' | 'children_only' | 'filename_only' | 'skip'
-  privacy_level: 'pii' | 'sensitive' | 'public' | 'inherit'
-  semantic_hint?: string
-  extraction_patterns?: string[]
-  summarization_weight?: number
-  summarization_template?: string  // e.g., "{count} items"
-}
-
-export interface FieldTypeRegistry {
-  id: FieldTypeId
-  category: FieldCategory
-  label: string
-  description?: string
-  icon?: string
-  color?: string
-
-  // Schema definitions (JSON Schema format)
-  input_schema: Record<string, any>
-  storage_schema: Record<string, any>
-  config_schema: Record<string, any>
-
-  // Behavior flags
-  is_container: boolean
-  is_searchable: boolean
-  is_sortable: boolean
-  is_filterable: boolean
-  is_editable: boolean
-  supports_pii: boolean
-
-  // Rendering hints
-  table_renderer?: string
-  form_renderer?: string
-  review_renderer?: string
-
-  // AI Integration
-  ai_schema: AISchema
-
-  // Semantic type mapping
-  default_semantic_type?: string
-
-  // Edit tracking
-  track_changes: boolean
-  require_reason: boolean
-
-  created_at: string
-  updated_at: string
-}
 
 // ============================================================
 // ROW VERSIONS (History)
@@ -388,7 +360,7 @@ export interface ContainerFieldConfig {
 // CONSTANTS
 // ============================================================
 
-export const FIELD_CATEGORIES: Record<FieldCategory, FieldTypeId[]> = {
+export const FIELD_CATEGORIES: Record<FC, FieldTypeId[]> = {
   primitive: ['text', 'textarea', 'email', 'phone', 'url', 'number', 'date', 'datetime', 'time', 'select', 'multiselect', 'radio', 'checkbox'],
   container: ['group', 'repeater', 'section'],
   layout: ['divider', 'heading', 'paragraph'],

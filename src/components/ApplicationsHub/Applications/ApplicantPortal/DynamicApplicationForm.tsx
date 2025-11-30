@@ -22,9 +22,10 @@ interface DynamicApplicationFormProps {
   config: PortalConfig
   onBack?: () => void
   isExternal?: boolean
+  formId?: string
 }
 
-export function DynamicApplicationForm({ config, onBack, isExternal = false }: DynamicApplicationFormProps) {
+export function DynamicApplicationForm({ config, onBack, isExternal = false, formId }: DynamicApplicationFormProps) {
   const [activeSectionId, setActiveSectionId] = useState<string>(config.sections[0]?.id || '')
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [isSaving, setIsSaving] = useState(false)
@@ -134,6 +135,7 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false }: D
                           value={formData[field.id]} 
                           onChange={(val) => handleFieldChange(field.id, val)}
                           themeColor={config.settings.themeColor}
+                          formId={formId}
                         />
                       </div>
                     ))}
@@ -188,7 +190,7 @@ const CALLOUT_ICONS: Record<string, any> = {
   help: HelpCircle,
 }
 
-function FieldRenderer({ field, value, onChange, themeColor }: { field: Field, value: any, onChange: (val: any) => void, themeColor: string }) {
+function FieldRenderer({ field, value, onChange, themeColor, formId }: { field: Field, value: any, onChange: (val: any) => void, themeColor: string, formId?: string }) {
   // Layout Fields
   if (field.type === 'divider') return <Separator className="my-4" />
   if (field.type === 'heading') return <h3 className="text-lg font-semibold text-gray-900 mt-4 mb-2">{field.label}</h3>
@@ -433,6 +435,7 @@ function FieldRenderer({ field, value, onChange, themeColor }: { field: Field, v
           imageOnly={field.type === 'image'}
           multiple={field.config?.multiple}
           maxFiles={field.config?.maxFiles || 5}
+          storagePath={formId ? `submissions/${formId}/` : undefined}
         />
       )}
 

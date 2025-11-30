@@ -184,6 +184,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 		// Public Form Routes
 		api.GET("/forms/by-slug/:slug", handlers.GetFormBySlug)
+		api.GET("/forms/by-subdomain/:subdomain/:slug", handlers.GetFormBySubdomainSlug) // Pretty URL resolution
 		api.POST("/forms/:id/submit", handlers.SubmitForm)
 		api.GET("/forms/:id/submission", handlers.GetFormSubmission)
 
@@ -289,6 +290,26 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				versions.DELETE("/:version_id", handlers.DeleteVersion)
 			}
 
+			// File management
+			files := protected.Group("/files")
+			{
+				files.GET("", handlers.ListFiles)         // ?table_id=xxx&row_id=xxx&field_id=xxx&workspace_id=xxx
+				files.POST("", handlers.CreateFile)       // Create file record
+				files.GET("/:id", handlers.GetFile)       // Get single file
+				files.PATCH("/:id", handlers.UpdateFile)  // Update file metadata
+				files.DELETE("/:id", handlers.DeleteFile) // Soft delete file
+				files.GET("/:id/versions", handlers.GetFileVersions)
+				files.POST("/:id/versions", handlers.CreateFileVersion)
+			}
+
+			// Row files (convenience endpoints)
+			protected.GET("/rows/:row_id/files", handlers.GetRowFiles)
+			protected.POST("/rows/:row_id/files", handlers.CreateRowFile)
+			protected.GET("/rows/:row_id/files/stats", handlers.GetFileStats)
+
+			// Table files (convenience endpoint)
+			protected.GET("/tables/:id/files", handlers.GetTableFiles)
+
 			// Field Type Registry
 			fieldTypes := protected.Group("/field-types")
 			{
@@ -326,7 +347,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				forms.POST("", handlers.CreateForm)
 				forms.GET("/:id", handlers.GetForm)
 				forms.PATCH("/:id", handlers.UpdateForm)
-				forms.PUT("/:id/structure", handlers.UpdateFormStructure) // Add this line
+				forms.PUT("/:id/structure", handlers.UpdateFormStructure)    // Add this line
+				forms.PUT("/:id/custom-slug", handlers.UpdateFormCustomSlug) // Update custom URL slug
 				forms.DELETE("/:id", handlers.DeleteForm)
 
 				// Form submissions

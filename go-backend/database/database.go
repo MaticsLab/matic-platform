@@ -110,7 +110,7 @@ func AutoMigrate() error {
 func seedFieldTypeRegistry() error {
 	var count int64
 	DB.Model(&models.FieldTypeRegistry{}).Count(&count)
-	
+
 	// Only do full seed if empty, otherwise just add missing types
 	isInitialSeed := count == 0
 	if isInitialSeed {
@@ -209,6 +209,9 @@ func seedFieldTypeRegistry() error {
 		{ID: "rating", Category: "special", Label: "Rating", IsSearchable: false, IsSortable: true, IsFilterable: true, IsEditable: true,
 			StorageSchema: []byte(`{"type": "number", "minimum": 0, "maximum": 5, "description": "Star rating value"}`),
 			AISchema:      []byte(`{"embedding_strategy": "with_label", "privacy_level": "public"}`)},
+		{ID: "item_list", Category: "container", Label: "Item List", IsContainer: true, IsSearchable: false, IsSortable: false, IsFilterable: false, IsEditable: true,
+			StorageSchema: []byte(`{"type": "array", "items": {"type": "object", "additionalProperties": true}, "description": "List of items with dynamic properties"}`),
+			AISchema:      []byte(`{"embedding_strategy": "summarize_count", "summarization_template": "{count} items", "privacy_level": "inherit"}`)},
 	}
 
 	addedCount := 0

@@ -24,6 +24,7 @@ type FormDTO struct {
 	WorkspaceID uuid.UUID              `json:"workspace_id"`
 	Name        string                 `json:"name"`
 	Slug        string                 `json:"slug"`
+	CustomSlug  *string                `json:"custom_slug,omitempty"`
 	Description string                 `json:"description"`
 	Settings    map[string]interface{} `json:"settings"`
 	IsPublished bool                   `json:"is_published"`
@@ -68,6 +69,7 @@ func ListForms(c *gin.Context) {
 			WorkspaceID: table.WorkspaceID,
 			Name:        table.Name,
 			Slug:        table.Slug,
+			CustomSlug:  table.CustomSlug,
 			Description: table.Description,
 			Settings:    settings,
 			IsPublished: isPublished,
@@ -109,6 +111,7 @@ func GetForm(c *gin.Context) {
 		WorkspaceID: table.WorkspaceID,
 		Name:        table.Name,
 		Slug:        table.Slug,
+		CustomSlug:  table.CustomSlug,
 		Description: table.Description,
 		Settings:    settings,
 		IsPublished: isPublished,
@@ -121,14 +124,29 @@ func GetForm(c *gin.Context) {
 }
 
 func GetFormBySlug(c *gin.Context) {
-	slug := c.Param("slug")
+	slugOrId := c.Param("slug")
 
 	var table models.Table
-	if err := database.DB.First(&table, "slug = ?", slug).Error; err != nil {
+	// First try to find by UUID ID
+	if _, err := uuid.Parse(slugOrId); err == nil {
+		if err := database.DB.First(&table, "id = ?", slugOrId).Error; err == nil {
+			// Found by ID
+			goto found
+		}
+	}
+
+	// Try to find by custom_slug first (user-defined pretty URLs)
+	if err := database.DB.First(&table, "custom_slug = ?", slugOrId).Error; err == nil {
+		goto found
+	}
+
+	// Fall back to the auto-generated slug
+	if err := database.DB.First(&table, "slug = ?", slugOrId).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
 		return
 	}
 
+found:
 	var fields []models.Field
 	database.DB.Where("table_id = ?", table.ID).Order("position ASC").Find(&fields)
 
@@ -150,6 +168,7 @@ func GetFormBySlug(c *gin.Context) {
 		WorkspaceID: table.WorkspaceID,
 		Name:        table.Name,
 		Slug:        table.Slug,
+		CustomSlug:  table.CustomSlug,
 		Description: table.Description,
 		Settings:    settings,
 		IsPublished: isPublished,
@@ -318,6 +337,193 @@ func DeleteForm(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// UpdateFormCustomSlugInput represents the request body for updating a form's custom slug
+type UpdateFormCustomSlugInput struct {
+	CustomSlug *string `json:"custom_slug"` // Can be null to remove custom slug
+}
+
+// isValidCustomSlug validates a custom slug
+func isValidCustomSlug(slug string) bool {
+	// Must be 3-50 characters
+	if len(slug) < 3 || len(slug) > 50 {
+		return false
+	}
+
+	// Must only contain lowercase letters, numbers, and hyphens
+	validPattern := regexp.MustCompile(`^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$`)
+	if !validPattern.MatchString(slug) {
+		return false
+	}
+
+	// Cannot have consecutive hyphens
+	if strings.Contains(slug, "--") {
+		return false
+	}
+
+	// Cannot be a UUID format
+	uuidPattern := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+	if uuidPattern.MatchString(slug) {
+		return false
+	}
+
+	return true
+}
+
+// UpdateFormCustomSlug updates the custom URL slug for a form/portal
+func UpdateFormCustomSlug(c *gin.Context) {
+	id := c.Param("id")
+
+	var table models.Table
+	if err := database.DB.First(&table, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
+		return
+	}
+
+	var input UpdateFormCustomSlugInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// If custom_slug is provided, validate it
+	if input.CustomSlug != nil && *input.CustomSlug != "" {
+		slug := strings.ToLower(strings.TrimSpace(*input.CustomSlug))
+
+		if !isValidCustomSlug(slug) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Invalid custom slug. Must be 3-50 characters, lowercase alphanumeric with hyphens (no consecutive hyphens or leading/trailing hyphens).",
+			})
+			return
+		}
+
+		// Check if slug is already taken by another form
+		var existing models.Table
+		if err := database.DB.Where("custom_slug = ? AND id != ?", slug, id).First(&existing).Error; err == nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "This custom URL is already taken"})
+			return
+		}
+
+		table.CustomSlug = &slug
+	} else {
+		// Remove custom slug (set to nil)
+		table.CustomSlug = nil
+	}
+
+	if err := database.DB.Save(&table).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Return the updated form
+	var settings map[string]interface{}
+	json.Unmarshal(table.Settings, &settings)
+
+	var view models.View
+	isPublished := false
+	if err := database.DB.Where("table_id = ? AND type = ?", table.ID, "form").First(&view).Error; err == nil {
+		var config map[string]interface{}
+		json.Unmarshal(view.Config, &config)
+		if val, ok := config["is_published"].(bool); ok {
+			isPublished = val
+		}
+	}
+
+	form := FormDTO{
+		ID:          table.ID,
+		WorkspaceID: table.WorkspaceID,
+		Name:        table.Name,
+		Slug:        table.Slug,
+		CustomSlug:  table.CustomSlug,
+		Description: table.Description,
+		Settings:    settings,
+		IsPublished: isPublished,
+		CreatedAt:   table.CreatedAt,
+		UpdatedAt:   table.UpdatedAt,
+	}
+
+	c.JSON(http.StatusOK, form)
+}
+
+// PortalFormDTO extends FormDTO with workspace subdomain info
+type PortalFormDTO struct {
+	FormDTO
+	WorkspaceName      string  `json:"workspace_name"`
+	WorkspaceSubdomain *string `json:"workspace_subdomain,omitempty"`
+}
+
+// GetFormBySubdomainSlug resolves a form using subdomain + slug combination
+// This supports pretty URLs like: {subdomain}.maticapp.com/{slug}
+func GetFormBySubdomainSlug(c *gin.Context) {
+	subdomain := c.Param("subdomain")
+	slugOrId := c.Param("slug")
+
+	// Find the workspace by subdomain
+	var workspace models.Workspace
+	if err := database.DB.First(&workspace, "custom_subdomain = ?", subdomain).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Subdomain not found"})
+		return
+	}
+
+	// Find the form within this workspace
+	var table models.Table
+	query := database.DB.Where("workspace_id = ? AND icon = ?", workspace.ID, "form")
+
+	// Try to find by UUID ID first
+	if _, err := uuid.Parse(slugOrId); err == nil {
+		if err := query.Where("id = ?", slugOrId).First(&table).Error; err == nil {
+			goto found
+		}
+	}
+
+	// Try custom_slug
+	if err := query.Where("custom_slug = ?", slugOrId).First(&table).Error; err == nil {
+		goto found
+	}
+
+	// Fall back to auto-generated slug
+	if err := query.Where("slug = ?", slugOrId).First(&table).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found in this workspace"})
+		return
+	}
+
+found:
+	var fields []models.Field
+	database.DB.Where("table_id = ?", table.ID).Order("position ASC").Find(&fields)
+
+	var view models.View
+	isPublished := false
+	if err := database.DB.Where("table_id = ? AND type = ?", table.ID, "form").First(&view).Error; err == nil {
+		var config map[string]interface{}
+		json.Unmarshal(view.Config, &config)
+		if val, ok := config["is_published"].(bool); ok {
+			isPublished = val
+		}
+	}
+
+	var settings map[string]interface{}
+	json.Unmarshal(table.Settings, &settings)
+
+	form := PortalFormDTO{
+		FormDTO: FormDTO{
+			ID:          table.ID,
+			WorkspaceID: table.WorkspaceID,
+			Name:        table.Name,
+			Slug:        table.Slug,
+			CustomSlug:  table.CustomSlug,
+			Description: table.Description,
+			Settings:    settings,
+			IsPublished: isPublished,
+			Fields:      fields,
+			CreatedAt:   table.CreatedAt,
+			UpdatedAt:   table.UpdatedAt,
+		},
+		WorkspaceName:      workspace.Name,
+		WorkspaceSubdomain: workspace.CustomSubdomain,
+	}
+
+	c.JSON(http.StatusOK, form)
 }
 
 // Form Submission Handlers

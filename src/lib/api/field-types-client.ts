@@ -1,22 +1,10 @@
 import { goClient } from './go-client'
-import { FieldTypeRegistry } from '@/types/field-registry'
+import { FieldTypeRegistry, FieldTypeSummary, FieldTypesByCategory } from '@/types/field-types'
 
-export interface FieldTypeSummary {
-  id: string
-  category: string
-  label: string
-  description: string
-  icon: string
-  color: string
-  is_container: boolean
-}
+export type { FieldTypeSummary, FieldTypesByCategory }
 
-export interface FieldTypesToolbox {
-  primitive: FieldTypeSummary[]
-  container: FieldTypeSummary[]
-  layout: FieldTypeSummary[]
-  special: FieldTypeSummary[]
-}
+// Re-export for backwards compatibility
+export type FieldTypesToolbox = FieldTypesByCategory
 
 export const fieldTypesClient = {
   // Get all field types from registry

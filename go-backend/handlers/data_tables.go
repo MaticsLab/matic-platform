@@ -47,6 +47,7 @@ func GetDataTable(c *gin.Context) {
 
 	var table models.Table
 	if err := database.DB.Preload("Fields").
+		Preload("Fields.FieldType"). // Preload field type registry for each field
 		Preload("Views").
 		First(&table, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data table not found"})
@@ -534,35 +535,49 @@ func CreateTableColumn(c *gin.Context) {
 		config["validation"] = input.Validation
 	}
 	config["width"] = input.Width
-	config["is_visible"] = true // Default to visible, override if needed? Input has IsVisible bool, default false?
-	// Actually input.IsVisible is bool, default false. But we want default true?
-	// The struct field `IsVisible` defaults to false in Go.
-	// If user sends true, it's true.
-	// If user sends nothing, it's false.
-	// But we want default true.
-	// We can check if it was present in JSON? No, simple binding doesn't tell.
-	// Let's assume default true if not specified?
-	// Or just use what's provided.
 	config["is_visible"] = input.IsVisible
 	config["is_primary"] = input.IsPrimary
 	if input.LinkedTableID != nil {
 		config["linked_table_id"] = input.LinkedTableID
 	}
 
-	// Use table ID from URL parameter (more reliable than body)
+	// Use FieldService to validate field type and get defaults
+	fieldService := services.GetFieldService()
+	fieldType, exists := fieldService.GetFieldType(input.Type)
+	if !exists {
+		// Log warning but don't fail - allows for unknown types during transition
+		fmt.Printf("Warning: Unknown field type '%s', proceeding without registry defaults\n", input.Type)
+	}
+
+	// Build field with field_type_id properly set
 	field := models.Field{
-		TableID:  parsedTableID,
-		Name:     input.Name,
-		Label:    input.Label,
-		Type:     input.Type,
-		Position: input.Position,
-		Config:   mapToJSON(config),
+		TableID:     parsedTableID,
+		Name:        input.Name,
+		Label:       input.Label,
+		Type:        input.Type, // Keep for backwards compatibility
+		FieldTypeID: input.Type, // New: proper FK to field_type_registry
+		Position:    input.Position,
+		Width:       input.Width,
+		IsVisible:   input.IsVisible,
+		IsPrimary:   input.IsPrimary,
+		Config:      mapToJSON(config),
+	}
+
+	// Inherit properties from registry if available
+	if fieldType != nil {
+		field.IsSearchable = fieldType.IsSearchable
+		if input.LinkedTableID != nil {
+			field.LinkedTableID = input.LinkedTableID
+		}
 	}
 
 	if err := database.DB.Create(&field).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Preload the FieldType relationship for the response
+	database.DB.Preload("FieldType").First(&field, "id = ?", field.ID)
 
 	c.JSON(http.StatusCreated, field)
 }

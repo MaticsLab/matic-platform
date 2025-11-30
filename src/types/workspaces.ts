@@ -4,6 +4,7 @@ export interface Workspace {
   organization_id: string
   name: string
   slug: string
+  custom_subdomain?: string | null  // Custom subdomain for branded portal URLs
   description?: string
   color?: string
   icon?: string
@@ -19,6 +20,7 @@ export interface WorkspaceSummary {
   id: string
   name: string
   slug: string
+  custom_subdomain?: string | null
   color?: string
   icon?: string
 }
@@ -39,6 +41,7 @@ export interface WorkspaceUpdate {
   color?: string
   icon?: string
   logo_url?: string
+  custom_subdomain?: string | null
   settings?: Record<string, any>
   is_archived?: boolean
 }

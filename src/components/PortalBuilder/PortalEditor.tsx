@@ -17,6 +17,7 @@ import { PortalSettings } from './PortalSettings'
 import { SectionList } from './SectionList'
 import { FieldToolbox } from './FieldToolbox'
 import { FieldSettingsPanel } from './FieldSettingsPanel'
+import { ShareTab } from './ShareTab'
 import { DynamicApplicationForm } from '@/components/ApplicationsHub/Applications/ApplicantPortal/DynamicApplicationForm'
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { formsClient } from '@/lib/api/forms-client'
@@ -60,6 +61,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop')
   const [isPreview, setIsPreview] = useState(false)
   const [formId, setFormId] = useState<string | null>(initialFormId || null)
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -87,6 +89,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
           toast.error('Workspace not found')
           return
         }
+        setWorkspaceId(workspace.id)
 
         let fullForm: any = null;
 
@@ -440,6 +443,27 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         </div>
 
         {/* Main Content Area */}
+        {activeTopTab === 'share' && (
+          <div className="flex-1 overflow-auto bg-white">
+            <ShareTab formId={formId} isPublished={isPublished} workspaceId={workspaceId || undefined} />
+          </div>
+        )}
+        
+        {activeTopTab === 'integrate' && (
+          <div className="flex-1 overflow-auto bg-gray-50 p-8">
+            <div className="max-w-2xl mx-auto text-center py-16">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FileText className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Integration Options</h3>
+              <p className="text-gray-500 text-sm">
+                Coming soon: Embed codes, API access, and webhook integrations.
+              </p>
+            </div>
+          </div>
+        )}
+        
+        {activeTopTab === 'edit' && (
         <div className="flex-1 flex overflow-hidden">
             {/* Left Sidebar - Navigation */}
             <div className="w-80 bg-white border-r border-gray-200 flex flex-col shadow-sm z-10">
@@ -491,7 +515,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                 )}>
                   {isPreview ? (
                     <div className="p-4">
-                      <DynamicApplicationForm config={config} isExternal={true} />
+                      <DynamicApplicationForm config={config} isExternal={true} formId={formId || undefined} />
                     </div>
                   ) : activeSection ? (
                     <FormBuilder 
@@ -531,6 +555,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                </div>
             </div>
         </div>
+        )}
       </div>
 
       <SettingsModal 

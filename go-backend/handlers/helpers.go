@@ -119,6 +119,7 @@ func GetDefaultFieldTypeID(fieldType string) string {
 		"signature":   "signature",
 		"rating":      "rating",
 		"rank":        "rank",
+		"item_list":   "item_list",
 	}
 
 	if id, ok := typeMap[fieldType]; ok {

@@ -24,6 +24,7 @@ type FieldTypeRegistry struct {
 	InputSchema   datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"input_schema"`
 	StorageSchema datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"storage_schema"`
 	ConfigSchema  datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"config_schema"`
+	DefaultConfig datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"default_config"` // Default settings for new fields
 
 	// Behavior flags
 	IsContainer  bool `gorm:"default:false" json:"is_container"`

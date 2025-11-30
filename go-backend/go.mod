@@ -22,6 +22,7 @@ require (
 	github.com/gosimple/unidecode v1.0.1 // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	gorm.io/driver/mysql v1.5.6 // indirect
 )

@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/Jsanchez767/matic-platform/database"
 	"github.com/Jsanchez767/matic-platform/middleware"
@@ -156,13 +158,14 @@ func CreateWorkspace(c *gin.Context) {
 }
 
 type UpdateWorkspaceInput struct {
-	Name        *string                 `json:"name"`
-	Slug        *string                 `json:"slug"`
-	Description *string                 `json:"description"`
-	Color       *string                 `json:"color"`
-	Icon        *string                 `json:"icon"`
-	Settings    *map[string]interface{} `json:"settings"`
-	IsArchived  *bool                   `json:"is_archived"`
+	Name            *string                 `json:"name"`
+	Slug            *string                 `json:"slug"`
+	CustomSubdomain *string                 `json:"custom_subdomain,omitempty"` // Set to empty string to remove
+	Description     *string                 `json:"description"`
+	Color           *string                 `json:"color"`
+	Icon            *string                 `json:"icon"`
+	Settings        *map[string]interface{} `json:"settings"`
+	IsArchived      *bool                   `json:"is_archived"`
 }
 
 func UpdateWorkspace(c *gin.Context) {
@@ -211,6 +214,26 @@ func UpdateWorkspace(c *gin.Context) {
 	if input.IsArchived != nil {
 		workspace.IsArchived = *input.IsArchived
 	}
+	// Handle custom subdomain - can be set or cleared
+	if input.CustomSubdomain != nil {
+		if *input.CustomSubdomain == "" {
+			workspace.CustomSubdomain = nil
+		} else {
+			// Validate subdomain
+			subdomain := strings.ToLower(*input.CustomSubdomain)
+			if !isValidSubdomain(subdomain) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subdomain. Must be 3-63 lowercase alphanumeric characters with optional hyphens, and not a reserved name."})
+				return
+			}
+			// Check for uniqueness
+			var existing models.Workspace
+			if err := database.DB.Where("custom_subdomain = ? AND id != ?", subdomain, id).First(&existing).Error; err == nil {
+				c.JSON(http.StatusConflict, gin.H{"error": "This subdomain is already taken"})
+				return
+			}
+			workspace.CustomSubdomain = &subdomain
+		}
+	}
 
 	if err := database.DB.Save(&workspace).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -218,6 +241,42 @@ func UpdateWorkspace(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, workspace)
+}
+
+// isValidSubdomain validates a custom subdomain
+func isValidSubdomain(subdomain string) bool {
+	// Must be 3-63 characters (DNS subdomain limit)
+	if len(subdomain) < 3 || len(subdomain) > 63 {
+		return false
+	}
+
+	// Must match pattern: starts and ends with alphanumeric, can have hyphens in middle
+	matched, _ := regexp.MatchString(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`, subdomain)
+	if !matched {
+		return false
+	}
+
+	// No consecutive hyphens
+	if strings.Contains(subdomain, "--") {
+		return false
+	}
+
+	// Check reserved subdomains
+	reserved := []string{
+		"forms", "www", "api", "app", "admin", "dashboard", "portal",
+		"mail", "email", "ftp", "ssh", "help", "support", "status",
+		"blog", "docs", "dev", "staging", "test", "demo", "cdn",
+		"assets", "static", "img", "images", "media", "files",
+		"auth", "login", "signup", "register", "account", "billing",
+		"matic", "maticapp", "apply", "submit", "review", "external",
+	}
+	for _, r := range reserved {
+		if subdomain == r {
+			return false
+		}
+	}
+
+	return true
 }
 
 func DeleteWorkspace(c *gin.Context) {

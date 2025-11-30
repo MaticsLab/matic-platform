@@ -599,6 +599,7 @@ export function ApplicationForm({
                         allFields={formDefinition?.fields || []}
                         data={formData}
                         onChange={(field, value) => updateField(activeTab, field, value)}
+                        formId={formDefinition?.id}
                       />
                     ) : (
                       <>
@@ -645,7 +646,7 @@ export function ApplicationForm({
 
 // Section Components
 
-function DynamicSection({ fields, allFields = [], data, onChange }: { fields: any[], allFields?: any[], data: any, onChange: (field: string, value: any) => void }) {
+function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fields: any[], allFields?: any[], data: any, onChange: (field: string, value: any) => void, formId?: string }) {
   return (
     <div className="space-y-6">
       {fields.map((rawField) => {
@@ -665,7 +666,8 @@ function DynamicSection({ fields, allFields = [], data, onChange }: { fields: an
                  fields={children} 
                  allFields={allFields}
                  data={data} 
-                 onChange={onChange} 
+                 onChange={onChange}
+                 formId={formId}
                />
              </div>
            )
@@ -722,6 +724,7 @@ function DynamicSection({ fields, allFields = [], data, onChange }: { fields: an
                          newItems[idx] = { ...newItems[idx], [childField]: childValue }
                          onChange(field.name, newItems)
                        }}
+                       formId={formId}
                      />
                    </CardContent>
                  </Card>
@@ -1080,6 +1083,7 @@ function DynamicSection({ fields, allFields = [], data, onChange }: { fields: an
                 imageOnly={field.type === 'image'}
                 multiple={config.multiple}
                 maxFiles={config.maxFiles || 5}
+                storagePath={`submissions/${formId || 'unknown'}/`}
               />
             )}
 

@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui-component
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
-import { Upload, Palette, X } from 'lucide-react'
+import { Upload, Palette, X, Globe, AlertCircle, Check } from 'lucide-react'
+import { workspacesClient } from '@/lib/api/workspaces-client'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -33,14 +34,18 @@ const COLOR_PRESETS = [
   { name: 'Fuchsia', value: '#D946EF' },
 ]
 
+const APP_DOMAIN = 'maticapp.com'
+
 export function WorkspaceSettingsModal({ isOpen, onClose, workspace, onUpdate }: WorkspaceSettingsModalProps) {
   const [name, setName] = useState(workspace.name)
   const [description, setDescription] = useState(workspace.description || '')
   const [color, setColor] = useState(workspace.color || '#3B82F6')
   const [icon, setIcon] = useState(workspace.icon || '')
   const [logoUrl, setLogoUrl] = useState(workspace.logo_url || '')
+  const [customSubdomain, setCustomSubdomain] = useState((workspace as any).custom_subdomain || '')
   const [isLogoUploading, setIsLogoUploading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [subdomainError, setSubdomainError] = useState<string | null>(null)
 
   // Reset form when workspace changes
   useEffect(() => {
@@ -49,6 +54,8 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspace, onUpdate }:
     setColor(workspace.color || '#3B82F6')
     setIcon(workspace.icon || '')
     setLogoUrl(workspace.logo_url || '')
+    setCustomSubdomain((workspace as any).custom_subdomain || '')
+    setSubdomainError(null)
   }, [workspace])
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,16 +145,48 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspace, onUpdate }:
     }
   }
 
+  // Validate subdomain format
+  const isValidSubdomain = (subdomain: string): boolean => {
+    if (!subdomain) return true // Empty is valid (means no custom subdomain)
+    if (subdomain.length < 3 || subdomain.length > 63) return false
+    if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/.test(subdomain)) return false
+    if (subdomain.includes('--')) return false
+    
+    // Check reserved names
+    const reserved = ['forms', 'www', 'api', 'app', 'admin', 'dashboard', 'portal',
+      'mail', 'email', 'help', 'support', 'status', 'blog', 'docs', 'dev', 
+      'staging', 'test', 'demo', 'cdn', 'assets', 'static', 'auth', 'login', 
+      'signup', 'register', 'account', 'billing', 'matic', 'maticapp', 'apply']
+    return !reserved.includes(subdomain)
+  }
+
+  const handleSubdomainChange = (value: string) => {
+    const cleaned = value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+    setCustomSubdomain(cleaned)
+    
+    if (cleaned && !isValidSubdomain(cleaned)) {
+      setSubdomainError('Must be 3-63 characters, lowercase alphanumeric with hyphens. No reserved names.')
+    } else {
+      setSubdomainError(null)
+    }
+  }
+
   const handleSave = async () => {
     if (!name.trim()) {
       toast.error('Workspace name is required')
       return
     }
 
+    if (customSubdomain && !isValidSubdomain(customSubdomain)) {
+      toast.error('Invalid subdomain format')
+      return
+    }
+
     setIsSaving(true)
 
     try {
-      const updates = {
+      // First update basic settings via Supabase (for logo, color, etc.)
+      const basicUpdates = {
         name: name.trim(),
         description: description.trim() || undefined,
         color,
@@ -155,9 +194,26 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspace, onUpdate }:
         logo_url: logoUrl || undefined,
       }
 
-      const updatedWorkspace = await workspacesSupabase.updateWorkspace(workspace.id, updates)
+      await workspacesSupabase.updateWorkspace(workspace.id, basicUpdates)
+
+      // Then update subdomain via Go backend (for proper validation)
+      if (customSubdomain !== ((workspace as any).custom_subdomain || '')) {
+        try {
+          await workspacesClient.updateCustomSubdomain(workspace.id, customSubdomain || null)
+        } catch (err: any) {
+          // If subdomain update fails, show specific error
+          const errorMsg = err?.message || 'Failed to update subdomain'
+          toast.error(errorMsg)
+          setSubdomainError(errorMsg)
+          setIsSaving(false)
+          return
+        }
+      }
+
+      // Fetch updated workspace to get all fields
+      const updatedWorkspace = await workspacesClient.get(workspace.id)
       
-      onUpdate(updatedWorkspace)
+      onUpdate(updatedWorkspace as any)
       toast.success('Workspace settings saved!')
       onClose()
     } catch (error) {
@@ -254,6 +310,42 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspace, onUpdate }:
             <p className="text-xs text-gray-500">
               {description.length}/500 characters
             </p>
+          </div>
+
+          {/* Custom Subdomain for Pretty URLs */}
+          <div className="space-y-3 pt-4 border-t border-gray-200">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-blue-500" />
+              <Label htmlFor="workspace-subdomain" className="font-medium">Custom Subdomain</Label>
+            </div>
+            <p className="text-xs text-gray-500">
+              Set a custom subdomain for branded portal URLs. Your forms will be accessible at <span className="font-mono">{customSubdomain || 'your-subdomain'}.{APP_DOMAIN}/form-slug</span>
+            </p>
+            <div className="flex items-center">
+              <Input
+                id="workspace-subdomain"
+                value={customSubdomain}
+                onChange={(e) => handleSubdomainChange(e.target.value)}
+                placeholder="your-organization"
+                maxLength={63}
+                className="rounded-r-none"
+              />
+              <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md text-sm text-gray-600">
+                .{APP_DOMAIN}
+              </span>
+            </div>
+            {subdomainError && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {subdomainError}
+              </p>
+            )}
+            {customSubdomain && !subdomainError && (
+              <p className="text-xs text-green-600 flex items-center gap-1">
+                <Check className="w-3 h-3" />
+                Valid subdomain: <span className="font-mono">{customSubdomain}.{APP_DOMAIN}</span>
+              </p>
+            )}
           </div>
 
           {/* Icon/Emoji */}
