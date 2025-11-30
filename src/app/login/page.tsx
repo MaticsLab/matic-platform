@@ -30,10 +30,6 @@ export default function LoginPage() {
 
       if (signInError) throw signInError
       if (!data.user) throw new Error('Login failed')
-      if (!data.session) throw new Error('No session returned from login')
-
-      // Small delay to ensure session is fully propagated to storage
-      await new Promise(resolve => setTimeout(resolve, 200))
 
       // Get user's workspaces to ensure we redirect to one they have access to
       const workspaces = await workspacesSupabase.getWorkspacesForUser(data.user.id)
