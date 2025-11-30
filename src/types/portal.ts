@@ -3,7 +3,7 @@ export type FieldType =
   | 'select' | 'multiselect' | 'radio' | 'checkbox' 
   | 'date' | 'datetime' | 'time' 
   | 'file' | 'image' | 'signature' | 'rating' | 'rank'
-  | 'divider' | 'heading' | 'paragraph'
+  | 'divider' | 'heading' | 'paragraph' | 'callout'
   | 'group' | 'repeater'
 
 export type Field = {

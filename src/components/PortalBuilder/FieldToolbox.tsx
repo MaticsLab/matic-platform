@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { 
   Type, AlignLeft, Hash, Mail, Calendar, CheckSquare, List, Image as ImageIcon,
   Phone, Link, Clock, PenTool, Star, Minus, Heading, Pilcrow, CheckCircle2, Layout, Search, ArrowUpDown,
-  FileUp, CalendarClock, LucideIcon, MapPin
+  FileUp, CalendarClock, LucideIcon, MapPin, Lightbulb
 } from 'lucide-react'
 import { Input } from '@/ui-components/input'
 import { FieldType } from '@/types/portal'
@@ -66,6 +66,7 @@ const STATIC_FIELD_GROUPS: FieldGroup[] = [
     items: [
       { type: 'heading', label: 'Heading', icon: Heading },
       { type: 'paragraph', label: 'Paragraph', icon: Pilcrow },
+      { type: 'callout', label: 'Callout Box', icon: Lightbulb, description: 'Highlighted info box with icon' },
       { type: 'divider', label: 'Divider', icon: Minus },
     ]
   },

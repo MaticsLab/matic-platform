@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, ArrowRight, CheckCircle2, Save, Upload, Star, Calendar as CalendarIcon, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, Save, Upload, Star, Calendar as CalendarIcon, Plus, Trash2, Lightbulb } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
@@ -16,6 +16,7 @@ import { Progress } from '@/ui-components/progress'
 import { Separator } from '@/ui-components/separator'
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { AddressField, AddressValue } from '@/components/Tables/AddressField'
+import { FileUploadField } from '@/components/ui/FileUploadField'
 
 interface DynamicApplicationFormProps {
   config: PortalConfig
@@ -173,6 +174,17 @@ function FieldRenderer({ field, value, onChange, themeColor }: { field: Field, v
   if (field.type === 'divider') return <Separator className="my-4" />
   if (field.type === 'heading') return <h3 className="text-lg font-semibold text-gray-900 mt-4 mb-2">{field.label}</h3>
   if (field.type === 'paragraph') return <p className="text-gray-600 text-sm leading-relaxed mb-4">{field.label}</p>
+  if (field.type === 'callout') return (
+    <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg my-4">
+      <Lightbulb className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+      <div>
+        <p className="text-sm font-medium text-blue-900">{field.label}</p>
+        {field.placeholder && (
+          <p className="text-sm text-blue-700 mt-1">{field.placeholder}</p>
+        )}
+      </div>
+    </div>
+  )
 
   // Container Fields
   if (field.type === 'group') {
@@ -389,11 +401,13 @@ function FieldRenderer({ field, value, onChange, themeColor }: { field: Field, v
 
       {/* Media & Advanced */}
       {(field.type === 'file' || field.type === 'image') && (
-        <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:bg-gray-50 transition-colors cursor-pointer">
-          <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-          <p className="text-sm text-gray-600 font-medium">Click to upload {field.type}</p>
-          <p className="text-xs text-gray-400 mt-1">SVG, PNG, JPG or GIF (max. 10MB)</p>
-        </div>
+        <FileUploadField
+          value={value}
+          onChange={onChange}
+          imageOnly={field.type === 'image'}
+          multiple={field.config?.multiple}
+          maxFiles={field.config?.maxFiles || 5}
+        />
       )}
 
       {field.type === 'rating' && (

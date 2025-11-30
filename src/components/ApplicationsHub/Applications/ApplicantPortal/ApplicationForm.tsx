@@ -6,7 +6,7 @@ import {
   User, GraduationCap, DollarSign, FileText, Trophy, Upload, 
   CheckCircle2, AlertCircle, Save, ChevronRight, ArrowLeft, ArrowRight,
   Calendar as CalendarIcon, Plus, Trash2, GripVertical, Clock,
-  LayoutGrid, Mail, Star, Send, Printer, CheckCircle, AlertTriangle, ClipboardCheck
+  LayoutGrid, Mail, Star, Send, Printer, CheckCircle, AlertTriangle, ClipboardCheck, Lightbulb
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -26,6 +26,7 @@ import { Form, FormField } from '@/types/forms'
 import { goClient } from '@/lib/api/go-client'
 import { supabase } from '@/lib/supabase'
 import { AddressField, AddressValue } from '@/components/Tables/AddressField'
+import { FileUploadField } from '@/components/ui/FileUploadField'
 import { ProgressHeader } from './ProgressHeader'
 import { ApplicationSidebar } from './ApplicationSidebar'
 import { toast } from 'sonner'
@@ -1054,45 +1055,25 @@ function DynamicSection({ fields, allFields = [], data, onChange }: { fields: an
 
             {/* File Upload */}
             {(field.type === 'file' || field.type === 'image') && (
-              <div className="space-y-2">
-                <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-gray-300 transition-colors">
-                  <Upload className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                  <p className="text-sm text-gray-500 mb-2">
-                    {field.type === 'image' ? 'Drag and drop an image, or click to browse' : 'Drag and drop a file, or click to browse'}
-                  </p>
-                  <Input 
-                    type="file"
-                    accept={field.type === 'image' ? 'image/*' : undefined}
-                    onChange={e => {
-                      const file = e.target.files?.[0]
-                      if (file) {
-                        // For now, just store the file name - actual upload would need backend support
-                        onChange(field.name, { name: file.name, size: file.size, type: file.type })
-                      }
-                    }}
-                    className="hidden"
-                    id={`file-${field.id}`}
-                  />
-                  <label htmlFor={`file-${field.id}`}>
-                    <Button type="button" variant="outline" size="sm" className="cursor-pointer" asChild>
-                      <span>Choose File</span>
-                    </Button>
-                  </label>
+              <FileUploadField
+                value={data[field.name]}
+                onChange={(files) => onChange(field.name, files)}
+                imageOnly={field.type === 'image'}
+                multiple={config.multiple}
+                maxFiles={config.maxFiles || 5}
+              />
+            )}
+
+            {/* Callout / Spotlight Box */}
+            {field.type === 'callout' && (
+              <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <Lightbulb className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-blue-900">{field.label}</p>
+                  {config.description && (
+                    <p className="text-sm text-blue-700 mt-1">{config.description}</p>
+                  )}
                 </div>
-                {data[field.name]?.name && (
-                  <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-                    <FileText className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm text-gray-700 truncate">{data[field.name].name}</span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="ml-auto h-6 w-6 p-0 text-gray-400 hover:text-red-500"
-                      onClick={() => onChange(field.name, null)}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                )}
               </div>
             )}
 
@@ -1463,9 +1444,10 @@ function ReviewSection({
   const getFieldsBySection = () => {
     if (!isDynamic || !formDefinition?.fields) return []
     
+    const fields = formDefinition.fields
     return sections.map(section => ({
       ...section,
-      fields: formDefinition.fields.filter(f => {
+      fields: fields.filter(f => {
         const config = f.config as any
         if (sections.length === 1 && sections[0].id === 'default') return true
         return config?.section_id === section.id
