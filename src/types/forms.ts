@@ -27,6 +27,7 @@ export type FieldType =
   | 'divider'
   | 'heading'
   | 'paragraph'
+  | 'callout'
   | 'section'
   | 'group'
   | 'repeater'
