@@ -23,6 +23,36 @@ interface ApplicationData {
   raw_data: Record<string, unknown>
 }
 
+// Helper to extract email from application data
+function getApplicantEmail(application: ApplicationData): string {
+  // First check the email property
+  if (application.email) return application.email
+  
+  // Then check raw_data for various email fields
+  const data = application.raw_data || {}
+  const emailFields = [
+    '_applicant_email', 'email', 'Email', 'EMAIL',
+    'personal_email', 'personalEmail', 'work_email', 'workEmail',
+    'contact_email', 'contactEmail', 'email_address', 'emailAddress'
+  ]
+  
+  for (const field of emailFields) {
+    const value = data[field]
+    if (typeof value === 'string' && value.includes('@')) {
+      return value
+    }
+  }
+  
+  // Search all fields for email-like values
+  for (const [key, value] of Object.entries(data)) {
+    if (typeof value === 'string' && value.includes('@') && value.includes('.')) {
+      return value
+    }
+  }
+  
+  return ''
+}
+
 interface ApplicationContactPanelProps {
   application: ApplicationData
   workspaceId: string
@@ -242,7 +272,7 @@ export function ApplicationContactPanel({
             </div>
             <div className="flex-1">
               <p className="font-medium text-gray-900">{application.name}</p>
-              <p className="text-sm text-gray-500">{application.email || 'No email'}</p>
+              <p className="text-sm text-gray-500">{getApplicantEmail(application) || 'No email'}</p>
             </div>
             <Badge className={cn(
               "text-xs",

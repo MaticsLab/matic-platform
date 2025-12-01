@@ -660,7 +660,7 @@ export function ReviewWorkspace({
         return {
           id: sub.id,
           name: data.name || data.full_name || data.student_name || `Applicant ${idx + 1}`,
-          email: data.email || data.personal_email || '',
+          email: data._applicant_email || data.email || data.Email || data.personal_email || data.personalEmail || data.work_email || '',
           school: data.school || data.university || '',
           major: data.major || data.intended_major || '',
           gpa: data.gpa ? parseFloat(data.gpa) : null,
@@ -865,7 +865,7 @@ export function ReviewWorkspace({
                     `${data['First Name'] || ''} ${data['Last Name'] || ''}`.trim() ||
                     `Applicant ${sub.id.substring(0, 6)}`
         
-        const email = data['Email'] || data['email'] || ''
+        const email = data['_applicant_email'] || data['Email'] || data['email'] || data['personal_email'] || data['personalEmail'] || data['work_email'] || ''
         
         // Use metadata for workflow tracking
         const assignedWorkflowId = metadata.assigned_workflow_id
