@@ -1275,21 +1275,31 @@ type GmailEmail struct {
 // searchGmailForRecipient searches Gmail for emails sent to a specific recipient
 func searchGmailForRecipient(workspaceID string, recipientEmail string) ([]GmailEmail, error) {
 	if recipientEmail == "" {
+		fmt.Printf("[Gmail Search] No recipient email provided\n")
 		return nil, nil
 	}
+
+	fmt.Printf("[Gmail Search] Starting search for workspace: %s, recipient: %s\n", workspaceID, recipientEmail)
 
 	// Get Gmail connection for this workspace
 	var connection models.GmailConnection
 	if err := database.DB.Where("workspace_id = ?", workspaceID).First(&connection).Error; err != nil {
-		fmt.Printf("[Gmail Search] No Gmail connection for workspace %s\n", workspaceID)
+		fmt.Printf("[Gmail Search] No Gmail connection for workspace %s: %v\n", workspaceID, err)
 		return nil, nil // No connection, just return empty
 	}
+
+	fmt.Printf("[Gmail Search] Found Gmail connection for: %s, token expires: %v\n", connection.Email, connection.TokenExpiry)
 
 	// Create OAuth token
 	token := &oauth2.Token{
 		AccessToken:  connection.AccessToken,
 		RefreshToken: connection.RefreshToken,
 		Expiry:       connection.TokenExpiry,
+	}
+
+	// Check if token is expired
+	if token.Expiry.Before(time.Now()) {
+		fmt.Printf("[Gmail Search] Token is expired, will attempt refresh\n")
 	}
 
 	config := getGmailConfig()
@@ -1431,7 +1441,7 @@ func GetSubmissionEmailHistory(c *gin.Context) {
 
 	// Combine results, deduplicating by gmail_message_id
 	seenMessageIDs := make(map[string]bool)
-	var combinedEmails []interface{}
+	combinedEmails := make([]interface{}, 0) // Initialize as empty slice, not nil
 
 	// Add database emails first (they have more metadata)
 	for _, email := range dbEmails {
