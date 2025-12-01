@@ -1420,8 +1420,13 @@ function StageForm({
     if (!statuses) return ['Pending', 'In Progress', 'Complete']
     return statuses.map((s: any) => typeof s === 'string' ? s : s.name)
   }
+  // Normalize custom_tags to string array (it can be string[] or TagOption[])
+  const normalizeTags = (tags: any): string[] => {
+    if (!tags) return []
+    return tags.map((t: any) => typeof t === 'string' ? t : t.name)
+  }
   const [customStatuses, setCustomStatuses] = useState<string[]>(normalizeStatuses(initial?.custom_statuses))
-  const [customTags, setCustomTags] = useState<string[]>(initial?.custom_tags || [])
+  const [customTags, setCustomTags] = useState<string[]>(normalizeTags(initial?.custom_tags))
   const [newStatus, setNewStatus] = useState('')
   const [newTag, setNewTag] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -2361,7 +2366,21 @@ function GeneralStageSettings({
   }
   const [customStatuses, setCustomStatuses] = useState<StatusOption[]>(normalizeStatusesLocal(stage.custom_statuses))
   const [editingStatusIndex, setEditingStatusIndex] = useState<number | null>(null)
-  const [customTags, setCustomTags] = useState<string[]>(stage.custom_tags || [])
+  
+  // TagOption type for custom tags with color
+  type TagOption = { name: string; color: string }
+  
+  // Normalize custom_tags to TagOption array
+  const normalizeTagsLocal = (tags: any): TagOption[] => {
+    if (!tags || tags.length === 0) return []
+    return tags.map((t: any) => 
+      typeof t === 'string' 
+        ? { name: t, color: 'blue' } 
+        : { name: t.name, color: t.color || 'blue' }
+    )
+  }
+  const [customTags, setCustomTags] = useState<TagOption[]>(normalizeTagsLocal(stage.custom_tags))
+  const [editingTagIndex, setEditingTagIndex] = useState<number | null>(null)
   const [newStatus, setNewStatus] = useState('')
   const [newTag, setNewTag] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -2442,14 +2461,21 @@ function GeneralStageSettings({
   }
 
   const addTag = () => {
-    if (newTag.trim() && !customTags.includes(newTag.trim())) {
-      setCustomTags([...customTags, newTag.trim()])
+    if (newTag.trim() && !customTags.some(t => t.name === newTag.trim())) {
+      setCustomTags([...customTags, { name: newTag.trim(), color: 'blue' }])
       setNewTag('')
     }
   }
 
-  const removeTag = (tag: string) => {
-    setCustomTags(customTags.filter(t => t !== tag))
+  const removeTag = (tagName: string) => {
+    setCustomTags(customTags.filter(t => t.name !== tagName))
+    if (editingTagIndex !== null) setEditingTagIndex(null)
+  }
+
+  const updateTagColor = (index: number, color: string) => {
+    const updated = [...customTags]
+    updated[index] = { ...updated[index], color }
+    setCustomTags(updated)
   }
 
   return (
@@ -2792,25 +2818,103 @@ function GeneralStageSettings({
           </div>
         </div>
         
-        <div className="flex flex-wrap gap-2 mb-3">
-          {customTags.map(tag => (
-            <span key={tag} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium">
-              <Tag className="w-3 h-3" />
-              {tag}
-              <button type="button" onClick={() => removeTag(tag)} className="text-blue-400 hover:text-blue-600 transition-colors">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </span>
-          ))}
+        {/* Tag list */}
+        <div className="space-y-2 mb-3">
+          {customTags.map((tag, index) => {
+            const colorOptions = [
+              { value: 'gray', label: 'Gray', bg: 'bg-gray-200', text: 'text-gray-700' },
+              { value: 'red', label: 'Red', bg: 'bg-red-200', text: 'text-red-700' },
+              { value: 'orange', label: 'Orange', bg: 'bg-orange-200', text: 'text-orange-700' },
+              { value: 'yellow', label: 'Yellow', bg: 'bg-yellow-200', text: 'text-yellow-700' },
+              { value: 'green', label: 'Green', bg: 'bg-green-200', text: 'text-green-700' },
+              { value: 'blue', label: 'Blue', bg: 'bg-blue-200', text: 'text-blue-700' },
+              { value: 'purple', label: 'Purple', bg: 'bg-purple-200', text: 'text-purple-700' },
+              { value: 'pink', label: 'Pink', bg: 'bg-pink-200', text: 'text-pink-700' },
+            ]
+            const currentColor = colorOptions.find(c => c.value === tag.color) || colorOptions[5] // default blue
+            const isEditing = editingTagIndex === index
+            
+            return (
+              <div key={tag.name} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                {/* Tag header - clickable to expand */}
+                <div 
+                  className={cn(
+                    "flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 transition-colors",
+                    isEditing && "bg-gray-50"
+                  )}
+                  onClick={() => setEditingTagIndex(isEditing ? null : index)}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm font-medium",
+                      currentColor.bg, currentColor.text
+                    )}>
+                      <Tag className="w-3 h-3" />
+                      {tag.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      type="button" 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        removeTag(tag.name)
+                      }} 
+                      className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    <ChevronDown className={cn(
+                      "w-4 h-4 text-gray-400 transition-transform",
+                      isEditing && "rotate-180"
+                    )} />
+                  </div>
+                </div>
+                
+                {/* Expanded edit panel */}
+                {isEditing && (
+                  <div className="px-3 pb-3 pt-1 border-t border-gray-100">
+                    {/* Color picker */}
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 block mb-2">Tag Color</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {colorOptions.map(color => (
+                          <button
+                            key={color.value}
+                            type="button"
+                            onClick={() => updateTagColor(index, color.value)}
+                            className={cn(
+                              "w-7 h-7 rounded-lg transition-all flex items-center justify-center",
+                              color.bg,
+                              tag.color === color.value 
+                                ? "ring-2 ring-offset-1 ring-gray-800 scale-110" 
+                                : "hover:scale-105 opacity-70 hover:opacity-100"
+                            )}
+                            title={color.label}
+                          >
+                            {tag.color === color.value && <Check className="w-3.5 h-3.5 text-gray-800" />}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
           {customTags.length === 0 && (
-            <span className="text-sm text-gray-400 italic">No custom tags</span>
+            <div className="text-center py-4 text-sm text-gray-400 italic">
+              No tags defined. Add one below.
+            </div>
           )}
         </div>
+        
+        {/* Add new tag */}
         <div className="flex gap-2">
           <Input
             value={newTag}
             onChange={(e) => setNewTag(e.target.value)}
-            placeholder="Add tag..."
+            placeholder="Add tag (e.g., First gen, High need)..."
             className="border-2 focus:border-blue-400"
             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
           />

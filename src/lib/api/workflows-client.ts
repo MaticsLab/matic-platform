@@ -9,6 +9,12 @@ export interface StatusOption {
   icon?: string; // check, x, clock, arrow-right, etc.
 }
 
+// TagOption - tag with color
+export interface TagOption {
+  name: string;
+  color: string; // green, red, yellow, blue, purple, gray, etc.
+}
+
 // Status action config defines what happens when a status is applied
 export interface StatusActionConfig {
   action_type: 'move_to_stage' | 'move_to_group' | 'move_to_stage_group' | 'add_tags' | 'remove_tags' | 'send_email' | 'set_field';
@@ -122,7 +128,7 @@ export interface ApplicationStage {
   end_date?: string;
   relative_deadline?: string;
   custom_statuses?: (string | StatusOption)[];    // Status action buttons (supports both old string format and new object format)
-  custom_tags?: string[];                          // Available tags for this stage
+  custom_tags?: (string | TagOption)[];            // Available tags for this stage (supports both old string format and new object format)
   status_actions?: Record<string, LegacyStatusActionConfig>; // Actions keyed by status name (legacy)
   logic_rules?: {
     auto_advance_condition?: string;
