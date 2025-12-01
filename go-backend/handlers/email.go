@@ -1209,36 +1209,45 @@ func GetSubmissionEmailHistory(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("[Email History] Looking up emails for submission: %s\n", submissionID)
+
 	// First get the submission to find the recipient email
 	var submission struct {
 		ID   string         `gorm:"column:id"`
 		Data datatypes.JSON `gorm:"column:data"`
 	}
 	if err := database.DB.Table("table_rows").Select("id, data").Where("id = ?", submissionID).First(&submission).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
+		fmt.Printf("[Email History] Submission not found: %s, error: %v\n", submissionID, err)
+		// Return empty array instead of 404 - the submission might be from form_submissions table
+		c.JSON(http.StatusOK, []models.SentEmail{})
 		return
 	}
 
 	// Parse the data to find email
 	var data map[string]interface{}
 	if err := json.Unmarshal(submission.Data, &data); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse submission data"})
+		fmt.Printf("[Email History] Failed to parse submission data: %v\n", err)
+		c.JSON(http.StatusOK, []models.SentEmail{})
 		return
 	}
 
 	// Find email in the submission data
 	recipientEmail := findEmailInData(data)
-	if recipientEmail == "" {
-		// No email found, return empty array
-		c.JSON(http.StatusOK, []models.SentEmail{})
-		return
-	}
+	fmt.Printf("[Email History] Found recipient email: %s\n", recipientEmail)
 
 	// Query for emails sent to this submission (by submission_id) OR this email address
 	var emails []models.SentEmail
-	database.DB.Where("submission_id = ? OR recipient_email = ?", submissionID, recipientEmail).
-		Order("sent_at DESC").
-		Find(&emails)
+	if recipientEmail != "" {
+		database.DB.Where("submission_id = ? OR recipient_email = ?", submissionID, recipientEmail).
+			Order("sent_at DESC").
+			Find(&emails)
+	} else {
+		database.DB.Where("submission_id = ?", submissionID).
+			Order("sent_at DESC").
+			Find(&emails)
+	}
+
+	fmt.Printf("[Email History] Found %d emails\n", len(emails))
 
 	c.JSON(http.StatusOK, emails)
 }
@@ -1252,12 +1261,46 @@ func GetSubmissionActivity(c *gin.Context) {
 		return
 	}
 
-	// Get emails sent to this submission
+	fmt.Printf("[Email Activity] Looking up activity for submission: %s\n", submissionID)
+
+	// First get the submission to find the recipient email
+	var submission struct {
+		ID   string         `gorm:"column:id"`
+		Data datatypes.JSON `gorm:"column:data"`
+	}
+	if err := database.DB.Table("table_rows").Select("id, data").Where("id = ?", submissionID).First(&submission).Error; err != nil {
+		fmt.Printf("[Email Activity] Submission not found: %s\n", submissionID)
+		c.JSON(http.StatusOK, []interface{}{}) // Return empty array instead of error
+		return
+	}
+
+	// Parse the data to find email
+	var data map[string]interface{}
+	if err := json.Unmarshal(submission.Data, &data); err != nil {
+		fmt.Printf("[Email Activity] Failed to parse submission data: %v\n", err)
+		c.JSON(http.StatusOK, []interface{}{})
+		return
+	}
+
+	// Find email in the submission data
+	recipientEmail := findEmailInData(data)
+	fmt.Printf("[Email Activity] Found recipient email: %s\n", recipientEmail)
+
+	// Get emails sent to this submission (by submission_id OR email address)
 	var emails []models.SentEmail
-	database.DB.Where("submission_id = ?", submissionID).
-		Order("sent_at DESC").
-		Limit(50).
-		Find(&emails)
+	if recipientEmail != "" {
+		database.DB.Where("submission_id = ? OR recipient_email = ?", submissionID, recipientEmail).
+			Order("sent_at DESC").
+			Limit(50).
+			Find(&emails)
+	} else {
+		database.DB.Where("submission_id = ?", submissionID).
+			Order("sent_at DESC").
+			Limit(50).
+			Find(&emails)
+	}
+
+	fmt.Printf("[Email Activity] Found %d emails\n", len(emails))
 
 	// Build activity items from emails
 	type ActivityItem struct {
@@ -1285,7 +1328,7 @@ func GetSubmissionActivity(c *gin.Context) {
 			},
 		}
 
-		// Update title/type based on email status
+		// Add opened event if email was opened
 		if email.OpenedAt != nil {
 			activities = append(activities, ActivityItem{
 				Type:        "email_opened",

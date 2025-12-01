@@ -80,9 +80,10 @@ export function ApplicationContactPanel({
     setIsLoadingHistory(true)
     try {
       const history = await emailClient.getSubmissionHistory(application.id)
-      setEmailHistory(history)
+      setEmailHistory(history || [])
     } catch (error) {
       console.error('Failed to load email history:', error)
+      setEmailHistory([])
     } finally {
       setIsLoadingHistory(false)
     }
@@ -94,9 +95,10 @@ export function ApplicationContactPanel({
     setIsLoadingActivity(true)
     try {
       const activityLog = await emailClient.getSubmissionActivity(application.id)
-      setActivities(activityLog)
+      setActivities(activityLog || [])
     } catch (error) {
       console.error('Failed to load activity:', error)
+      setActivities([])
     } finally {
       setIsLoadingActivity(false)
     }
