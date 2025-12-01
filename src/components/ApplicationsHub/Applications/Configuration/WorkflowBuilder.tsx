@@ -5566,45 +5566,44 @@ function PrivacyStageSettings({
   const [hidePII, setHidePII] = useState(stage.hide_pii || false)
   const [hiddenPIIFields, setHiddenPIIFields] = useState<string[]>(stage.hidden_pii_fields || [])
   const [isSaving, setIsSaving] = useState(false)
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const isInitialMount = useRef(true)
 
-  // Autosave effect
-  useEffect(() => {
-    // Skip initial mount
-    if (isInitialMount.current) {
-      isInitialMount.current = false
-      return
+  // Save function - called immediately on changes
+  const savePrivacySettings = async (newHidePII: boolean, newHiddenFields: string[]) => {
+    setIsSaving(true)
+    try {
+      await workflowsClient.updateStage(stage.id, {
+        hide_pii: newHidePII,
+        hidden_pii_fields: newHiddenFields,
+      })
+      onSave()
+    } catch (error: any) {
+      console.error('Failed to save privacy settings:', error)
+      showToast(error.message || 'Failed to save', 'error')
+    } finally {
+      setIsSaving(false)
     }
+  }
 
-    // Clear existing timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
+  // Handle privacy toggle - clears fields when turned off
+  const handlePrivacyToggle = (checked: boolean) => {
+    setHidePII(checked)
+    if (!checked) {
+      // Clear all hidden fields when privacy mode is turned off
+      setHiddenPIIFields([])
+      savePrivacySettings(false, [])
+    } else {
+      savePrivacySettings(true, hiddenPIIFields)
     }
+  }
 
-    // Debounce save by 800ms
-    saveTimeoutRef.current = setTimeout(async () => {
-      setIsSaving(true)
-      try {
-        await workflowsClient.updateStage(stage.id, {
-          hide_pii: hidePII,
-          hidden_pii_fields: hiddenPIIFields, // Always send the array, even if empty
-        })
-        onSave()
-      } catch (error: any) {
-        console.error('Failed to save privacy settings:', error)
-        showToast(error.message || 'Failed to save', 'error')
-      } finally {
-        setIsSaving(false)
-      }
-    }, 800)
-
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-    }
-  }, [hidePII, hiddenPIIFields, stage.id, onSave])
+  // Handle field checkbox change - save immediately
+  const handleFieldToggle = (fieldId: string, checked: boolean) => {
+    const newFields = checked 
+      ? [...hiddenPIIFields, fieldId]
+      : hiddenPIIFields.filter(f => f !== fieldId)
+    setHiddenPIIFields(newFields)
+    savePrivacySettings(hidePII, newFields)
+  }
 
   return (
     <div className="space-y-6">
@@ -5613,12 +5612,14 @@ function PrivacyStageSettings({
           <Label className="text-sm font-semibold flex items-center gap-2">
             <Shield className="w-4 h-4 text-purple-500" />
             Privacy Mode
+            {isSaving && <span className="text-xs text-purple-500">(saving...)</span>}
           </Label>
           <p className="text-xs text-purple-700 mt-1">Hide personally identifiable information from reviewers</p>
         </div>
         <Switch
           checked={hidePII}
-          onCheckedChange={setHidePII}
+          onCheckedChange={handlePrivacyToggle}
+          disabled={isSaving}
         />
       </div>
       
@@ -5641,13 +5642,8 @@ function PrivacyStageSettings({
                         <input
                           type="checkbox"
                           checked={hiddenPIIFields.includes(field.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setHiddenPIIFields([...hiddenPIIFields, field.id])
-                            } else {
-                              setHiddenPIIFields(hiddenPIIFields.filter(f => f !== field.id))
-                            }
-                          }}
+                          onChange={(e) => handleFieldToggle(field.id, e.target.checked)}
+                          disabled={isSaving}
                           className="rounded border-purple-300 text-purple-600 focus:ring-purple-500"
                         />
                         <span className="text-gray-700">{field.label}</span>

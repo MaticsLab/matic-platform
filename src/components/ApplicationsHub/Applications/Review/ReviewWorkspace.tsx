@@ -1036,9 +1036,9 @@ export function ReviewWorkspace({
   const currentRubric = currentStage?.rubric || null
   
   // PII settings from stage (read-only, configured in stage settings)
-  // If hidden_pii_fields has entries, treat PII hiding as enabled (implied intent)
-  const hiddenPIIFields = currentStage?.hidden_pii_fields || []
-  const hidePII = currentStage?.hide_pii || hiddenPIIFields.length > 0
+  // Only use hide_pii flag - don't infer from hidden_pii_fields
+  const hidePII = currentStage?.hide_pii === true
+  const hiddenPIIFields = hidePII ? (currentStage?.hidden_pii_fields || []) : []
 
   // Stats for current workflow
   const stats = useMemo(() => {

@@ -590,13 +590,22 @@ export function ApplicationContactPanel({
                               // Get the body content, preferring body_html
                               let content = email.body_html || email.body || 'No content available'
                               
-                              // Remove tracking pixels
+                              // Remove tracking pixels (any img with track in the URL)
+                              content = content.replace(/<img[^>]*\/track\/[^>]*>/gi, '')
                               content = content.replace(/<img[^>]*email\/track[^>]*>/gi, '')
+                              // Also remove any 1x1 hidden images
+                              content = content.replace(/<img[^>]*width=["']?1["']?[^>]*height=["']?1["']?[^>]*>/gi, '')
+                              content = content.replace(/<img[^>]*height=["']?1["']?[^>]*width=["']?1["']?[^>]*>/gi, '')
+                              // Remove localhost tracking pixels specifically
+                              content = content.replace(/<img[^>]*localhost[^>]*>/gi, '')
                               
-                              // Check if content looks like HTML
-                              const isHtml = /<[a-z][\s\S]*>/i.test(content)
+                              // Clean up any empty lines left over
+                              content = content.trim()
                               
-                              if (isHtml) {
+                              // Check if content looks like HTML (has actual HTML tags, not just the img we removed)
+                              const hasHtmlTags = /<(?!img)[a-z][\s\S]*>/i.test(content) || content.includes('<br') || content.includes('<div') || content.includes('<p')
+                              
+                              if (hasHtmlTags) {
                                 return (
                                   <div 
                                     className="prose prose-sm max-w-none text-gray-700"
