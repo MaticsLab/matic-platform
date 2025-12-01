@@ -1845,14 +1845,13 @@ export function ReviewWorkspace({
               "w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all group relative",
               selectedStageId === 'all' && !showOnlyUnassigned
                 ? "bg-blue-600 text-white shadow-md"
+                : stats.unassigned > 0
+                ? "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 ring-2 ring-yellow-400"
                 : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
             )}
             title="All Applications"
           >
             <Inbox className="w-5 h-5" />
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-gray-900 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-              {stats.total}
-            </span>
           </button>
           
           <div className="w-6 h-px bg-gray-200 my-2" />
