@@ -95,9 +95,13 @@ export function ApplicationContactPanel({
       try {
         setIsCheckingConnection(true)
         const connection = await emailClient.getConnection(workspaceId)
+        console.log('[ContactPanel] Gmail connection:', connection)
         setGmailConnection(connection)
-      } catch (error) {
-        console.error('Failed to check Gmail connection:', error)
+      } catch (error: any) {
+        console.error('Failed to check Gmail connection:', error?.message || error)
+        // If it's an auth error, the connection check failed but Gmail might still be connected
+        // Set a default disconnected state
+        setGmailConnection({ connected: false, email: '' })
       } finally {
         setIsCheckingConnection(false)
       }
