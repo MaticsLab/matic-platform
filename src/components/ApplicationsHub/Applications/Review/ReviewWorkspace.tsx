@@ -2368,18 +2368,18 @@ function AccordionQueueView({
     pink: { bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-300', hoverBg: 'hover:bg-pink-200' },
   }
 
-  // Helper to get current status object for an app
+  // Helper to get current status object for an app based on stage actions
   const getAppStatusObj = (app: ApplicationData | null) => {
-    if (!app || !stage?.custom_statuses || stage.custom_statuses.length === 0) return null
+    if (!app || !stage?.stageActions || stage.stageActions.length === 0) return null
     const currentStatus = app.status
     if (!currentStatus) return null
     
-    // Find the status in custom_statuses list
-    for (const status of stage.custom_statuses) {
-      const statusObj = typeof status === 'string' 
-        ? { name: status, color: 'gray', icon: 'circle' } 
-        : status
-      if (statusObj.name.toLowerCase() === currentStatus.toLowerCase()) return statusObj
+    // Find the action that matches the current status
+    for (const action of stage.stageActions) {
+      if (action.name.toLowerCase() === currentStatus.toLowerCase() || 
+          action.status_value?.toLowerCase() === currentStatus.toLowerCase()) {
+        return { name: action.name, color: action.color, icon: action.icon }
+      }
     }
     return null
   }
@@ -2947,8 +2947,8 @@ function AccordionQueueView({
                 </Button>
               )}
               
-              {/* Custom Status Actions Dropdown */}
-              {stage?.custom_statuses && stage.custom_statuses.length > 0 ? (() => {
+              {/* Stage Actions Dropdown */}
+              {stage?.stageActions && stage.stageActions.length > 0 ? (() => {
                 const currentStatusObj = getAppStatusObj(selectedApp)
                 const hasStatus = currentStatusObj !== null
                 const buttonStyle = hasStatus 
@@ -3000,11 +3000,8 @@ function AccordionQueueView({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuLabel className="text-xs text-gray-500">Set Status</DropdownMenuLabel>
-                      {stage.custom_statuses.map((status, idx) => {
-                        const statusObj = typeof status === 'string' 
-                          ? { name: status, color: 'gray', icon: 'circle' } 
-                          : status
+                      <DropdownMenuLabel className="text-xs text-gray-500">Actions</DropdownMenuLabel>
+                      {stage.stageActions.map((action) => {
                         const statusColors: Record<string, string> = {
                           gray: 'text-gray-600',
                           red: 'text-red-600',
@@ -3015,20 +3012,15 @@ function AccordionQueueView({
                           purple: 'text-purple-600',
                           pink: 'text-pink-600',
                         }
-                        const colorClass = statusColors[statusObj.color] || statusColors.gray
-                        const isCurrentStatus = selectedApp?.status === statusObj.name
+                        const colorClass = statusColors[action.color] || statusColors.gray
+                        const isCurrentStatus = selectedApp?.status === action.name || 
+                                               selectedApp?.status === action.status_value
                         
                         return (
                           <DropdownMenuItem
-                            key={idx}
+                            key={action.id}
                             onClick={() => {
-                              onExecuteAction?.({ 
-                                id: `status-${statusObj.name}`,
-                                name: statusObj.name,
-                                color: statusObj.color,
-                                action_type: 'set_status',
-                                status_value: statusObj.name
-                              } as any)
+                              onExecuteAction?.(action)
                               // Trigger animation
                               setRecentlyChangedStatus(selectedApp?.id || null)
                               setTimeout(() => setRecentlyChangedStatus(null), 600)
@@ -3039,14 +3031,14 @@ function AccordionQueueView({
                               isCurrentStatus && "bg-gray-100 font-medium"
                             )}
                           >
-                            {statusObj.icon === 'check' && <Check className="w-4 h-4 mr-2" />}
-                            {statusObj.icon === 'x' && <X className="w-4 h-4 mr-2" />}
-                            {statusObj.icon === 'clock' && <Clock className="w-4 h-4 mr-2" />}
-                            {statusObj.icon === 'arrow-right' && <ArrowRight className="w-4 h-4 mr-2" />}
-                            {!['check', 'x', 'clock', 'arrow-right'].includes(statusObj.icon || '') && (
+                            {action.icon === 'check' && <Check className="w-4 h-4 mr-2" />}
+                            {action.icon === 'x' && <X className="w-4 h-4 mr-2" />}
+                            {action.icon === 'clock' && <Clock className="w-4 h-4 mr-2" />}
+                            {action.icon === 'arrow-right' && <ArrowRight className="w-4 h-4 mr-2" />}
+                            {!['check', 'x', 'clock', 'arrow-right'].includes(action.icon || '') && (
                               <Circle className="w-4 h-4 mr-2" />
                             )}
-                            {statusObj.name}
+                            {action.name}
                             {isCurrentStatus && <Check className="w-3 h-3 ml-auto opacity-60" />}
                           </DropdownMenuItem>
                         )
