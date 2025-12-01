@@ -115,7 +115,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         }
 
         if (fullForm) {
-          console.log('Full Form Loaded:', fullForm)
+          console.log('📥 Full Form Loaded from backend:', JSON.stringify(fullForm, null, 2))
           
           // Helper to parse config safely
           const getConfig = (f: any) => {
@@ -227,6 +227,9 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         const workspace = await workspacesClient.getBySlug(workspaceSlug)
         if (!workspace) throw new Error('Workspace not found')
 
+        // Debug: Log what we're sending to the backend
+        console.log('📤 Saving portal config:', JSON.stringify(config, null, 2))
+
         if (formId) {
             await formsClient.updateStructure(formId, config)
             // Also set is_published to true so submissions are accepted
@@ -246,9 +249,10 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         }
         setIsPublished(true)
         setHasUnsavedChanges(false)
-    } catch (error) {
+    } catch (error: any) {
         console.error('Failed to save:', error)
-        toast.error('Failed to publish portal')
+        const errorMessage = error?.message || error?.response?.error || 'Unknown error occurred'
+        toast.error(`Failed to publish portal: ${errorMessage}`)
     } finally {
         setIsSaving(false)
     }
@@ -283,12 +287,27 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
   const handleAddField = (type: Field['type']) => {
     if (!activeSection) return
+    
+    // Default config based on field type
+    let config: Field['config'] = undefined
+    if (type === 'callout') {
+      config = { color: 'blue', icon: 'lightbulb' }
+    } else if (type === 'rating') {
+      config = { maxRating: 5 }
+    } else if (type === 'paragraph') {
+      config = { content: '' }
+    }
+    
     const newField: Field = {
       id: Date.now().toString(),
       type,
-      label: 'New Field',
+      label: type === 'callout' ? 'Important Notice' : 
+             type === 'heading' ? 'Section Heading' :
+             type === 'paragraph' ? 'Paragraph' :
+             'New Field',
       required: false,
-      width: 'full'
+      width: 'full',
+      ...(config && { config })
     }
     handleUpdateSection(activeSection.id, { fields: [...activeSection.fields, newField] })
     setHasUnsavedChanges(true)

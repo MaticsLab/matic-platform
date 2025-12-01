@@ -203,7 +203,7 @@ func (n *FieldNormalizer) normalizeValue(value interface{}, fieldType models.Fie
 	case "file", "image":
 		return n.normalizeFile(value)
 
-	case "divider", "heading", "paragraph", "section":
+	case "divider", "heading", "paragraph", "section", "callout":
 		// Layout fields don't store data
 		return nil, nil
 

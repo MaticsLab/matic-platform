@@ -1136,10 +1136,19 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
               <h3 className="text-xl font-semibold text-gray-900">{field.label}</h3>
             )}
 
-            {/* Paragraph - Display only */}
-            {field.type === 'paragraph' && (
-              <p className="text-gray-600">{config.content || field.label}</p>
-            )}
+            {/* Paragraph - Display only (supports rich text) */}
+            {field.type === 'paragraph' && (() => {
+              const content = config.content || field.label
+              const isRichText = /<[a-z][\s\S]*>/i.test(content)
+              return isRichText ? (
+                <div 
+                  className="prose prose-sm max-w-none text-gray-600 [&_a]:text-blue-600 [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                  dangerouslySetInnerHTML={{ __html: content }}
+                />
+              ) : (
+                <p className="text-gray-600">{content}</p>
+              )
+            })()}
 
             {/* Divider - Visual separator */}
             {field.type === 'divider' && (

@@ -194,7 +194,18 @@ function FieldRenderer({ field, value, onChange, themeColor, formId }: { field: 
   // Layout Fields
   if (field.type === 'divider') return <Separator className="my-4" />
   if (field.type === 'heading') return <h3 className="text-lg font-semibold text-gray-900 mt-4 mb-2">{field.label}</h3>
-  if (field.type === 'paragraph') return <p className="text-gray-600 text-sm leading-relaxed mb-4">{field.label}</p>
+  if (field.type === 'paragraph') {
+    const content = field.config?.content || field.label
+    const isRichText = /<[a-z][\s\S]*>/i.test(content)
+    return isRichText ? (
+      <div 
+        className="prose prose-sm max-w-none text-gray-600 mb-4 [&_a]:text-blue-600 [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+        dangerouslySetInnerHTML={{ __html: content }}
+      />
+    ) : (
+      <p className="text-gray-600 text-sm leading-relaxed mb-4">{content}</p>
+    )
+  }
   if (field.type === 'callout') {
     const colorKey = (field.config?.color as string) || 'blue'
     const colors = CALLOUT_COLORS[colorKey] || CALLOUT_COLORS.blue

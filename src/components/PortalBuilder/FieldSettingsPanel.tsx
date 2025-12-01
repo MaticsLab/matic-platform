@@ -11,6 +11,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Field, FieldType } from '@/types/portal'
 import { Textarea } from '@/ui-components/textarea'
 import { cn } from '@/lib/utils'
+import { RichTextEditor } from './RichTextEditor'
 
 const FIELD_TYPES: { value: string; label: string }[] = [
   { value: 'text', label: 'Text Input' },
@@ -433,6 +434,20 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {/* Paragraph Rich Text Settings */}
+              {selectedField.type === 'paragraph' && (
+                <div className="space-y-2 pt-2">
+                  <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Content</Label>
+                  <RichTextEditor
+                    value={selectedField.config?.content || selectedField.label || ''}
+                    onChange={(content) => handleConfigUpdate('content', content)}
+                    placeholder="Enter your paragraph text with formatting..."
+                    minHeight="120px"
+                  />
+                  <p className="text-xs text-gray-500">Use the toolbar to add bold, italic, lists, links and more.</p>
                 </div>
               )}
             </AccordionContent>

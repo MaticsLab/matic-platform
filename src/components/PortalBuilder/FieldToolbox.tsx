@@ -64,10 +64,10 @@ const STATIC_FIELD_GROUPS: FieldGroup[] = [
   {
     title: 'Layout',
     items: [
-      { type: 'heading', label: 'Heading', icon: Heading },
-      { type: 'paragraph', label: 'Paragraph', icon: Pilcrow },
+      { type: 'heading', label: 'Heading', icon: Heading, description: 'Section title or heading text' },
+      { type: 'paragraph', label: 'Paragraph', icon: Pilcrow, description: 'Rich text with formatting' },
       { type: 'callout', label: 'Callout Box', icon: Lightbulb, description: 'Highlighted info box with icon' },
-      { type: 'divider', label: 'Divider', icon: Minus },
+      { type: 'divider', label: 'Divider', icon: Minus, description: 'Visual separator line' },
     ]
   },
   {

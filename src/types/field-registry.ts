@@ -36,7 +36,7 @@ export type FieldTypeId =
   | 'date' | 'datetime' | 'time'
   | 'select' | 'multiselect' | 'radio' | 'checkbox'
   | 'group' | 'repeater' | 'section'
-  | 'divider' | 'heading' | 'paragraph'
+  | 'divider' | 'heading' | 'paragraph' | 'callout'
   | 'file' | 'image' | 'signature'
   | 'rank' | 'item_list'
 
@@ -328,7 +328,7 @@ export type FieldValue<T extends FieldTypeId> =
   T extends 'checkbox' ? boolean :
   T extends 'number' | 'rating' ? number :
   T extends 'file' | 'image' ? FileValue :
-  T extends 'divider' | 'heading' | 'paragraph' | 'section' ? null :
+  T extends 'divider' | 'heading' | 'paragraph' | 'callout' | 'section' ? null :
   string
 
 export interface FileValue {
@@ -363,7 +363,7 @@ export interface ContainerFieldConfig {
 export const FIELD_CATEGORIES: Record<FC, FieldTypeId[]> = {
   primitive: ['text', 'textarea', 'email', 'phone', 'url', 'number', 'date', 'datetime', 'time', 'select', 'multiselect', 'radio', 'checkbox'],
   container: ['group', 'repeater', 'section'],
-  layout: ['divider', 'heading', 'paragraph'],
+  layout: ['divider', 'heading', 'paragraph', 'callout'],
   special: ['file', 'image', 'signature', 'rating', 'rank', 'item_list'],
 }
 
@@ -371,4 +371,4 @@ export const PII_FIELD_TYPES: FieldTypeId[] = ['email', 'phone', 'signature', 'a
 
 export const CONTAINER_FIELD_TYPES: FieldTypeId[] = ['group', 'repeater', 'section']
 
-export const LAYOUT_FIELD_TYPES: FieldTypeId[] = ['divider', 'heading', 'paragraph']
+export const LAYOUT_FIELD_TYPES: FieldTypeId[] = ['divider', 'heading', 'paragraph', 'callout']

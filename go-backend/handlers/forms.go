@@ -873,6 +873,9 @@ func UpdateFormStructure(c *gin.Context) {
 
 	for _, section := range input.Sections {
 		for _, fieldInput := range section.Fields {
+			// DEBUG: Log what we received from frontend
+			fmt.Printf("📥 Field received: type=%s, label=%s, config=%+v\n", fieldInput.Type, fieldInput.Label, fieldInput.Config)
+
 			// Construct config JSON - start with any config from the frontend
 			config := make(map[string]interface{})
 			if fieldInput.Config != nil {
@@ -932,6 +935,9 @@ func UpdateFormStructure(c *gin.Context) {
 				Position:    position,
 				Config:      mapToJSON(config),
 			}
+
+			// DEBUG: Log what we're saving
+			fmt.Printf("💾 Saving field: type=%s, label=%s, config=%s\n", field.Type, field.Label, string(mapToJSON(config)))
 
 			// Use ID from frontend if valid UUID, else generate new
 			if uid, err := uuid.Parse(fieldInput.ID); err == nil {

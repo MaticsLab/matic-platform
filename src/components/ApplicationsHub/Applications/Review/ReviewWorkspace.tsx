@@ -262,6 +262,7 @@ function groupFieldsBySections(fields: FormField[] | undefined, formSettings: Re
     f.type !== 'divider' && 
     f.type !== 'heading' && 
     f.type !== 'paragraph' &&
+    f.type !== 'callout' &&
     !excludedFieldLabels.includes(f.label) &&
     !excludedFieldLabels.includes(f.name)
   )

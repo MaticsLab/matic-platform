@@ -17,6 +17,7 @@ import { Switch } from '@/ui-components/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
 import { Textarea } from '@/ui-components/textarea'
 import { Section, Field, FieldType } from '@/types/portal'
+import { RichTextContent } from './RichTextEditor'
 
 // Callout color configurations
 const CALLOUT_COLORS = {
@@ -351,10 +352,16 @@ function FieldEditor({
           <h3 className="text-lg font-semibold text-gray-900">{field.label}</h3>
         )
         
-      case 'paragraph':
-        return (
-          <p className="text-gray-600 text-sm leading-relaxed">{field.label}</p>
+      case 'paragraph': {
+        const content = field.config?.content || field.label
+        // Check if content has HTML tags (rich text)
+        const isRichText = /<[a-z][\s\S]*>/i.test(content)
+        return isRichText ? (
+          <RichTextContent content={content} className="text-gray-600 text-sm" />
+        ) : (
+          <p className="text-gray-600 text-sm leading-relaxed">{content}</p>
         )
+      }
         
       case 'callout': {
         const colorKey = (field.config?.color as keyof typeof CALLOUT_COLORS) || 'blue'
