@@ -2368,14 +2368,29 @@ function AccordionQueueView({
     pink: { bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-300', hoverBg: 'hover:bg-pink-200' },
   }
 
+  // Get the selected app for the sidebar
+  const selectedApp = useMemo(() => {
+    return apps.find(a => a.id === selectedAppId) || null
+  }, [apps, selectedAppId])
+
+  // Get the effective stage for the selected app (use passed stage, or find from stages array based on app's stageId)
+  const effectiveStage = useMemo(() => {
+    if (stage) return stage
+    if (selectedApp && stages) {
+      return stages.find(s => s.id === selectedApp.stageId)
+    }
+    return undefined
+  }, [stage, selectedApp, stages])
+
   // Helper to get current status object for an app based on stage actions
-  const getAppStatusObj = (app: ApplicationData | null) => {
-    if (!app || !stage?.stageActions || stage.stageActions.length === 0) return null
+  const getAppStatusObj = (app: ApplicationData | null, stageForApp?: typeof effectiveStage) => {
+    const targetStage = stageForApp || effectiveStage
+    if (!app || !targetStage?.stageActions || targetStage.stageActions.length === 0) return null
     const currentStatus = app.status
     if (!currentStatus) return null
     
     // Find the action that matches the current status
-    for (const action of stage.stageActions) {
+    for (const action of targetStage.stageActions) {
       if (action.name.toLowerCase() === currentStatus.toLowerCase() || 
           action.status_value?.toLowerCase() === currentStatus.toLowerCase()) {
         return { name: action.name, color: action.color, icon: action.icon }
@@ -2384,16 +2399,11 @@ function AccordionQueueView({
     return null
   }
 
-  // Get the selected app for the sidebar
-  const selectedApp = useMemo(() => {
-    return apps.find(a => a.id === selectedAppId) || null
-  }, [apps, selectedAppId])
-
   // Get stage groups for current stage
   const currentStageGroups = useMemo(() => {
-    if (!stage || !stageGroups) return []
-    return stageGroups.filter(g => g.stage_id === stage.id)
-  }, [stage, stageGroups])
+    if (!effectiveStage || !stageGroups) return []
+    return stageGroups.filter(g => g.stage_id === effectiveStage.id)
+  }, [effectiveStage, stageGroups])
 
   const sortedApps = useMemo(() => {
     const sorted = [...apps]
@@ -2948,7 +2958,7 @@ function AccordionQueueView({
               )}
               
               {/* Stage Actions Dropdown */}
-              {stage?.stageActions && stage.stageActions.length > 0 ? (() => {
+              {effectiveStage?.stageActions && effectiveStage.stageActions.length > 0 ? (() => {
                 const currentStatusObj = getAppStatusObj(selectedApp)
                 const hasStatus = currentStatusObj !== null
                 const buttonStyle = hasStatus 
@@ -3001,7 +3011,7 @@ function AccordionQueueView({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
                       <DropdownMenuLabel className="text-xs text-gray-500">Actions</DropdownMenuLabel>
-                      {stage.stageActions.map((action) => {
+                      {effectiveStage.stageActions.map((action) => {
                         const statusColors: Record<string, string> = {
                           gray: 'text-gray-600',
                           red: 'text-red-600',

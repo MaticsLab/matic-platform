@@ -275,9 +275,9 @@ type SendEmailRequest struct {
 	SaveTemplate    bool     `json:"save_template"`
 	TemplateName    string   `json:"template_name"`
 	// Threading support for replies
-	ThreadID    string `json:"thread_id"`     // Gmail thread ID to reply to
-	InReplyTo   string `json:"in_reply_to"`   // Message-ID of the email being replied to
-	References  string `json:"references"`    // References header for threading
+	ThreadID   string `json:"thread_id"`   // Gmail thread ID to reply to
+	InReplyTo  string `json:"in_reply_to"` // Message-ID of the email being replied to
+	References string `json:"references"`  // References header for threading
 }
 
 // SendEmail sends emails via Gmail API
@@ -991,7 +991,7 @@ func TrackEmailOpen(c *gin.Context) {
 	var email models.SentEmail
 	if err := database.DB.Where("tracking_id = ?", trackingID).First(&email).Error; err == nil {
 		now := time.Now()
-		
+
 		// Only count as "opened" if:
 		// 1. Not a known bot
 		// 2. At least 5 seconds have passed since sending (filters instant scanners)
@@ -1316,7 +1316,7 @@ type GmailEmail struct {
 	ID             string    `json:"id"`
 	GmailMessageID string    `json:"gmail_message_id"`
 	GmailThreadID  string    `json:"gmail_thread_id,omitempty"`
-	MessageID      string    `json:"message_id,omitempty"`  // RFC Message-ID header for In-Reply-To
+	MessageID      string    `json:"message_id,omitempty"` // RFC Message-ID header for In-Reply-To
 	Subject        string    `json:"subject"`
 	RecipientEmail string    `json:"recipient_email"`
 	SenderEmail    string    `json:"sender_email"`
@@ -1353,7 +1353,7 @@ func searchGmailForRecipient(workspaceID string, recipientEmail string) ([]Gmail
 	}
 
 	config := getGmailConfig()
-	
+
 	// Check if token is expired and needs refresh
 	if token.Expiry.Before(time.Now()) {
 		fmt.Printf("[Gmail Search] Token expired at %v, refreshing...\n", token.Expiry)
@@ -1374,7 +1374,7 @@ func searchGmailForRecipient(workspaceID string, recipientEmail string) ([]Gmail
 		}
 		token = newToken
 	}
-	
+
 	client := config.Client(context.Background(), token)
 	gmailService, err := gmail.NewService(context.Background(), option.WithHTTPClient(client))
 	if err != nil {
@@ -1479,7 +1479,7 @@ func searchGmailByThreads(workspaceID string, threadIDs map[string]bool) ([]Gmai
 	}
 
 	config := getGmailConfig()
-	
+
 	// Refresh token if expired
 	if token.Expiry.Before(time.Now()) {
 		tokenSource := config.TokenSource(context.Background(), token)
@@ -1707,7 +1707,7 @@ func GetSubmissionEmailHistory(c *gin.Context) {
 			gmailEmails = append(gmailEmails, emails...)
 		}
 		fmt.Printf("[Email History] Found %d emails in Gmail\n", len(gmailEmails))
-		
+
 		// Also search for any threads we know about (catches replies)
 		if len(threadIDs) > 0 {
 			fmt.Printf("[Email History] Also searching %d known threads for replies\n", len(threadIDs))

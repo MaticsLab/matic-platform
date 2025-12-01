@@ -116,20 +116,20 @@ func UpdateApplicationStage(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Stage not found"})
 		return
 	}
-	
+
 	// Parse update data into a map first to handle all fields properly
 	var updates map[string]interface{}
 	if err := c.ShouldBindJSON(&updates); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	// Use Updates to properly handle false boolean values and empty arrays
 	if err := database.DB.Model(&stage).Updates(updates).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	// Reload to get the updated stage
 	database.DB.First(&stage, "id = ?", id)
 	c.JSON(http.StatusOK, stage)
