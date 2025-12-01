@@ -1461,8 +1461,10 @@ func GetSubmissionEmailHistory(c *gin.Context) {
 	}
 
 	// Use workspace_id from query or submission
+	fmt.Printf("[Email History] Initial workspaceID from query: '%s'\n", workspaceID)
 	if workspaceID == "" && submission.WorkspaceID != nil {
 		workspaceID = *submission.WorkspaceID
+		fmt.Printf("[Email History] Got workspaceID from submission: '%s'\n", workspaceID)
 	}
 	// If still no workspace_id, try to get it from the table
 	if workspaceID == "" && submission.TableID != nil {
@@ -1471,7 +1473,9 @@ func GetSubmissionEmailHistory(c *gin.Context) {
 		}
 		database.DB.Table("data_tables").Select("workspace_id").Where("id = ?", *submission.TableID).First(&table)
 		workspaceID = table.WorkspaceID
+		fmt.Printf("[Email History] Got workspaceID from table: '%s'\n", workspaceID)
 	}
+	fmt.Printf("[Email History] Final workspaceID: '%s'\n", workspaceID)
 
 	// Parse the data to find email
 	var data map[string]interface{}
