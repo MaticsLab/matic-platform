@@ -83,14 +83,48 @@ type WorkspaceMember struct {
 	WorkspaceID uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
 	UserID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"`
 	Role        string         `gorm:"type:varchar(50);default:'editor'" json:"role"`
+	HubAccess   pq.StringArray `gorm:"type:text[]" json:"hub_access,omitempty"` // List of hub IDs user can access, empty = all
 	Permissions datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"permissions"`
 	AddedAt     time.Time      `gorm:"autoCreateTime" json:"added_at"`
+	UpdatedAt   time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	Email       string         `gorm:"-" json:"email,omitempty"` // Populated from auth.users join
 }
 
 // BeforeCreate hook for WorkspaceMember
 func (m *WorkspaceMember) BeforeCreate(tx *gorm.DB) error {
 	if m.ID == uuid.Nil {
 		m.ID = uuid.New()
+	}
+	return nil
+}
+
+// WorkspaceInvitation represents a pending invitation to join a workspace
+type WorkspaceInvitation struct {
+	ID          uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
+	WorkspaceID uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
+	Email       string         `gorm:"not null;index" json:"email"`
+	Role        string         `gorm:"type:varchar(50);default:'viewer'" json:"role"`
+	HubAccess   pq.StringArray `gorm:"type:text[]" json:"hub_access,omitempty"` // List of hub IDs, empty = all
+	Status      string         `gorm:"type:varchar(20);default:'pending'" json:"status"` // pending, accepted, declined, expired
+	InvitedBy   uuid.UUID      `gorm:"type:uuid;not null" json:"invited_by"`
+	Token       string         `gorm:"uniqueIndex;not null" json:"token,omitempty"` // Unique token for accepting
+	ExpiresAt   time.Time      `json:"expires_at"`
+	AcceptedAt  *time.Time     `json:"accepted_at,omitempty"`
+	CreatedAt   time.Time      `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt   time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	
+	// Virtual field for inviter info
+	InviterEmail string `gorm:"-" json:"inviter_email,omitempty"`
+}
+
+func (WorkspaceInvitation) TableName() string {
+	return "workspace_invitations"
+}
+
+// BeforeCreate hook for WorkspaceInvitation
+func (i *WorkspaceInvitation) BeforeCreate(tx *gorm.DB) error {
+	if i.ID == uuid.Nil {
+		i.ID = uuid.New()
 	}
 	return nil
 }

@@ -45,3 +45,59 @@ export interface WorkspaceUpdate {
   settings?: Record<string, any>
   is_archived?: boolean
 }
+
+// Member types
+export type MemberRole = 'admin' | 'editor' | 'viewer'
+
+export interface WorkspaceMember {
+  id: string
+  workspace_id: string
+  user_id: string
+  role: MemberRole
+  hub_access?: string[] | null  // List of hub IDs, null/empty = all access
+  permissions: Record<string, any>
+  added_at: string
+  updated_at: string
+  email?: string  // Populated from join with auth.users
+}
+
+export interface UpdateMemberInput {
+  role?: MemberRole
+  hub_access?: string[]
+}
+
+// Invitation types
+export type InvitationStatus = 'pending' | 'accepted' | 'declined' | 'expired'
+
+export interface WorkspaceInvitation {
+  id: string
+  workspace_id: string
+  email: string
+  role: MemberRole
+  hub_access?: string[] | null
+  status: InvitationStatus
+  invited_by: string
+  inviter_email?: string
+  expires_at: string
+  accepted_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateInvitationInput {
+  workspace_id: string
+  email: string
+  role?: MemberRole
+  hub_access?: string[]
+}
+
+export interface InvitationPreview {
+  invitation: Omit<WorkspaceInvitation, 'token'>
+  workspace: {
+    id: string
+    name: string
+    slug: string
+  }
+  is_expired: boolean
+}
+

@@ -237,6 +237,25 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				workspaces.DELETE("/:id", handlers.DeleteWorkspace)
 			}
 
+			// Workspace Members
+			members := protected.Group("/workspace-members")
+			{
+				members.GET("", handlers.ListWorkspaceMembers)      // ?workspace_id=xxx
+				members.PATCH("/:id", handlers.UpdateWorkspaceMember)
+				members.DELETE("/:id", handlers.RemoveWorkspaceMember)
+			}
+
+			// Workspace Invitations
+			invitations := protected.Group("/invitations")
+			{
+				invitations.GET("", handlers.ListInvitations)         // ?workspace_id=xxx
+				invitations.POST("", handlers.CreateInvitation)
+				invitations.DELETE("/:id", handlers.RevokeInvitation)
+				invitations.POST("/:id/resend", handlers.ResendInvitation)
+				invitations.GET("/by-token/:token", handlers.GetInvitationByToken)
+				invitations.POST("/accept/:token", handlers.AcceptInvitation)
+			}
+
 			// Activities Hubs (separate base path to avoid conflicts with /workspaces/:id)
 			activitiesHubs := protected.Group("/activities-hubs")
 			{

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { ChevronDown, Settings, LogOut, Building2, Bell, User } from 'lucide-react'
+import { ChevronDown, Settings, LogOut, Building2, Bell, User, UserPlus } from 'lucide-react'
 import { supabase, getCurrentUser } from '@/lib/supabase'
 import { clearLastWorkspace } from '@/lib/utils'
 import { useWorkspaceDiscovery } from '@/hooks/useWorkspaceDiscovery'
@@ -10,6 +10,7 @@ import { Sidebar } from './Sidebar'
 import { TabNavigation } from './TabNavigation'
 import { WorkspaceSettingsSidebar } from './WorkspaceSettingsSidebar'
 import { ProfileSidebar } from './ProfileSidebar'
+import { InviteToWorkspaceSidebar } from './InviteToWorkspaceSidebar'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { toast } from 'sonner'
 import type { Workspace } from '@/types/workspaces'
@@ -36,6 +37,7 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
   const [loading, setLoading] = useState(true)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showProfileSidebar, setShowProfileSidebar] = useState(false)
+  const [showInviteSidebar, setShowInviteSidebar] = useState(false)
   const [fullWorkspace, setFullWorkspace] = useState<Workspace | null>(null)
   
   const { workspaces, currentWorkspace, setCurrentWorkspaceBySlug } = useWorkspaceDiscovery()
@@ -124,6 +126,8 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
         workspaces={workspaces}
         showSettingsModal={showSettingsModal}
         setShowSettingsModal={setShowSettingsModal}
+        showInviteSidebar={showInviteSidebar}
+        setShowInviteSidebar={setShowInviteSidebar}
         fullWorkspace={fullWorkspace}
         handleOpenSettings={handleOpenSettings}
         handleSignOut={handleSignOut}
@@ -147,6 +151,8 @@ function NavigationLayoutInner({
   workspaces,
   showSettingsModal,
   setShowSettingsModal,
+  showInviteSidebar,
+  setShowInviteSidebar,
   fullWorkspace,
   handleOpenSettings,
   handleSignOut,
@@ -162,6 +168,8 @@ function NavigationLayoutInner({
   workspaces: any[]
   showSettingsModal: boolean
   setShowSettingsModal: (open: boolean) => void
+  showInviteSidebar: boolean
+  setShowInviteSidebar: (open: boolean) => void
   fullWorkspace: Workspace | null
   handleOpenSettings: () => void
   handleSignOut: () => void
@@ -173,6 +181,8 @@ function NavigationLayoutInner({
 }) {
   const { tabManager } = useTabContext()
   const { expandToPanel } = useSearch()
+  // For profile sidebar
+  const [showProfileSidebar, setShowProfileSidebar] = useState(false)
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -281,6 +291,10 @@ function NavigationLayoutInner({
                     <Settings className="h-4 w-4 mr-2" />
                     Workspace Settings
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowInviteSidebar(true)}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Invite to Workspace
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut} variant="destructive">
                     <LogOut className="h-4 w-4 mr-2" />
@@ -338,6 +352,16 @@ function NavigationLayoutInner({
         isOpen={showProfileSidebar}
         onClose={() => setShowProfileSidebar(false)}
       />
+
+      {/* Invite to Workspace Sidebar */}
+      {currentWorkspace && (
+        <InviteToWorkspaceSidebar
+          isOpen={showInviteSidebar}
+          onClose={() => setShowInviteSidebar(false)}
+          workspaceId={currentWorkspace.id}
+          workspaceName={currentWorkspace.name}
+        />
+      )}
     </div>
   )
 }
