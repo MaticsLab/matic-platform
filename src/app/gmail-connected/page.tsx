@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 
-export default function GmailConnectedPage() {
+function GmailConnectedContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
@@ -93,5 +93,20 @@ export default function GmailConnectedPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function GmailConnectedPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full mx-4 text-center">
+          <Loader2 className="w-16 h-16 text-blue-500 animate-spin mx-auto mb-4" />
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">Loading...</h1>
+        </div>
+      </div>
+    }>
+      <GmailConnectedContent />
+    </Suspense>
   )
 }
