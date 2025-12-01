@@ -1629,6 +1629,19 @@ export function ReviewWorkspace({
               )}
             </div>
 
+            {/* Assign Button - internal only, show when unassigned exist */}
+            {!isExternalMode && stats.unassigned > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openBulkAssignModal}
+                className="flex items-center gap-2 border-amber-200 text-amber-700 hover:bg-amber-50"
+              >
+                <UserPlus className="w-4 h-4" />
+                Assign ({stats.unassigned})
+              </Button>
+            )}
+
             {/* Contact Button - internal only */}
             {!isExternalMode && (
               <Button
@@ -1836,25 +1849,6 @@ export function ReviewWorkspace({
               {stats.total}
             </span>
           </button>
-          
-          {/* Unassigned - Click to open assignment modal */}
-          {stats.unassigned > 0 && (
-            <button
-              onClick={() => {
-                openBulkAssignModal()
-              }}
-              className={cn(
-                "w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all relative",
-                "text-amber-500 hover:bg-amber-50"
-              )}
-              title="Assign Unassigned Applications"
-            >
-              <AlertCircle className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                {stats.unassigned}
-              </span>
-            </button>
-          )}
           
           <div className="w-6 h-px bg-gray-200 my-2" />
           
