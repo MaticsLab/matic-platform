@@ -1256,16 +1256,16 @@ func DeleteSignature(c *gin.Context) {
 
 // GmailEmail represents an email from Gmail API
 type GmailEmail struct {
-	ID             string     `json:"id"`
-	GmailMessageID string     `json:"gmail_message_id"`
-	Subject        string     `json:"subject"`
-	RecipientEmail string     `json:"recipient_email"`
-	SenderEmail    string     `json:"sender_email"`
-	Body           string     `json:"body"`
-	BodyHTML       string     `json:"body_html,omitempty"`
-	Status         string     `json:"status"`
-	SentAt         time.Time  `json:"sent_at"`
-	Source         string     `json:"source"` // "database" or "gmail"
+	ID             string    `json:"id"`
+	GmailMessageID string    `json:"gmail_message_id"`
+	Subject        string    `json:"subject"`
+	RecipientEmail string    `json:"recipient_email"`
+	SenderEmail    string    `json:"sender_email"`
+	Body           string    `json:"body"`
+	BodyHTML       string    `json:"body_html,omitempty"`
+	Status         string    `json:"status"`
+	SentAt         time.Time `json:"sent_at"`
+	Source         string    `json:"source"` // "database" or "gmail"
 }
 
 // searchGmailForRecipient searches Gmail for emails sent to a specific recipient
