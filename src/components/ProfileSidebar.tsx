@@ -42,9 +42,12 @@ export function ProfileSidebar({ isOpen, onClose }: ProfileSidebarProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isAvatarUploading, setIsAvatarUploading] = useState(false)
+  const [isUpdatingEmail, setIsUpdatingEmail] = useState(false)
 
   // Profile fields
   const [email, setEmail] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  const [originalEmail, setOriginalEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
   const [organization, setOrganization] = useState('')
@@ -64,6 +67,8 @@ export function ProfileSidebar({ isOpen, onClose }: ProfileSidebarProps) {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
           setEmail(user.email || '')
+          setNewEmail(user.email || '')
+          setOriginalEmail(user.email || '')
           setFullName(user.user_metadata?.full_name || user.user_metadata?.name || '')
           setPhone(user.user_metadata?.phone || '')
           setOrganization(user.user_metadata?.organization || '')
@@ -141,6 +146,34 @@ export function ProfileSidebar({ isOpen, onClose }: ProfileSidebarProps) {
       toast.error(error.message || 'Failed to upload photo')
     } finally {
       setIsAvatarUploading(false)
+    }
+  }
+
+  const handleUpdateEmail = async () => {
+    if (!newEmail || newEmail === originalEmail) return
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(newEmail)) {
+      toast.error('Please enter a valid email address')
+      return
+    }
+
+    setIsUpdatingEmail(true)
+    try {
+      const { error } = await supabase.auth.updateUser({
+        email: newEmail
+      })
+
+      if (error) throw error
+
+      toast.success('Confirmation email sent! Please check both your old and new email addresses to confirm the change.')
+      setEmail(newEmail)
+    } catch (error: any) {
+      console.error('Failed to update email:', error)
+      toast.error(error.message || 'Failed to update email')
+    } finally {
+      setIsUpdatingEmail(false)
     }
   }
 
@@ -289,7 +322,7 @@ export function ProfileSidebar({ isOpen, onClose }: ProfileSidebarProps) {
                       />
                     </div>
 
-                    {/* Email (read-only) */}
+                    {/* Email */}
                     <div className="space-y-2">
                       <Label htmlFor="email" className="text-sm font-medium">
                         Email Address
@@ -298,14 +331,38 @@ export function ProfileSidebar({ isOpen, onClose }: ProfileSidebarProps) {
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="email"
-                          value={email}
-                          readOnly
-                          className="pl-10 bg-gray-100 text-gray-500"
+                          type="email"
+                          value={newEmail}
+                          onChange={(e) => setNewEmail(e.target.value)}
+                          placeholder="you@example.com"
+                          className="pl-10 bg-gray-50/50"
                         />
                       </div>
-                      <p className="text-xs text-gray-500">
-                        Email cannot be changed
-                      </p>
+                      {newEmail !== originalEmail && (
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-amber-600">
+                            A confirmation will be sent to both emails
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={handleUpdateEmail}
+                            disabled={isUpdatingEmail || !newEmail}
+                            className="h-7 text-xs"
+                          >
+                            {isUpdatingEmail ? (
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : null}
+                            Update Email
+                          </Button>
+                        </div>
+                      )}
+                      {newEmail === originalEmail && (
+                        <p className="text-xs text-gray-500">
+                          Changing your email requires confirmation
+                        </p>
+                      )}
                     </div>
 
                     {/* Phone */}
