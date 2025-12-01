@@ -18,9 +18,11 @@ import { Input } from '@/ui-components/input'
 interface RichTextEditorProps {
   value: string
   onChange: (value: string) => void
+  onBlur?: () => void
   placeholder?: string
   className?: string
   minHeight?: string
+  autoFocus?: boolean
 }
 
 const TOOLBAR_BUTTONS = [
@@ -43,10 +45,12 @@ const ALIGN_BUTTONS = [
 
 export function RichTextEditor({ 
   value, 
-  onChange, 
+  onChange,
+  onBlur,
   placeholder = 'Enter text...',
   className,
-  minHeight = '100px'
+  minHeight = '100px',
+  autoFocus = false
 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const [isFocused, setIsFocused] = useState(false)
@@ -59,6 +63,13 @@ export function RichTextEditor({
       editorRef.current.innerHTML = value || ''
     }
   }, [value])
+
+  // AutoFocus effect
+  useEffect(() => {
+    if (autoFocus && editorRef.current) {
+      editorRef.current.focus()
+    }
+  }, [autoFocus])
 
   const execCommand = useCallback((command: string, value: string | undefined = undefined) => {
     document.execCommand(command, false, value)
@@ -234,7 +245,10 @@ export function RichTextEditor({
         data-placeholder={placeholder}
         onInput={handleInput}
         onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
+        onBlur={() => {
+          setIsFocused(false)
+          onBlur?.()
+        }}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         suppressContentEditableWarning
