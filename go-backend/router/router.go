@@ -209,6 +209,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.POST("/forms/:id/submit", handlers.SubmitForm)
 		api.GET("/forms/:id/submission", handlers.GetFormSubmission)
 
+		// Public Email Tracking (must be public for tracking pixel to work)
+		api.GET("/email/track/:tracking_id", handlers.TrackEmailOpen)
+		api.GET("/email/oauth/callback", handlers.HandleGmailCallback)
+
 		// External Review Routes (Public with Token)
 		api.GET("/external-review/:token", handlers.GetExternalReviewData)
 		api.POST("/external-review/:token/submit/:submission_id", handlers.SubmitExternalReview)
@@ -551,6 +555,39 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				actions.POST("/move-to-group", handlers.MoveToGroup)
 				actions.POST("/move-to-stage-group", handlers.MoveToStageGroup)
 				actions.POST("/restore-from-group", handlers.RestoreFromGroup)
+			}
+
+			// Email / Gmail Integration
+			email := protected.Group("/email")
+			{
+				// OAuth
+				email.GET("/oauth/url", handlers.GetGmailAuthURL)
+				email.GET("/connection", handlers.GetGmailConnection)
+				email.DELETE("/connection", handlers.DisconnectGmail)
+				
+				// Email Accounts
+				email.GET("/accounts", handlers.ListEmailAccounts)
+				email.PATCH("/accounts/:id", handlers.UpdateEmailAccount)
+				email.DELETE("/accounts/:id", handlers.DeleteEmailAccount)
+				
+				// Signatures
+				email.GET("/signatures", handlers.ListSignatures)
+				email.POST("/signatures", handlers.CreateSignature)
+				email.PATCH("/signatures/:id", handlers.UpdateSignature)
+				email.DELETE("/signatures/:id", handlers.DeleteSignature)
+				
+				// Sending
+				email.POST("/send", handlers.SendEmail)
+				
+				// History & Campaigns
+				email.GET("/history", handlers.GetEmailHistory)
+				email.GET("/campaigns", handlers.GetEmailCampaigns)
+				
+				// Templates
+				email.GET("/templates", handlers.GetEmailTemplates)
+				email.POST("/templates", handlers.CreateEmailTemplate)
+				email.PATCH("/templates/:id", handlers.UpdateEmailTemplate)
+				email.DELETE("/templates/:id", handlers.DeleteEmailTemplate)
 			}
 
 			// Change Requests (Approval Workflow)

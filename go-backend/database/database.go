@@ -91,6 +91,13 @@ func AutoMigrate() error {
 		&models.ApplicationGroup{},
 		&models.WorkflowAction{},
 		&models.StageAction{},
+
+		// Email / Gmail Integration
+		&models.GmailConnection{},
+		&models.EmailCampaign{},
+		&models.SentEmail{},
+		&models.EmailTemplate{},
+		&models.EmailSignature{},
 	)
 
 	if err != nil {
