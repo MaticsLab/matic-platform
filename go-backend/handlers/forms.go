@@ -331,8 +331,44 @@ func DeleteForm(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.Delete(&table).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	// Use a transaction to delete all related data
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+
+	// Delete all rows (submissions) for this table
+	if err := tx.Where("table_id = ?", id).Delete(&models.Row{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete submissions: " + err.Error()})
+		return
+	}
+
+	// Delete all fields for this table
+	if err := tx.Where("table_id = ?", id).Delete(&models.Field{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete fields: " + err.Error()})
+		return
+	}
+
+	// Delete all workflows associated with this form
+	if err := tx.Where("form_id = ?", id).Delete(&models.ReviewWorkflow{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete workflows: " + err.Error()})
+		return
+	}
+
+	// Delete the table/form itself
+	if err := tx.Delete(&table).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete form: " + err.Error()})
+		return
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit deletion: " + err.Error()})
 		return
 	}
 
