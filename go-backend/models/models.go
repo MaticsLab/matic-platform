@@ -104,7 +104,7 @@ type WorkspaceInvitation struct {
 	WorkspaceID uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
 	Email       string         `gorm:"not null;index" json:"email"`
 	Role        string         `gorm:"type:varchar(50);default:'viewer'" json:"role"`
-	HubAccess   pq.StringArray `gorm:"type:text[]" json:"hub_access,omitempty"` // List of hub IDs, empty = all
+	HubAccess   pq.StringArray `gorm:"type:text[]" json:"hub_access,omitempty"`          // List of hub IDs, empty = all
 	Status      string         `gorm:"type:varchar(20);default:'pending'" json:"status"` // pending, accepted, declined, expired
 	InvitedBy   uuid.UUID      `gorm:"type:uuid;not null" json:"invited_by"`
 	Token       string         `gorm:"uniqueIndex;not null" json:"token,omitempty"` // Unique token for accepting
@@ -112,7 +112,7 @@ type WorkspaceInvitation struct {
 	AcceptedAt  *time.Time     `json:"accepted_at,omitempty"`
 	CreatedAt   time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt   time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
-	
+
 	// Virtual field for inviter info
 	InviterEmail string `gorm:"-" json:"inviter_email,omitempty"`
 }

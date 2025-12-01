@@ -240,7 +240,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			// Workspace Members
 			members := protected.Group("/workspace-members")
 			{
-				members.GET("", handlers.ListWorkspaceMembers)      // ?workspace_id=xxx
+				members.GET("", handlers.ListWorkspaceMembers) // ?workspace_id=xxx
 				members.PATCH("/:id", handlers.UpdateWorkspaceMember)
 				members.DELETE("/:id", handlers.RemoveWorkspaceMember)
 			}
@@ -248,7 +248,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			// Workspace Invitations
 			invitations := protected.Group("/invitations")
 			{
-				invitations.GET("", handlers.ListInvitations)         // ?workspace_id=xxx
+				invitations.GET("", handlers.ListInvitations) // ?workspace_id=xxx
 				invitations.POST("", handlers.CreateInvitation)
 				invitations.DELETE("/:id", handlers.RevokeInvitation)
 				invitations.POST("/:id/resend", handlers.ResendInvitation)
