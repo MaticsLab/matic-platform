@@ -366,7 +366,7 @@ function FieldEditor({
                 onChange={setEditedDescription}
                 onBlur={() => {
                   if (editedDescription !== (field.config?.content || field.label)) {
-                    onUpdateField(field.id, { 
+                    onUpdate({ 
                       config: { ...field.config, content: editedDescription }
                     })
                   }
