@@ -62,6 +62,13 @@ interface ApplicationContactPanelProps {
 
 type TabType = 'compose' | 'history' | 'activity'
 
+// Thread info for replying
+interface ReplyThread {
+  threadId: string
+  messageId: string
+  references: string
+}
+
 export function ApplicationContactPanel({ 
   application, 
   workspaceId, 
@@ -75,6 +82,7 @@ export function ApplicationContactPanel({
   const [messageBody, setMessageBody] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [replyThread, setReplyThread] = useState<ReplyThread | null>(null) // Track thread for replies
   
   // Gmail connection
   const [gmailConnection, setGmailConnection] = useState<GmailConnection | null>(null)
@@ -172,14 +180,21 @@ export function ApplicationContactPanel({
         is_html: true,
         merge_tags: true,
         track_opens: true,
+        // Include thread info if this is a reply
+        ...(replyThread && {
+          thread_id: replyThread.threadId,
+          in_reply_to: replyThread.messageId,
+          references: replyThread.references,
+        }),
       }
 
       const result = await emailClient.send(workspaceId, request)
 
       if (result.success && result.sent_count > 0) {
-        setSendResult({ success: true, message: 'Email sent successfully!' })
+        setSendResult({ success: true, message: replyThread ? 'Reply sent successfully!' : 'Email sent successfully!' })
         setSubject('')
         setMessageBody('')
+        setReplyThread(null) // Clear thread info after sending
         // Refresh history
         loadEmailHistory()
       } else {
@@ -368,6 +383,25 @@ export function ApplicationContactPanel({
                 <div className="flex items-center gap-2 text-green-600 text-sm">
                   <CheckCircle className="w-4 h-4" />
                   Connected as {gmailConnection.email}
+                </div>
+              )}
+
+              {/* Reply indicator */}
+              {replyThread && (
+                <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2 text-blue-700 text-sm">
+                    <Mail className="w-4 h-4" />
+                    <span>Replying to thread</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setReplyThread(null)
+                      setSubject('')
+                    }}
+                    className="text-blue-500 hover:text-blue-700 text-xs"
+                  >
+                    Cancel reply
+                  </button>
                 </div>
               )}
 
@@ -570,9 +604,17 @@ export function ApplicationContactPanel({
                               variant="outline"
                               onClick={(e) => {
                                 e.stopPropagation()
-                                // Pre-fill reply
+                                // Pre-fill reply with thread info
                                 setSubject(`Re: ${email.subject.replace(/^Re:\s*/i, '')}`)
                                 setMessageBody('')
+                                // Store thread info for proper threading
+                                const threadId = email.gmail_thread_id || ''
+                                const messageId = (email as any).message_id || ''
+                                setReplyThread({
+                                  threadId,
+                                  messageId,
+                                  references: messageId // For RFC threading
+                                })
                                 setActiveTab('compose')
                               }}
                               className="text-blue-600 border-blue-200 hover:bg-blue-50"

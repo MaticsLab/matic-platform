@@ -274,6 +274,10 @@ type SendEmailRequest struct {
 	TrackOpens      bool     `json:"track_opens"`
 	SaveTemplate    bool     `json:"save_template"`
 	TemplateName    string   `json:"template_name"`
+	// Threading support for replies
+	ThreadID    string `json:"thread_id"`     // Gmail thread ID to reply to
+	InReplyTo   string `json:"in_reply_to"`   // Message-ID of the email being replied to
+	References  string `json:"references"`    // References header for threading
 }
 
 // SendEmail sends emails via Gmail API
@@ -425,10 +429,20 @@ func SendEmail(c *gin.Context) {
 			}
 		}
 
-		// Create MIME message
+		// Create MIME message with threading support
 		var message gmail.Message
-		rawMessage := createMIMEMessage(connection.Email, recipient.Email, recipient.Name, subject, body, bodyHTML)
+		mimeOpts := MIMEMessageOptions{
+			InReplyTo:  req.InReplyTo,
+			References: req.References,
+		}
+		rawMessage := createMIMEMessageWithOptions(connection.Email, recipient.Email, recipient.Name, subject, body, bodyHTML, mimeOpts)
 		message.Raw = base64.URLEncoding.EncodeToString([]byte(rawMessage))
+
+		// Set thread ID if replying to an existing thread
+		if req.ThreadID != "" {
+			message.ThreadId = req.ThreadID
+			fmt.Printf("[Email] Sending as reply to thread: %s\n", req.ThreadID)
+		}
 
 		// Send via Gmail
 		sentMessage, err := gmailService.Users.Messages.Send("me", &message).Do()
@@ -896,7 +910,17 @@ func normalizeFieldName(name string) string {
 	return name
 }
 
+// MIMEMessageOptions contains optional headers for threading
+type MIMEMessageOptions struct {
+	InReplyTo  string
+	References string
+}
+
 func createMIMEMessage(from, to, toName, subject, textBody, htmlBody string) string {
+	return createMIMEMessageWithOptions(from, to, toName, subject, textBody, htmlBody, MIMEMessageOptions{})
+}
+
+func createMIMEMessageWithOptions(from, to, toName, subject, textBody, htmlBody string, opts MIMEMessageOptions) string {
 	boundary := "boundary_" + uuid.New().String()
 
 	var sb strings.Builder
@@ -909,6 +933,13 @@ func createMIMEMessage(from, to, toName, subject, textBody, htmlBody string) str
 	}
 	sb.WriteString(fmt.Sprintf("From: %s\r\n", from))
 	sb.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	// Threading headers for replies
+	if opts.InReplyTo != "" {
+		sb.WriteString(fmt.Sprintf("In-Reply-To: %s\r\n", opts.InReplyTo))
+	}
+	if opts.References != "" {
+		sb.WriteString(fmt.Sprintf("References: %s\r\n", opts.References))
+	}
 	sb.WriteString("MIME-Version: 1.0\r\n")
 	sb.WriteString(fmt.Sprintf("Content-Type: multipart/alternative; boundary=%s\r\n", boundary))
 	sb.WriteString("\r\n")
@@ -943,16 +974,38 @@ func TrackEmailOpen(c *gin.Context) {
 		return
 	}
 
+	// Check for known bot/scanner user agents
+	userAgent := strings.ToLower(c.GetHeader("User-Agent"))
+	isLikelyBot := strings.Contains(userAgent, "bot") ||
+		strings.Contains(userAgent, "crawler") ||
+		strings.Contains(userAgent, "spider") ||
+		strings.Contains(userAgent, "scan") ||
+		strings.Contains(userAgent, "check") ||
+		strings.Contains(userAgent, "preview") ||
+		strings.Contains(userAgent, "proxy") ||
+		strings.Contains(userAgent, "google") ||
+		strings.Contains(userAgent, "microsoft") ||
+		strings.Contains(userAgent, "yahoo")
+
 	// Update the email record
 	var email models.SentEmail
 	if err := database.DB.Where("tracking_id = ?", trackingID).First(&email).Error; err == nil {
 		now := time.Now()
-		if email.OpenedAt == nil {
-			email.OpenedAt = &now
-			email.Status = "opened"
+		
+		// Only count as "opened" if:
+		// 1. Not a known bot
+		// 2. At least 5 seconds have passed since sending (filters instant scanners)
+		secondssSinceSent := now.Sub(email.SentAt).Seconds()
+		if !isLikelyBot && secondssSinceSent > 5 {
+			if email.OpenedAt == nil {
+				email.OpenedAt = &now
+				email.Status = "opened"
+			}
+			email.OpenCount++
+			database.DB.Save(&email)
+		} else {
+			fmt.Printf("[Email Tracking] Ignoring likely bot open - UA: %s, seconds since sent: %.1f\n", userAgent, secondssSinceSent)
 		}
-		email.OpenCount++
-		database.DB.Save(&email)
 	}
 
 	// Return 1x1 transparent GIF
@@ -1263,6 +1316,7 @@ type GmailEmail struct {
 	ID             string    `json:"id"`
 	GmailMessageID string    `json:"gmail_message_id"`
 	GmailThreadID  string    `json:"gmail_thread_id,omitempty"`
+	MessageID      string    `json:"message_id,omitempty"`  // RFC Message-ID header for In-Reply-To
 	Subject        string    `json:"subject"`
 	RecipientEmail string    `json:"recipient_email"`
 	SenderEmail    string    `json:"sender_email"`
@@ -1350,6 +1404,8 @@ func searchGmailForRecipient(workspaceID string, recipientEmail string) ([]Gmail
 				email.SenderEmail = header.Value
 			case "To":
 				email.RecipientEmail = header.Value
+			case "Message-ID", "Message-Id":
+				email.MessageID = header.Value
 			case "Date":
 				// Try multiple date formats
 				dateFormats := []string{

@@ -38,6 +38,10 @@ export interface SendEmailRequest {
   template_name?: string;
   sender_account_id?: string;
   signature_id?: string;
+  // Threading support for replies
+  thread_id?: string;     // Gmail thread ID to reply to
+  in_reply_to?: string;   // Message-ID of the email being replied to
+  references?: string;    // References header for threading
 }
 
 export interface SendEmailResponse {
