@@ -1057,7 +1057,7 @@ export function CommunicationsCenter({ workspaceId, formId, workflowId }: Commun
                           <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">{item.subject}</td>
                           <td className="px-6 py-4 text-sm text-gray-500">{formatDate(item.sent_at)}</td>
                           <td className="px-6 py-4 text-sm">
-                            {getStatusBadge(item.status, item.open_count)}
+                            {getStatusBadge(item.status, item.open_count || 0)}
                           </td>
                         </tr>
                       ))}
