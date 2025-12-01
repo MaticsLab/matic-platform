@@ -3051,28 +3051,6 @@ function AccordionQueueView({
                           </DropdownMenuItem>
                         )
                       })}
-                      {groups && groups.length > 0 && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuLabel className="text-xs text-gray-500">Move to Group</DropdownMenuLabel>
-                          {groups.map((group) => (
-                            <DropdownMenuItem
-                              key={group.id}
-                              onClick={() => onExecuteAction?.({
-                                id: `group-${group.id}`,
-                                name: `Move to ${group.name}`,
-                                color: group.color,
-                                action_type: 'move_to_group',
-                                target_group_id: group.id
-                              } as any)}
-                              className="cursor-pointer"
-                            >
-                              <Folder className="w-4 h-4 mr-2" />
-                              {group.name}
-                            </DropdownMenuItem>
-                          ))}
-                        </>
-                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )
