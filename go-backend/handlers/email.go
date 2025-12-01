@@ -1352,12 +1352,29 @@ func searchGmailForRecipient(workspaceID string, recipientEmail string) ([]Gmail
 		Expiry:       connection.TokenExpiry,
 	}
 
-	// Check if token is expired
-	if token.Expiry.Before(time.Now()) {
-		fmt.Printf("[Gmail Search] Token is expired, will attempt refresh\n")
-	}
-
 	config := getGmailConfig()
+	
+	// Check if token is expired and needs refresh
+	if token.Expiry.Before(time.Now()) {
+		fmt.Printf("[Gmail Search] Token expired at %v, refreshing...\n", token.Expiry)
+		// Use the TokenSource to refresh
+		tokenSource := config.TokenSource(context.Background(), token)
+		newToken, err := tokenSource.Token()
+		if err != nil {
+			fmt.Printf("[Gmail Search] Token refresh failed: %v\n", err)
+			return nil, fmt.Errorf("token refresh failed: %v", err)
+		}
+		// Update stored token if it was refreshed
+		if newToken.AccessToken != token.AccessToken {
+			fmt.Printf("[Gmail Search] Token refreshed successfully, updating in database\n")
+			connection.AccessToken = newToken.AccessToken
+			connection.RefreshToken = newToken.RefreshToken
+			connection.TokenExpiry = newToken.Expiry
+			database.DB.Save(&connection)
+		}
+		token = newToken
+	}
+	
 	client := config.Client(context.Background(), token)
 	gmailService, err := gmail.NewService(context.Background(), option.WithHTTPClient(client))
 	if err != nil {
