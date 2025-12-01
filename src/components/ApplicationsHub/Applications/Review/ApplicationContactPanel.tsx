@@ -215,6 +215,7 @@ export function ApplicationContactPanel({
       case 'opened': return 'bg-green-100 text-green-700'
       case 'sent': return 'bg-blue-100 text-blue-700'
       case 'delivered': return 'bg-blue-100 text-blue-700'
+      case 'received': return 'bg-purple-100 text-purple-700'
       case 'bounced': return 'bg-red-100 text-red-700'
       case 'failed': return 'bg-red-100 text-red-700'
       default: return 'bg-gray-100 text-gray-700'
@@ -488,12 +489,17 @@ export function ApplicationContactPanel({
                   {emailHistory.map((email) => (
                     <div
                       key={email.id}
-                      className="bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors overflow-hidden"
+                      className={cn(
+                        "border rounded-lg transition-colors overflow-hidden",
+                        email.status === 'received' 
+                          ? "bg-blue-50 border-blue-200 hover:border-blue-300" 
+                          : "bg-white border-gray-200 hover:border-gray-300"
+                      )}
                     >
                       {/* Email Header - Clickable */}
                       <button
                         onClick={() => setExpandedEmailId(expandedEmailId === email.id ? null : email.id)}
-                        className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
+                        className="w-full p-4 text-left hover:bg-gray-50/50 transition-colors"
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
@@ -505,11 +511,15 @@ export function ApplicationContactPanel({
                               <p className="font-medium text-gray-900 truncate">{email.subject}</p>
                             </div>
                             <p className="text-sm text-gray-500 mt-1 ml-6">
-                              To: {email.recipient_email}
+                              {email.status === 'received' ? (
+                                <>From: {email.sender_email}</>
+                              ) : (
+                                <>To: {email.recipient_email}</>
+                              )}
                             </p>
                           </div>
                           <Badge className={cn("text-xs ml-2 shrink-0", getStatusColor(email.status))}>
-                            {email.status}
+                            {email.status === 'received' ? 'received' : email.status}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-4 mt-3 ml-6 text-xs text-gray-500">
@@ -531,12 +541,15 @@ export function ApplicationContactPanel({
                       
                       {/* Email Content - Expandable */}
                       {expandedEmailId === email.id && (
-                        <div className="border-t border-gray-100 p-4 bg-gray-50">
+                        <div className="border-t border-gray-100 p-4 bg-gray-50/50">
                           <div className="text-sm text-gray-600 mb-2">
                             <span className="font-medium">From:</span> {email.sender_email}
                           </div>
+                          <div className="text-sm text-gray-600 mb-2">
+                            <span className="font-medium">To:</span> {email.recipient_email}
+                          </div>
                           <div className="text-sm text-gray-600 mb-3">
-                            <span className="font-medium">Sent:</span> {new Date(email.sent_at).toLocaleString()}
+                            <span className="font-medium">Date:</span> {new Date(email.sent_at).toLocaleString()}
                           </div>
                           <div className="border-t border-gray-200 pt-3">
                             {email.body_html ? (
@@ -549,6 +562,24 @@ export function ApplicationContactPanel({
                                 {email.body || 'No content available'}
                               </div>
                             )}
+                          </div>
+                          {/* Reply button */}
+                          <div className="border-t border-gray-200 pt-3 mt-3">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                // Pre-fill reply
+                                setSubject(`Re: ${email.subject.replace(/^Re:\s*/i, '')}`)
+                                setMessageBody('')
+                                setActiveTab('compose')
+                              }}
+                              className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                            >
+                              <Mail className="w-4 h-4 mr-2" />
+                              Reply
+                            </Button>
                           </div>
                         </div>
                       )}

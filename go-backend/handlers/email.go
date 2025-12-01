@@ -1262,6 +1262,7 @@ func DeleteSignature(c *gin.Context) {
 type GmailEmail struct {
 	ID             string    `json:"id"`
 	GmailMessageID string    `json:"gmail_message_id"`
+	GmailThreadID  string    `json:"gmail_thread_id,omitempty"`
 	Subject        string    `json:"subject"`
 	RecipientEmail string    `json:"recipient_email"`
 	SenderEmail    string    `json:"sender_email"`
@@ -1310,8 +1311,8 @@ func searchGmailForRecipient(workspaceID string, recipientEmail string) ([]Gmail
 		return nil, err
 	}
 
-	// Search for emails sent to this recipient
-	query := fmt.Sprintf("to:%s in:sent", recipientEmail)
+	// Search for ALL emails involving this recipient (sent to them OR received from them)
+	query := fmt.Sprintf("(to:%s OR from:%s)", recipientEmail, recipientEmail)
 	fmt.Printf("[Gmail Search] Searching with query: %s\n", query)
 
 	result, err := gmailService.Users.Messages.List("me").Q(query).MaxResults(50).Do()
@@ -1334,35 +1335,104 @@ func searchGmailForRecipient(workspaceID string, recipientEmail string) ([]Gmail
 		email := GmailEmail{
 			ID:             msg.Id,
 			GmailMessageID: msg.Id,
-			RecipientEmail: recipientEmail,
-			SenderEmail:    connection.Email,
-			Status:         "sent",
+			GmailThreadID:  fullMsg.ThreadId,
 			Source:         "gmail",
 		}
 
 		// Parse headers
+		var fromEmail string
 		for _, header := range fullMsg.Payload.Headers {
 			switch header.Name {
 			case "Subject":
 				email.Subject = header.Value
+			case "From":
+				fromEmail = header.Value
+				email.SenderEmail = header.Value
+			case "To":
+				email.RecipientEmail = header.Value
 			case "Date":
-				if t, err := time.Parse(time.RFC1123Z, header.Value); err == nil {
-					email.SentAt = t
-				} else if t, err := time.Parse("Mon, 2 Jan 2006 15:04:05 -0700", header.Value); err == nil {
-					email.SentAt = t
-				} else if t, err := time.Parse("Mon, 2 Jan 2006 15:04:05 -0700 (MST)", header.Value); err == nil {
-					email.SentAt = t
+				// Try multiple date formats
+				dateFormats := []string{
+					time.RFC1123Z,
+					"Mon, 2 Jan 2006 15:04:05 -0700",
+					"Mon, 2 Jan 2006 15:04:05 -0700 (MST)",
+					"2 Jan 2006 15:04:05 -0700",
+					time.RFC3339,
+				}
+				for _, format := range dateFormats {
+					if t, err := time.Parse(format, header.Value); err == nil {
+						email.SentAt = t
+						break
+					}
 				}
 			}
 		}
 
-		// Get snippet as body preview
-		email.Body = fullMsg.Snippet
+		// Determine if this is sent or received
+		if strings.Contains(strings.ToLower(fromEmail), strings.ToLower(recipientEmail)) {
+			email.Status = "received"
+		} else {
+			email.Status = "sent"
+		}
+
+		// Get the full email body
+		email.Body = getEmailBody(fullMsg.Payload)
+		if email.Body == "" {
+			email.Body = fullMsg.Snippet
+		}
 
 		emails = append(emails, email)
 	}
 
 	return emails, nil
+}
+
+// getEmailBody extracts the email body from the message payload
+func getEmailBody(payload *gmail.MessagePart) string {
+	// Check if this part has a body
+	if payload.Body != nil && payload.Body.Data != "" {
+		decoded, err := base64.URLEncoding.DecodeString(payload.Body.Data)
+		if err == nil {
+			return string(decoded)
+		}
+	}
+
+	// Check parts for multipart messages
+	for _, part := range payload.Parts {
+		// Prefer HTML, then plain text
+		if part.MimeType == "text/html" {
+			if part.Body != nil && part.Body.Data != "" {
+				decoded, err := base64.URLEncoding.DecodeString(part.Body.Data)
+				if err == nil {
+					return string(decoded)
+				}
+			}
+		}
+	}
+
+	// Fallback to plain text
+	for _, part := range payload.Parts {
+		if part.MimeType == "text/plain" {
+			if part.Body != nil && part.Body.Data != "" {
+				decoded, err := base64.URLEncoding.DecodeString(part.Body.Data)
+				if err == nil {
+					return string(decoded)
+				}
+			}
+		}
+	}
+
+	// Recursively check nested parts
+	for _, part := range payload.Parts {
+		if len(part.Parts) > 0 {
+			body := getEmailBody(part)
+			if body != "" {
+				return body
+			}
+		}
+	}
+
+	return ""
 }
 
 // GetSubmissionEmailHistory returns all emails sent to a specific submission/applicant
