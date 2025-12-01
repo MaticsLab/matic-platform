@@ -365,16 +365,20 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
                               <MoreVertical className="w-4 h-4" />
                             </button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenuContent align="end" className="z-[100]" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenuItem
-                              onClick={() => handleFormClick(form.id)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleFormClick(form.id)
+                              }}
                             >
                               Open
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation()
                                 setFormToDelete(form)
                                 setDeleteDialogOpen(true)
                               }}
