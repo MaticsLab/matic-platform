@@ -83,6 +83,7 @@ export function ApplicationContactPanel({
   // Email history
   const [emailHistory, setEmailHistory] = useState<SentEmail[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null)
   
   // Activity log
   const [activities, setActivities] = useState<ActivityItem[]>([])
@@ -109,9 +110,7 @@ export function ApplicationContactPanel({
     if (!application.id) return
     setIsLoadingHistory(true)
     try {
-      console.log('[EmailHistory] Fetching for submission:', application.id, 'workspace:', workspaceId)
       const history = await emailClient.getSubmissionHistory(application.id, workspaceId)
-      console.log('[EmailHistory] Response:', history)
       setEmailHistory(history || [])
     } catch (error) {
       console.error('Failed to load email history:', error)
@@ -485,34 +484,70 @@ export function ApplicationContactPanel({
                   {emailHistory.map((email) => (
                     <div
                       key={email.id}
-                      className="p-4 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+                      className="bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors overflow-hidden"
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{email.subject}</p>
-                          <p className="text-sm text-gray-500 mt-1">
-                            To: {email.recipient_email}
-                          </p>
+                      {/* Email Header - Clickable */}
+                      <button
+                        onClick={() => setExpandedEmailId(expandedEmailId === email.id ? null : email.id)}
+                        className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <ChevronDown className={cn(
+                                "w-4 h-4 text-gray-400 transition-transform",
+                                expandedEmailId === email.id && "rotate-180"
+                              )} />
+                              <p className="font-medium text-gray-900 truncate">{email.subject}</p>
+                            </div>
+                            <p className="text-sm text-gray-500 mt-1 ml-6">
+                              To: {email.recipient_email}
+                            </p>
+                          </div>
+                          <Badge className={cn("text-xs ml-2 shrink-0", getStatusColor(email.status))}>
+                            {email.status}
+                          </Badge>
                         </div>
-                        <Badge className={cn("text-xs ml-2", getStatusColor(email.status))}>
-                          {email.status}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatDate(email.sent_at)}
-                        </span>
-                        {email.opened_at && (
-                          <span className="flex items-center gap-1 text-green-600">
-                            <Eye className="w-3 h-3" />
-                            Opened {email.open_count || 1}x
+                        <div className="flex items-center gap-4 mt-3 ml-6 text-xs text-gray-500">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatDate(email.sent_at)}
                           </span>
-                        )}
-                        {email.source === 'gmail' && (
-                          <span className="text-gray-400 text-xs">via Gmail</span>
-                        )}
-                      </div>
+                          {email.opened_at && (
+                            <span className="flex items-center gap-1 text-green-600">
+                              <Eye className="w-3 h-3" />
+                              Opened {email.open_count || 1}x
+                            </span>
+                          )}
+                          {email.source === 'gmail' && (
+                            <span className="text-gray-400 text-xs">via Gmail</span>
+                          )}
+                        </div>
+                      </button>
+                      
+                      {/* Email Content - Expandable */}
+                      {expandedEmailId === email.id && (
+                        <div className="border-t border-gray-100 p-4 bg-gray-50">
+                          <div className="text-sm text-gray-600 mb-2">
+                            <span className="font-medium">From:</span> {email.sender_email}
+                          </div>
+                          <div className="text-sm text-gray-600 mb-3">
+                            <span className="font-medium">Sent:</span> {new Date(email.sent_at).toLocaleString()}
+                          </div>
+                          <div className="border-t border-gray-200 pt-3">
+                            {email.body_html ? (
+                              <div 
+                                className="prose prose-sm max-w-none text-gray-700"
+                                dangerouslySetInnerHTML={{ __html: email.body_html }}
+                              />
+                            ) : (
+                              <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                                {email.body || 'No content available'}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
