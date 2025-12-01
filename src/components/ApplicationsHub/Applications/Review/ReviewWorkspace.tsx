@@ -2354,6 +2354,34 @@ function AccordionQueueView({
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'data' | 'reviews'>('data')
   const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'highest' | 'lowest'>('recent')
+  const [recentlyChangedStatus, setRecentlyChangedStatus] = useState<string | null>(null)
+
+  // Status color mappings for button styling
+  const statusButtonStyles: Record<string, { bg: string; text: string; border: string; hoverBg: string }> = {
+    gray: { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300', hoverBg: 'hover:bg-gray-200' },
+    red: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300', hoverBg: 'hover:bg-red-200' },
+    orange: { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-300', hoverBg: 'hover:bg-orange-200' },
+    yellow: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300', hoverBg: 'hover:bg-yellow-200' },
+    green: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300', hoverBg: 'hover:bg-green-200' },
+    blue: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300', hoverBg: 'hover:bg-blue-200' },
+    purple: { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-300', hoverBg: 'hover:bg-purple-200' },
+    pink: { bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-300', hoverBg: 'hover:bg-pink-200' },
+  }
+
+  // Helper to get current status object for an app
+  const getAppStatusObj = (app: ApplicationData | null) => {
+    if (!app || !stage?.custom_statuses) return null
+    const currentStatus = app.status
+    if (!currentStatus || currentStatus === 'pending') return null
+    
+    for (const status of stage.custom_statuses) {
+      const statusObj = typeof status === 'string' 
+        ? { name: status, color: 'gray', icon: 'circle' } 
+        : status
+      if (statusObj.name === currentStatus) return statusObj
+    }
+    return null
+  }
 
   // Get the selected app for the sidebar
   const selectedApp = useMemo(() => {
@@ -2919,80 +2947,135 @@ function AccordionQueueView({
               )}
               
               {/* Custom Status Actions Dropdown */}
-              {stage?.custom_statuses && stage.custom_statuses.length > 0 ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="outline" className="gap-1.5">
-                      <Zap className="w-4 h-4" />
-                      Actions
-                      <ChevronDown className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    {stage.custom_statuses.map((status, idx) => {
-                      const statusObj = typeof status === 'string' 
-                        ? { name: status, color: 'gray', icon: 'circle' } 
-                        : status
-                      const statusColors: Record<string, string> = {
-                        gray: 'text-gray-600',
-                        red: 'text-red-600',
-                        orange: 'text-orange-600',
-                        yellow: 'text-yellow-600',
-                        green: 'text-green-600',
-                        blue: 'text-blue-600',
-                        purple: 'text-purple-600',
-                        pink: 'text-pink-600',
-                      }
-                      const colorClass = statusColors[statusObj.color] || statusColors.gray
-                      
-                      return (
-                        <DropdownMenuItem
-                          key={idx}
-                          onClick={() => onExecuteAction?.({ 
-                            id: `status-${statusObj.name}`,
-                            name: statusObj.name,
-                            color: statusObj.color,
-                            action_type: 'set_status',
-                            status_value: statusObj.name
-                          } as any)}
-                          className={cn("cursor-pointer", colorClass)}
-                        >
-                          {statusObj.icon === 'check' && <Check className="w-4 h-4 mr-2" />}
-                          {statusObj.icon === 'x' && <X className="w-4 h-4 mr-2" />}
-                          {statusObj.icon === 'clock' && <Clock className="w-4 h-4 mr-2" />}
-                          {statusObj.icon === 'arrow-right' && <ArrowRight className="w-4 h-4 mr-2" />}
-                          {!['check', 'x', 'clock', 'arrow-right'].includes(statusObj.icon || '') && (
-                            <Circle className="w-4 h-4 mr-2" />
-                          )}
-                          {statusObj.name}
-                        </DropdownMenuItem>
-                      )
-                    })}
-                    {groups && groups.length > 0 && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel className="text-xs text-gray-500">Move to Group</DropdownMenuLabel>
-                        {groups.map((group) => (
+              {stage?.custom_statuses && stage.custom_statuses.length > 0 ? (() => {
+                const currentStatusObj = getAppStatusObj(selectedApp)
+                const hasStatus = currentStatusObj !== null
+                const buttonStyle = hasStatus 
+                  ? statusButtonStyles[currentStatusObj.color] || statusButtonStyles.gray
+                  : null
+                const isAnimating = recentlyChangedStatus === selectedApp?.id
+                
+                // Render the appropriate icon for the current status
+                const StatusIcon = () => {
+                  if (!hasStatus) return <Zap className="w-4 h-4" />
+                  switch (currentStatusObj?.icon) {
+                    case 'check': return <Check className="w-4 h-4" />
+                    case 'x': return <X className="w-4 h-4" />
+                    case 'clock': return <Clock className="w-4 h-4" />
+                    case 'arrow-right': return <ArrowRight className="w-4 h-4" />
+                    default: return <Circle className="w-4 h-4" />
+                  }
+                }
+                
+                return (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className={cn(
+                          "gap-1.5 transition-all duration-300",
+                          hasStatus && buttonStyle
+                            ? `${buttonStyle.bg} ${buttonStyle.text} ${buttonStyle.border} ${buttonStyle.hoverBg} border`
+                            : "",
+                          isAnimating && "scale-105 ring-2 ring-offset-1",
+                          isAnimating && hasStatus && buttonStyle
+                            ? `ring-${currentStatusObj?.color}-400`
+                            : ""
+                        )}
+                      >
+                        <span className={cn(
+                          "transition-transform duration-300",
+                          isAnimating && "animate-pulse"
+                        )}>
+                          <StatusIcon />
+                        </span>
+                        <span className="max-w-[80px] truncate">
+                          {hasStatus ? currentStatusObj.name : 'Actions'}
+                        </span>
+                        <ChevronDown className={cn(
+                          "w-4 h-4 transition-transform duration-200"
+                        )} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuLabel className="text-xs text-gray-500">Set Status</DropdownMenuLabel>
+                      {stage.custom_statuses.map((status, idx) => {
+                        const statusObj = typeof status === 'string' 
+                          ? { name: status, color: 'gray', icon: 'circle' } 
+                          : status
+                        const statusColors: Record<string, string> = {
+                          gray: 'text-gray-600',
+                          red: 'text-red-600',
+                          orange: 'text-orange-600',
+                          yellow: 'text-yellow-600',
+                          green: 'text-green-600',
+                          blue: 'text-blue-600',
+                          purple: 'text-purple-600',
+                          pink: 'text-pink-600',
+                        }
+                        const colorClass = statusColors[statusObj.color] || statusColors.gray
+                        const isCurrentStatus = selectedApp?.status === statusObj.name
+                        
+                        return (
                           <DropdownMenuItem
-                            key={group.id}
-                            onClick={() => onExecuteAction?.({
-                              id: `group-${group.id}`,
-                              name: `Move to ${group.name}`,
-                              color: group.color,
-                              action_type: 'move_to_group',
-                              target_group_id: group.id
-                            } as any)}
-                            className="cursor-pointer"
+                            key={idx}
+                            onClick={() => {
+                              onExecuteAction?.({ 
+                                id: `status-${statusObj.name}`,
+                                name: statusObj.name,
+                                color: statusObj.color,
+                                action_type: 'set_status',
+                                status_value: statusObj.name
+                              } as any)
+                              // Trigger animation
+                              setRecentlyChangedStatus(selectedApp?.id || null)
+                              setTimeout(() => setRecentlyChangedStatus(null), 600)
+                            }}
+                            className={cn(
+                              "cursor-pointer", 
+                              colorClass,
+                              isCurrentStatus && "bg-gray-100 font-medium"
+                            )}
                           >
-                            <Folder className="w-4 h-4 mr-2" />
-                            {group.name}
+                            {statusObj.icon === 'check' && <Check className="w-4 h-4 mr-2" />}
+                            {statusObj.icon === 'x' && <X className="w-4 h-4 mr-2" />}
+                            {statusObj.icon === 'clock' && <Clock className="w-4 h-4 mr-2" />}
+                            {statusObj.icon === 'arrow-right' && <ArrowRight className="w-4 h-4 mr-2" />}
+                            {!['check', 'x', 'clock', 'arrow-right'].includes(statusObj.icon || '') && (
+                              <Circle className="w-4 h-4 mr-2" />
+                            )}
+                            {statusObj.name}
+                            {isCurrentStatus && <Check className="w-3 h-3 ml-auto opacity-60" />}
                           </DropdownMenuItem>
-                        ))}
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : null}
+                        )
+                      })}
+                      {groups && groups.length > 0 && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel className="text-xs text-gray-500">Move to Group</DropdownMenuLabel>
+                          {groups.map((group) => (
+                            <DropdownMenuItem
+                              key={group.id}
+                              onClick={() => onExecuteAction?.({
+                                id: `group-${group.id}`,
+                                name: `Move to ${group.name}`,
+                                color: group.color,
+                                action_type: 'move_to_group',
+                                target_group_id: group.id
+                              } as any)}
+                              className="cursor-pointer"
+                            >
+                              <Folder className="w-4 h-4 mr-2" />
+                              {group.name}
+                            </DropdownMenuItem>
+                          ))}
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )
+              })() : null}
               
               <Button
                 size="sm"
