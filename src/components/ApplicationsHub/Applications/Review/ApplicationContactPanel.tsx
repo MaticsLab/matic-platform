@@ -586,16 +586,31 @@ export function ApplicationContactPanel({
                             <span className="font-medium">Date:</span> {new Date(email.sent_at).toLocaleString()}
                           </div>
                           <div className="border-t border-gray-200 pt-3">
-                            {email.body_html ? (
-                              <div 
-                                className="prose prose-sm max-w-none text-gray-700"
-                                dangerouslySetInnerHTML={{ __html: email.body_html }}
-                              />
-                            ) : (
-                              <div className="text-sm text-gray-700 whitespace-pre-wrap">
-                                {email.body || 'No content available'}
-                              </div>
-                            )}
+                            {(() => {
+                              // Get the body content, preferring body_html
+                              let content = email.body_html || email.body || 'No content available'
+                              
+                              // Remove tracking pixels
+                              content = content.replace(/<img[^>]*email\/track[^>]*>/gi, '')
+                              
+                              // Check if content looks like HTML
+                              const isHtml = /<[a-z][\s\S]*>/i.test(content)
+                              
+                              if (isHtml) {
+                                return (
+                                  <div 
+                                    className="prose prose-sm max-w-none text-gray-700"
+                                    dangerouslySetInnerHTML={{ __html: content }}
+                                  />
+                                )
+                              } else {
+                                return (
+                                  <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                                    {content}
+                                  </div>
+                                )
+                              }
+                            })()}
                           </div>
                           {/* Reply button */}
                           <div className="border-t border-gray-200 pt-3 mt-3">
