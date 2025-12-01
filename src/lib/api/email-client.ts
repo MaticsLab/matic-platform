@@ -236,4 +236,20 @@ export const emailClient = {
     goFetch<{ success: boolean }>(`/email/templates/${id}`, {
       method: 'DELETE',
     }),
+
+  // Submission-specific email history
+  getSubmissionHistory: (submissionId: string) =>
+    goFetch<SentEmail[]>(`/email/submission/${submissionId}/history`),
+
+  getSubmissionActivity: (submissionId: string) =>
+    goFetch<ActivityItem[]>(`/email/submission/${submissionId}/activity`),
 };
+
+// Activity types
+export interface ActivityItem {
+  type: 'email_sent' | 'email_opened' | 'email_clicked' | 'status_change' | 'review_added';
+  title: string;
+  description: string;
+  timestamp: string;
+  data?: Record<string, unknown>;
+}

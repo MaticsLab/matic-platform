@@ -588,6 +588,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				email.POST("/templates", handlers.CreateEmailTemplate)
 				email.PATCH("/templates/:id", handlers.UpdateEmailTemplate)
 				email.DELETE("/templates/:id", handlers.DeleteEmailTemplate)
+
+				// Submission-specific email history
+				email.GET("/submission/:id/history", handlers.GetSubmissionEmailHistory)
+				email.GET("/submission/:id/activity", handlers.GetSubmissionActivity)
 			}
 
 			// Change Requests (Approval Workflow)

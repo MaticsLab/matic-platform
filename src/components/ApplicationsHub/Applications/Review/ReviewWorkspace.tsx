@@ -44,6 +44,7 @@ import {
 import { useSearchSafe, HubSearchContext } from '@/components/Search'
 import { ReviewerManagement } from '../Reviewers/ReviewerManagement'
 import { CommunicationsCenter } from '../Communications/CommunicationsCenter'
+import { ApplicationContactPanel } from './ApplicationContactPanel'
 import { Circle, Folder, FolderOpen } from 'lucide-react'
 
 // Stage color palette - semantic colors for workflow stages
@@ -493,6 +494,10 @@ export function ReviewWorkspace({
   const setShowReviewersPanel = onToggleReviewersPanel || (() => setInternalShowReviewersPanel(!internalShowReviewersPanel))
   const showCommunicationsPanel = externalShowCommunicationsPanel !== undefined ? externalShowCommunicationsPanel : internalShowCommunicationsPanel
   const setShowCommunicationsPanel = onToggleCommunicationsPanel || (() => setInternalShowCommunicationsPanel(!internalShowCommunicationsPanel))
+  
+  // Contact panel state
+  const [contactPanelApp, setContactPanelApp] = useState<ApplicationData | null>(null)
+  
   const [selectedStageId, setSelectedStageId] = useState<string>('all')
   const [selectedAppIndex, setSelectedAppIndex] = useState(0)
   const [isReviewMode, setIsReviewMode] = useState(false)
@@ -1922,6 +1927,7 @@ export function ReviewWorkspace({
               onSelectStageGroup={setSelectedStageGroupId}
               onExecuteAction={handleExecuteAction}
               reviewersMap={reviewersMap}
+              onOpenContact={(app) => setContactPanelApp(app)}
             />
           )}
           
@@ -2039,6 +2045,16 @@ export function ReviewWorkspace({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Application Contact Panel - For individual applicant communication */}
+      {contactPanelApp && (
+        <ApplicationContactPanel
+          application={contactPanelApp}
+          workspaceId={workspaceId}
+          formId={formId}
+          onClose={() => setContactPanelApp(null)}
+        />
       )}
 
       {/* Bulk Assign Modal */}
@@ -2309,7 +2325,8 @@ function AccordionQueueView({
   selectedStageGroupId,
   onSelectStageGroup,
   onExecuteAction,
-  reviewersMap
+  reviewersMap,
+  onOpenContact
 }: {
   apps: ApplicationData[]
   selectedIndex: number
@@ -2333,6 +2350,7 @@ function AccordionQueueView({
   onSelectStageGroup?: (groupId: string | null) => void
   onExecuteAction?: (action: WorkflowAction | StageAction) => void
   reviewersMap?: Record<string, { name: string; email?: string; role?: string }>
+  onOpenContact?: (app: ApplicationData) => void
 }) {
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'data' | 'reviews'>('data')
@@ -2873,6 +2891,18 @@ function AccordionQueueView({
             </div>
             
             <div className="flex items-center gap-2">
+              {onOpenContact && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onOpenContact(selectedApp)}
+                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                >
+                  <MessageSquare className="w-4 h-4 mr-1.5" />
+                  Contact
+                </Button>
+              )}
+              
               {onDelete && (
                 <Button
                   size="sm"

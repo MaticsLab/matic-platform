@@ -644,7 +644,14 @@ function MemberCard({ member, hubs, onUpdateRole, onUpdateHubAccess, onRemove }:
               id={`member-${member.id}-all`}
               checked={hasAllAccess}
               onCheckedChange={(checked) => {
-                if (checked) handleSetAllAccess()
+                if (checked) {
+                  handleSetAllAccess()
+                } else {
+                  // Uncheck "All hubs" - select all hubs individually to start
+                  const allHubIds = hubs.map(h => h.id)
+                  setSelectedHubs(allHubIds)
+                  onUpdateHubAccess(member.id, allHubIds)
+                }
               }}
             />
             <Label htmlFor={`member-${member.id}-all`} className="text-xs cursor-pointer">
@@ -652,16 +659,21 @@ function MemberCard({ member, hubs, onUpdateRole, onUpdateHubAccess, onRemove }:
             </Label>
           </div>
 
-          {!hasAllAccess && hubs.map((hub) => (
+          {/* Always show hub list when expanded, disabled when hasAllAccess */}
+          {hubs.map((hub) => (
             <div key={hub.id} className="flex items-center space-x-2">
               <Checkbox
                 id={`member-${member.id}-hub-${hub.id}`}
-                checked={selectedHubs.includes(hub.id)}
+                checked={hasAllAccess || selectedHubs.includes(hub.id)}
+                disabled={hasAllAccess}
                 onCheckedChange={() => handleHubToggle(hub.id)}
               />
               <Label
                 htmlFor={`member-${member.id}-hub-${hub.id}`}
-                className="text-xs cursor-pointer"
+                className={cn(
+                  "text-xs cursor-pointer",
+                  hasAllAccess && "text-gray-400"
+                )}
               >
                 {hub.name}
               </Label>

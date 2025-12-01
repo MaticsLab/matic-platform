@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
+	"gorm.io/datatypes"
 )
 
 var gmailOAuthConfig *oauth2.Config
@@ -1194,4 +1196,116 @@ func DeleteSignature(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+// ==================== SUBMISSION EMAIL HISTORY ====================
+
+// GetSubmissionEmailHistory returns all emails sent to a specific submission/applicant
+func GetSubmissionEmailHistory(c *gin.Context) {
+	submissionID := c.Param("id")
+
+	if submissionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "submission_id is required"})
+		return
+	}
+
+	// First get the submission to find the recipient email
+	var submission struct {
+		ID   string         `gorm:"column:id"`
+		Data datatypes.JSON `gorm:"column:data"`
+	}
+	if err := database.DB.Table("table_rows").Select("id, data").Where("id = ?", submissionID).First(&submission).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
+		return
+	}
+
+	// Parse the data to find email
+	var data map[string]interface{}
+	if err := json.Unmarshal(submission.Data, &data); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse submission data"})
+		return
+	}
+
+	// Find email in the submission data
+	recipientEmail := findEmailInData(data)
+	if recipientEmail == "" {
+		// No email found, return empty array
+		c.JSON(http.StatusOK, []models.SentEmail{})
+		return
+	}
+
+	// Query for emails sent to this submission (by submission_id) OR this email address
+	var emails []models.SentEmail
+	database.DB.Where("submission_id = ? OR recipient_email = ?", submissionID, recipientEmail).
+		Order("sent_at DESC").
+		Find(&emails)
+
+	c.JSON(http.StatusOK, emails)
+}
+
+// GetSubmissionActivity returns activity log for a specific submission
+func GetSubmissionActivity(c *gin.Context) {
+	submissionID := c.Param("id")
+
+	if submissionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "submission_id is required"})
+		return
+	}
+
+	// Get emails sent to this submission
+	var emails []models.SentEmail
+	database.DB.Where("submission_id = ?", submissionID).
+		Order("sent_at DESC").
+		Limit(50).
+		Find(&emails)
+
+	// Build activity items from emails
+	type ActivityItem struct {
+		Type        string      `json:"type"`
+		Title       string      `json:"title"`
+		Description string      `json:"description"`
+		Timestamp   time.Time   `json:"timestamp"`
+		Data        interface{} `json:"data,omitempty"`
+	}
+
+	var activities []ActivityItem
+
+	for _, email := range emails {
+		activity := ActivityItem{
+			Type:        "email_sent",
+			Title:       "Email Sent",
+			Description: email.Subject,
+			Timestamp:   email.SentAt,
+			Data: map[string]interface{}{
+				"email_id":   email.ID,
+				"recipient":  email.RecipientEmail,
+				"status":     email.Status,
+				"opened_at":  email.OpenedAt,
+				"open_count": email.OpenCount,
+			},
+		}
+
+		// Update title/type based on email status
+		if email.OpenedAt != nil {
+			activities = append(activities, ActivityItem{
+				Type:        "email_opened",
+				Title:       "Email Opened",
+				Description: email.Subject,
+				Timestamp:   *email.OpenedAt,
+				Data: map[string]interface{}{
+					"email_id":   email.ID,
+					"open_count": email.OpenCount,
+				},
+			})
+		}
+
+		activities = append(activities, activity)
+	}
+
+	// Sort by timestamp descending
+	sort.Slice(activities, func(i, j int) bool {
+		return activities[i].Timestamp.After(activities[j].Timestamp)
+	})
+
+	c.JSON(http.StatusOK, activities)
 }
