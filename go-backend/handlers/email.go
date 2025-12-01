@@ -1505,12 +1505,20 @@ func GetSubmissionEmailHistory(c *gin.Context) {
 
 	// Also search Gmail for each recipient email
 	var gmailEmails []GmailEmail
+	fmt.Printf("[Email History] Gmail search check - workspaceID: '%s', recipientEmails count: %d\n", workspaceID, len(recipientEmails))
 	if workspaceID != "" && len(recipientEmails) > 0 {
+		fmt.Printf("[Email History] Starting Gmail search for %d emails\n", len(recipientEmails))
 		for _, email := range recipientEmails {
-			emails, _ := searchGmailForRecipient(workspaceID, email)
+			fmt.Printf("[Email History] Searching Gmail for: %s\n", email)
+			emails, err := searchGmailForRecipient(workspaceID, email)
+			if err != nil {
+				fmt.Printf("[Email History] Gmail search error: %v\n", err)
+			}
 			gmailEmails = append(gmailEmails, emails...)
 		}
 		fmt.Printf("[Email History] Found %d emails in Gmail\n", len(gmailEmails))
+	} else {
+		fmt.Printf("[Email History] Skipping Gmail search - workspaceID empty: %v, no emails: %v\n", workspaceID == "", len(recipientEmails) == 0)
 	}
 
 	// Combine results, deduplicating by gmail_message_id
