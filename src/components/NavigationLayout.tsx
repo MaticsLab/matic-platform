@@ -8,7 +8,8 @@ import { clearLastWorkspace } from '@/lib/utils'
 import { useWorkspaceDiscovery } from '@/hooks/useWorkspaceDiscovery'
 import { Sidebar } from './Sidebar'
 import { TabNavigation } from './TabNavigation'
-import { WorkspaceSettingsModal } from './WorkspaceSettingsModal'
+import { WorkspaceSettingsSidebar } from './WorkspaceSettingsSidebar'
+import { ProfileSidebar } from './ProfileSidebar'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { toast } from 'sonner'
 import type { Workspace } from '@/types/workspaces'
@@ -34,6 +35,7 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [showProfileSidebar, setShowProfileSidebar] = useState(false)
   const [fullWorkspace, setFullWorkspace] = useState<Workspace | null>(null)
   
   const { workspaces, currentWorkspace, setCurrentWorkspaceBySlug } = useWorkspaceDiscovery()
@@ -271,13 +273,13 @@ function NavigationLayoutInner({
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowProfileSidebar(true)}>
                     <User className="h-4 w-4 mr-2" />
                     My Profile
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleOpenSettings}>
                     <Settings className="h-4 w-4 mr-2" />
-                    Settings
+                    Workspace Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut} variant="destructive">
@@ -321,15 +323,21 @@ function NavigationLayoutInner({
         tabManager={tabManager}
       />
       
-      {/* Workspace Settings Modal */}
+      {/* Workspace Settings Sidebar */}
       {fullWorkspace && (
-        <WorkspaceSettingsModal
+        <WorkspaceSettingsSidebar
           isOpen={showSettingsModal}
           onClose={() => setShowSettingsModal(false)}
           workspace={fullWorkspace}
           onUpdate={handleWorkspaceUpdate}
         />
       )}
+
+      {/* Profile Sidebar */}
+      <ProfileSidebar
+        isOpen={showProfileSidebar}
+        onClose={() => setShowProfileSidebar(false)}
+      />
     </div>
   )
 }
