@@ -109,7 +109,9 @@ export function ApplicationContactPanel({
     if (!application.id) return
     setIsLoadingHistory(true)
     try {
+      console.log('[EmailHistory] Fetching for submission:', application.id, 'workspace:', workspaceId)
       const history = await emailClient.getSubmissionHistory(application.id, workspaceId)
+      console.log('[EmailHistory] Response:', history)
       setEmailHistory(history || [])
     } catch (error) {
       console.error('Failed to load email history:', error)
@@ -504,8 +506,11 @@ export function ApplicationContactPanel({
                         {email.opened_at && (
                           <span className="flex items-center gap-1 text-green-600">
                             <Eye className="w-3 h-3" />
-                            Opened {email.open_count}x
+                            Opened {email.open_count || 1}x
                           </span>
+                        )}
+                        {email.source === 'gmail' && (
+                          <span className="text-gray-400 text-xs">via Gmail</span>
                         )}
                       </div>
                     </div>

@@ -51,7 +51,7 @@ export interface SendEmailResponse {
 export interface SentEmail {
   id: string;
   campaign_id?: string;
-  workspace_id: string;
+  workspace_id?: string;
   form_id?: string;
   submission_id?: string;
   recipient_email: string;
@@ -63,17 +63,18 @@ export interface SentEmail {
   sender_name?: string;
   gmail_message_id?: string;
   gmail_thread_id?: string;
-  tracking_id: string;
-  status: 'sent' | 'delivered' | 'opened' | 'clicked' | 'bounced' | 'failed';
+  tracking_id?: string;
+  status: string; // 'sent' | 'delivered' | 'opened' | 'clicked' | 'bounced' | 'failed'
   opened_at?: string;
-  open_count: number;
+  open_count?: number;
   clicked_at?: string;
-  click_count: number;
+  click_count?: number;
   bounced_at?: string;
   bounce_reason?: string;
   sent_at: string;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
+  source?: string; // 'database' | 'gmail'
 }
 
 export interface EmailCampaign {
