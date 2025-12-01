@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { Save, Clock, History, Download, Moon, Sun } from 'lucide-react'
+import { Clock, History, Download } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Progress } from '@/ui-components/progress'
 import {
@@ -42,8 +41,6 @@ export function ProgressHeader({
   formName = 'Application',
   isExternal = false
 }: ProgressHeaderProps) {
-  const [highContrast, setHighContrast] = useState(false)
-
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
@@ -135,35 +132,6 @@ export function ProgressHeader({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-
-          {/* Save Version Button */}
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={onSave}
-            disabled={isSaving}
-          >
-            <Save className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Save Version</span>
-          </Button>
-
-          {/* Accessibility Toggle */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setHighContrast(!highContrast)
-              document.documentElement.classList.toggle('high-contrast')
-            }}
-            aria-label="Toggle high contrast mode"
-            title="Toggle high contrast mode"
-          >
-            {highContrast ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </Button>
 
           {/* Save & Exit */}
           <Button 

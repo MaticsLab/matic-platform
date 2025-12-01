@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { DndProvider } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { 
@@ -72,6 +72,11 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
   const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
   const [shareTabKey, setShareTabKey] = useState(0)
+  
+  // Track previous selected field for autosave on deselect
+  const previousSelectedFieldId = useRef<string | null>(null)
+  const configRef = useRef(config)
+  configRef.current = config
 
   const activeSection = config.sections.find(s => s.id === activeSectionId)
 
@@ -80,6 +85,30 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
       setRightSidebarTab('settings')
     }
   }, [selectedFieldId])
+
+  // Autosave when user clicks off a field (deselects it)
+  useEffect(() => {
+    // If we had a field selected before and now we don't (or selected a different one)
+    // and there are unsaved changes, trigger autosave
+    if (previousSelectedFieldId.current && previousSelectedFieldId.current !== selectedFieldId && hasUnsavedChanges && formId && !isSaving) {
+      // Trigger autosave
+      const autosave = async () => {
+        setIsSaving(true)
+        try {
+          await formsClient.updateStructure(formId, configRef.current)
+          setHasUnsavedChanges(false)
+          toast.success('Changes saved', { duration: 2000 })
+        } catch (error) {
+          console.error('Autosave failed:', error)
+          // Don't show error toast for autosave - user can manually save
+        } finally {
+          setIsSaving(false)
+        }
+      }
+      autosave()
+    }
+    previousSelectedFieldId.current = selectedFieldId
+  }, [selectedFieldId, formId, hasUnsavedChanges, isSaving])
 
   useEffect(() => {
     const loadForm = async () => {
