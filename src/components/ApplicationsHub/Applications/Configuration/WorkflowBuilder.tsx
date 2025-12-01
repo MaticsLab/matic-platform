@@ -1633,7 +1633,7 @@ function StageForm({
         custom_tags: customTags.length > 0 ? customTags : undefined,
         logic_rules: Object.keys(builtRules).length > 0 ? builtRules : undefined,
         hide_pii: hidePII,
-        hidden_pii_fields: hiddenPIIFields.length > 0 ? hiddenPIIFields : undefined,
+        hidden_pii_fields: hiddenPIIFields, // Always send the array
       }
       
       if (initial) {
@@ -5588,7 +5588,7 @@ function PrivacyStageSettings({
       try {
         await workflowsClient.updateStage(stage.id, {
           hide_pii: hidePII,
-          hidden_pii_fields: hiddenPIIFields.length > 0 ? hiddenPIIFields : undefined,
+          hidden_pii_fields: hiddenPIIFields, // Always send the array, even if empty
         })
         onSave()
       } catch (error: any) {
