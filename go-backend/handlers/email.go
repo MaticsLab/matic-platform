@@ -466,7 +466,11 @@ func SendEmail(c *gin.Context) {
 			sentEmail.GmailThreadID = sentMessage.ThreadId
 		}
 
-		database.DB.Create(&sentEmail)
+		if err := database.DB.Create(&sentEmail).Error; err != nil {
+			fmt.Printf("[Email] Failed to save sent email record: %v\n", err)
+		} else {
+			fmt.Printf("[Email] Saved sent email record: id=%s, recipient=%s, submission_id=%v\n", sentEmail.ID, sentEmail.RecipientEmail, sentEmail.SubmissionID)
+		}
 		sentEmails = append(sentEmails, sentEmail)
 	}
 
