@@ -1629,26 +1629,22 @@ func GetSubmissionEmailHistory(c *gin.Context) {
 
 	fmt.Printf("[Email History] Looking up emails for submission: %s, workspace: %s\n", submissionID, workspaceID)
 
-	// First get the submission to find the recipient email and workspace
+	// First get the submission to find the recipient email
+	// Note: table_rows doesn't have workspace_id column, so we get it from data_tables via table_id
 	var submission struct {
-		ID          string         `gorm:"column:id"`
-		Data        datatypes.JSON `gorm:"column:data"`
-		WorkspaceID *string        `gorm:"column:workspace_id"`
-		TableID     *string        `gorm:"column:table_id"`
+		ID      string         `gorm:"column:id"`
+		Data    datatypes.JSON `gorm:"column:data"`
+		TableID *string        `gorm:"column:table_id"`
 	}
-	if err := database.DB.Table("table_rows").Select("id, data, workspace_id, table_id").Where("id = ?", submissionID).First(&submission).Error; err != nil {
+	if err := database.DB.Table("table_rows").Select("id, data, table_id").Where("id = ?", submissionID).First(&submission).Error; err != nil {
 		fmt.Printf("[Email History] Submission not found: %s, error: %v\n", submissionID, err)
 		c.JSON(http.StatusOK, []interface{}{})
 		return
 	}
 
-	// Use workspace_id from query or submission
+	// Use workspace_id from query parameter, or look it up from the table
 	fmt.Printf("[Email History] Initial workspaceID from query: '%s'\n", workspaceID)
-	if workspaceID == "" && submission.WorkspaceID != nil {
-		workspaceID = *submission.WorkspaceID
-		fmt.Printf("[Email History] Got workspaceID from submission: '%s'\n", workspaceID)
-	}
-	// If still no workspace_id, try to get it from the table
+	// If no workspace_id from query, try to get it from the table
 	if workspaceID == "" && submission.TableID != nil {
 		var table struct {
 			WorkspaceID string `gorm:"column:workspace_id"`
