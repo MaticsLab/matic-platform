@@ -1417,17 +1417,21 @@ func GetSubmissionEmailHistory(c *gin.Context) {
 
 	// Query database for emails - search by submission_id OR any of the recipient emails
 	var dbEmails []models.SentEmail
+	query := database.DB.Debug() // Enable GORM debug mode to see actual SQL
 	if len(recipientEmails) > 0 {
-		database.DB.Where("submission_id = ? OR recipient_email IN ?", submissionID, recipientEmails).
+		query.Where("submission_id::text = ? OR LOWER(recipient_email) IN ?", submissionID, recipientEmails).
 			Order("sent_at DESC").
 			Find(&dbEmails)
 	} else {
-		database.DB.Where("submission_id = ?", submissionID).
+		query.Where("submission_id::text = ?", submissionID).
 			Order("sent_at DESC").
 			Find(&dbEmails)
 	}
 
 	fmt.Printf("[Email History] Found %d emails in database\n", len(dbEmails))
+	for i, e := range dbEmails {
+		fmt.Printf("[Email History] Email %d: id=%s, to=%s, subject=%s\n", i, e.ID, e.RecipientEmail, e.Subject)
+	}
 
 	// Also search Gmail for each recipient email
 	var gmailEmails []GmailEmail
