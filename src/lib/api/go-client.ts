@@ -43,6 +43,8 @@ export async function goFetch<T>(
   // Debug: log if token is missing
   if (!token) {
     console.warn('⚠️ No auth token available for request:', endpoint)
+  } else {
+    console.log('✅ Auth token present for request:', endpoint)
   }
 
   // Make request

@@ -115,12 +115,19 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
 
   const handleConnectGmail = async () => {
     setIsConnecting(true)
+    setSendResult(null)
     try {
+      console.log('Requesting Gmail auth URL for workspace:', workspaceId)
       const { auth_url } = await emailClient.getAuthUrl(workspaceId)
+      console.log('Got auth URL, redirecting...')
       // Open in popup or redirect
       window.location.href = auth_url
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to get Gmail auth URL:', error)
+      setSendResult({ 
+        success: false, 
+        message: error?.message || 'Failed to connect Gmail. Please make sure you are logged in.' 
+      })
       setIsConnecting(false)
     }
   }
