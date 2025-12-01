@@ -733,11 +733,16 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
            )
         }
 
+        // Layout fields (heading, paragraph, callout, divider) don't need a label wrapper
+        const isLayoutField = ['heading', 'paragraph', 'callout', 'divider'].includes(field.type)
+
         return (
           <div key={field.id} className="space-y-3">
-            <Label className="text-base font-medium">
-              {field.label} {isRequired && <span className="text-red-500">*</span>}
-            </Label>
+            {!isLayoutField && (
+              <Label className="text-base font-medium">
+                {field.label} {isRequired && <span className="text-red-500">*</span>}
+              </Label>
+            )}
             
             {field.type === 'text' && (
               <Input 

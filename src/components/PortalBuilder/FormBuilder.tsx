@@ -17,7 +17,7 @@ import { Switch } from '@/ui-components/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
 import { Textarea } from '@/ui-components/textarea'
 import { Section, Field, FieldType } from '@/types/portal'
-import { RichTextContent } from './RichTextEditor'
+import { RichTextContent, RichTextEditor } from './RichTextEditor'
 
 // Callout color configurations
 const CALLOUT_COLORS = {
@@ -356,10 +356,48 @@ function FieldEditor({
         const content = field.config?.content || field.label
         // Check if content has HTML tags (rich text)
         const isRichText = /<[a-z][\s\S]*>/i.test(content)
-        return isRichText ? (
-          <RichTextContent content={content} className="text-gray-600 text-sm" />
-        ) : (
-          <p className="text-gray-600 text-sm leading-relaxed">{content}</p>
+        
+        // If editing, show inline rich text editor
+        if (isEditingDescription) {
+          return (
+            <div className="min-h-[60px] border rounded-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <RichTextEditor
+                value={editedDescription}
+                onChange={setEditedDescription}
+                onBlur={() => {
+                  if (editedDescription !== (field.config?.content || field.label)) {
+                    onUpdateField(field.id, { 
+                      config: { ...field.config, content: editedDescription }
+                    })
+                  }
+                  setIsEditingDescription(false)
+                }}
+                placeholder="Click to add paragraph text..."
+                minHeight="60px"
+                autoFocus
+              />
+            </div>
+          )
+        }
+        
+        // Display mode - click to edit
+        return (
+          <div 
+            className="cursor-text hover:bg-gray-50 rounded px-2 py-1 -mx-2 transition-colors min-h-[40px]"
+            onClick={(e) => {
+              e.stopPropagation()
+              setEditedDescription(content)
+              setIsEditingDescription(true)
+            }}
+          >
+            {isRichText ? (
+              <RichTextContent content={content} className="text-gray-600 text-sm" />
+            ) : (
+              <p className="text-gray-600 text-sm leading-relaxed">
+                {content || <span className="text-gray-400 italic">Click to add paragraph text...</span>}
+              </p>
+            )}
+          </div>
         )
       }
         
