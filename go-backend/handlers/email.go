@@ -1460,6 +1460,115 @@ func searchGmailForRecipient(workspaceID string, recipientEmail string) ([]Gmail
 	return emails, nil
 }
 
+// searchGmailByThreads searches for all messages in specific threads
+func searchGmailByThreads(workspaceID string, threadIDs map[string]bool) ([]GmailEmail, error) {
+	if len(threadIDs) == 0 {
+		return nil, nil
+	}
+
+	// Get Gmail connection for this workspace
+	var connection models.GmailConnection
+	if err := database.DB.Where("workspace_id = ?", workspaceID).First(&connection).Error; err != nil {
+		return nil, nil
+	}
+
+	token := &oauth2.Token{
+		AccessToken:  connection.AccessToken,
+		RefreshToken: connection.RefreshToken,
+		Expiry:       connection.TokenExpiry,
+	}
+
+	config := getGmailConfig()
+	
+	// Refresh token if expired
+	if token.Expiry.Before(time.Now()) {
+		tokenSource := config.TokenSource(context.Background(), token)
+		newToken, err := tokenSource.Token()
+		if err != nil {
+			return nil, err
+		}
+		if newToken.AccessToken != token.AccessToken {
+			connection.AccessToken = newToken.AccessToken
+			connection.RefreshToken = newToken.RefreshToken
+			connection.TokenExpiry = newToken.Expiry
+			database.DB.Save(&connection)
+		}
+		token = newToken
+	}
+
+	client := config.Client(context.Background(), token)
+	gmailService, err := gmail.NewService(context.Background(), option.WithHTTPClient(client))
+	if err != nil {
+		return nil, err
+	}
+
+	var allEmails []GmailEmail
+	for threadID := range threadIDs {
+		fmt.Printf("[Gmail Thread Search] Getting thread: %s\n", threadID)
+		thread, err := gmailService.Users.Threads.Get("me", threadID).Format("full").Do()
+		if err != nil {
+			fmt.Printf("[Gmail Thread Search] Failed to get thread %s: %v\n", threadID, err)
+			continue
+		}
+
+		fmt.Printf("[Gmail Thread Search] Thread %s has %d messages\n", threadID, len(thread.Messages))
+		for _, msg := range thread.Messages {
+			email := GmailEmail{
+				ID:             msg.Id,
+				GmailMessageID: msg.Id,
+				GmailThreadID:  thread.Id,
+				Source:         "gmail",
+			}
+
+			// Parse headers
+			var fromEmail string
+			for _, header := range msg.Payload.Headers {
+				switch header.Name {
+				case "Subject":
+					email.Subject = header.Value
+				case "From":
+					fromEmail = header.Value
+					email.SenderEmail = header.Value
+				case "To":
+					email.RecipientEmail = header.Value
+				case "Message-ID", "Message-Id":
+					email.MessageID = header.Value
+				case "Date":
+					dateFormats := []string{
+						time.RFC1123Z,
+						"Mon, 2 Jan 2006 15:04:05 -0700",
+						"Mon, 2 Jan 2006 15:04:05 -0700 (MST)",
+						"2 Jan 2006 15:04:05 -0700",
+						time.RFC3339,
+					}
+					for _, format := range dateFormats {
+						if t, err := time.Parse(format, header.Value); err == nil {
+							email.SentAt = t
+							break
+						}
+					}
+				}
+			}
+
+			// Determine if sent or received based on connected email
+			if strings.Contains(strings.ToLower(fromEmail), strings.ToLower(connection.Email)) {
+				email.Status = "sent"
+			} else {
+				email.Status = "received"
+			}
+
+			email.Body = getEmailBody(msg.Payload)
+			if email.Body == "" {
+				email.Body = msg.Snippet
+			}
+
+			allEmails = append(allEmails, email)
+		}
+	}
+
+	return allEmails, nil
+}
+
 // getEmailBody extracts the email body from the message payload
 func getEmailBody(payload *gmail.MessagePart) string {
 	// Check if this part has a body
@@ -1577,7 +1686,15 @@ func GetSubmissionEmailHistory(c *gin.Context) {
 
 	fmt.Printf("[Email History] Found %d emails in database\n", len(dbEmails))
 	for i, e := range dbEmails {
-		fmt.Printf("[Email History] Email %d: id=%s, to=%s, subject=%s\n", i, e.ID, e.RecipientEmail, e.Subject)
+		fmt.Printf("[Email History] Email %d: id=%s, to=%s, subject=%s, thread=%s\n", i, e.ID, e.RecipientEmail, e.Subject, e.GmailThreadID)
+	}
+
+	// Collect thread IDs from database emails to search for replies
+	threadIDs := make(map[string]bool)
+	for _, e := range dbEmails {
+		if e.GmailThreadID != "" {
+			threadIDs[e.GmailThreadID] = true
+		}
 	}
 
 	// Also search Gmail for each recipient email
@@ -1594,6 +1711,18 @@ func GetSubmissionEmailHistory(c *gin.Context) {
 			gmailEmails = append(gmailEmails, emails...)
 		}
 		fmt.Printf("[Email History] Found %d emails in Gmail\n", len(gmailEmails))
+		
+		// Also search for any threads we know about (catches replies)
+		if len(threadIDs) > 0 {
+			fmt.Printf("[Email History] Also searching %d known threads for replies\n", len(threadIDs))
+			threadEmails, err := searchGmailByThreads(workspaceID, threadIDs)
+			if err != nil {
+				fmt.Printf("[Email History] Thread search error: %v\n", err)
+			} else {
+				fmt.Printf("[Email History] Found %d emails from thread search\n", len(threadEmails))
+				gmailEmails = append(gmailEmails, threadEmails...)
+			}
+		}
 	} else {
 		fmt.Printf("[Email History] Skipping Gmail search - workspaceID empty: %v, no emails: %v\n", workspaceID == "", len(recipientEmails) == 0)
 	}
