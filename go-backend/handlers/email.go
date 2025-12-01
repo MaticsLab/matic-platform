@@ -1200,34 +1200,146 @@ func DeleteSignature(c *gin.Context) {
 
 // ==================== SUBMISSION EMAIL HISTORY ====================
 
+// GmailEmail represents an email from Gmail API
+type GmailEmail struct {
+	ID             string     `json:"id"`
+	GmailMessageID string     `json:"gmail_message_id"`
+	Subject        string     `json:"subject"`
+	RecipientEmail string     `json:"recipient_email"`
+	SenderEmail    string     `json:"sender_email"`
+	Body           string     `json:"body"`
+	BodyHTML       string     `json:"body_html,omitempty"`
+	Status         string     `json:"status"`
+	SentAt         time.Time  `json:"sent_at"`
+	Source         string     `json:"source"` // "database" or "gmail"
+}
+
+// searchGmailForRecipient searches Gmail for emails sent to a specific recipient
+func searchGmailForRecipient(workspaceID string, recipientEmail string) ([]GmailEmail, error) {
+	if recipientEmail == "" {
+		return nil, nil
+	}
+
+	// Get Gmail connection for this workspace
+	var connection models.GmailConnection
+	if err := database.DB.Where("workspace_id = ?", workspaceID).First(&connection).Error; err != nil {
+		fmt.Printf("[Gmail Search] No Gmail connection for workspace %s\n", workspaceID)
+		return nil, nil // No connection, just return empty
+	}
+
+	// Create OAuth token
+	token := &oauth2.Token{
+		AccessToken:  connection.AccessToken,
+		RefreshToken: connection.RefreshToken,
+		Expiry:       connection.TokenExpiry,
+	}
+
+	config := getGmailConfig()
+	client := config.Client(context.Background(), token)
+	gmailService, err := gmail.NewService(context.Background(), option.WithHTTPClient(client))
+	if err != nil {
+		fmt.Printf("[Gmail Search] Failed to create Gmail service: %v\n", err)
+		return nil, err
+	}
+
+	// Search for emails sent to this recipient
+	query := fmt.Sprintf("to:%s in:sent", recipientEmail)
+	fmt.Printf("[Gmail Search] Searching with query: %s\n", query)
+
+	result, err := gmailService.Users.Messages.List("me").Q(query).MaxResults(50).Do()
+	if err != nil {
+		fmt.Printf("[Gmail Search] Search failed: %v\n", err)
+		return nil, err
+	}
+
+	fmt.Printf("[Gmail Search] Found %d messages\n", len(result.Messages))
+
+	var emails []GmailEmail
+	for _, msg := range result.Messages {
+		// Get full message details
+		fullMsg, err := gmailService.Users.Messages.Get("me", msg.Id).Format("full").Do()
+		if err != nil {
+			fmt.Printf("[Gmail Search] Failed to get message %s: %v\n", msg.Id, err)
+			continue
+		}
+
+		email := GmailEmail{
+			ID:             msg.Id,
+			GmailMessageID: msg.Id,
+			RecipientEmail: recipientEmail,
+			SenderEmail:    connection.Email,
+			Status:         "sent",
+			Source:         "gmail",
+		}
+
+		// Parse headers
+		for _, header := range fullMsg.Payload.Headers {
+			switch header.Name {
+			case "Subject":
+				email.Subject = header.Value
+			case "Date":
+				if t, err := time.Parse(time.RFC1123Z, header.Value); err == nil {
+					email.SentAt = t
+				} else if t, err := time.Parse("Mon, 2 Jan 2006 15:04:05 -0700", header.Value); err == nil {
+					email.SentAt = t
+				} else if t, err := time.Parse("Mon, 2 Jan 2006 15:04:05 -0700 (MST)", header.Value); err == nil {
+					email.SentAt = t
+				}
+			}
+		}
+
+		// Get snippet as body preview
+		email.Body = fullMsg.Snippet
+
+		emails = append(emails, email)
+	}
+
+	return emails, nil
+}
+
 // GetSubmissionEmailHistory returns all emails sent to a specific submission/applicant
 func GetSubmissionEmailHistory(c *gin.Context) {
 	submissionID := c.Param("id")
+	workspaceID := c.Query("workspace_id")
 
 	if submissionID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "submission_id is required"})
 		return
 	}
 
-	fmt.Printf("[Email History] Looking up emails for submission: %s\n", submissionID)
+	fmt.Printf("[Email History] Looking up emails for submission: %s, workspace: %s\n", submissionID, workspaceID)
 
-	// First get the submission to find the recipient email
+	// First get the submission to find the recipient email and workspace
 	var submission struct {
-		ID   string         `gorm:"column:id"`
-		Data datatypes.JSON `gorm:"column:data"`
+		ID          string         `gorm:"column:id"`
+		Data        datatypes.JSON `gorm:"column:data"`
+		WorkspaceID *string        `gorm:"column:workspace_id"`
+		TableID     *string        `gorm:"column:table_id"`
 	}
-	if err := database.DB.Table("table_rows").Select("id, data").Where("id = ?", submissionID).First(&submission).Error; err != nil {
+	if err := database.DB.Table("table_rows").Select("id, data, workspace_id, table_id").Where("id = ?", submissionID).First(&submission).Error; err != nil {
 		fmt.Printf("[Email History] Submission not found: %s, error: %v\n", submissionID, err)
-		// Return empty array instead of 404 - the submission might be from form_submissions table
-		c.JSON(http.StatusOK, []models.SentEmail{})
+		c.JSON(http.StatusOK, []interface{}{})
 		return
+	}
+
+	// Use workspace_id from query or submission
+	if workspaceID == "" && submission.WorkspaceID != nil {
+		workspaceID = *submission.WorkspaceID
+	}
+	// If still no workspace_id, try to get it from the table
+	if workspaceID == "" && submission.TableID != nil {
+		var table struct {
+			WorkspaceID string `gorm:"column:workspace_id"`
+		}
+		database.DB.Table("data_tables").Select("workspace_id").Where("id = ?", *submission.TableID).First(&table)
+		workspaceID = table.WorkspaceID
 	}
 
 	// Parse the data to find email
 	var data map[string]interface{}
 	if err := json.Unmarshal(submission.Data, &data); err != nil {
 		fmt.Printf("[Email History] Failed to parse submission data: %v\n", err)
-		c.JSON(http.StatusOK, []models.SentEmail{})
+		c.JSON(http.StatusOK, []interface{}{})
 		return
 	}
 
@@ -1235,21 +1347,49 @@ func GetSubmissionEmailHistory(c *gin.Context) {
 	recipientEmail := findEmailInData(data)
 	fmt.Printf("[Email History] Found recipient email: %s\n", recipientEmail)
 
-	// Query for emails sent to this submission (by submission_id) OR this email address
-	var emails []models.SentEmail
+	// Query database for emails
+	var dbEmails []models.SentEmail
 	if recipientEmail != "" {
 		database.DB.Where("submission_id = ? OR recipient_email = ?", submissionID, recipientEmail).
 			Order("sent_at DESC").
-			Find(&emails)
+			Find(&dbEmails)
 	} else {
 		database.DB.Where("submission_id = ?", submissionID).
 			Order("sent_at DESC").
-			Find(&emails)
+			Find(&dbEmails)
 	}
 
-	fmt.Printf("[Email History] Found %d emails\n", len(emails))
+	fmt.Printf("[Email History] Found %d emails in database\n", len(dbEmails))
 
-	c.JSON(http.StatusOK, emails)
+	// Also search Gmail if we have a workspace and recipient email
+	var gmailEmails []GmailEmail
+	if workspaceID != "" && recipientEmail != "" {
+		gmailEmails, _ = searchGmailForRecipient(workspaceID, recipientEmail)
+		fmt.Printf("[Email History] Found %d emails in Gmail\n", len(gmailEmails))
+	}
+
+	// Combine results, deduplicating by gmail_message_id
+	seenMessageIDs := make(map[string]bool)
+	var combinedEmails []interface{}
+
+	// Add database emails first (they have more metadata)
+	for _, email := range dbEmails {
+		if email.GmailMessageID != "" {
+			seenMessageIDs[email.GmailMessageID] = true
+		}
+		combinedEmails = append(combinedEmails, email)
+	}
+
+	// Add Gmail emails that aren't in database
+	for _, email := range gmailEmails {
+		if !seenMessageIDs[email.GmailMessageID] {
+			combinedEmails = append(combinedEmails, email)
+		}
+	}
+
+	fmt.Printf("[Email History] Returning %d total emails\n", len(combinedEmails))
+
+	c.JSON(http.StatusOK, combinedEmails)
 }
 
 // GetSubmissionActivity returns activity log for a specific submission

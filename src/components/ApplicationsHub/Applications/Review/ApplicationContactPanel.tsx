@@ -79,7 +79,7 @@ export function ApplicationContactPanel({
     if (!application.id) return
     setIsLoadingHistory(true)
     try {
-      const history = await emailClient.getSubmissionHistory(application.id)
+      const history = await emailClient.getSubmissionHistory(application.id, workspaceId)
       setEmailHistory(history || [])
     } catch (error) {
       console.error('Failed to load email history:', error)
@@ -87,14 +87,14 @@ export function ApplicationContactPanel({
     } finally {
       setIsLoadingHistory(false)
     }
-  }, [application.id])
+  }, [application.id, workspaceId])
 
   // Load activity log
   const loadActivity = useCallback(async () => {
     if (!application.id) return
     setIsLoadingActivity(true)
     try {
-      const activityLog = await emailClient.getSubmissionActivity(application.id)
+      const activityLog = await emailClient.getSubmissionActivity(application.id, workspaceId)
       setActivities(activityLog || [])
     } catch (error) {
       console.error('Failed to load activity:', error)
@@ -102,7 +102,7 @@ export function ApplicationContactPanel({
     } finally {
       setIsLoadingActivity(false)
     }
-  }, [application.id])
+  }, [application.id, workspaceId])
 
   // Load data when tab changes
   useEffect(() => {

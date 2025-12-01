@@ -238,11 +238,19 @@ export const emailClient = {
     }),
 
   // Submission-specific email history
-  getSubmissionHistory: (submissionId: string) =>
-    goFetch<SentEmail[]>(`/email/submission/${submissionId}/history`),
+  getSubmissionHistory: (submissionId: string, workspaceId?: string) => {
+    const params = new URLSearchParams();
+    if (workspaceId) params.append('workspace_id', workspaceId);
+    const query = params.toString() ? `?${params}` : '';
+    return goFetch<SentEmail[]>(`/email/submission/${submissionId}/history${query}`);
+  },
 
-  getSubmissionActivity: (submissionId: string) =>
-    goFetch<ActivityItem[]>(`/email/submission/${submissionId}/activity`),
+  getSubmissionActivity: (submissionId: string, workspaceId?: string) => {
+    const params = new URLSearchParams();
+    if (workspaceId) params.append('workspace_id', workspaceId);
+    const query = params.toString() ? `?${params}` : '';
+    return goFetch<ActivityItem[]>(`/email/submission/${submissionId}/activity${query}`);
+  },
 };
 
 // Activity types
