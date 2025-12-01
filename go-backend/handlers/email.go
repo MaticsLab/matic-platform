@@ -731,6 +731,60 @@ func getKeys(m map[string]interface{}) []string {
 	return keys
 }
 
+// findAllEmailsInData returns ALL email addresses found in the submission data
+func findAllEmailsInData(data map[string]interface{}) []string {
+	emails := make(map[string]bool) // Use map to deduplicate
+
+	// Common email field names - check _applicant_email first (stored by form submission)
+	emailFields := []string{"_applicant_email", "email", "Email", "EMAIL", "email_address", "emailAddress", "contact_email", "applicant_email", "work_email", "workEmail", "personal_email", "personalEmail", "secondary_email", "alternate_email"}
+	for _, field := range emailFields {
+		if val, ok := data[field]; ok {
+			if email, ok := val.(string); ok && strings.Contains(email, "@") {
+				emails[strings.ToLower(strings.TrimSpace(email))] = true
+			}
+		}
+	}
+
+	// Check nested personal.personalEmail
+	if personal, ok := data["personal"].(map[string]interface{}); ok {
+		if email, ok := personal["personalEmail"].(string); ok && strings.Contains(email, "@") {
+			emails[strings.ToLower(strings.TrimSpace(email))] = true
+		}
+		if email, ok := personal["email"].(string); ok && strings.Contains(email, "@") {
+			emails[strings.ToLower(strings.TrimSpace(email))] = true
+		}
+	}
+
+	// Search all fields for email-like values
+	for _, val := range data {
+		if str, ok := val.(string); ok && strings.Contains(str, "@") && strings.Contains(str, ".") {
+			// Basic email validation
+			str = strings.TrimSpace(str)
+			if len(str) > 5 && len(str) < 255 {
+				emails[strings.ToLower(str)] = true
+			}
+		}
+		// Check if value is a nested object that might contain emails
+		if nested, ok := val.(map[string]interface{}); ok {
+			for _, nestedVal := range nested {
+				if str, ok := nestedVal.(string); ok && strings.Contains(str, "@") && strings.Contains(str, ".") {
+					str = strings.TrimSpace(str)
+					if len(str) > 5 && len(str) < 255 {
+						emails[strings.ToLower(str)] = true
+					}
+				}
+			}
+		}
+	}
+
+	// Convert map to slice
+	result := make([]string, 0, len(emails))
+	for email := range emails {
+		result = append(result, email)
+	}
+	return result
+}
+
 func findEmailInData(data map[string]interface{}) string {
 	// Common email field names - check _applicant_email first (stored by form submission)
 	emailFields := []string{"_applicant_email", "email", "Email", "EMAIL", "email_address", "emailAddress", "contact_email", "applicant_email"}
@@ -1343,14 +1397,14 @@ func GetSubmissionEmailHistory(c *gin.Context) {
 		return
 	}
 
-	// Find email in the submission data
-	recipientEmail := findEmailInData(data)
-	fmt.Printf("[Email History] Found recipient email: %s\n", recipientEmail)
+	// Find ALL emails in the submission data (supports multiple email fields)
+	recipientEmails := findAllEmailsInData(data)
+	fmt.Printf("[Email History] Found %d recipient emails: %v\n", len(recipientEmails), recipientEmails)
 
-	// Query database for emails
+	// Query database for emails - search by submission_id OR any of the recipient emails
 	var dbEmails []models.SentEmail
-	if recipientEmail != "" {
-		database.DB.Where("submission_id = ? OR recipient_email = ?", submissionID, recipientEmail).
+	if len(recipientEmails) > 0 {
+		database.DB.Where("submission_id = ? OR recipient_email IN ?", submissionID, recipientEmails).
 			Order("sent_at DESC").
 			Find(&dbEmails)
 	} else {
@@ -1361,10 +1415,13 @@ func GetSubmissionEmailHistory(c *gin.Context) {
 
 	fmt.Printf("[Email History] Found %d emails in database\n", len(dbEmails))
 
-	// Also search Gmail if we have a workspace and recipient email
+	// Also search Gmail for each recipient email
 	var gmailEmails []GmailEmail
-	if workspaceID != "" && recipientEmail != "" {
-		gmailEmails, _ = searchGmailForRecipient(workspaceID, recipientEmail)
+	if workspaceID != "" && len(recipientEmails) > 0 {
+		for _, email := range recipientEmails {
+			emails, _ := searchGmailForRecipient(workspaceID, email)
+			gmailEmails = append(gmailEmails, emails...)
+		}
 		fmt.Printf("[Email History] Found %d emails in Gmail\n", len(gmailEmails))
 	}
 
@@ -1422,14 +1479,14 @@ func GetSubmissionActivity(c *gin.Context) {
 		return
 	}
 
-	// Find email in the submission data
-	recipientEmail := findEmailInData(data)
-	fmt.Printf("[Email Activity] Found recipient email: %s\n", recipientEmail)
+	// Find ALL emails in the submission data
+	recipientEmails := findAllEmailsInData(data)
+	fmt.Printf("[Email Activity] Found %d recipient emails: %v\n", len(recipientEmails), recipientEmails)
 
-	// Get emails sent to this submission (by submission_id OR email address)
+	// Get emails sent to this submission (by submission_id OR any email address)
 	var emails []models.SentEmail
-	if recipientEmail != "" {
-		database.DB.Where("submission_id = ? OR recipient_email = ?", submissionID, recipientEmail).
+	if len(recipientEmails) > 0 {
+		database.DB.Where("submission_id = ? OR recipient_email IN ?", submissionID, recipientEmails).
 			Order("sent_at DESC").
 			Limit(50).
 			Find(&emails)
