@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -22,6 +23,41 @@ import (
 )
 
 var gmailOAuthConfig *oauth2.Config
+
+// stripHTMLTags removes HTML tags from a string to create plain text version
+func stripHTMLTags(html string) string {
+	// Remove script and style content
+	reScript := regexp.MustCompile(`<script[^>]*>[\s\S]*?</script>`)
+	html = reScript.ReplaceAllString(html, "")
+	reStyle := regexp.MustCompile(`<style[^>]*>[\s\S]*?</style>`)
+	html = reStyle.ReplaceAllString(html, "")
+
+	// Replace br and p tags with newlines
+	html = strings.ReplaceAll(html, "<br>", "\n")
+	html = strings.ReplaceAll(html, "<br/>", "\n")
+	html = strings.ReplaceAll(html, "<br />", "\n")
+	html = strings.ReplaceAll(html, "</p>", "\n\n")
+	html = strings.ReplaceAll(html, "</div>", "\n")
+
+	// Remove all remaining HTML tags
+	reTags := regexp.MustCompile(`<[^>]*>`)
+	html = reTags.ReplaceAllString(html, "")
+
+	// Decode common HTML entities
+	html = strings.ReplaceAll(html, "&nbsp;", " ")
+	html = strings.ReplaceAll(html, "&amp;", "&")
+	html = strings.ReplaceAll(html, "&lt;", "<")
+	html = strings.ReplaceAll(html, "&gt;", ">")
+	html = strings.ReplaceAll(html, "&quot;", "\"")
+
+	// Trim excessive whitespace
+	reSpaces := regexp.MustCompile(`[ \t]+`)
+	html = reSpaces.ReplaceAllString(html, " ")
+	reNewlines := regexp.MustCompile(`\n{3,}`)
+	html = reNewlines.ReplaceAllString(html, "\n\n")
+
+	return strings.TrimSpace(html)
+}
 
 func init() {
 	// Initialize OAuth config - will be properly set when env vars are available
@@ -52,7 +88,7 @@ func getGmailConfig() *oauth2.Config {
 func GetGmailAuthURL(c *gin.Context) {
 	workspaceID := c.Query("workspace_id")
 	userID := c.Query("user_id")
-	
+
 	if workspaceID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id is required"})
 		return
@@ -102,7 +138,7 @@ func HandleGmailCallback(c *gin.Context) {
 		c.Redirect(http.StatusTemporaryRedirect, frontendURL+"/gmail-connected?error=invalid_workspace")
 		return
 	}
-	
+
 	userID := ""
 	if len(parts) > 1 {
 		userID = parts[1]
@@ -140,11 +176,11 @@ func HandleGmailCallback(c *gin.Context) {
 	} else {
 		// Create new connection
 		scopesJSON, _ := json.Marshal(config.Scopes)
-		
+
 		// Check if this is the first account (make it default)
 		var count int64
 		database.DB.Model(&models.GmailConnection{}).Where("workspace_id = ?", workspaceID).Count(&count)
-		
+
 		connection := models.GmailConnection{
 			WorkspaceID:    workspaceID,
 			UserID:         userID,
@@ -159,7 +195,8 @@ func HandleGmailCallback(c *gin.Context) {
 		}
 
 		if err := database.DB.Create(&connection).Error; err != nil {
-			c.Redirect(http.StatusTemporaryRedirect, frontendURL+"/gmail-connected?error=save_failed")
+			fmt.Printf("❌ Failed to save Gmail connection: %v\n", err)
+			c.Redirect(http.StatusTemporaryRedirect, frontendURL+"/gmail-connected?error=save_failed&details="+err.Error())
 			return
 		}
 	}
@@ -177,7 +214,7 @@ func GetGmailConnection(c *gin.Context) {
 
 	var connections []models.GmailConnection
 	database.DB.Where("workspace_id = ?", workspaceID).Find(&connections)
-	
+
 	if len(connections) == 0 {
 		c.JSON(http.StatusOK, gin.H{"connected": false, "accounts": []interface{}{}})
 		return
@@ -219,17 +256,22 @@ func DisconnectGmail(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
+// RecipientWithData represents a recipient with their submission data for merge tags
 // SendEmailRequest represents the request body for sending emails
 type SendEmailRequest struct {
-	FormID       string   `json:"form_id"`
-	Recipients   []string `json:"recipients"` // Can be email addresses or "all", "submitted", "approved", "rejected"
-	Subject      string   `json:"subject" binding:"required"`
-	Body         string   `json:"body" binding:"required"`
-	BodyHTML     string   `json:"body_html"`
-	MergeTags    bool     `json:"merge_tags"`
-	TrackOpens   bool     `json:"track_opens"`
-	SaveTemplate bool     `json:"save_template"`
-	TemplateName string   `json:"template_name"`
+	FormID          string   `json:"form_id"`
+	Recipients      []string `json:"recipients"`       // Can be "all", "submitted", "approved", "rejected"
+	RecipientEmails []string `json:"recipient_emails"` // Direct list of emails to send to
+	SubmissionIDs   []string `json:"submission_ids"`   // List of submission IDs - backend looks up data (secure)
+	EmailField      string   `json:"email_field"`      // Which field to use as the email address
+	Subject         string   `json:"subject" binding:"required"`
+	Body            string   `json:"body" binding:"required"`
+	BodyHTML        string   `json:"body_html"`
+	IsHTML          bool     `json:"is_html"` // If true, Body is HTML content
+	MergeTags       bool     `json:"merge_tags"`
+	TrackOpens      bool     `json:"track_opens"`
+	SaveTemplate    bool     `json:"save_template"`
+	TemplateName    string   `json:"template_name"`
 }
 
 // SendEmail sends emails via Gmail API
@@ -245,6 +287,10 @@ func SendEmail(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Debug logging
+	fmt.Printf("[Email] SendEmail called - FormID: %s, SubmissionIDs: %d, EmailField: %s, MergeTags: %v\n",
+		req.FormID, len(req.SubmissionIDs), req.EmailField, req.MergeTags)
 
 	// Get Gmail connection
 	var connection models.GmailConnection
@@ -268,11 +314,22 @@ func SendEmail(c *gin.Context) {
 		return
 	}
 
-	// Get recipients based on filter
-	recipients, err := getRecipients(req.FormID, req.Recipients)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	// Get recipients - prioritize submission_ids (secure server-side lookup)
+	var recipients []Recipient
+	if len(req.SubmissionIDs) > 0 {
+		// Look up submission data server-side (secure - doesn't expose data to frontend)
+		recipients = getRecipientsFromSubmissions(req.FormID, req.SubmissionIDs, req.EmailField)
+		fmt.Printf("[Email] Got %d recipients from submission IDs\n", len(recipients))
+	} else if len(req.RecipientEmails) > 0 {
+		// Direct email list provided - look up submission data for merge tags
+		recipients = getRecipientsWithData(req.FormID, req.RecipientEmails)
+	} else {
+		// Use filter-based recipients
+		recipients, err = getRecipients(req.FormID, req.Recipients)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	if len(recipients) == 0 {
@@ -280,16 +337,25 @@ func SendEmail(c *gin.Context) {
 		return
 	}
 
+	// Handle HTML content - if IsHTML is true, use Body as HTML
+	initialBodyHTML := req.BodyHTML
+	initialBodyPlain := req.Body
+	if req.IsHTML {
+		initialBodyHTML = req.Body
+		// Create plain text version by stripping tags (basic)
+		initialBodyPlain = stripHTMLTags(req.Body)
+	}
+
 	// Create campaign if sending to multiple recipients
 	var campaign *models.EmailCampaign
 	wsUUID, _ := uuid.Parse(workspaceID)
-	
+
 	if len(recipients) > 1 {
 		campaign = &models.EmailCampaign{
 			WorkspaceID: wsUUID,
 			Subject:     req.Subject,
-			Body:        req.Body,
-			BodyHTML:    req.BodyHTML,
+			Body:        initialBodyPlain,
+			BodyHTML:    initialBodyHTML,
 			SenderEmail: connection.Email,
 			Status:      "sending",
 		}
@@ -306,8 +372,8 @@ func SendEmail(c *gin.Context) {
 			WorkspaceID: wsUUID,
 			Name:        req.TemplateName,
 			Subject:     req.Subject,
-			Body:        req.Body,
-			BodyHTML:    req.BodyHTML,
+			Body:        initialBodyPlain,
+			BodyHTML:    initialBodyHTML,
 			Type:        "manual",
 		}
 		if req.FormID != "" {
@@ -331,13 +397,20 @@ func SendEmail(c *gin.Context) {
 
 		// Process merge tags if enabled
 		subject := req.Subject
-		body := req.Body
-		bodyHTML := req.BodyHTML
+		body := initialBodyPlain
+		bodyHTML := initialBodyHTML
+
+		fmt.Printf("[Email] Processing recipient %s, MergeTags=%v, SubmissionData=%v\n",
+			recipient.Email, req.MergeTags, recipient.SubmissionData != nil)
 
 		if req.MergeTags && recipient.SubmissionData != nil {
+			fmt.Printf("[Email] Applying merge tags for %s with data: %v\n", recipient.Email, getKeys(recipient.SubmissionData))
 			subject = processMergeTags(subject, recipient.SubmissionData)
 			body = processMergeTags(body, recipient.SubmissionData)
 			bodyHTML = processMergeTags(bodyHTML, recipient.SubmissionData)
+			fmt.Printf("[Email] After merge - Subject: %s\n", subject)
+		} else if req.MergeTags {
+			fmt.Printf("[Email] MergeTags enabled but no SubmissionData for %s\n", recipient.Email)
 		}
 
 		// Add tracking pixel if enabled
@@ -357,7 +430,7 @@ func SendEmail(c *gin.Context) {
 
 		// Send via Gmail
 		sentMessage, err := gmailService.Users.Messages.Send("me", &message).Do()
-		
+
 		sentEmail := models.SentEmail{
 			WorkspaceID:    wsUUID,
 			RecipientEmail: recipient.Email,
@@ -491,20 +564,195 @@ func getRecipients(formID string, recipientFilters []string) ([]Recipient, error
 	return recipients, nil
 }
 
+// getRecipientsFromSubmissions looks up submission data by submission IDs (secure server-side lookup)
+func getRecipientsFromSubmissions(formID string, submissionIDs []string, emailField string) []Recipient {
+	var recipients []Recipient
+
+	fmt.Printf("[Email] getRecipientsFromSubmissions called with formID=%s, %d submissionIDs, emailField=%s\n", formID, len(submissionIDs), emailField)
+
+	if len(submissionIDs) == 0 {
+		return recipients
+	}
+
+	// Query submissions by their IDs
+	var rows []models.Row
+	if err := database.DB.Where("id IN ?", submissionIDs).Find(&rows).Error; err != nil {
+		fmt.Printf("[Email] Error querying rows by IDs: %v\n", err)
+		return recipients
+	}
+
+	fmt.Printf("[Email] Found %d rows\n", len(rows))
+
+	for _, row := range rows {
+		var rowData map[string]interface{}
+		if err := json.Unmarshal(row.Data, &rowData); err != nil {
+			fmt.Printf("[Email] Error unmarshaling row data for %s: %v\n", row.ID, err)
+			continue
+		}
+
+		// Find email - use specified emailField if provided, otherwise auto-detect
+		var email string
+		if emailField != "" {
+			// Use the specified field
+			if val, ok := rowData[emailField]; ok {
+				email = fmt.Sprintf("%v", val)
+			}
+			fmt.Printf("[Email] Using specified field '%s': %s\n", emailField, email)
+		} else {
+			// Auto-detect email field
+			email = findEmailInData(rowData)
+			fmt.Printf("[Email] Auto-detected email: %s\n", email)
+		}
+
+		if email == "" || !strings.Contains(email, "@") {
+			fmt.Printf("[Email] No valid email found for submission %s\n", row.ID)
+			continue
+		}
+
+		// Find name from data
+		name := findNameInData(rowData)
+
+		recipients = append(recipients, Recipient{
+			Email:          email,
+			Name:           name,
+			SubmissionID:   row.ID.String(),
+			SubmissionData: rowData,
+		})
+
+		fmt.Printf("[Email] Added recipient: %s <%s> with %d data fields\n", name, email, len(rowData))
+	}
+
+	return recipients
+}
+
+// getRecipientsWithData looks up submission data for a list of email addresses
+func getRecipientsWithData(formID string, emails []string) []Recipient {
+	var recipients []Recipient
+
+	fmt.Printf("[Email] getRecipientsWithData called with formID=%s, emails=%v\n", formID, emails)
+
+	// If no formID, we can't look up submission data
+	if formID == "" {
+		fmt.Println("[Email] No formID provided, returning emails without data")
+		for _, email := range emails {
+			if strings.Contains(email, "@") {
+				recipients = append(recipients, Recipient{Email: email})
+			}
+		}
+		return recipients
+	}
+
+	// Query all submissions for this form
+	var rows []models.Row
+	if err := database.DB.Where("table_id = ?", formID).Find(&rows).Error; err != nil {
+		fmt.Printf("[Email] Error querying rows: %v\n", err)
+		// If query fails, just return emails without data
+		for _, email := range emails {
+			if strings.Contains(email, "@") {
+				recipients = append(recipients, Recipient{Email: email})
+			}
+		}
+		return recipients
+	}
+
+	fmt.Printf("[Email] Found %d rows for form %s\n", len(rows), formID)
+
+	// Create a map of email -> submission data
+	emailToData := make(map[string]struct {
+		rowID string
+		data  map[string]interface{}
+		name  string
+	})
+
+	for _, row := range rows {
+		var rowData map[string]interface{}
+		if err := json.Unmarshal(row.Data, &rowData); err != nil {
+			fmt.Printf("[Email] Error unmarshaling row data: %v\n", err)
+			continue
+		}
+
+		fmt.Printf("[Email] Row %s data keys: %v\n", row.ID, getKeys(rowData))
+
+		// Find email in this row
+		rowEmail := findEmailInData(rowData)
+		if rowEmail == "" {
+			fmt.Printf("[Email] No email found in row %s\n", row.ID)
+			continue
+		}
+
+		fmt.Printf("[Email] Found email %s in row %s\n", rowEmail, row.ID)
+
+		// Store the mapping (lowercase for case-insensitive match)
+		emailToData[strings.ToLower(rowEmail)] = struct {
+			rowID string
+			data  map[string]interface{}
+			name  string
+		}{
+			rowID: row.ID.String(),
+			data:  rowData,
+			name:  findNameInData(rowData),
+		}
+	}
+
+	fmt.Printf("[Email] Email to data map has %d entries\n", len(emailToData))
+
+	// Build recipients with their data
+	for _, email := range emails {
+		if !strings.Contains(email, "@") {
+			continue
+		}
+
+		recipient := Recipient{Email: email}
+
+		// Look up submission data by email (case-insensitive)
+		if subData, found := emailToData[strings.ToLower(email)]; found {
+			fmt.Printf("[Email] Found data for %s: %v\n", email, getKeys(subData.data))
+			recipient.Name = subData.name
+			recipient.SubmissionID = subData.rowID
+			recipient.SubmissionData = subData.data
+		} else {
+			fmt.Printf("[Email] No data found for email %s\n", email)
+		}
+
+		recipients = append(recipients, recipient)
+	}
+
+	return recipients
+}
+
+// Helper to get map keys for logging
+func getKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func findEmailInData(data map[string]interface{}) string {
-	// Common email field names
-	emailFields := []string{"email", "Email", "EMAIL", "email_address", "emailAddress", "contact_email", "applicant_email"}
+	// Common email field names - check _applicant_email first (stored by form submission)
+	emailFields := []string{"_applicant_email", "email", "Email", "EMAIL", "email_address", "emailAddress", "contact_email", "applicant_email"}
 	for _, field := range emailFields {
 		if val, ok := data[field]; ok {
 			if email, ok := val.(string); ok && strings.Contains(email, "@") {
+				fmt.Printf("[Email] Found email in field %s: %s\n", field, email)
 				return email
 			}
 		}
 	}
 
+	// Check nested personal.personalEmail
+	if personal, ok := data["personal"].(map[string]interface{}); ok {
+		if email, ok := personal["personalEmail"].(string); ok && strings.Contains(email, "@") {
+			fmt.Printf("[Email] Found email in personal.personalEmail: %s\n", email)
+			return email
+		}
+	}
+
 	// Search all fields for email-like values
-	for _, val := range data {
+	for key, val := range data {
 		if str, ok := val.(string); ok && strings.Contains(str, "@") && strings.Contains(str, ".") {
+			fmt.Printf("[Email] Found email-like value in field %s: %s\n", key, str)
 			return str
 		}
 	}
@@ -526,23 +774,73 @@ func findNameInData(data map[string]interface{}) string {
 }
 
 func processMergeTags(content string, data map[string]interface{}) string {
+	fmt.Printf("[Email] processMergeTags called with content length=%d, data keys=%v\n", len(content), getKeys(data))
+
+	// First, try exact key matches
 	for key, val := range data {
 		tag := fmt.Sprintf("{{%s}}", key)
 		if str, ok := val.(string); ok {
+			if strings.Contains(content, tag) {
+				fmt.Printf("[Email] Replacing %s with %s\n", tag, str)
+			}
 			content = strings.ReplaceAll(content, tag, str)
-		} else {
+		} else if val != nil {
 			valStr := fmt.Sprintf("%v", val)
 			content = strings.ReplaceAll(content, tag, valStr)
 		}
 	}
+
+	// Also try matching with normalized keys (replace spaces/underscores)
+	// This handles cases like {{First Name}} matching first_name or firstName
+	tagRegex := regexp.MustCompile(`\{\{([^}]+)\}\}`)
+	matches := tagRegex.FindAllStringSubmatch(content, -1)
+
+	for _, match := range matches {
+		if len(match) < 2 {
+			continue
+		}
+		tagName := match[1] // e.g., "First Name"
+		fullTag := match[0] // e.g., "{{First Name}}"
+
+		// Try to find a matching key in data
+		normalizedTagName := normalizeFieldName(tagName)
+
+		for key, val := range data {
+			normalizedKey := normalizeFieldName(key)
+
+			if normalizedTagName == normalizedKey {
+				var valStr string
+				if str, ok := val.(string); ok {
+					valStr = str
+				} else if val != nil {
+					valStr = fmt.Sprintf("%v", val)
+				}
+				fmt.Printf("[Email] Fuzzy match: %s -> %s = %s\n", fullTag, key, valStr)
+				content = strings.ReplaceAll(content, fullTag, valStr)
+				break
+			}
+		}
+	}
+
 	return content
+}
+
+// normalizeFieldName converts field names to a standard format for comparison
+func normalizeFieldName(name string) string {
+	// Convert to lowercase
+	name = strings.ToLower(name)
+	// Remove spaces, underscores, dashes
+	name = strings.ReplaceAll(name, " ", "")
+	name = strings.ReplaceAll(name, "_", "")
+	name = strings.ReplaceAll(name, "-", "")
+	return name
 }
 
 func createMIMEMessage(from, to, toName, subject, textBody, htmlBody string) string {
 	boundary := "boundary_" + uuid.New().String()
 
 	var sb strings.Builder
-	
+
 	// Headers
 	if toName != "" {
 		sb.WriteString(fmt.Sprintf("To: %s <%s>\r\n", toName, to))
@@ -704,7 +1002,7 @@ func CreateEmailTemplate(c *gin.Context) {
 // UpdateEmailTemplate updates an email template
 func UpdateEmailTemplate(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	var template models.EmailTemplate
 	if err := database.DB.First(&template, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Template not found"})
@@ -723,7 +1021,7 @@ func UpdateEmailTemplate(c *gin.Context) {
 // DeleteEmailTemplate deletes an email template
 func DeleteEmailTemplate(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	if err := database.DB.Delete(&models.EmailTemplate{}, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete template"})
 		return

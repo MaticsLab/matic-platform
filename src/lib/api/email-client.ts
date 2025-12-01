@@ -24,10 +24,14 @@ export interface GmailConnection {
 
 export interface SendEmailRequest {
   form_id?: string;
-  recipients: string[];
+  recipients?: string[];
+  recipient_emails?: string[]; // Direct list of emails to send to
+  submission_ids?: string[]; // Submission IDs - backend looks up data securely
+  email_field?: string; // Which field to use as the email address
   subject: string;
   body: string;
   body_html?: string;
+  is_html?: boolean; // Flag to indicate body is HTML
   merge_tags?: boolean;
   track_opens?: boolean;
   save_template?: boolean;

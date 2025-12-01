@@ -1,27 +1,82 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Mail, Send, Clock, FileText, Users, ChevronRight, Plus, Tag, Link2, CheckCircle, AlertCircle, Eye, RefreshCw, Trash2, Settings } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Mail, Send, Clock, FileText, Users, ChevronRight, Plus, Tag, Link2, CheckCircle, AlertCircle, Eye, RefreshCw, Trash2, Settings, ChevronDown, Search, X, Layers, Folder, User } from 'lucide-react'
 import { goClient } from '@/lib/api/go-client'
 import { emailClient, GmailConnection, SentEmail, EmailTemplate, SendEmailRequest } from '@/lib/api/email-client'
 import { Form, FormField, FormSubmission } from '@/types/forms'
 import { EmailSettingsDialog } from './EmailSettingsDialog'
+import { RichTextEditor } from '@/components/PortalBuilder/RichTextEditor'
+import { workflowsClient, ApplicationStage, ReviewWorkflow } from '@/lib/api/workflows-client'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/ui-components/popover'
+import { Input } from '@/ui-components/input'
+import { Checkbox } from '@/ui-components/checkbox'
+
+// Types for recipient selection
+interface ApplicationGroup {
+  id: string
+  name: string
+  description?: string
+  color: string
+  icon: string
+}
+
+interface StageGroup {
+  id: string
+  stage_id: string
+  name: string
+  description?: string
+  color: string
+}
+
+interface Recipient {
+  id: string
+  name: string
+  email: string
+  stage_id?: string
+  stage_name?: string
+  group_id?: string
+  group_name?: string
+}
 
 interface CommunicationsCenterProps {
   workspaceId: string
   formId: string | null
+  workflowId?: string | null
 }
 
-export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCenterProps) {
+type RecipientMode = 'filter' | 'individual'
+
+export function CommunicationsCenter({ workspaceId, formId, workflowId }: CommunicationsCenterProps) {
   const [activeView, setActiveView] = useState<'compose' | 'templates' | 'history'>('compose')
   const [fields, setFields] = useState<FormField[]>([])
   const [submissions, setSubmissions] = useState<FormSubmission[]>([])
-  const [recipientFilter, setRecipientFilter] = useState<'all' | 'submitted' | 'approved' | 'rejected'>('all')
   const [messageBody, setMessageBody] = useState('')
   const [subject, setSubject] = useState('')
   const [trackOpens, setTrackOpens] = useState(true)
   const [isSending, setIsSending] = useState(false)
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string } | null>(null)
+
+  // Recipient selection state
+  const [recipientMode, setRecipientMode] = useState<RecipientMode>('filter')
+  const [selectedStageIds, setSelectedStageIds] = useState<string[]>([])
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([])
+  const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([])
+  const [recipientSearch, setRecipientSearch] = useState('')
+
+  // Email field selection - which field contains the recipient's email
+  const [selectedEmailField, setSelectedEmailField] = useState<string>('')
+  const [emailFieldOptions, setEmailFieldOptions] = useState<{ value: string; label: string }[]>([])
+
+  // Workflow data
+  const [stages, setStages] = useState<ApplicationStage[]>([])
+  const [groups, setGroups] = useState<ApplicationGroup[]>([])
+  const [recipients, setRecipients] = useState<Recipient[]>([])
+  const [isLoadingWorkflow, setIsLoadingWorkflow] = useState(false)
 
   // Gmail connection state
   const [gmailConnection, setGmailConnection] = useState<GmailConnection | null>(null)
@@ -58,7 +113,7 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
     checkConnection()
   }, [workspaceId])
 
-  // Fetch form data
+  // Fetch form data and build recipients
   useEffect(() => {
     const fetchData = async () => {
       if (!formId) return
@@ -68,12 +123,90 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
         
         const subs = await goClient.get<FormSubmission[]>(`/forms/${formId}/submissions`)
         setSubmissions(subs || [])
+
+        // Build email field options from form fields
+        const emailFields: { value: string; label: string }[] = []
+        const addedKeys = new Set<string>() // Track keys we've already added
+        
+        // Add auto-detect option
+        emailFields.push({ value: '', label: 'Auto-detect email field' })
+        
+        // Check submission data for email fields (use actual data keys)
+        if (subs && subs.length > 0) {
+          const sampleData = subs[0].data || {}
+          Object.keys(sampleData).forEach(key => {
+            const value = String(sampleData[key] || '')
+            const keyLower = key.toLowerCase()
+            // Include if it contains @ or the key name suggests it's an email
+            if ((value.includes('@') || keyLower.includes('email')) && !addedKeys.has(key)) {
+              // Find matching form field for a nicer label
+              const matchingField = form.fields?.find(f => 
+                f.id === key || 
+                f.label?.toLowerCase().replace(/\s+/g, '_') === keyLower ||
+                f.label?.toLowerCase().replace(/\s+/g, '') === keyLower.replace(/_/g, '')
+              )
+              const label = matchingField?.label || key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+              emailFields.push({ value: key, label })
+              addedKeys.add(key)
+            }
+          })
+        }
+        
+        setEmailFieldOptions(emailFields)
+
+        // Build recipient list from submissions using selected email field
+        const recipientList: Recipient[] = (subs || []).map(sub => {
+          const data = sub.data || {}
+          const nameField = Object.keys(data).find(k => 
+            k.toLowerCase().includes('name') || 
+            k.toLowerCase() === 'full name' ||
+            k.toLowerCase() === 'first name'
+          )
+          const emailFieldKey = Object.keys(data).find(k => 
+            k.toLowerCase().includes('email')
+          )
+          
+          return {
+            id: sub.id,
+            name: nameField ? String(data[nameField]) : 'Unknown',
+            email: emailFieldKey ? String(data[emailFieldKey]) : sub.email || 'No email',
+            stage_id: (sub as any).stage_id,
+            stage_name: (sub as any).stage_name,
+            group_id: (sub as any).group_id,
+            group_name: (sub as any).group_name,
+          }
+        })
+        setRecipients(recipientList)
       } catch (error) {
         console.error('Failed to fetch form data:', error)
       }
     }
     fetchData()
   }, [formId])
+
+  // Fetch workflow stages and groups
+  useEffect(() => {
+    const fetchWorkflowData = async () => {
+      if (!workspaceId) return
+      setIsLoadingWorkflow(true)
+      try {
+        // Fetch stages
+        const stagesData = await workflowsClient.listStages(workspaceId, workflowId || undefined)
+        setStages(stagesData || [])
+
+        // Fetch groups (application groups)
+        if (workflowId) {
+          const groupsData = await workflowsClient.listGroups(workflowId)
+          setGroups(groupsData || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch workflow data:', error)
+      } finally {
+        setIsLoadingWorkflow(false)
+      }
+    }
+    fetchWorkflowData()
+  }, [workspaceId, workflowId])
 
   // Fetch email history when tab is active
   useEffect(() => {
@@ -142,13 +275,85 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
     }
   }
 
+  // Filter recipients based on search and selection
+  const filteredRecipients = useMemo(() => {
+    let filtered = recipients
+
+    // Apply search filter
+    if (recipientSearch) {
+      const search = recipientSearch.toLowerCase()
+      filtered = filtered.filter(r => 
+        r.name.toLowerCase().includes(search) || 
+        r.email.toLowerCase().includes(search)
+      )
+    }
+
+    // Apply stage filter
+    if (selectedStageIds.length > 0) {
+      filtered = filtered.filter(r => r.stage_id && selectedStageIds.includes(r.stage_id))
+    }
+
+    // Apply group filter
+    if (selectedGroupIds.length > 0) {
+      filtered = filtered.filter(r => r.group_id && selectedGroupIds.includes(r.group_id))
+    }
+
+    return filtered
+  }, [recipients, recipientSearch, selectedStageIds, selectedGroupIds])
+
+  // Get count of selected recipients
   const getRecipientCount = () => {
-    if (recipientFilter === 'all') return submissions.length
-    return submissions.filter(s => s.status === recipientFilter).length
+    if (recipientMode === 'individual') {
+      return selectedRecipientIds.length
+    }
+    // Filter mode - count based on stage/group filters
+    if (selectedStageIds.length === 0 && selectedGroupIds.length === 0) {
+      return recipients.length // All recipients
+    }
+    return filteredRecipients.length
+  }
+
+  // Get actual recipient emails for sending
+  const getSelectedRecipients = () => {
+    if (recipientMode === 'individual') {
+      return recipients.filter(r => selectedRecipientIds.includes(r.id))
+    }
+    if (selectedStageIds.length === 0 && selectedGroupIds.length === 0) {
+      return recipients
+    }
+    return filteredRecipients
+  }
+
+  const toggleRecipient = (id: string) => {
+    setSelectedRecipientIds(prev => 
+      prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]
+    )
+  }
+
+  const selectAllRecipients = () => {
+    setSelectedRecipientIds(filteredRecipients.map(r => r.id))
+  }
+
+  const clearAllRecipients = () => {
+    setSelectedRecipientIds([])
+  }
+
+  const toggleStage = (stageId: string) => {
+    setSelectedStageIds(prev => 
+      prev.includes(stageId) ? prev.filter(s => s !== stageId) : [...prev, stageId]
+    )
+  }
+
+  const toggleGroup = (groupId: string) => {
+    setSelectedGroupIds(prev => 
+      prev.includes(groupId) ? prev.filter(g => g !== groupId) : [...prev, groupId]
+    )
   }
 
   const insertMergeTag = (tagName: string) => {
-    setMessageBody(prev => prev + `{{${tagName}}} `)
+    // For HTML editor, we insert the merge tag as text
+    // The RichTextEditor will handle it properly
+    setMessageBody(prev => prev + `{{${tagName}}}`)
   }
 
   const handleSend = async () => {
@@ -164,7 +369,7 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
 
     const recipientCount = getRecipientCount()
     if (recipientCount === 0) {
-      setSendResult({ success: false, message: 'No recipients found for the selected filter.' })
+      setSendResult({ success: false, message: 'No recipients selected.' })
       return
     }
 
@@ -172,11 +377,25 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
     setSendResult(null)
 
     try {
+      // Get selected recipients - we only send their IDs (secure)
+      const selectedRecipientsList = getSelectedRecipients()
+      const submissionIds = selectedRecipientsList.map(r => r.id)
+      
+      console.log('[CommunicationsCenter] Sending email with:', {
+        formId,
+        submissionIds,
+        emailField: selectedEmailField,
+        recipientCount: submissionIds.length,
+        mergeTags: true,
+      })
+      
       const request: SendEmailRequest = {
         form_id: formId || undefined,
-        recipients: [recipientFilter],
+        submission_ids: submissionIds, // Send only IDs - backend looks up data securely
+        email_field: selectedEmailField || undefined, // Which field to use for email
         subject: subject,
         body: messageBody,
+        is_html: true, // RichTextEditor produces HTML
         merge_tags: true,
         track_opens: trackOpens,
       }
@@ -187,6 +406,8 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
         setSendResult({ success: true, message: `Successfully sent ${result.sent_count} emails!` })
         setSubject('')
         setMessageBody('')
+        // Clear recipient selections
+        setSelectedRecipientIds([])
       } else {
         setSendResult({ 
           success: false, 
@@ -276,7 +497,7 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
     )
   }
 
-  // Gmail Connection Banner
+  // Gmail Connection Banner (only shown when not connected)
   const renderConnectionBanner = () => {
     if (isCheckingConnection) {
       return (
@@ -317,31 +538,8 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
       )
     }
 
-    return (
-      <div className="bg-green-50 border-b border-green-200 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <CheckCircle className="w-5 h-5 text-green-600" />
-          <span className="text-sm text-green-800">
-            Connected as <strong>{gmailConnection.email}</strong>
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowSettingsDialog(true)}
-            className="px-3 py-1 text-sm text-green-700 hover:bg-green-100 rounded-lg flex items-center gap-1"
-          >
-            <Settings className="w-4 h-4" />
-            Settings
-          </button>
-          <button
-            onClick={handleDisconnectGmail}
-            className="px-3 py-1 text-sm text-green-700 hover:bg-green-100 rounded-lg"
-          >
-            Disconnect
-          </button>
-        </div>
-      </div>
-    )
+    // When connected, don't show a banner - Settings is in the sidebar
+    return null
   }
 
   return (
@@ -361,6 +559,11 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
               <Plus className="w-4 h-4" />
               New Message
             </button>
+            {gmailConnection?.connected && gmailConnection.email && (
+              <div className="mt-2 text-xs text-gray-500 text-center truncate">
+                Sending as {gmailConnection.email}
+              </div>
+            )}
           </div>
 
           <nav className="flex-1 px-2 space-y-1">
@@ -392,6 +595,19 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
               History
             </button>
           </nav>
+
+          {/* Settings at bottom of sidebar */}
+          {gmailConnection?.connected && (
+            <div className="p-2 border-t border-gray-200">
+              <button
+                onClick={() => setShowSettingsDialog(true)}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <Settings className="w-4 h-4" />
+                Email Settings
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Main Content */}
@@ -451,47 +667,214 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
               <div className="flex-1 overflow-y-auto p-6">
                 <div className="max-w-3xl mx-auto space-y-6">
                   {/* Recipients */}
-                  <div className="bg-white rounded-lg border border-gray-200 p-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Recipients</label>
-                    <div className="flex flex-wrap gap-2">
-                      <button 
-                        onClick={() => setRecipientFilter('all')}
-                        className={`px-3 py-1 rounded-full text-sm font-medium border flex items-center gap-1 transition-colors ${
-                          recipientFilter === 'all' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        <Users className="w-3 h-3" />
-                        All Applicants
-                      </button>
-                      <button 
-                        onClick={() => setRecipientFilter('submitted')}
-                        className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
-                          recipientFilter === 'submitted' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        Submitted Only
-                      </button>
-                      <button 
-                        onClick={() => setRecipientFilter('approved')}
-                        className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
-                          recipientFilter === 'approved' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        Finalists (Approved)
-                      </button>
-                      <button 
-                        onClick={() => setRecipientFilter('rejected')}
-                        className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
-                          recipientFilter === 'rejected' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        Rejected
-                      </button>
-                      <div className="ml-auto text-sm text-gray-500 font-medium self-center">
-                        Targeting {getRecipientCount()} recipients
+                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                      <label className="text-sm font-medium text-gray-700">Recipients</label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setRecipientMode('filter')}
+                          className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                            recipientMode === 'filter' 
+                              ? 'bg-blue-100 text-blue-700' 
+                              : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <Layers className="w-3 h-3 inline mr-1" />
+                          Filter by Stage/Group
+                        </button>
+                        <button
+                          onClick={() => setRecipientMode('individual')}
+                          className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                            recipientMode === 'individual' 
+                              ? 'bg-blue-100 text-blue-700' 
+                              : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <User className="w-3 h-3 inline mr-1" />
+                          Select Individuals
+                        </button>
                       </div>
                     </div>
+
+                    {recipientMode === 'filter' ? (
+                      <div className="p-4 space-y-4">
+                        {/* Stages */}
+                        {stages.length > 0 && (
+                          <div>
+                            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">
+                              Application Stages
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                              {stages.map(stage => (
+                                <button
+                                  key={stage.id}
+                                  onClick={() => toggleStage(stage.id)}
+                                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors flex items-center gap-1.5 ${
+                                    selectedStageIds.includes(stage.id)
+                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  <div 
+                                    className="w-2 h-2 rounded-full"
+                                    style={{ backgroundColor: stage.color || '#6b7280' }}
+                                  />
+                                  {stage.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Groups */}
+                        {groups.length > 0 && (
+                          <div>
+                            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">
+                              Application Groups
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                              {groups.map(group => (
+                                <button
+                                  key={group.id}
+                                  onClick={() => toggleGroup(group.id)}
+                                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors flex items-center gap-1.5 ${
+                                    selectedGroupIds.includes(group.id)
+                                      ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  <Folder className="w-3 h-3" />
+                                  {group.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {stages.length === 0 && groups.length === 0 && (
+                          <p className="text-sm text-gray-500 text-center py-4">
+                            No stages or groups available. All {recipients.length} applicants will be selected.
+                          </p>
+                        )}
+
+                        <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                          <span className="text-sm text-gray-600">
+                            {selectedStageIds.length === 0 && selectedGroupIds.length === 0 
+                              ? `All ${recipients.length} applicants`
+                              : `${getRecipientCount()} applicants matching filters`
+                            }
+                          </span>
+                          {(selectedStageIds.length > 0 || selectedGroupIds.length > 0) && (
+                            <button
+                              onClick={() => {
+                                setSelectedStageIds([])
+                                setSelectedGroupIds([])
+                              }}
+                              className="text-xs text-gray-500 hover:text-gray-700"
+                            >
+                              Clear filters
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 space-y-3">
+                        {/* Search */}
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input
+                            type="text"
+                            placeholder="Search by name or email..."
+                            value={recipientSearch}
+                            onChange={(e) => setRecipientSearch(e.target.value)}
+                            className="pl-9"
+                          />
+                        </div>
+
+                        {/* Select All / Clear */}
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">
+                            {selectedRecipientIds.length} of {filteredRecipients.length} selected
+                          </span>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={selectAllRecipients}
+                              className="text-blue-600 hover:text-blue-700 text-xs font-medium"
+                            >
+                              Select All
+                            </button>
+                            <button
+                              onClick={clearAllRecipients}
+                              className="text-gray-500 hover:text-gray-700 text-xs font-medium"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Recipient List */}
+                        <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+                          {filteredRecipients.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-6">
+                              No recipients found
+                            </p>
+                          ) : (
+                            filteredRecipients.map(recipient => (
+                              <label
+                                key={recipient.id}
+                                className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                              >
+                                <Checkbox
+                                  checked={selectedRecipientIds.includes(recipient.id)}
+                                  onCheckedChange={() => toggleRecipient(recipient.id)}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate">
+                                    {recipient.name}
+                                  </p>
+                                  <p className="text-xs text-gray-500 truncate">
+                                    {recipient.email}
+                                  </p>
+                                </div>
+                                {recipient.stage_name && (
+                                  <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
+                                    {recipient.stage_name}
+                                  </span>
+                                )}
+                              </label>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Email Field Selection */}
+                  {emailFieldOptions.length > 1 && (
+                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      <div className="px-4 py-3 flex items-center justify-between">
+                        <label className="text-sm font-medium text-gray-700">
+                          Email Field
+                        </label>
+                        <select
+                          value={selectedEmailField}
+                          onChange={(e) => setSelectedEmailField(e.target.value)}
+                          className="text-sm border border-gray-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          {emailFieldOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="px-4 pb-3">
+                        <p className="text-xs text-gray-500">
+                          Select which field from the application contains the recipient's email address.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Subject */}
                   <div>
@@ -507,55 +890,65 @@ export function CommunicationsCenter({ workspaceId, formId }: CommunicationsCent
 
                   {/* Editor */}
                   <div className="flex-1 flex flex-col">
-                    <div className="flex justify-between items-center mb-1">
+                    <div className="flex justify-between items-center mb-2">
                       <label className="block text-sm font-medium text-gray-700">Message</label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <input 
-                          type="checkbox" 
-                          checked={trackOpens}
-                          onChange={(e) => setTrackOpens(e.target.checked)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-gray-600 flex items-center gap-1">
-                          <Eye className="w-3 h-3" />
-                          Track Opens
-                        </span>
-                      </label>
-                    </div>
-                    <div className="border border-gray-300 rounded-lg overflow-hidden flex-1 min-h-[300px] flex flex-col">
-                      <div className="bg-gray-50 border-b border-gray-300 px-4 py-2 flex flex-wrap gap-2 items-center">
-                        <button className="p-1 hover:bg-gray-200 rounded text-sm font-bold w-8">B</button>
-                        <button className="p-1 hover:bg-gray-200 rounded text-sm italic w-8">I</button>
-                        <button className="p-1 hover:bg-gray-200 rounded text-sm underline w-8">U</button>
-                        <div className="w-px h-4 bg-gray-300 mx-1 self-center"></div>
-                        <span className="text-xs font-medium text-gray-500 mr-1">Merge Tags:</span>
-                        <div className="flex gap-2 overflow-x-auto max-w-[400px] pb-1">
-                          <button 
-                            onClick={() => insertMergeTag('First Name')}
-                            className="px-2 py-1 hover:bg-gray-200 rounded text-xs bg-white border border-gray-300 whitespace-nowrap flex items-center gap-1"
-                          >
-                            <Tag className="w-3 h-3 text-blue-500" />
-                            {'{{First Name}}'}
-                          </button>
-                          {fields.slice(0, 5).map(field => (
-                            <button 
-                              key={field.id}
-                              onClick={() => insertMergeTag(field.label)}
-                              className="px-2 py-1 hover:bg-gray-200 rounded text-xs bg-white border border-gray-300 whitespace-nowrap flex items-center gap-1"
-                            >
-                              <Tag className="w-3 h-3 text-gray-400" />
-                              {`{{${field.label}}}`}
+                      <div className="flex items-center gap-4">
+                        {/* Merge Tags Dropdown */}
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium">
+                              <Tag className="w-4 h-4" />
+                              Insert Merge Tag
+                              <ChevronDown className="w-3 h-3" />
                             </button>
-                          ))}
-                        </div>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-2" align="end">
+                            <div className="space-y-1">
+                              <p className="text-xs text-gray-500 px-2 pb-1 border-b border-gray-100 mb-1">Click to insert field placeholder</p>
+                              {fields.length > 0 ? (
+                                fields.map(field => (
+                                  <button
+                                    key={field.id}
+                                    onClick={() => {
+                                      insertMergeTag(field.label)
+                                    }}
+                                    className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                                  >
+                                    <Tag className="w-3 h-3 text-gray-400" />
+                                    <span className="truncate">{field.label}</span>
+                                  </button>
+                                ))
+                              ) : (
+                                <p className="text-sm text-gray-500 px-2 py-2">No form fields available</p>
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+
+                        <label className="flex items-center gap-2 text-sm">
+                          <input 
+                            type="checkbox" 
+                            checked={trackOpens}
+                            onChange={(e) => setTrackOpens(e.target.checked)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-gray-600 flex items-center gap-1">
+                            <Eye className="w-3 h-3" />
+                            Track Opens
+                          </span>
+                        </label>
                       </div>
-                      <textarea 
-                        className="flex-1 p-4 focus:outline-none resize-none font-mono text-sm"
-                        placeholder="Type your message here... Use {{field_name}} for merge tags."
-                        value={messageBody}
-                        onChange={(e) => setMessageBody(e.target.value)}
-                      ></textarea>
                     </div>
+                    <RichTextEditor
+                      value={messageBody}
+                      onChange={setMessageBody}
+                      placeholder="Type your message here... Use the 'Insert Merge Tag' button above to add personalized fields like {{First Name}}"
+                      minHeight="300px"
+                      className="flex-1"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">
+                      Merge tags like <code className="bg-gray-100 px-1 rounded">{'{{Field Name}}'}</code> will be replaced with each recipient's actual data.
+                    </p>
                   </div>
                 </div>
               </div>

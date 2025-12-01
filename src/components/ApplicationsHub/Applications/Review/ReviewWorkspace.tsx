@@ -2035,7 +2035,7 @@ export function ReviewWorkspace({
             </div>
             
             <div className="flex-1 overflow-hidden">
-              <CommunicationsCenter workspaceId={workspaceId} formId={formId} />
+              <CommunicationsCenter workspaceId={workspaceId} formId={formId} workflowId={workflow?.id} />
             </div>
           </div>
         </div>
