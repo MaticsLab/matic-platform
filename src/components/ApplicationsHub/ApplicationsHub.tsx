@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { GraduationCap, FileText, Layout, Plus, Search, MoreVertical, ArrowRight, Loader2, Filter, CheckCircle, Clock } from 'lucide-react'
+import { GraduationCap, FileText, Layout, Plus, Search, MoreVertical, ArrowRight, Loader2, Filter, CheckCircle, Clock, Trash2 } from 'lucide-react'
 import { ApplicationManager } from './Applications/ApplicationManager'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
@@ -13,11 +13,29 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui-components/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/ui-components/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/ui-components/alert-dialog"
 import { Label } from "@/ui-components/label"
 import { Textarea } from "@/ui-components/textarea"
 import { toast } from "sonner"
 import { useTabContext } from '@/components/WorkspaceTabProvider'
 import { goClient } from '@/lib/api/go-client'
+import { formsClient } from '@/lib/api/forms-client'
 import { Form } from '@/types/forms'
 import { useSearch, HubSearchContext } from '@/components/Search'
 import { cn } from '@/lib/utils'
@@ -40,6 +58,11 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
   const [forms, setForms] = useState<Form[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'draft'>('all')
+
+  // Delete Application State
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [formToDelete, setFormToDelete] = useState<Form | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Create Application State
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -194,6 +217,24 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
     setCurrentView('scholarships')
   }
 
+  const handleDeleteApplication = async () => {
+    if (!formToDelete) return
+
+    try {
+      setIsDeleting(true)
+      await formsClient.delete(formToDelete.id)
+      setForms(forms.filter(f => f.id !== formToDelete.id))
+      toast.success('Application deleted successfully')
+      setDeleteDialogOpen(false)
+      setFormToDelete(null)
+    } catch (error) {
+      console.error('Failed to delete application:', error)
+      toast.error('Failed to delete application')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   // If we are in the scholarships module, render the manager
   if (currentView === 'scholarships') {
     return (
@@ -315,14 +356,34 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
                         <div className="w-10 h-10 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg flex items-center justify-center">
                           <GraduationCap className="w-5 h-5 text-blue-600" />
                         </div>
-                        <button 
-                          className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                          }}
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button 
+                              className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem
+                              onClick={() => handleFormClick(form.id)}
+                            >
+                              Open
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                              onClick={() => {
+                                setFormToDelete(form)
+                                setDeleteDialogOpen(true)
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                       
                       <h3 className="text-base font-semibold text-gray-900 mb-1 group-hover:text-blue-600 line-clamp-1">
@@ -404,6 +465,29 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Application</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{formToDelete?.name}"? This will permanently remove the application and all its submissions. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteApplication}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              {isDeleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
