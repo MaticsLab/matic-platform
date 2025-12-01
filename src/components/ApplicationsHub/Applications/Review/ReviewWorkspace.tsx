@@ -2370,15 +2370,16 @@ function AccordionQueueView({
 
   // Helper to get current status object for an app
   const getAppStatusObj = (app: ApplicationData | null) => {
-    if (!app || !stage?.custom_statuses) return null
+    if (!app || !stage?.custom_statuses || stage.custom_statuses.length === 0) return null
     const currentStatus = app.status
-    if (!currentStatus || currentStatus === 'pending') return null
+    if (!currentStatus) return null
     
+    // Find the status in custom_statuses list
     for (const status of stage.custom_statuses) {
       const statusObj = typeof status === 'string' 
         ? { name: status, color: 'gray', icon: 'circle' } 
         : status
-      if (statusObj.name === currentStatus) return statusObj
+      if (statusObj.name.toLowerCase() === currentStatus.toLowerCase()) return statusObj
     }
     return null
   }
