@@ -669,17 +669,8 @@ export function ReviewWorkspace({
     onDelete: handleRealtimeDelete,
   })
 
-  // Load all data - different paths for internal vs external mode
-  useEffect(() => {
-    if (isExternalMode && token) {
-      loadExternalReviewData()
-    } else if (formId && workspaceId) {
-      loadData()
-    }
-  }, [isExternalMode, token, formId, workspaceId])
-
   // Load data for external review mode via token
-  const loadExternalReviewData = async () => {
+  const loadExternalReviewData = useCallback(async () => {
     if (!token) return
     
     setIsLoading(true)
@@ -830,31 +821,13 @@ export function ReviewWorkspace({
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [token, titleFieldName])
 
   // Track if initial load has completed to avoid duplicate API calls
   const initialLoadDone = useRef(false)
   const previousWorkflowId = useRef<string | null>(null)
 
-  // Reload stages when workflow changes (internal mode only) - but skip initial load
-  useEffect(() => {
-    if (isExternalMode) return
-    if (!workflow || !workspaceId) return
-    
-    // Skip if this is the initial load (loadData already fetches stages)
-    if (!initialLoadDone.current) {
-      previousWorkflowId.current = workflow.id
-      return
-    }
-    
-    // Only reload if workflow actually changed (not on mount)
-    if (previousWorkflowId.current === workflow.id) return
-    previousWorkflowId.current = workflow.id
-    
-    loadStagesForWorkflow(workflow.id)
-  }, [workflow?.id, isExternalMode, workspaceId])
-
-  const loadStagesForWorkflow = async (workflowId: string) => {
+  const loadStagesForWorkflow = useCallback(async (workflowId: string) => {
     try {
       // Use combined endpoint for workflow change too
       const workspaceData = await workflowsClient.getReviewWorkspaceData(workspaceId, workflowId)
@@ -892,9 +865,27 @@ export function ReviewWorkspace({
     } catch (error) {
       console.error('Failed to load stages:', error)
     }
-  }
+  }, [workspaceId, applications])
 
-  const loadData = async () => {
+  // Reload stages when workflow changes (internal mode only) - but skip initial load
+  useEffect(() => {
+    if (isExternalMode) return
+    if (!workflow || !workspaceId) return
+    
+    // Skip if this is the initial load (loadData already fetches stages)
+    if (!initialLoadDone.current) {
+      previousWorkflowId.current = workflow.id
+      return
+    }
+    
+    // Only reload if workflow actually changed (not on mount)
+    if (previousWorkflowId.current === workflow.id) return
+    previousWorkflowId.current = workflow.id
+    
+    loadStagesForWorkflow(workflow.id)
+  }, [workflow, isExternalMode, workspaceId, loadStagesForWorkflow])
+
+  const loadData = useCallback(async () => {
     setIsLoading(true)
     try {
       // Load ALL data in a single API call - form, submissions, and all workflow data
@@ -1056,7 +1047,16 @@ export function ReviewWorkspace({
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [formId, titleFieldName])
+
+  // Load all data - different paths for internal vs external mode
+  useEffect(() => {
+    if (isExternalMode && token) {
+      loadExternalReviewData()
+    } else if (formId && workspaceId) {
+      loadData()
+    }
+  }, [isExternalMode, token, formId, workspaceId, loadData, loadExternalReviewData])
 
   // Get filtered applications for current stage
   // Get all unique tags from applications for filter options

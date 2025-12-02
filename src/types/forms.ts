@@ -85,6 +85,7 @@ export interface Form {
   name: string
   description?: string
   slug: string
+  custom_slug?: string | null
   settings: Record<string, any>
   submit_settings: Record<string, any>
   status: FormStatus

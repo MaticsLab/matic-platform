@@ -1,6 +1,8 @@
 import { goClient } from './go-client'
 import { PortalConfig } from '@/types/portal'
 import { semanticSearchClient } from './semantic-search-client'
+import { Form } from '@/types/forms'
+export type { Form } from '@/types/forms'
 import { 
   ReviewWorkflow, 
   Rubric, 
@@ -13,19 +15,7 @@ import {
   StageGroup 
 } from './workflows-client'
 
-export interface Form {
-  id: string
-  workspace_id: string
-  name: string
-  slug: string
-  custom_slug?: string | null
-  description: string
-  settings: Record<string, any>
-  is_published: boolean
-  fields?: any[]
-  created_at: string
-  updated_at: string
-}
+// Use shared `Form` type from `src/types/forms.ts`
 
 // Combined response for Review Workspace - all data in one call
 export interface FormWithWorkflowData {

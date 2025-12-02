@@ -166,63 +166,82 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
     fetchFormSections()
   }, [formId])
 
-  useEffect(() => {
-    fetchWorkflows()
-  }, [workspaceId])
-
-  useEffect(() => {
-    if (selectedWorkflow) {
-      fetchWorkflowData()
-    }
-  }, [selectedWorkflow])
-
-  const fetchWorkflows = async () => {
+  const fetchWorkflows = useCallback(async () => {
     setIsLoading(true)
     try {
       const data = await workflowsClient.listWorkflows(workspaceId)
       setWorkflows(data)
       // Auto-select first workflow if exists
-      if (data.length > 0 && !selectedWorkflow) {
-        setSelectedWorkflow(data[0])
+      if (data.length > 0) {
+        setSelectedWorkflow(prev => prev || data[0])
       }
     } catch (error) {
       console.error('Failed to fetch workflows:', error)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [workspaceId])
 
-  const fetchWorkflowData = async () => {
+  const fetchWorkflowData = useCallback(async () => {
     if (!selectedWorkflow) return
     setIsLoading(true)
     try {
-      const [stagesData, typesData, rubricsData, groupsData, actionsData, stageGroupsData] = await Promise.all([
-        workflowsClient.listStages(workspaceId, selectedWorkflow.id),
-        workflowsClient.listReviewerTypes(workspaceId),
-        workflowsClient.listRubrics(workspaceId),
-        workflowsClient.listGroups(selectedWorkflow.id),
-        workflowsClient.listWorkflowActions(selectedWorkflow.id),
-        workflowsClient.listStageGroups(undefined, workspaceId) // Get all stage groups for workspace
-      ])
+      // Use combined endpoint to fetch all workflow data in a single API call
+      const data = await workflowsClient.getReviewWorkspaceData(workspaceId, selectedWorkflow.id)
+      
+      // Map stages with their embedded reviewer configs
+      const stagesData = data.stages.map(s => ({
+        id: s.id,
+        name: s.name,
+        description: s.description,
+        order_index: s.order_index,
+        stage_type: s.stage_type,
+        review_workflow_id: s.review_workflow_id,
+        workspace_id: s.workspace_id,
+        created_at: s.created_at,
+        updated_at: s.updated_at,
+        color: s.color,
+        hide_pii: s.hide_pii,
+        hidden_pii_fields: s.hidden_pii_fields,
+        is_archived: (s as any).is_archived,
+      } as ApplicationStage))
       
       setStages(stagesData)
-      setReviewerTypes(typesData)
-      setRubrics(rubricsData)
-      setGroups(groupsData)
-      setWorkflowActions(actionsData)
-      setStageGroups(stageGroupsData)
+      setReviewerTypes(data.reviewer_types)
+      setRubrics(data.rubrics)
+      setGroups(data.groups)
+      setWorkflowActions(data.workflow_actions)
+      setStageGroups(data.stage_groups)
 
       // Fetch stage configs if we have a selected stage
+      // The combined endpoint includes reviewer_configs in stages, but we may need separate list for editing
       if (selectedStageId) {
-        const configs = await workflowsClient.listStageConfigs(selectedStageId)
-        setStageConfigs(configs)
+        const stageWithConfigs = data.stages.find(s => s.id === selectedStageId)
+        if (stageWithConfigs?.reviewer_configs) {
+          setStageConfigs(stageWithConfigs.reviewer_configs)
+        } else {
+          const configs = await workflowsClient.listStageConfigs(selectedStageId)
+          setStageConfigs(configs)
+        }
       }
     } catch (error) {
       console.error('Failed to fetch workflow data:', error)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [workspaceId, selectedWorkflow, selectedStageId])
+
+  // Fetch workflows on mount or when workspaceId changes
+  useEffect(() => {
+    fetchWorkflows()
+  }, [fetchWorkflows])
+
+  // Fetch workflow data when selected workflow changes
+  useEffect(() => {
+    if (selectedWorkflow) {
+      fetchWorkflowData()
+    }
+  }, [selectedWorkflow, fetchWorkflowData])
 
   const handleCreateWorkflow = async (name: string, description?: string, applicationType?: string, defaultRubricId?: string) => {
     try {
