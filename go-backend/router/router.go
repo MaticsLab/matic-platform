@@ -360,6 +360,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			{
 				documents.POST("/analyze-pii", handlers.AnalyzeDocumentPII)
 				documents.POST("/analyze-pii/batch", handlers.BatchAnalyzeDocumentsPII)
+				documents.POST("/redact", handlers.GetRedactedDocument)
+				documents.POST("/redact/base64", handlers.GetRedactedDocumentBase64)
 			}
 
 			// Field Type Registry

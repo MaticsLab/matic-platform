@@ -242,7 +242,9 @@ func (c *GeminiClient) downloadDocument(url string) ([]byte, string, error) {
 func (c *GeminiClient) buildPIIDetectionPrompt(knownPII map[string]string, redactAll bool) string {
 	var sb strings.Builder
 
-	sb.WriteString(`You are a PII (Personally Identifiable Information) detection system. Analyze this document and identify ALL instances of PII that should be redacted for privacy.
+	sb.WriteString(`You are a PII (Personally Identifiable Information) detection system with OCR capabilities. Analyze this document image and identify ALL instances of PII that should be redacted for privacy.
+
+IMPORTANT: You must provide the BOUNDING BOX coordinates for each PII item found. The coordinates should be normalized (0-1) relative to the image dimensions.
 
 `)
 
@@ -261,7 +263,7 @@ func (c *GeminiClient) buildPIIDetectionPrompt(knownPII map[string]string, redac
 		sb.WriteString(`ALSO detect any other PII in the document:
 - Names (any person's name)
 - Email addresses
-- Phone numbers
+- Phone numbers  
 - Physical addresses
 - Social Security Numbers (SSN)
 - Dates of birth
@@ -272,19 +274,24 @@ func (c *GeminiClient) buildPIIDetectionPrompt(knownPII map[string]string, redac
 `)
 	}
 
-	sb.WriteString(`Respond with a JSON array of detected PII. Each item should have:
+	sb.WriteString(`Respond with a JSON array of detected PII. Each item MUST have:
 - "text": The exact text found
 - "type": One of "name", "email", "phone", "ssn", "address", "dob", "id", "other"
 - "confidence": A number 0-1 indicating confidence
-- "context": Brief explanation of why this is PII
+- "bounding_box": An object with normalized coordinates (0-1 range):
+  - "x": Left edge (0 = left side of image, 1 = right side)
+  - "y": Top edge (0 = top of image, 1 = bottom)
+  - "width": Width as fraction of image width
+  - "height": Height as fraction of image height
 
 Example response:
 [
-  {"text": "John Smith", "type": "name", "confidence": 0.99, "context": "Applicant's full name"},
-  {"text": "john.smith@email.com", "type": "email", "confidence": 1.0, "context": "Email address"},
-  {"text": "123-45-6789", "type": "ssn", "confidence": 0.95, "context": "Social Security Number format"}
+  {"text": "John Smith", "type": "name", "confidence": 0.99, "bounding_box": {"x": 0.15, "y": 0.08, "width": 0.12, "height": 0.025}},
+  {"text": "john.smith@email.com", "type": "email", "confidence": 1.0, "bounding_box": {"x": 0.15, "y": 0.12, "width": 0.25, "height": 0.025}},
+  {"text": "123-45-6789", "type": "ssn", "confidence": 0.95, "bounding_box": {"x": 0.4, "y": 0.35, "width": 0.15, "height": 0.025}}
 ]
 
+CRITICAL: Include bounding_box for EVERY item. Estimate coordinates based on where the text appears in the document.
 Respond ONLY with the JSON array, no other text.`)
 
 	return sb.String()
@@ -307,10 +314,16 @@ func (c *GeminiClient) parseGeminiResponse(resp GeminiResponse) ([]PIILocation, 
 
 	// Parse the JSON response
 	var rawLocations []struct {
-		Text       string  `json:"text"`
-		Type       string  `json:"type"`
-		Confidence float64 `json:"confidence"`
-		Context    string  `json:"context"`
+		Text        string  `json:"text"`
+		Type        string  `json:"type"`
+		Confidence  float64 `json:"confidence"`
+		Context     string  `json:"context"`
+		BoundingBox *struct {
+			X      float64 `json:"x"`
+			Y      float64 `json:"y"`
+			Width  float64 `json:"width"`
+			Height float64 `json:"height"`
+		} `json:"bounding_box"`
 	}
 
 	if err := json.Unmarshal([]byte(text), &rawLocations); err != nil {
@@ -329,12 +342,21 @@ func (c *GeminiClient) parseGeminiResponse(resp GeminiResponse) ([]PIILocation, 
 
 	locations := make([]PIILocation, len(rawLocations))
 	for i, raw := range rawLocations {
-		locations[i] = PIILocation{
+		loc := PIILocation{
 			Text:       raw.Text,
 			Type:       raw.Type,
 			Confidence: raw.Confidence,
 			Page:       1, // Default to page 1 for now
 		}
+		if raw.BoundingBox != nil {
+			loc.BoundingBox = &BoundingBox{
+				X:      raw.BoundingBox.X,
+				Y:      raw.BoundingBox.Y,
+				Width:  raw.BoundingBox.Width,
+				Height: raw.BoundingBox.Height,
+			}
+		}
+		locations[i] = loc
 	}
 
 	return locations, nil

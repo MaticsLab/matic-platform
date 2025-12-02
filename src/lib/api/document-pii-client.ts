@@ -101,3 +101,29 @@ export function extractKnownPII(
   
   return knownPII
 }
+
+export interface RedactedDocumentResponse {
+  redacted: boolean
+  content_type?: string
+  data?: string
+  data_url?: string
+  locations?: PIILocation[]
+  total_redacted?: number
+  processing_ms?: number
+  original_url?: string
+  message?: string
+  error?: string
+}
+
+/**
+ * Get a document with PII redacted (black boxes drawn over detected PII)
+ * Returns a base64-encoded image with redactions applied
+ */
+export async function getRedactedDocument(
+  request: AnalyzePIIRequest
+): Promise<RedactedDocumentResponse> {
+  return goFetch<RedactedDocumentResponse>('/documents/redact/base64', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  })
+}

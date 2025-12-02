@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/base64"
 	"net/http"
 
 	"github.com/Jsanchez767/matic-platform/services"
@@ -45,6 +46,121 @@ func AnalyzeDocumentPII(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// GetRedactedDocument analyzes a document and returns it with PII redacted
+// POST /api/v1/documents/redact
+func GetRedactedDocument(c *gin.Context) {
+	var req DocumentPIIRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	// Create Gemini client
+	geminiClient := services.NewGeminiClient()
+
+	// Detect PII with bounding boxes
+	result, err := geminiClient.DetectPII(c.Request.Context(), services.PIIDetectionRequest{
+		DocumentURL:  req.DocumentURL,
+		DocumentType: req.DocumentType,
+		KnownPII:     req.KnownPII,
+		RedactAll:    req.RedactAll,
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to analyze document",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// If no PII found, return info
+	if len(result.Locations) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"message":      "No PII detected",
+			"original_url": req.DocumentURL,
+			"locations":    []interface{}{},
+		})
+		return
+	}
+
+	// Apply redactions to image
+	redactedData, contentType, err := services.RedactImage(req.DocumentURL, result.Locations)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to redact document",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Return redacted image
+	c.Data(http.StatusOK, contentType, redactedData)
+}
+
+// GetRedactedDocumentBase64 returns a redacted document as base64
+// POST /api/v1/documents/redact/base64
+func GetRedactedDocumentBase64(c *gin.Context) {
+	var req DocumentPIIRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	// Create Gemini client
+	geminiClient := services.NewGeminiClient()
+
+	// Detect PII with bounding boxes
+	result, err := geminiClient.DetectPII(c.Request.Context(), services.PIIDetectionRequest{
+		DocumentURL:  req.DocumentURL,
+		DocumentType: req.DocumentType,
+		KnownPII:     req.KnownPII,
+		RedactAll:    req.RedactAll,
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to analyze document",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// If no PII found, return original URL
+	if len(result.Locations) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"redacted":       false,
+			"original_url":   req.DocumentURL,
+			"locations":      []interface{}{},
+			"total_redacted": 0,
+		})
+		return
+	}
+
+	// Apply redactions to image
+	redactedData, contentType, err := services.RedactImage(req.DocumentURL, result.Locations)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to redact document",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Encode as base64
+	base64Data := base64.StdEncoding.EncodeToString(redactedData)
+
+	c.JSON(http.StatusOK, gin.H{
+		"redacted":        true,
+		"content_type":    contentType,
+		"data":            base64Data,
+		"data_url":        "data:" + contentType + ";base64," + base64Data,
+		"locations":       result.Locations,
+		"total_redacted":  len(result.Locations),
+		"processing_ms":   result.ProcessingMS,
+	})
 }
 
 // BatchAnalyzeDocumentsPII handles requests to analyze multiple documents
