@@ -821,7 +821,8 @@ export function ReviewWorkspace({
     } finally {
       setIsLoading(false)
     }
-  }, [token, titleFieldName])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token])
 
   // Track if initial load has completed to avoid duplicate API calls
   const initialLoadDone = useRef(false)
@@ -1047,7 +1048,8 @@ export function ReviewWorkspace({
     } finally {
       setIsLoading(false)
     }
-  }, [formId, titleFieldName])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formId])
 
   // Load all data - different paths for internal vs external mode
   useEffect(() => {

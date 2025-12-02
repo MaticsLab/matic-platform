@@ -37,13 +37,9 @@ export const workspacesClient = {
   updateCustomSubdomain: (id: string, customSubdomain: string | null) =>
     goClient.patch<Workspace>(`/workspaces/${id}`, { custom_subdomain: customSubdomain ?? '' }),
 
-  // Helper to find by slug
-  getBySlug: async (slug: string) => {
-    // Since we don't have a direct endpoint, we list all and find
-    // This assumes the user has access to the workspace
-    const workspaces = await goClient.get<Workspace[]>('/workspaces')
-    return workspaces.find(w => w.slug === slug)
-  },
+  // Get workspace by slug - uses dedicated endpoint
+  getBySlug: (slug: string) =>
+    goClient.get<Workspace>(`/workspaces/by-slug/${slug}`),
 
   getActivity: (id: string) =>
     goClient.get<unknown[]>(`/workspaces/${id}/activity`)

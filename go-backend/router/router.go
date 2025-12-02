@@ -236,6 +236,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			{
 				workspaces.GET("", handlers.ListWorkspaces)
 				workspaces.POST("", handlers.CreateWorkspace)
+				workspaces.GET("/by-slug/:slug", handlers.GetWorkspaceBySlug) // Get by slug (before :id to avoid conflict)
 				workspaces.GET("/:id", handlers.GetWorkspace)
 				workspaces.PATCH("/:id", handlers.UpdateWorkspace)
 				workspaces.DELETE("/:id", handlers.DeleteWorkspace)

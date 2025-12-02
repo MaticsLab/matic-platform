@@ -32,13 +32,8 @@ export const workspacesSupabase = {
    * Get a workspace by slug
    */
   async getWorkspaceBySlug(slug: string) {
-    // List all workspaces and find by slug
-    const workspaces = await goClient.get<any[]>('/workspaces')
-    const workspace = workspaces?.find((w: any) => w.slug === slug)
-    if (!workspace) {
-      throw new Error('Workspace not found')
-    }
-    return workspace
+    // Use dedicated endpoint instead of fetching all workspaces
+    return goClient.get<any>(`/workspaces/by-slug/${slug}`)
   },
 
   /**

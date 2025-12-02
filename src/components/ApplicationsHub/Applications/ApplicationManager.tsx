@@ -112,42 +112,8 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
     fetchFormBasic()
   }, [formId])
 
-  // Defer stats fetching - runs after 500ms to not block initial render
-  // Stats are shown in secondary UI elements, not critical for initial load
-  useEffect(() => {
-    if (!formId || !workspaceId) return
-    
-    const timeoutId = setTimeout(async () => {
-      try {
-        // Use combined endpoint to get all data in one call
-        const { formsClient } = await import('@/lib/api/forms-client')
-        const data = await formsClient.getFull(formId)
-        
-        const submissions = data.submissions || []
-        const workflows = data.workflows || []
-        const reviewers = (data.form.settings?.reviewers as any[]) || []
-        
-        setStats({
-          totalSubmissions: submissions.length,
-          pendingReview: submissions.filter((s: any) => {
-            const status = s.metadata?.status
-            return !status || status === 'pending'
-          }).length,
-          inProgress: submissions.filter((s: any) => s.metadata?.status === 'in_progress').length,
-          completed: submissions.filter((s: any) => {
-            const status = s.metadata?.status
-            return status === 'completed' || status === 'approved' || status === 'rejected'
-          }).length,
-          workflowsConfigured: workflows.length,
-          reviewersActive: reviewers.filter((r: any) => r.status === 'active').length
-        })
-      } catch (error) {
-        console.error('Failed to fetch stats:', error)
-      }
-    }, 500) // Delay stats fetch by 500ms to prioritize ReviewWorkspace load
-    
-    return () => clearTimeout(timeoutId)
-  }, [formId, workspaceId])
+  // Stats are now calculated from ReviewWorkspace data (avoids duplicate API calls)
+  // The stats state is kept for UI but not fetched separately
 
   const handleCopy = () => {
     navigator.clipboard.writeText(fullUrl)

@@ -71,6 +71,31 @@ func GetWorkspace(c *gin.Context) {
 	c.JSON(http.StatusOK, workspace)
 }
 
+// GetWorkspaceBySlug returns a workspace by its slug
+func GetWorkspaceBySlug(c *gin.Context) {
+	slug := c.Param("slug")
+
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var workspace models.Workspace
+	// Verify user is a member of this workspace
+	if err := database.DB.
+		Joins("JOIN workspace_members ON workspace_members.workspace_id = workspaces.id").
+		Where("workspaces.slug = ? AND workspace_members.user_id = ?", slug, userID).
+		Preload("Members").
+		First(&workspace).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Workspace not found or access denied"})
+		return
+	}
+
+	c.JSON(http.StatusOK, workspace)
+}
+
 type CreateWorkspaceInput struct {
 	OrganizationID uuid.UUID              `json:"organization_id" binding:"required"`
 	Name           string                 `json:"name" binding:"required"`
