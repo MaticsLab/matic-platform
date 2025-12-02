@@ -355,6 +355,13 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			// Table files (convenience endpoint)
 			protected.GET("/tables/:id/files", handlers.GetTableFiles)
 
+			// Document PII Analysis (Gemini-powered)
+			documents := protected.Group("/documents")
+			{
+				documents.POST("/analyze-pii", handlers.AnalyzeDocumentPII)
+				documents.POST("/analyze-pii/batch", handlers.BatchAnalyzeDocumentsPII)
+			}
+
 			// Field Type Registry
 			fieldTypes := protected.Group("/field-types")
 			{
