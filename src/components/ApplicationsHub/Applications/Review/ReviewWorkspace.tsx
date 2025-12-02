@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { 
   ChevronRight, ChevronLeft, Star, CheckCircle, Check,
   FileText, Users, Award, Flag, 
@@ -12,12 +12,13 @@ import {
   Target, TrendingUp, BarChart3, Layers,
   UserCheck, UserPlus, ArrowUpRight, Inbox,
   GraduationCap, Search, Settings2, Type, Shield,
-  Plus, Sparkles, Trash2
+  Plus, Sparkles, Trash2, Wifi, WifiOff
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { goClient } from '@/lib/api/go-client'
 import { formsClient } from '@/lib/api/forms-client'
 import { FormSubmission, Form, FormField } from '@/types/forms'
+import { useApplicationsRealtime, RealtimeApplication } from '@/hooks/useApplicationsRealtime'
 import { 
   workflowsClient, 
   ApplicationStage, 
@@ -547,6 +548,127 @@ export function ReviewWorkspace({
     return () => clearInterval(interval)
   }, [timerActive, isReviewMode])
 
+  // Ref to access stages in realtime callbacks
+  const stagesRef = useRef<StageWithConfig[]>([])
+  useEffect(() => {
+    stagesRef.current = stages
+  }, [stages])
+
+  // Helper to map realtime data to ApplicationData
+  const mapRealtimeToAppData = useCallback((realtimeApp: RealtimeApplication): ApplicationData => {
+    const data = realtimeApp.data
+    const metadata = realtimeApp.metadata
+    const currentStages = stagesRef.current
+    
+    const name = data['Full Name'] || data['name'] || data['Name'] || 
+                `${data['First Name'] || ''} ${data['Last Name'] || ''}`.trim() ||
+                `Applicant ${realtimeApp.id.substring(0, 6)}`
+    
+    const email = data['_applicant_email'] || data['Email'] || data['email'] || 
+                  data['personal_email'] || data['personalEmail'] || data['work_email'] || ''
+    
+    const assignedWorkflowId = metadata.assigned_workflow_id
+    const stageId = metadata.current_stage_id || (currentStages.length > 0 ? currentStages[0].id : '')
+    const stage = currentStages.find(s => s.id === stageId)
+    
+    return {
+      id: realtimeApp.id,
+      name,
+      email,
+      submittedAt: realtimeApp.submitted_at,
+      stageId,
+      stageName: stage?.name || 'Unassigned',
+      status: metadata.status || 'pending',
+      score: metadata.total_score || null,
+      maxScore: stage?.rubric?.max_score || 100,
+      reviewCount: metadata.review_count || 0,
+      requiredReviews: stage?.reviewerConfigs?.[0]?.min_reviews_required || 1,
+      assignedReviewers: metadata.assigned_reviewers || [],
+      tags: metadata.tags || [],
+      raw_data: data,
+      scores: metadata.scores || {},
+      comments: metadata.comments || '',
+      flagged: metadata.flagged || false,
+      workflowId: assignedWorkflowId,
+      reviewHistory: (metadata.review_history || []) as ReviewHistoryEntry[]
+    }
+  }, [])
+
+  // Real-time handlers
+  const handleRealtimeInsert = useCallback((app: RealtimeApplication) => {
+    console.log('📥 New application received:', app.id)
+    const newApp = mapRealtimeToAppData(app)
+    
+    setApplications(prev => {
+      // Check if already exists (avoid duplicates)
+      if (prev.some(a => a.id === newApp.id)) return prev
+      return [...prev, newApp]
+    })
+    
+    // Update stage counts
+    setStages(prev => prev.map(stage => ({
+      ...stage,
+      applicationCount: stage.id === newApp.stageId 
+        ? stage.applicationCount + 1 
+        : stage.applicationCount
+    })))
+  }, [mapRealtimeToAppData])
+
+  const handleRealtimeUpdate = useCallback((app: RealtimeApplication) => {
+    console.log('📝 Application updated:', app.id)
+    const updatedApp = mapRealtimeToAppData(app)
+    
+    setApplications(prev => {
+      const oldApp = prev.find(a => a.id === updatedApp.id)
+      const oldStageId = oldApp?.stageId
+      
+      const newApps = prev.map(a => a.id === updatedApp.id ? updatedApp : a)
+      
+      // If stage changed, update stage counts
+      if (oldStageId && oldStageId !== updatedApp.stageId) {
+        setStages(prevStages => prevStages.map(stage => {
+          if (stage.id === oldStageId) {
+            return { ...stage, applicationCount: stage.applicationCount - 1 }
+          }
+          if (stage.id === updatedApp.stageId) {
+            return { ...stage, applicationCount: stage.applicationCount + 1 }
+          }
+          return stage
+        }))
+      }
+      
+      return newApps
+    })
+  }, [mapRealtimeToAppData])
+
+  const handleRealtimeDelete = useCallback((id: string) => {
+    console.log('🗑️ Application deleted:', id)
+    
+    setApplications(prev => {
+      const deletedApp = prev.find(a => a.id === id)
+      if (deletedApp) {
+        // Update stage counts
+        setStages(prevStages => prevStages.map(stage => ({
+          ...stage,
+          applicationCount: stage.id === deletedApp.stageId 
+            ? stage.applicationCount - 1 
+            : stage.applicationCount
+        })))
+      }
+      return prev.filter(a => a.id !== id)
+    })
+  }, [])
+
+  // Set up real-time subscription
+  const { status: realtimeStatus } = useApplicationsRealtime({
+    formId,
+    workspaceId,
+    enabled: !isExternalMode && !!formId && !!workspaceId,
+    onInsert: handleRealtimeInsert,
+    onUpdate: handleRealtimeUpdate,
+    onDelete: handleRealtimeDelete,
+  })
+
   // Load all data - different paths for internal vs external mode
   useEffect(() => {
     if (isExternalMode && token) {
@@ -710,42 +832,60 @@ export function ReviewWorkspace({
     }
   }
 
-  // Reload stages when workflow changes (internal mode only)
+  // Track if initial load has completed to avoid duplicate API calls
+  const initialLoadDone = useRef(false)
+  const previousWorkflowId = useRef<string | null>(null)
+
+  // Reload stages when workflow changes (internal mode only) - but skip initial load
   useEffect(() => {
     if (isExternalMode) return
     if (!workflow || !workspaceId) return
+    
+    // Skip if this is the initial load (loadData already fetches stages)
+    if (!initialLoadDone.current) {
+      previousWorkflowId.current = workflow.id
+      return
+    }
+    
+    // Only reload if workflow actually changed (not on mount)
+    if (previousWorkflowId.current === workflow.id) return
+    previousWorkflowId.current = workflow.id
+    
     loadStagesForWorkflow(workflow.id)
-  }, [workflow?.id, isExternalMode])
+  }, [workflow?.id, isExternalMode, workspaceId])
 
   const loadStagesForWorkflow = async (workflowId: string) => {
     try {
-      const stagesData = await workflowsClient.listStages(workspaceId, workflowId)
+      // Use combined endpoint for workflow change too
+      const workspaceData = await workflowsClient.getReviewWorkspaceData(workspaceId, workflowId)
       
-      const loadedStages = await Promise.all(
-        stagesData.map(async (stage) => {
-          let configs: StageReviewerConfig[] = []
-          let actions: StageAction[] = []
-          try {
-            [configs, actions] = await Promise.all([
-              workflowsClient.listStageConfigs(stage.id),
-              workflowsClient.listStageActions(stage.id)
-            ])
-          } catch {}
-          
-          const primaryConfig = configs[0]
-          const rubric = primaryConfig?.rubric_id 
-            ? rubrics.find(r => r.id === primaryConfig.rubric_id) || null
-            : null
-          
-          return {
-            ...stage,
-            reviewerConfigs: configs,
-            rubric,
-            applicationCount: applications.filter(a => a.stageId === stage.id).length,
-            stageActions: actions
-          }
-        })
-      )
+      const { stages: stagesWithDetails, rubrics: allRubrics, workflow_actions: actionsData, 
+              groups: groupsData, stage_groups: stageGroupsData } = workspaceData
+      
+      // Update workflow-related state
+      setWorkflowActions(actionsData)
+      setGroups(groupsData)
+      setStageGroups(stageGroupsData)
+      setRubrics(allRubrics)
+      
+      const loadedStages: StageWithConfig[] = stagesWithDetails.map((stageData) => {
+        const configs = stageData.reviewer_configs || []
+        const actions = stageData.stage_actions || []
+        
+        const primaryConfig = configs[0]
+        let rubric: Rubric | null = null
+        if (primaryConfig?.rubric_id) {
+          rubric = allRubrics.find(r => r.id === primaryConfig.rubric_id) || null
+        }
+        
+        return {
+          ...stageData,
+          reviewerConfigs: configs,
+          rubric,
+          applicationCount: applications.filter(a => a.stageId === stageData.id).length,
+          stageActions: actions
+        } as StageWithConfig
+      })
       
       const sorted = loadedStages.sort((a, b) => a.order_index - b.order_index)
       setStages(sorted)
@@ -757,7 +897,12 @@ export function ReviewWorkspace({
   const loadData = async () => {
     setIsLoading(true)
     try {
-      const loadedForm = await goClient.get<Form>(`/forms/${formId}`)
+      // Load ALL data in a single API call - form, submissions, and all workflow data
+      const data = await formsClient.getFull(formId as string)
+      
+      const loadedForm = data.form
+      const submissions = data.submissions
+      
       setForm(loadedForm)
       
       // Build reviewers map from form settings
@@ -782,19 +927,25 @@ export function ReviewWorkspace({
         }
       }
       
-      const settings = loadedForm.settings || {}
-      const workflowId = settings.workflow_id
-
-      const [allWorkflows, allRubrics, allReviewerTypes] = await Promise.all([
-        workflowsClient.listWorkflows(workspaceId),
-        workflowsClient.listRubrics(workspaceId),
-        workflowsClient.listReviewerTypes(workspaceId)
-      ])
+      // Set all workspace data from combined response
+      const allWorkflows = data.workflows || []
+      const allRubrics = data.rubrics || []
+      const allReviewerTypes = data.reviewer_types || []
+      const stagesWithDetails = data.stages || []
+      const actionsData = data.workflow_actions || []
+      const groupsData = data.groups || []
+      const stageGroupsData = data.stage_groups || []
       
       setWorkflows(allWorkflows)
       setRubrics(allRubrics)
       setReviewerTypes(allReviewerTypes)
+      setWorkflowActions(actionsData)
+      setGroups(groupsData)
+      setStageGroups(stageGroupsData)
 
+      const settings = loadedForm.settings || {}
+      const workflowId = settings.workflow_id
+      
       let activeWorkflow = workflowId 
         ? allWorkflows.find(w => w.id === workflowId) 
         : allWorkflows.find(w => w.is_active) || allWorkflows[0]
@@ -804,62 +955,56 @@ export function ReviewWorkspace({
       if (activeWorkflow) {
         setWorkflow(activeWorkflow)
         
-        // Load workflow actions, application groups (global), and stage groups (per stage)
-        const [actionsData, groupsData, stageGroupsData] = await Promise.all([
-          workflowsClient.listWorkflowActions(activeWorkflow.id),
-          workflowsClient.listGroups(activeWorkflow.id),
-          workflowsClient.listStageGroups(undefined, workspaceId) // Get all stage groups for this workspace
-        ])
-        setWorkflowActions(actionsData)
-        setGroups(groupsData) // Application Groups - global, visible everywhere
-        setStageGroups(stageGroupsData) // Stage Groups - visible only in their linked stage
-        
-        const stagesData = await workflowsClient.listStages(workspaceId, activeWorkflow.id)
-        
-        loadedStages = await Promise.all(
-          stagesData.map(async (stage) => {
-            let configs: StageReviewerConfig[] = []
-            let actions: StageAction[] = []
-            try {
-              [configs, actions] = await Promise.all([
-                workflowsClient.listStageConfigs(stage.id),
-                workflowsClient.listStageActions(stage.id)
-              ])
-            } catch {}
-            
-            const primaryConfig = configs[0]
-            // Priority: stage config rubric > assigned rubric > workflow default rubric
-            let rubric: Rubric | null = null
-            if (primaryConfig?.rubric_id) {
-              rubric = allRubrics.find(r => r.id === primaryConfig.rubric_id) || null
-            } else if (primaryConfig?.assigned_rubric_id) {
-              rubric = allRubrics.find(r => r.id === primaryConfig.assigned_rubric_id) || null
-            }
-            // Fall back to workflow's default rubric
-            if (!rubric && activeWorkflow.default_rubric_id) {
-              rubric = allRubrics.find(r => r.id === activeWorkflow.default_rubric_id) || null
-            }
-            
-            return {
-              ...stage,
-              reviewerConfigs: configs,
-              rubric,
-              applicationCount: 0,
-              stageActions: actions
-            }
-          })
-        )
+        // Map stages with their configs already included from combined response
+        loadedStages = stagesWithDetails.map((stageData) => {
+          const configs = stageData.reviewer_configs || []
+          const actions = stageData.stage_actions || []
+          
+          const primaryConfig = configs[0]
+          let rubric: Rubric | null = null
+          if (primaryConfig?.rubric_id) {
+            rubric = allRubrics.find(r => r.id === primaryConfig.rubric_id) || null
+          } else if (primaryConfig?.assigned_rubric_id) {
+            rubric = allRubrics.find(r => r.id === primaryConfig.assigned_rubric_id) || null
+          }
+          if (!rubric && activeWorkflow.default_rubric_id) {
+            rubric = allRubrics.find(r => r.id === activeWorkflow.default_rubric_id) || null
+          }
+          
+          return {
+            id: stageData.id,
+            name: stageData.name,
+            description: stageData.description,
+            order_index: stageData.order_index,
+            stage_type: stageData.stage_type,
+            review_workflow_id: stageData.review_workflow_id,
+            workspace_id: stageData.workspace_id,
+            color: (stageData as any).color,
+            start_date: stageData.start_date,
+            end_date: stageData.end_date,
+            relative_deadline: stageData.relative_deadline,
+            custom_statuses: stageData.custom_statuses,
+            custom_tags: stageData.custom_tags,
+            logic_rules: stageData.logic_rules,
+            created_at: stageData.created_at,
+            updated_at: stageData.updated_at,
+            hide_pii: stageData.hide_pii,
+            hidden_pii_fields: stageData.hidden_pii_fields,
+            reviewerConfigs: configs,
+            rubric,
+            applicationCount: 0,
+            stageActions: actions
+          } as StageWithConfig
+        })
         
         loadedStages = loadedStages.sort((a, b) => a.order_index - b.order_index)
         setStages(loadedStages)
-        // Keep selectedStageId as 'all' by default - users can pin a stage if they prefer
       }
 
-      const submissions = await goClient.get<FormSubmission[]>(`/forms/${formId}/submissions`)
-      
-      const apps: ApplicationData[] = submissions.map((sub) => {
+      // Map submissions to ApplicationData
+      const apps: ApplicationData[] = submissions.map((sub: any) => {
         const data = sub.data || {}
-        const metadata = (sub as any).metadata || {}
+        const metadata = sub.metadata || {}
         
         const name = data['Full Name'] || data['name'] || data['Name'] || 
                     `${data['First Name'] || ''} ${data['Last Name'] || ''}`.trim() ||
@@ -867,7 +1012,6 @@ export function ReviewWorkspace({
         
         const email = data['_applicant_email'] || data['Email'] || data['email'] || data['personal_email'] || data['personalEmail'] || data['work_email'] || ''
         
-        // Use metadata for workflow tracking
         const assignedWorkflowId = metadata.assigned_workflow_id
         const stageId = metadata.current_stage_id || (loadedStages.length > 0 ? loadedStages[0].id : '')
         const stage = loadedStages.find(s => s.id === stageId)
@@ -897,11 +1041,15 @@ export function ReviewWorkspace({
       
       setApplications(apps)
       
+      // Update stage counts
       const updatedStages = loadedStages.map(stage => ({
         ...stage,
         applicationCount: apps.filter(a => a.stageId === stage.id).length
       }))
       setStages(updatedStages)
+      
+      // Mark initial load as done
+      initialLoadDone.current = true
 
     } catch (error) {
       console.error('Failed to load review data:', error)
@@ -1704,6 +1852,32 @@ export function ReviewWorkspace({
                 </span>
               )}
             </button>
+            
+            {/* Real-time Status Indicator */}
+            {!isExternalMode && (
+              <div 
+                className={cn(
+                  "flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-colors",
+                  realtimeStatus === 'connected' 
+                    ? "bg-green-50 text-green-700" 
+                    : realtimeStatus === 'connecting'
+                    ? "bg-yellow-50 text-yellow-700"
+                    : "bg-gray-100 text-gray-500"
+                )}
+                title={realtimeStatus === 'connected' ? 'Live updates active' : 'Connecting to live updates...'}
+              >
+                {realtimeStatus === 'connected' ? (
+                  <Wifi className="w-3 h-3" />
+                ) : realtimeStatus === 'connecting' ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <WifiOff className="w-3 h-3" />
+                )}
+                <span className="hidden sm:inline">
+                  {realtimeStatus === 'connected' ? 'Live' : realtimeStatus === 'connecting' ? 'Connecting' : 'Offline'}
+                </span>
+              </div>
+            )}
             
             {/* Refresh */}
             <button

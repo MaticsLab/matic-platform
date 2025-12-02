@@ -16,7 +16,6 @@ import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { goClient } from '@/lib/api/go-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
-import { workflowsClient } from '@/lib/api/workflows-client'
 import { Form } from '@/types/forms'
 import { useParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -96,11 +95,13 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
     fetchWorkspace()
   }, [workspaceId, slugFromUrl])
 
-  // Fetch form details
+  // Fetch minimal form details (only for slug/share dialog)
+  // ReviewWorkspace uses the combined endpoint for full data, so we avoid duplicate fetches
   useEffect(() => {
-    const fetchForm = async () => {
+    const fetchFormBasic = async () => {
       if (!formId) return
       try {
+        // Only fetch form for the slug - don't duplicate what ReviewWorkspace fetches
         const data = await goClient.get<Form>(`/forms/${formId}`)
         setForm(data)
         setApplicationSlug(data.slug)
@@ -108,37 +109,44 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
         console.error('Failed to fetch form:', error)
       }
     }
-    fetchForm()
+    fetchFormBasic()
   }, [formId])
 
-  // Fetch stats for overview
+  // Defer stats fetching - runs after 500ms to not block initial render
+  // Stats are shown in secondary UI elements, not critical for initial load
   useEffect(() => {
-    const fetchStats = async () => {
-      if (!formId || !workspaceId) return
+    if (!formId || !workspaceId) return
+    
+    const timeoutId = setTimeout(async () => {
       try {
-        // Fetch submissions
-        const submissions = await goClient.get<any[]>(`/forms/${formId}/submissions`)
+        // Use combined endpoint to get all data in one call
+        const { formsClient } = await import('@/lib/api/forms-client')
+        const data = await formsClient.getFull(formId)
         
-        // Fetch workflows
-        const workflows = await workflowsClient.listWorkflows(workspaceId)
-        
-        // Fetch form settings for reviewers
-        const formData = await goClient.get<Form>(`/forms/${formId}`)
-        const reviewers = formData.settings?.reviewers as any[] || []
+        const submissions = data.submissions || []
+        const workflows = data.workflows || []
+        const reviewers = (data.form.settings?.reviewers as any[]) || []
         
         setStats({
           totalSubmissions: submissions.length,
-          pendingReview: submissions.filter((s: any) => !s.status || s.status === 'pending').length,
-          inProgress: submissions.filter((s: any) => s.status === 'in_progress').length,
-          completed: submissions.filter((s: any) => s.status === 'completed' || s.status === 'approved' || s.status === 'rejected').length,
+          pendingReview: submissions.filter((s: any) => {
+            const status = s.metadata?.status
+            return !status || status === 'pending'
+          }).length,
+          inProgress: submissions.filter((s: any) => s.metadata?.status === 'in_progress').length,
+          completed: submissions.filter((s: any) => {
+            const status = s.metadata?.status
+            return status === 'completed' || status === 'approved' || status === 'rejected'
+          }).length,
           workflowsConfigured: workflows.length,
           reviewersActive: reviewers.filter((r: any) => r.status === 'active').length
         })
       } catch (error) {
         console.error('Failed to fetch stats:', error)
       }
-    }
-    fetchStats()
+    }, 500) // Delay stats fetch by 500ms to prioritize ReviewWorkspace load
+    
+    return () => clearTimeout(timeoutId)
   }, [formId, workspaceId])
 
   const handleCopy = () => {

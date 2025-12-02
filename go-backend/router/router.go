@@ -390,6 +390,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				forms.GET("", handlers.ListForms)
 				forms.POST("", handlers.CreateForm)
 				forms.GET("/:id", handlers.GetForm)
+				forms.GET("/:id/full", handlers.GetFormWithSubmissionsAndWorkflow) // Combined endpoint for Review Workspace
 				forms.PATCH("/:id", handlers.UpdateForm)
 				forms.PUT("/:id/structure", handlers.UpdateFormStructure)    // Add this line
 				forms.PUT("/:id/custom-slug", handlers.UpdateFormCustomSlug) // Update custom URL slug
@@ -457,6 +458,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				workflows.PATCH("/:id", handlers.UpdateReviewWorkflow)
 				workflows.DELETE("/:id", handlers.DeleteReviewWorkflow)
 			}
+
+			// Review Workspace - Combined data endpoint for fast loading
+			protected.GET("/review-workspace-data", handlers.GetReviewWorkspaceData)
 
 			// Application Stages
 			stages := protected.Group("/stages")

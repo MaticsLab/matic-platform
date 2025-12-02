@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
@@ -560,6 +561,248 @@ found:
 	}
 
 	c.JSON(http.StatusOK, form)
+}
+
+// GetFormWithSubmissionsAndWorkflow returns form, submissions, and all workflow data in a single call
+// This is the most optimized endpoint for loading the Review Workspace
+func GetFormWithSubmissionsAndWorkflow(c *gin.Context) {
+	startTime := time.Now()
+	formID := c.Param("id")
+	fmt.Printf("📊 [COMBINED ENDPOINT] Starting load for form %s\n", formID)
+
+	// Response structure
+	type StageWithDetails struct {
+		models.ApplicationStage
+		ReviewerConfigs []models.StageReviewerConfig `json:"reviewer_configs"`
+		StageActions    []models.StageAction         `json:"stage_actions"`
+	}
+
+	type CombinedResponse struct {
+		Form            FormDTO                   `json:"form"`
+		Submissions     []models.Row              `json:"submissions"`
+		Workflows       []models.ReviewWorkflow   `json:"workflows"`
+		Rubrics         []models.Rubric           `json:"rubrics"`
+		ReviewerTypes   []models.ReviewerType     `json:"reviewer_types"`
+		Stages          []StageWithDetails        `json:"stages"`
+		WorkflowActions []models.WorkflowAction   `json:"workflow_actions"`
+		Groups          []models.ApplicationGroup `json:"groups"`
+		StageGroups     []models.StageGroup       `json:"stage_groups"`
+	}
+
+	var response CombinedResponse
+
+	// First get the form to get workspace_id
+	var table models.Table
+	if err := database.DB.First(&table, "id = ?", formID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
+		return
+	}
+	fmt.Printf("📊 [COMBINED ENDPOINT] Form lookup: %v\n", time.Since(startTime))
+
+	workspaceID := table.WorkspaceID.String()
+
+	// Parallel fetch all data
+	var wg sync.WaitGroup
+	var fields []models.Field
+	var view models.View
+	var submissions []models.Row
+	var fieldsErr, submissionsErr, workflowsErr, rubricsErr, reviewerTypesErr, stageGroupsErr error
+
+	// 7 parallel queries for base data
+	wg.Add(7)
+
+	// Form fields
+	go func() {
+		defer wg.Done()
+		fieldsErr = database.DB.Where("table_id = ?", formID).Order("position ASC").Find(&fields).Error
+	}()
+
+	// Form view (for is_published)
+	go func() {
+		defer wg.Done()
+		database.DB.Where("table_id = ? AND type = ?", table.ID, "form").First(&view)
+	}()
+
+	// Submissions
+	go func() {
+		defer wg.Done()
+		submissionsErr = database.DB.Where("table_id = ?", formID).Order("created_at DESC").Find(&submissions).Error
+	}()
+
+	// Workflows
+	go func() {
+		defer wg.Done()
+		workflowsErr = database.DB.Where("workspace_id = ?", workspaceID).Find(&response.Workflows).Error
+	}()
+
+	// Rubrics
+	go func() {
+		defer wg.Done()
+		rubricsErr = database.DB.Where("workspace_id = ?", workspaceID).Find(&response.Rubrics).Error
+	}()
+
+	// Reviewer types
+	go func() {
+		defer wg.Done()
+		reviewerTypesErr = database.DB.Where("workspace_id = ?", workspaceID).Find(&response.ReviewerTypes).Error
+	}()
+
+	// Stage groups
+	go func() {
+		defer wg.Done()
+		stageGroupsErr = database.DB.Where("workspace_id = ?", workspaceID).Order("order_index ASC").Find(&response.StageGroups).Error
+	}()
+
+	wg.Wait()
+
+	// Check critical errors
+	if fieldsErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch form fields"})
+		return
+	}
+	if submissionsErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch submissions"})
+		return
+	}
+	if workflowsErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch workflows"})
+		return
+	}
+
+	// Suppress non-critical errors - use empty slices
+	if rubricsErr != nil {
+		response.Rubrics = []models.Rubric{}
+	}
+	if reviewerTypesErr != nil {
+		response.ReviewerTypes = []models.ReviewerType{}
+	}
+	if stageGroupsErr != nil {
+		response.StageGroups = []models.StageGroup{}
+	}
+
+	// Build form response
+	var settings map[string]interface{}
+	json.Unmarshal(table.Settings, &settings)
+
+	isPublished := false
+	if view.ID != uuid.Nil {
+		var config map[string]interface{}
+		json.Unmarshal(view.Config, &config)
+		if val, ok := config["is_published"].(bool); ok {
+			isPublished = val
+		}
+	}
+
+	response.Form = FormDTO{
+		ID:          table.ID,
+		WorkspaceID: table.WorkspaceID,
+		Name:        table.Name,
+		Slug:        table.Slug,
+		CustomSlug:  table.CustomSlug,
+		Description: table.Description,
+		Settings:    settings,
+		IsPublished: isPublished,
+		Fields:      fields,
+		CreatedAt:   table.CreatedAt,
+		UpdatedAt:   table.UpdatedAt,
+	}
+
+	response.Submissions = submissions
+
+	// Determine active workflow and get workflow-specific data
+	var activeWorkflowID string
+	if len(response.Workflows) > 0 {
+		for _, w := range response.Workflows {
+			if w.IsActive {
+				activeWorkflowID = w.ID.String()
+				break
+			}
+		}
+		if activeWorkflowID == "" {
+			activeWorkflowID = response.Workflows[0].ID.String()
+		}
+	}
+
+	if activeWorkflowID != "" {
+		// Fetch workflow actions, groups, and stages in parallel
+		var stages []models.ApplicationStage
+		var wg2 sync.WaitGroup
+		wg2.Add(3)
+
+		go func() {
+			defer wg2.Done()
+			database.DB.Where("review_workflow_id = ?", activeWorkflowID).Order("order_index ASC").Find(&response.WorkflowActions)
+		}()
+
+		go func() {
+			defer wg2.Done()
+			database.DB.Where("review_workflow_id = ?", activeWorkflowID).Order("order_index ASC").Find(&response.Groups)
+		}()
+
+		go func() {
+			defer wg2.Done()
+			database.DB.Where("workspace_id = ? AND review_workflow_id = ?", workspaceID, activeWorkflowID).Order("order_index ASC").Find(&stages)
+		}()
+
+		wg2.Wait()
+
+		// Get stage configs and actions
+		if len(stages) > 0 {
+			stageIDs := make([]string, len(stages))
+			for i, s := range stages {
+				stageIDs[i] = s.ID.String()
+			}
+
+			var allConfigs []models.StageReviewerConfig
+			var allActions []models.StageAction
+
+			var wg3 sync.WaitGroup
+			wg3.Add(2)
+
+			go func() {
+				defer wg3.Done()
+				database.DB.Where("stage_id IN ?", stageIDs).Find(&allConfigs)
+			}()
+
+			go func() {
+				defer wg3.Done()
+				database.DB.Where("stage_id IN ?", stageIDs).Order("order_index ASC").Find(&allActions)
+			}()
+
+			wg3.Wait()
+
+			// Map configs and actions to stages
+			configMap := make(map[string][]models.StageReviewerConfig)
+			for _, cfg := range allConfigs {
+				configMap[cfg.StageID.String()] = append(configMap[cfg.StageID.String()], cfg)
+			}
+
+			actionMap := make(map[string][]models.StageAction)
+			for _, action := range allActions {
+				actionMap[action.StageID.String()] = append(actionMap[action.StageID.String()], action)
+			}
+
+			response.Stages = make([]StageWithDetails, len(stages))
+			for i, stage := range stages {
+				stageID := stage.ID.String()
+				response.Stages[i] = StageWithDetails{
+					ApplicationStage: stage,
+					ReviewerConfigs:  configMap[stageID],
+					StageActions:     actionMap[stageID],
+				}
+				if response.Stages[i].ReviewerConfigs == nil {
+					response.Stages[i].ReviewerConfigs = []models.StageReviewerConfig{}
+				}
+				if response.Stages[i].StageActions == nil {
+					response.Stages[i].StageActions = []models.StageAction{}
+				}
+			}
+		}
+	}
+
+	fmt.Printf("📊 [COMBINED ENDPOINT] Total time: %v (submissions: %d, workflows: %d, stages: %d)\n", 
+		time.Since(startTime), len(response.Submissions), len(response.Workflows), len(response.Stages))
+	c.JSON(http.StatusOK, response)
 }
 
 // Form Submission Handlers

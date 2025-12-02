@@ -264,6 +264,26 @@ export interface StageAction {
 
 // API Client
 export const workflowsClient = {
+  // Combined endpoint for fast Review Workspace loading
+  getReviewWorkspaceData: async (workspaceId: string, workflowId?: string) => {
+    let url = `/review-workspace-data?workspace_id=${workspaceId}`;
+    if (workflowId) {
+      url += `&workflow_id=${workflowId}`;
+    }
+    return goFetch<{
+      workflows: ReviewWorkflow[];
+      rubrics: Rubric[];
+      reviewer_types: ReviewerType[];
+      stages: Array<ApplicationStage & {
+        reviewer_configs: StageReviewerConfig[];
+        stage_actions: StageAction[];
+      }>;
+      workflow_actions: WorkflowAction[];
+      groups: ApplicationGroup[];
+      stage_groups: StageGroup[];
+    }>(url);
+  },
+
   // Workflows
   listWorkflows: async (workspaceId: string) => {
     return goFetch<ReviewWorkflow[]>(`/workflows?workspace_id=${workspaceId}`);

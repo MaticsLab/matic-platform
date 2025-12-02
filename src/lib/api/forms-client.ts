@@ -1,6 +1,17 @@
 import { goClient } from './go-client'
 import { PortalConfig } from '@/types/portal'
 import { semanticSearchClient } from './semantic-search-client'
+import { 
+  ReviewWorkflow, 
+  Rubric, 
+  ReviewerType, 
+  ApplicationStage, 
+  StageReviewerConfig, 
+  StageAction,
+  WorkflowAction,
+  ApplicationGroup,
+  StageGroup 
+} from './workflows-client'
 
 export interface Form {
   id: string
@@ -16,6 +27,22 @@ export interface Form {
   updated_at: string
 }
 
+// Combined response for Review Workspace - all data in one call
+export interface FormWithWorkflowData {
+  form: Form
+  submissions: any[]
+  workflows: ReviewWorkflow[]
+  rubrics: Rubric[]
+  reviewer_types: ReviewerType[]
+  stages: Array<ApplicationStage & {
+    reviewer_configs: StageReviewerConfig[]
+    stage_actions: StageAction[]
+  }>
+  workflow_actions: WorkflowAction[]
+  groups: ApplicationGroup[]
+  stage_groups: StageGroup[]
+}
+
 // Extended form data with workspace info (returned by subdomain resolution)
 export interface PortalForm extends Form {
   workspace_name: string
@@ -28,6 +55,11 @@ export const formsClient = {
 
   get: (id: string) => 
     goClient.get<Form>(`/forms/${id}`),
+
+  // Combined endpoint: form + submissions + all workflow data in ONE call
+  // This is the fastest way to load the Review Workspace
+  getFull: (id: string) =>
+    goClient.get<FormWithWorkflowData>(`/forms/${id}/full`),
 
   getBySlug: (slug: string) =>
     goClient.get<Form>(`/forms/by-slug/${slug}`),
