@@ -12,7 +12,8 @@ import {
   Target, TrendingUp, BarChart3, Layers,
   UserCheck, UserPlus, ArrowUpRight, Inbox,
   GraduationCap, Search, Settings2, Type, Shield,
-  Plus, Sparkles, Trash2, Wifi, WifiOff, Database
+  Plus, Sparkles, Trash2, Wifi, WifiOff, Database,
+  Paperclip, Download, ExternalLink
 } from 'lucide-react'
 import { 
   getCachedReviewWorkspace, 
@@ -3434,7 +3435,7 @@ function QueueView({
 }) {
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false)
   const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'highest' | 'lowest'>('recent')
-  const [previewTab, setPreviewTab] = useState<'data' | 'reviews'>('data')
+  const [previewTab, setPreviewTab] = useState<'data' | 'reviews' | 'documents'>('data')
 
   const sortedApps = useMemo(() => {
     const sorted = [...apps]
@@ -3713,7 +3714,19 @@ function QueueView({
                   )}
                 >
                   <FileText className="w-4 h-4 inline-block mr-2" />
-                  Application Data
+                  Application
+                </button>
+                <button
+                  onClick={() => setPreviewTab('documents')}
+                  className={cn(
+                    "px-5 py-2.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-2",
+                    previewTab === 'documents'
+                      ? "bg-blue-100 text-blue-700"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  )}
+                >
+                  <Paperclip className="w-4 h-4" />
+                  Documents
                 </button>
                 <button
                   onClick={() => setPreviewTab('reviews')}
@@ -3740,7 +3753,42 @@ function QueueView({
 
             {/* Tab Content */}
             <div className="flex-1 overflow-y-auto px-8 py-6">
-              {previewTab === 'data' ? (
+              {(() => {
+                // Pre-compute PII values to redact for all tabs
+                const previewPiiValuesToRedact: string[] = (() => {
+                  if (!hidePII || !hiddenPIIFields || !form?.fields) return []
+                  const values: string[] = []
+                  form.fields.forEach(f => {
+                    const isHidden = hiddenPIIFields.includes(f.id) || 
+                                     hiddenPIIFields.includes(f.name) || 
+                                     (f.label && hiddenPIIFields.includes(f.label))
+                    if (!isHidden) return
+                    const val = currentApp.raw_data[f.name] || currentApp.raw_data[f.label || '']
+                    if (typeof val === 'string' && val.trim().length >= 2) {
+                      values.push(val.trim())
+                      val.trim().split(/[\s,]+/).filter((p: string) => p.length >= 2).forEach((p: string) => values.push(p))
+                    }
+                  })
+                  return [...new Set(values)]
+                })()
+                
+                const previewKnownPII: Record<string, string> = (() => {
+                  if (!hidePII || !hiddenPIIFields || !form?.fields) return {}
+                  const pii: Record<string, string> = {}
+                  form.fields.forEach(f => {
+                    const isHidden = hiddenPIIFields.includes(f.id) || 
+                                     hiddenPIIFields.includes(f.name) || 
+                                     (f.label && hiddenPIIFields.includes(f.label))
+                    if (!isHidden) return
+                    const val = currentApp.raw_data[f.name] || currentApp.raw_data[f.label || '']
+                    if (typeof val === 'string' && val.trim().length >= 2) {
+                      pii[f.name.toLowerCase().replace(/\s+/g, '_')] = val.trim()
+                    }
+                  })
+                  return pii
+                })()
+                
+                return previewTab === 'data' ? (
                 <>
                   {/* Application Data Tab */}
                   {form?.fields && form.fields.length > 0 ? (
@@ -3795,17 +3843,25 @@ function QueueView({
                             )
                           }
                           
+                          // Parse JSON strings first
+                          const parsedValue = parseValueIfNeeded(value)
+                          
                           // Check if it's a file/document value - render with DocumentPreview
-                          if (isFileValue(value)) {
+                          if (isFileValue(parsedValue)) {
                             return (
                               <DocumentPreview 
-                                value={value} 
+                                value={parsedValue} 
                                 fieldName={field.name}
                                 isPrivacyMode={hidePII}
                                 piiValuesToRedact={piiValuesToRedact}
                                 knownPII={knownPIIForDocuments}
                               />
                             )
+                          }
+                          
+                          // Check if it's an address value
+                          if (isAddressValue(parsedValue)) {
+                            return formatAddress(parsedValue)
                           }
                           
                           // If it's a string and PII mode is on, redact matching PII values
@@ -3950,6 +4006,71 @@ function QueueView({
                     </div>
                   )}
                 </>
+              ) : previewTab === 'documents' ? (
+                /* Documents Tab */
+                <div className="space-y-6">
+                  {(() => {
+                    // Extract all documents from form fields
+                    const documents: { fieldName: string; fieldLabel: string; value: any }[] = []
+                    
+                    if (form?.fields) {
+                      form.fields.forEach(field => {
+                        const value = currentApp.raw_data[field.name] || currentApp.raw_data[field.label || '']
+                        if (!value) return
+                        
+                        const parsedValue = parseValueIfNeeded(value)
+                        if (isFileValue(parsedValue)) {
+                          documents.push({
+                            fieldName: field.name,
+                            fieldLabel: field.label || field.name,
+                            value: parsedValue
+                          })
+                        }
+                      })
+                    }
+                    
+                    if (documents.length === 0) {
+                      return (
+                        <div className="text-center py-12">
+                          <Paperclip className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-500 font-medium">No documents attached</p>
+                          <p className="text-gray-400 text-sm mt-1">This application has no file uploads</p>
+                        </div>
+                      )
+                    }
+                    
+                    return (
+                      <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            {documents.length} Document{documents.length !== 1 ? 's' : ''}
+                          </h3>
+                        </div>
+                        
+                        <div className="grid gap-6">
+                          {documents.map((doc, idx) => (
+                            <div key={idx} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                              <div className="px-5 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+                                <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wide">
+                                  {doc.fieldLabel.replace(/_/g, ' ')}
+                                </h4>
+                              </div>
+                              <div className="p-5">
+                                <DocumentPreview 
+                                  value={doc.value} 
+                                  fieldName={doc.fieldName}
+                                  isPrivacyMode={hidePII}
+                                  piiValuesToRedact={previewPiiValuesToRedact}
+                                  knownPII={previewKnownPII}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
               ) : (
                 /* Reviews Tab */
                 <div className="space-y-6">
@@ -4118,7 +4239,8 @@ function QueueView({
                     </div>
                   )}
                 </div>
-              )}
+              )
+              })()}
             </div>
           </>
         ) : (
