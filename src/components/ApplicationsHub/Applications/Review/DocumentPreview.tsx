@@ -170,14 +170,17 @@ function SingleFilePreview({
           })
           
           if (result.error) {
+            console.error('PII scan returned error:', result.error)
             setScanError(result.error)
           } else {
             setDetectedPII(result.locations || [])
             setScanComplete(true)
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error('Document PII scan failed:', err)
-          setScanError(err instanceof Error ? err.message : 'Scan failed')
+          // Extract meaningful error message
+          const errorMessage = err?.response?.error || err?.message || 'Scan failed'
+          setScanError(errorMessage)
         } finally {
           setIsScanning(false)
         }
@@ -202,7 +205,7 @@ function SingleFilePreview({
   // Get scan status info
   const scanStatusInfo = () => {
     if (isScanning) return { icon: Loader2, text: 'Scanning for PII...', bgColor: 'bg-blue-500', animate: true }
-    if (scanError) return { icon: XCircle, text: 'Scan failed - showing blurred', bgColor: 'bg-red-500', animate: false }
+    if (scanError) return { icon: AlertTriangle, text: 'AI scan unavailable - manual review required', bgColor: 'bg-amber-500', animate: false }
     if (scanComplete) {
       if (detectedPII.length > 0) {
         return { icon: Shield, text: `${detectedPII.length} items redacted`, bgColor: 'bg-amber-500', animate: false }
@@ -281,8 +284,8 @@ function SingleFilePreview({
                   {renderRedactionBoxes()}
                 </div>
               )}
-              {/* Fallback blur if scan failed or still scanning */}
-              {showRedactions && (isScanning || scanError) && (
+              {/* Blur while scanning (not on error - we show doc with warning instead) */}
+              {showRedactions && isScanning && (
                 <div className="absolute inset-0 backdrop-blur-md bg-amber-100/20 pointer-events-none" style={{ top: isPrivacyMode ? '1.5rem' : 0 }} />
               )}
             </div>
@@ -290,22 +293,16 @@ function SingleFilePreview({
         ) : fileType === 'pdf' ? (
           <div className={cn("w-full h-full relative", isPrivacyMode ? "pt-6" : "")}>
             {/* Show PDF - for PDFs we can't easily overlay, so show with warning */}
-            {showRedactions && (isScanning || !scanComplete) ? (
+            {showRedactions && isScanning ? (
               <div className="absolute inset-0 pt-6 bg-gray-100 flex flex-col items-center justify-center">
                 <div className="relative">
                   <FileText className="w-16 h-16 text-gray-300" />
-                  {isScanning ? (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-                    </div>
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Shield className="w-8 h-8 text-amber-500" />
-                    </div>
-                  )}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                  </div>
                 </div>
                 <span className="text-sm font-medium text-gray-600 mt-3">
-                  {isScanning ? 'Scanning PDF...' : 'PDF Document'}
+                  Scanning PDF...
                 </span>
               </div>
             ) : (
@@ -323,6 +320,13 @@ function SingleFilePreview({
                       <strong>{detectedPII.length} PII items</strong> detected in PDF: {detectedPII.slice(0, 3).map(p => p.type).join(', ')}
                       {detectedPII.length > 3 && ` +${detectedPII.length - 3} more`}
                     </span>
+                  </div>
+                )}
+                {/* Warning when scan failed */}
+                {showRedactions && scanError && (
+                  <div className="absolute bottom-2 left-2 right-2 bg-amber-500/90 text-white px-3 py-2 rounded-lg text-xs flex items-center gap-2 z-20">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span>AI scan unavailable - please review document manually for PII</span>
                   </div>
                 )}
               </>
