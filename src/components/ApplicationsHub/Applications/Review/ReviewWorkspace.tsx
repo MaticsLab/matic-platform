@@ -1076,6 +1076,8 @@ export function ReviewWorkspace({
       
       if (cached && cached.form) {
         console.log('✅ Cache hit - rendering instantly')
+        console.log('📋 Cached form fields:', cached.form.fields?.length || 0)
+        console.log('📋 Cached form settings.sections:', cached.form.settings?.sections?.length || 0)
         setIsLoading(false) // Show UI immediately!
         
         // Process cached data
