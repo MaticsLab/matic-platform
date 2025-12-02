@@ -22,19 +22,19 @@ type GeminiClient struct {
 
 // PIIDetectionRequest represents a request to detect PII in a document
 type PIIDetectionRequest struct {
-	DocumentURL   string            `json:"document_url"`
-	DocumentType  string            `json:"document_type"` // "pdf", "image"
-	KnownPII      map[string]string `json:"known_pii"`     // field_name -> value (e.g., "name" -> "John Smith")
-	RedactAll     bool              `json:"redact_all"`    // If true, redact all detected PII, not just known
+	DocumentURL  string            `json:"document_url"`
+	DocumentType string            `json:"document_type"` // "pdf", "image"
+	KnownPII     map[string]string `json:"known_pii"`     // field_name -> value (e.g., "name" -> "John Smith")
+	RedactAll    bool              `json:"redact_all"`    // If true, redact all detected PII, not just known
 }
 
 // PIILocation represents a detected PII location in the document
 type PIILocation struct {
-	Text       string  `json:"text"`        // The PII text found
-	Type       string  `json:"type"`        // Type: "name", "email", "phone", "ssn", "address", "other"
-	Page       int     `json:"page"`        // Page number (1-indexed)
+	Text        string       `json:"text"`                   // The PII text found
+	Type        string       `json:"type"`                   // Type: "name", "email", "phone", "ssn", "address", "other"
+	Page        int          `json:"page"`                   // Page number (1-indexed)
 	BoundingBox *BoundingBox `json:"bounding_box,omitempty"` // Location if available
-	Confidence float64 `json:"confidence"`  // 0-1 confidence score
+	Confidence  float64      `json:"confidence"`             // 0-1 confidence score
 }
 
 // BoundingBox represents the location of text in a document
@@ -64,7 +64,7 @@ type GeminiContent struct {
 }
 
 type GeminiPart struct {
-	Text       string          `json:"text,omitempty"`
+	Text       string            `json:"text,omitempty"`
 	InlineData *GeminiInlineData `json:"inlineData,omitempty"`
 }
 
@@ -102,7 +102,7 @@ func NewGeminiClient() *GeminiClient {
 	if apiKey == "" {
 		apiKey = os.Getenv("GOOGLE_API_KEY")
 	}
-	
+
 	return &GeminiClient{
 		APIKey:  apiKey,
 		BaseURL: "https://generativelanguage.googleapis.com/v1beta",
@@ -115,7 +115,7 @@ func NewGeminiClient() *GeminiClient {
 // DetectPII analyzes a document and returns PII locations
 func (c *GeminiClient) DetectPII(ctx context.Context, req PIIDetectionRequest) (*PIIDetectionResponse, error) {
 	startTime := time.Now()
-	
+
 	if c.APIKey == "" {
 		return nil, fmt.Errorf("GOOGLE_GEMINI_API_KEY or GOOGLE_API_KEY environment variable not set")
 	}
@@ -162,7 +162,7 @@ func (c *GeminiClient) DetectPII(ctx context.Context, req PIIDetectionRequest) (
 
 	// Use gemini-1.5-flash for speed and cost efficiency
 	url := fmt.Sprintf("%s/models/gemini-1.5-flash:generateContent?key=%s", c.BaseURL, c.APIKey)
-	
+
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -229,7 +229,7 @@ func (c *GeminiClient) downloadDocument(url string) ([]byte, string, error) {
 		// Detect from content
 		mimeType = http.DetectContentType(data)
 	}
-	
+
 	// Clean up mime type (remove charset etc)
 	if idx := strings.Index(mimeType, ";"); idx != -1 {
 		mimeType = strings.TrimSpace(mimeType[:idx])
@@ -241,7 +241,7 @@ func (c *GeminiClient) downloadDocument(url string) ([]byte, string, error) {
 // buildPIIDetectionPrompt creates the prompt for Gemini
 func (c *GeminiClient) buildPIIDetectionPrompt(knownPII map[string]string, redactAll bool) string {
 	var sb strings.Builder
-	
+
 	sb.WriteString(`You are a PII (Personally Identifiable Information) detection system. Analyze this document and identify ALL instances of PII that should be redacted for privacy.
 
 `)
@@ -298,7 +298,7 @@ func (c *GeminiClient) parseGeminiResponse(resp GeminiResponse) ([]PIILocation, 
 
 	text := resp.Candidates[0].Content.Parts[0].Text
 	text = strings.TrimSpace(text)
-	
+
 	// Remove markdown code blocks if present
 	text = strings.TrimPrefix(text, "```json")
 	text = strings.TrimPrefix(text, "```")

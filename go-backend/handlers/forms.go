@@ -800,7 +800,7 @@ func GetFormWithSubmissionsAndWorkflow(c *gin.Context) {
 		}
 	}
 
-	fmt.Printf("📊 [COMBINED ENDPOINT] Total time: %v (submissions: %d, workflows: %d, stages: %d)\n", 
+	fmt.Printf("📊 [COMBINED ENDPOINT] Total time: %v (submissions: %d, workflows: %d, stages: %d)\n",
 		time.Since(startTime), len(response.Submissions), len(response.Workflows), len(response.Stages))
 	c.JSON(http.StatusOK, response)
 }
