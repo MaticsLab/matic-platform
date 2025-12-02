@@ -125,6 +125,32 @@ function parseValueIfNeeded(value: any): any {
   return value
 }
 
+// Helper to check if an object is an address field
+function isAddressValue(value: any): boolean {
+  if (typeof value !== 'object' || value === null) return false
+  // Check for common address field properties
+  return !!(value.full_address || value.street_address || 
+           (value.city && value.state) || 
+           (value.latitude && value.longitude))
+}
+
+// Helper to format address nicely
+function formatAddress(value: any): React.ReactNode {
+  if (value.full_address) {
+    return <span className="text-gray-900">{value.full_address}</span>
+  }
+  // Build address from parts
+  const parts = []
+  if (value.street_address) parts.push(value.street_address)
+  if (value.place_name) parts.push(value.place_name)
+  if (value.city) parts.push(value.city)
+  if (value.state) parts.push(value.state)
+  if (value.postal_code) parts.push(value.postal_code)
+  if (value.country && value.country !== 'United States') parts.push(value.country)
+  
+  return <span className="text-gray-900">{parts.join(', ') || 'Address provided'}</span>
+}
+
 // Helper function to render nested data (groups, repeaters, objects) nicely
 // Note: For file fields with privacy mode, use renderFieldValueWithPrivacy instead
 function renderFieldValue(key: string, value: any, depth: number = 0): React.ReactNode {
@@ -138,6 +164,11 @@ function renderFieldValue(key: string, value: any, depth: number = 0): React.Rea
   // Check if it's a file/document value
   if (isFileValue(parsedValue)) {
     return <DocumentPreview value={parsedValue} fieldName={key} />
+  }
+  
+  // Check if it's an address value
+  if (isAddressValue(parsedValue)) {
+    return formatAddress(parsedValue)
   }
   
   if (typeof parsedValue === 'boolean') {
