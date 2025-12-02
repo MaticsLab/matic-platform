@@ -1128,6 +1128,36 @@ function CombinedStageSettings({
   onCancel: () => void
 }) {
   const [activeTab, setActiveTab] = useState<'general' | 'reviewers' | 'actions' | 'automation' | 'groups' | 'privacy'>('general')
+  const [isClosing, setIsClosing] = useState(false)
+  
+  // Save function refs for each tab that needs save-on-close
+  const saveFunctionsRef = useRef<Record<string, () => Promise<void>>>({})
+  
+  // Register a save function from a child component
+  const registerSaveFunction = useCallback((tabId: string, saveFn: () => Promise<void>) => {
+    saveFunctionsRef.current[tabId] = saveFn
+  }, [])
+  
+  // Unregister a save function when component unmounts
+  const unregisterSaveFunction = useCallback((tabId: string) => {
+    delete saveFunctionsRef.current[tabId]
+  }, [])
+  
+  // Handle close with save
+  const handleClose = async () => {
+    setIsClosing(true)
+    try {
+      // Save all registered tabs
+      const savePromises = Object.values(saveFunctionsRef.current).map(fn => fn())
+      await Promise.all(savePromises)
+      onSave()
+    } catch (error) {
+      console.error('Failed to save on close:', error)
+    } finally {
+      setIsClosing(false)
+      onCancel()
+    }
+  }
   
   // Get stage color
   const stageColorKey: StageColorKey = ((stage as any).color as StageColorKey) || getDefaultStageColor(stage.order_index || 0)
@@ -1190,11 +1220,21 @@ function CombinedStageSettings({
         {/* Close button at bottom */}
         <div className="p-3 border-t">
           <button
-            onClick={onCancel}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg transition-colors"
+            onClick={handleClose}
+            disabled={isClosing}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg transition-colors disabled:opacity-50"
           >
-            <X className="w-4 h-4" />
-            Close
+            {isClosing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <X className="w-4 h-4" />
+                Close
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -1210,6 +1250,8 @@ function CombinedStageSettings({
               stageCount={stageCount}
               onSave={onSave}
               onCancel={onCancel}
+              registerSaveFunction={(fn) => registerSaveFunction('general', fn)}
+              unregisterSaveFunction={() => unregisterSaveFunction('general')}
             />
           )}
           {activeTab === 'reviewers' && (
@@ -1220,6 +1262,8 @@ function CombinedStageSettings({
               formSections={formSections}
               formId={formId}
               onSave={onSave}
+              registerSaveFunction={(fn) => registerSaveFunction('reviewers', fn)}
+              unregisterSaveFunction={() => unregisterSaveFunction('reviewers')}
             />
           )}
           {activeTab === 'actions' && (
@@ -2329,7 +2373,9 @@ function GeneralStageSettings({
   workflowId,
   stageCount,
   onSave,
-  onCancel
+  onCancel,
+  registerSaveFunction,
+  unregisterSaveFunction
 }: {
   stage: ApplicationStage
   workspaceId: string
@@ -2337,6 +2383,8 @@ function GeneralStageSettings({
   stageCount: number
   onSave: () => void
   onCancel: () => void
+  registerSaveFunction: (fn: () => Promise<void>) => void
+  unregisterSaveFunction: () => void
 }) {
   const [name, setName] = useState(stage.name || '')
   const [description, setDescription] = useState(stage.description || '')
@@ -2384,57 +2432,50 @@ function GeneralStageSettings({
   const [newStatus, setNewStatus] = useState('')
   const [newTag, setNewTag] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const isInitialMount = useRef(true)
+  const [hasChanges, setHasChanges] = useState(false)
 
-  // Autosave effect
+  // Track changes
   useEffect(() => {
-    // Skip initial mount
-    if (isInitialMount.current) {
-      isInitialMount.current = false
-      return
-    }
+    setHasChanges(true)
+  }, [name, description, stageType, stageColor, startDate, endDate, relativeDeadline, customStatuses, customTags])
 
-    // Don't save if name is empty
+  // Save function that will be called on close
+  const saveStageSettings = useCallback(async () => {
+    // Don't save if name is empty or no changes
     if (!name.trim()) return
-
-    // Clear existing timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
-
-    // Debounce save by 800ms
-    saveTimeoutRef.current = setTimeout(async () => {
-      setIsSaving(true)
-      try {
-        const stageData = {
-          name: name.trim(),
-          description: description.trim() || undefined,
-          stage_type: stageType,
-          color: stageColor,
-          start_date: startDate ? new Date(startDate).toISOString() : undefined,
-          end_date: endDate ? new Date(endDate).toISOString() : undefined,
-          relative_deadline: relativeDeadline && relativeDeadline !== 'none' ? relativeDeadline : undefined,
-          custom_statuses: customStatuses.length > 0 ? customStatuses : undefined,
-          custom_tags: customTags.length > 0 ? customTags : undefined,
-        }
-        
-        await workflowsClient.updateStage(stage.id, stageData)
-        onSave()
-      } catch (error: any) {
-        console.error('Failed to save stage:', error)
-        showToast(error.message || 'Failed to save stage', 'error')
-      } finally {
-        setIsSaving(false)
+    
+    setIsSaving(true)
+    try {
+      const stageData = {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        stage_type: stageType,
+        color: stageColor,
+        start_date: startDate ? new Date(startDate).toISOString() : undefined,
+        end_date: endDate ? new Date(endDate).toISOString() : undefined,
+        relative_deadline: relativeDeadline && relativeDeadline !== 'none' ? relativeDeadline : undefined,
+        custom_statuses: customStatuses.length > 0 ? customStatuses : undefined,
+        custom_tags: customTags.length > 0 ? customTags : undefined,
       }
-    }, 800)
+      
+      await workflowsClient.updateStage(stage.id, stageData)
+      setHasChanges(false)
+    } catch (error: any) {
+      console.error('Failed to save stage:', error)
+      showToast(error.message || 'Failed to save stage', 'error')
+      throw error
+    } finally {
+      setIsSaving(false)
+    }
+  }, [name, description, stageType, stageColor, startDate, endDate, relativeDeadline, customStatuses, customTags, stage.id])
 
+  // Register save function on mount
+  useEffect(() => {
+    registerSaveFunction(saveStageSettings)
     return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
+      unregisterSaveFunction()
     }
-  }, [name, description, stageType, stageColor, startDate, endDate, relativeDeadline, customStatuses, customTags, stage.id, onSave])
+  }, [saveStageSettings, registerSaveFunction, unregisterSaveFunction])
 
   const addStatus = () => {
     if (newStatus.trim() && !customStatuses.some(s => s.name === newStatus.trim())) {
@@ -2924,11 +2965,11 @@ function GeneralStageSettings({
         </div>
       </div>
 
-      {/* Autosave indicator */}
-      {isSaving && (
-        <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Saving...
+      {/* Changes indicator */}
+      {hasChanges && (
+        <div className="flex items-center justify-center gap-2 text-sm text-amber-600">
+          <span className="w-2 h-2 rounded-full bg-amber-400" />
+          Unsaved changes - will save on close
         </div>
       )}
     </div>
@@ -2959,7 +3000,9 @@ function ReviewerStageSettings({
   rubrics,
   formSections,
   formId,
-  onSave
+  onSave,
+  registerSaveFunction,
+  unregisterSaveFunction
 }: {
   stage: ApplicationStage
   reviewerTypes: ReviewerType[]
@@ -2967,13 +3010,15 @@ function ReviewerStageSettings({
   formSections: FormSection[]
   formId?: string
   onSave: () => void
+  registerSaveFunction: (fn: () => Promise<void>) => void
+  unregisterSaveFunction: () => void
 }) {
   const [configs, setConfigs] = useState<Partial<StageReviewerConfig>[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [expandedConfig, setExpandedConfig] = useState<number | null>(null)
   const [formReviewers, setFormReviewers] = useState<ReviewerInfo[]>([])
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [hasChanges, setHasChanges] = useState(false)
   const isInitialLoad = useRef(true)
 
   useEffect(() => {
@@ -3010,49 +3055,48 @@ function ReviewerStageSettings({
     })
   }
 
-  // Autosave effect
+  // Track changes to configs
   useEffect(() => {
-    // Skip initial load
-    if (isInitialLoad.current) {
-      return
+    if (!isInitialLoad.current) {
+      setHasChanges(true)
     }
+  }, [configs])
 
-    // Clear existing timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
-
-    // Debounce save by 800ms
-    saveTimeoutRef.current = setTimeout(async () => {
-      setIsSaving(true)
-      try {
-        for (const config of configs) {
-          if (config.id) {
-            await workflowsClient.updateStageConfig(config.id, config as StageReviewerConfig)
-          } else if (config.reviewer_type_id) {
-            const created = await workflowsClient.createStageConfig(config as StageReviewerConfig)
-            // Update local config with new ID
-            const idx = configs.findIndex(c => c === config)
-            if (idx >= 0) {
-              configs[idx] = { ...configs[idx], id: created.id }
-            }
+  // Save function that will be called on close
+  const saveReviewerSettings = useCallback(async () => {
+    if (configs.length === 0) return
+    
+    setIsSaving(true)
+    try {
+      for (const config of configs) {
+        if (config.id) {
+          await workflowsClient.updateStageConfig(config.id, config as StageReviewerConfig)
+        } else if (config.reviewer_type_id) {
+          const created = await workflowsClient.createStageConfig(config as StageReviewerConfig)
+          // Update local config with new ID
+          const idx = configs.findIndex(c => c === config)
+          if (idx >= 0) {
+            configs[idx] = { ...configs[idx], id: created.id }
           }
         }
-        onSave()
-      } catch (error) {
-        console.error('Failed to save configs:', error)
-        showToast('Failed to save reviewer settings', 'error')
-      } finally {
-        setIsSaving(false)
       }
-    }, 800)
-
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
+      setHasChanges(false)
+    } catch (error) {
+      console.error('Failed to save configs:', error)
+      showToast('Failed to save reviewer settings', 'error')
+      throw error
+    } finally {
+      setIsSaving(false)
     }
-  }, [configs, onSave])
+  }, [configs])
+
+  // Register save function on mount
+  useEffect(() => {
+    registerSaveFunction(saveReviewerSettings)
+    return () => {
+      unregisterSaveFunction()
+    }
+  }, [saveReviewerSettings, registerSaveFunction, unregisterSaveFunction])
 
   const loadConfigs = async () => {
     try {
@@ -3342,11 +3386,11 @@ function ReviewerStageSettings({
         )}
       </div>
 
-      {/* Autosave indicator */}
-      {isSaving && (
-        <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Saving...
+      {/* Changes indicator */}
+      {hasChanges && (
+        <div className="flex items-center justify-center gap-2 text-sm text-amber-600">
+          <span className="w-2 h-2 rounded-full bg-amber-400" />
+          Unsaved changes - will save on close
         </div>
       )}
     </div>
