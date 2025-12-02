@@ -831,6 +831,7 @@ export function ReviewWorkspace({
 
   // Track if initial load has completed to avoid duplicate API calls
   const initialLoadDone = useRef(false)
+  const fetchInProgress = useRef(false)
   const previousWorkflowId = useRef<string | null>(null)
 
   const loadStagesForWorkflow = useCallback(async (workflowId: string) => {
@@ -936,21 +937,21 @@ export function ReviewWorkspace({
       }
     }
     
-    // Set all workspace data from combined response
-    const allWorkflows = data.workflows || workflows
-    const allRubrics = data.rubrics || rubrics
-    const allReviewerTypes = data.reviewer_types || reviewerTypes
+    // Set all workspace data from combined response - always use passed data
+    const allWorkflows = data.workflows || []
+    const allRubrics = data.rubrics || []
+    const allReviewerTypes = data.reviewer_types || []
     const stagesWithDetails = data.stages || []
-    const actionsData = data.workflow_actions || workflowActions
-    const groupsData = data.groups || groups
-    const stageGroupsData = data.stage_groups || stageGroups
+    const actionsData = data.workflow_actions || []
+    const groupsData = data.groups || []
+    const stageGroupsData = data.stage_groups || []
     
-    if (data.workflows) setWorkflows(allWorkflows)
-    if (data.rubrics) setRubrics(allRubrics)
-    if (data.reviewer_types) setReviewerTypes(allReviewerTypes)
-    if (data.workflow_actions) setWorkflowActions(actionsData)
-    if (data.groups) setGroups(groupsData)
-    if (data.stage_groups) setStageGroups(stageGroupsData)
+    setWorkflows(allWorkflows)
+    setRubrics(allRubrics)
+    setReviewerTypes(allReviewerTypes)
+    setWorkflowActions(actionsData)
+    setGroups(groupsData)
+    setStageGroups(stageGroupsData)
 
     const settings = loadedForm.settings || {}
     const workflowIdFromSettings = settings.workflow_id
@@ -1058,9 +1059,18 @@ export function ReviewWorkspace({
     setStages(updatedStages)
     
     return { apps, loadedStages: updatedStages }
-  }, [titleFieldName, workflows, rubrics, reviewerTypes, workflowActions, groups, stageGroups])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // No dependencies - this is a pure data transformation function
 
   const loadData = useCallback(async () => {
+    // Prevent duplicate fetches
+    if (fetchInProgress.current) {
+      console.log('⏭️ Fetch already in progress, skipping')
+      return
+    }
+    
+    fetchInProgress.current = true
+    
     // Phase 1: Try to load from cache for instant rendering (0ms)
     if (formId) {
       console.time('📦 Cache load')
@@ -1131,9 +1141,10 @@ export function ReviewWorkspace({
       console.error('Failed to load review data:', error)
     } finally {
       setIsLoading(false)
+      fetchInProgress.current = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formId, workspaceId, processFormData])
+  }, [formId, workspaceId])
 
   // Load all data - different paths for internal vs external mode
   useEffect(() => {
@@ -1142,7 +1153,8 @@ export function ReviewWorkspace({
     } else if (formId && workspaceId) {
       loadData()
     }
-  }, [isExternalMode, token, formId, workspaceId, loadData, loadExternalReviewData])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExternalMode, token, formId, workspaceId])
 
   // Get filtered applications for current stage
   // Get all unique tags from applications for filter options
