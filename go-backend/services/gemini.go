@@ -160,8 +160,8 @@ func (c *GeminiClient) DetectPII(ctx context.Context, req PIIDetectionRequest) (
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Use gemini-1.5-flash for speed and cost efficiency
-	url := fmt.Sprintf("%s/models/gemini-1.5-flash:generateContent?key=%s", c.BaseURL, c.APIKey)
+	// Use gemini-2.0-flash for speed and cost efficiency (supports vision)
+	url := fmt.Sprintf("%s/models/gemini-2.0-flash:generateContent?key=%s", c.BaseURL, c.APIKey)
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
