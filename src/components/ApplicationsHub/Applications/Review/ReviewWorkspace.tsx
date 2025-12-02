@@ -50,6 +50,7 @@ import { useSearchSafe, HubSearchContext } from '@/components/Search'
 import { ReviewerManagement } from '../Reviewers/ReviewerManagement'
 import { CommunicationsCenter } from '../Communications/CommunicationsCenter'
 import { ApplicationContactPanel } from './ApplicationContactPanel'
+import { DocumentPreview, isFileValue } from './DocumentPreview'
 import { Circle, Folder, FolderOpen } from 'lucide-react'
 
 // Stage color palette - semantic colors for workflow stages
@@ -125,12 +126,18 @@ function parseValueIfNeeded(value: any): any {
 }
 
 // Helper function to render nested data (groups, repeaters, objects) nicely
+// Note: For file fields with privacy mode, use renderFieldValueWithPrivacy instead
 function renderFieldValue(key: string, value: any, depth: number = 0): React.ReactNode {
   // First, try to parse JSON strings
   const parsedValue = parseValueIfNeeded(value)
   
   if (parsedValue === null || parsedValue === undefined || parsedValue === '') {
     return <span className="text-gray-400 italic">Not provided</span>
+  }
+  
+  // Check if it's a file/document value
+  if (isFileValue(parsedValue)) {
+    return <DocumentPreview value={parsedValue} fieldName={key} />
   }
   
   if (typeof parsedValue === 'boolean') {
@@ -153,6 +160,11 @@ function renderFieldValue(key: string, value: any, depth: number = 0): React.Rea
   if (Array.isArray(parsedValue)) {
     if (parsedValue.length === 0) {
       return <span className="text-gray-400 italic">None</span>
+    }
+    
+    // Check if it's an array of file objects
+    if (isFileValue(parsedValue)) {
+      return <DocumentPreview value={parsedValue} fieldName={key} />
     }
     
     // Check if it's an array of primitives
@@ -1075,9 +1087,6 @@ export function ReviewWorkspace({
       const cached = getCachedReviewWorkspace(formId)
       
       if (cached && cached.form) {
-        console.log('✅ Cache hit - rendering instantly')
-        console.log('📋 Cached form fields:', cached.form.fields?.length || 0)
-        console.log('📋 Cached form settings.sections:', cached.form.settings?.sections?.length || 0)
         setIsLoading(false) // Show UI immediately!
         
         // Process cached data
@@ -3732,13 +3741,25 @@ function QueueView({
                         })()
                         
                         // Helper to render field value with PII redaction
-                        const renderWithPII = (field: { id: string; name: string; label?: string }, value: any) => {
+                        const renderWithPII = (field: { id: string; name: string; label?: string; type?: string }, value: any) => {
                           // If this field is marked for hiding, show redacted
                           if (isFieldHidden(field)) {
                             return (
                               <span className="bg-gray-900 text-gray-900 rounded px-2 py-0.5 select-none cursor-help" title="Hidden for privacy">
                                 ████████████████
                               </span>
+                            )
+                          }
+                          
+                          // Check if it's a file/document value - render with DocumentPreview
+                          if (isFileValue(value)) {
+                            return (
+                              <DocumentPreview 
+                                value={value} 
+                                fieldName={field.name}
+                                isPrivacyMode={hidePII}
+                                piiValuesToRedact={piiValuesToRedact}
+                              />
                             )
                           }
                           
@@ -4360,6 +4381,18 @@ function FocusReviewMode({
   
   // Render field value with PII redaction
   const renderFieldValueWithPII = (fieldName: string, value: any): React.ReactNode => {
+    // Check if it's a file/document value - render with DocumentPreview
+    if (isFileValue(value)) {
+      return (
+        <DocumentPreview 
+          value={value} 
+          fieldName={fieldName}
+          isPrivacyMode={hidePII}
+          piiValuesToRedact={piiValuesToRedact}
+        />
+      )
+    }
+    
     if (typeof value === 'string') {
       if (piiValuesToRedact.length > 0) {
         return <RedactedText text={value} piiValues={piiValuesToRedact} />
