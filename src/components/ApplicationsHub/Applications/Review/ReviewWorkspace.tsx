@@ -3740,6 +3740,19 @@ function QueueView({
                           return [...new Set(values)]
                         })()
                         
+                        // Build known PII map for document scanning
+                        const knownPIIForDocuments: Record<string, string> = (() => {
+                          const knownPII: Record<string, string> = {}
+                          form.fields.filter(f => isFieldHidden(f)).forEach(f => {
+                            const val = currentApp.raw_data[f.name] || currentApp.raw_data[f.label || '']
+                            if (typeof val === 'string' && val.trim().length >= 2) {
+                              const key = f.name.toLowerCase().replace(/\s+/g, '_')
+                              knownPII[key] = val.trim()
+                            }
+                          })
+                          return knownPII
+                        })()
+                        
                         // Helper to render field value with PII redaction
                         const renderWithPII = (field: { id: string; name: string; label?: string; type?: string }, value: any) => {
                           // If this field is marked for hiding, show redacted
@@ -3759,6 +3772,7 @@ function QueueView({
                                 fieldName={field.name}
                                 isPrivacyMode={hidePII}
                                 piiValuesToRedact={piiValuesToRedact}
+                                knownPII={knownPIIForDocuments}
                               />
                             )
                           }
@@ -4297,6 +4311,28 @@ function FocusReviewMode({
     return [...new Set(values)]
   }, [app.raw_data, hidePII, hiddenPIIFields, form?.fields])
   
+  // Build known PII map for document scanning (field_type -> value)
+  const knownPIIForDocuments: Record<string, string> = useMemo(() => {
+    if (!hidePII || !hiddenPIIFields || hiddenPIIFields.length === 0) return {}
+    if (!form?.fields) return {}
+    
+    const knownPII: Record<string, string> = {}
+    form.fields.forEach(field => {
+      // Check if this field is in the hidden list
+      if (hiddenPIIFields.includes(field.id) || 
+          hiddenPIIFields.includes(field.name) || 
+          (field.label && hiddenPIIFields.includes(field.label))) {
+        const value = app.raw_data[field.name] || app.raw_data[field.label || '']
+        if (value && typeof value === 'string' && value.trim().length >= 2) {
+          // Use field name or type as key
+          const key = field.name.toLowerCase().replace(/\s+/g, '_')
+          knownPII[key] = value.trim()
+        }
+      }
+    })
+    return knownPII
+  }, [app.raw_data, hidePII, hiddenPIIFields, form?.fields])
+  
   // Get display title - uses Application # when PII mode is on or title field is redacted
   const getDisplayTitle = (): string => {
     // If PII mode is enabled, always show anonymized title
@@ -4389,6 +4425,7 @@ function FocusReviewMode({
           fieldName={fieldName}
           isPrivacyMode={hidePII}
           piiValuesToRedact={piiValuesToRedact}
+          knownPII={knownPIIForDocuments}
         />
       )
     }
