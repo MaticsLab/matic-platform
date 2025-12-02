@@ -1063,9 +1063,8 @@ export function ReviewWorkspace({
   }, []) // No dependencies - this is a pure data transformation function
 
   const loadData = useCallback(async () => {
-    // Prevent duplicate fetches
-    if (fetchInProgress.current) {
-      console.log('⏭️ Fetch already in progress, skipping')
+    // Prevent duplicate fetches - check both ref and if initial load is done
+    if (fetchInProgress.current || initialLoadDone.current) {
       return
     }
     
@@ -1073,12 +1072,10 @@ export function ReviewWorkspace({
     
     // Phase 1: Try to load from cache for instant rendering (0ms)
     if (formId) {
-      console.time('📦 Cache load')
       const cached = getCachedReviewWorkspace(formId)
-      console.timeEnd('📦 Cache load')
       
       if (cached && cached.form) {
-        console.log('✅ Rendering from cache instantly')
+        console.log('✅ Cache hit - rendering instantly')
         setIsLoading(false) // Show UI immediately!
         
         // Process cached data
@@ -1102,9 +1099,7 @@ export function ReviewWorkspace({
     
     // Phase 2: Fetch fresh data in background
     try {
-      console.time('🔄 Fresh data fetch')
       const data = await formsClient.getFull(formId as string)
-      console.timeEnd('🔄 Fresh data fetch')
       
       // Process fresh data
       processFormData({
