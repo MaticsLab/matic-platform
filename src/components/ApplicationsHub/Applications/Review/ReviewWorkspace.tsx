@@ -12,8 +12,12 @@ import {
   Target, TrendingUp, BarChart3, Layers,
   UserCheck, UserPlus, ArrowUpRight, Inbox,
   GraduationCap, Search, Settings2, Type, Shield,
-  Plus, Sparkles, Trash2, Wifi, WifiOff
+  Plus, Sparkles, Trash2, Wifi, WifiOff, Database
 } from 'lucide-react'
+import { 
+  getCachedReviewWorkspace, 
+  setCachedReviewWorkspace 
+} from '@/lib/cache/review-workspace-cache'
 import { cn } from '@/lib/utils'
 import { goClient } from '@/lib/api/go-client'
 import { formsClient } from '@/lib/api/forms-client'
@@ -460,6 +464,7 @@ export function ReviewWorkspace({
   
   // Core state
   const [isLoading, setIsLoading] = useState(true)
+  const [isFromCache, setIsFromCache] = useState(false) // Track if data is from cache
   const [isSaving, setIsSaving] = useState(false)
   const [workflows, setWorkflows] = useState<ReviewWorkflow[]>([])
   const [workflow, setWorkflow] = useState<ReviewWorkflow | null>(null)
@@ -886,159 +891,238 @@ export function ReviewWorkspace({
     loadStagesForWorkflow(workflow.id)
   }, [workflow, isExternalMode, workspaceId, loadStagesForWorkflow])
 
-  const loadData = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      // Load ALL data in a single API call - form, submissions, and all workflow data
-      const data = await formsClient.getFull(formId as string)
-      
-      const loadedForm = data.form
-      const submissions = data.submissions
-      
-      setForm(loadedForm)
-      
-      // Build reviewers map from form settings
-      const formReviewers = (loadedForm.settings as any)?.reviewers || []
-      const revMap: Record<string, { name: string; email?: string; role?: string }> = {}
-      formReviewers.forEach((r: any) => {
-        if (r.id) {
-          revMap[r.id] = { name: r.name || 'Unknown', email: r.email, role: r.role }
-        }
-      })
-      setReviewersMap(revMap)
-      
-      // Set default title field if not already set
-      if (!titleFieldName && loadedForm.fields) {
-        const candidates = getTitleCandidateFields(loadedForm.fields)
-        const defaultTitleField = candidates.find(f => 
-          f.name.toLowerCase().includes('name') || 
-          f.label.toLowerCase().includes('name')
-        ) || candidates[0]
-        if (defaultTitleField) {
-          setTitleFieldName(defaultTitleField.name)
-        }
+  // Helper to process form and submissions into state
+  // Extracted to reuse for both cache and fresh data
+  const processFormData = useCallback((data: {
+    form: any
+    submissions: any[]
+    workflows?: any[]
+    rubrics?: any[]
+    reviewer_types?: any[]
+    stages?: any[]
+    workflow_actions?: any[]
+    groups?: any[]
+    stage_groups?: any[]
+  }, options: { fromCache?: boolean } = {}) => {
+    const loadedForm = data.form
+    const submissions = data.submissions
+    
+    setForm(loadedForm)
+    if (options.fromCache) {
+      setIsFromCache(true)
+    } else {
+      setIsFromCache(false)
+    }
+    
+    // Build reviewers map from form settings
+    const formReviewers = (loadedForm.settings as any)?.reviewers || []
+    const revMap: Record<string, { name: string; email?: string; role?: string }> = {}
+    formReviewers.forEach((r: any) => {
+      if (r.id) {
+        revMap[r.id] = { name: r.name || 'Unknown', email: r.email, role: r.role }
       }
-      
-      // Set all workspace data from combined response
-      const allWorkflows = data.workflows || []
-      const allRubrics = data.rubrics || []
-      const allReviewerTypes = data.reviewer_types || []
-      const stagesWithDetails = data.stages || []
-      const actionsData = data.workflow_actions || []
-      const groupsData = data.groups || []
-      const stageGroupsData = data.stage_groups || []
-      
-      setWorkflows(allWorkflows)
-      setRubrics(allRubrics)
-      setReviewerTypes(allReviewerTypes)
-      setWorkflowActions(actionsData)
-      setGroups(groupsData)
-      setStageGroups(stageGroupsData)
-
-      const settings = loadedForm.settings || {}
-      const workflowId = settings.workflow_id
-      
-      let activeWorkflow = workflowId 
-        ? allWorkflows.find(w => w.id === workflowId) 
-        : allWorkflows.find(w => w.is_active) || allWorkflows[0]
-      
-      let loadedStages: StageWithConfig[] = []
-      
-      if (activeWorkflow) {
-        setWorkflow(activeWorkflow)
-        
-        // Map stages with their configs already included from combined response
-        loadedStages = stagesWithDetails.map((stageData) => {
-          const configs = stageData.reviewer_configs || []
-          const actions = stageData.stage_actions || []
-          
-          const primaryConfig = configs[0]
-          let rubric: Rubric | null = null
-          if (primaryConfig?.rubric_id) {
-            rubric = allRubrics.find(r => r.id === primaryConfig.rubric_id) || null
-          } else if (primaryConfig?.assigned_rubric_id) {
-            rubric = allRubrics.find(r => r.id === primaryConfig.assigned_rubric_id) || null
-          }
-          if (!rubric && activeWorkflow.default_rubric_id) {
-            rubric = allRubrics.find(r => r.id === activeWorkflow.default_rubric_id) || null
-          }
-          
-          return {
-            id: stageData.id,
-            name: stageData.name,
-            description: stageData.description,
-            order_index: stageData.order_index,
-            stage_type: stageData.stage_type,
-            review_workflow_id: stageData.review_workflow_id,
-            workspace_id: stageData.workspace_id,
-            color: (stageData as any).color,
-            start_date: stageData.start_date,
-            end_date: stageData.end_date,
-            relative_deadline: stageData.relative_deadline,
-            custom_statuses: stageData.custom_statuses,
-            custom_tags: stageData.custom_tags,
-            logic_rules: stageData.logic_rules,
-            created_at: stageData.created_at,
-            updated_at: stageData.updated_at,
-            hide_pii: stageData.hide_pii,
-            hidden_pii_fields: stageData.hidden_pii_fields,
-            reviewerConfigs: configs,
-            rubric,
-            applicationCount: 0,
-            stageActions: actions
-          } as StageWithConfig
-        })
-        
-        loadedStages = loadedStages.sort((a, b) => a.order_index - b.order_index)
-        setStages(loadedStages)
+    })
+    setReviewersMap(revMap)
+    
+    // Set default title field if not already set
+    if (!titleFieldName && loadedForm.fields) {
+      const candidates = getTitleCandidateFields(loadedForm.fields)
+      const defaultTitleField = candidates.find(f => 
+        f.name.toLowerCase().includes('name') || 
+        f.label.toLowerCase().includes('name')
+      ) || candidates[0]
+      if (defaultTitleField) {
+        setTitleFieldName(defaultTitleField.name)
       }
+    }
+    
+    // Set all workspace data from combined response
+    const allWorkflows = data.workflows || workflows
+    const allRubrics = data.rubrics || rubrics
+    const allReviewerTypes = data.reviewer_types || reviewerTypes
+    const stagesWithDetails = data.stages || []
+    const actionsData = data.workflow_actions || workflowActions
+    const groupsData = data.groups || groups
+    const stageGroupsData = data.stage_groups || stageGroups
+    
+    if (data.workflows) setWorkflows(allWorkflows)
+    if (data.rubrics) setRubrics(allRubrics)
+    if (data.reviewer_types) setReviewerTypes(allReviewerTypes)
+    if (data.workflow_actions) setWorkflowActions(actionsData)
+    if (data.groups) setGroups(groupsData)
+    if (data.stage_groups) setStageGroups(stageGroupsData)
 
-      // Map submissions to ApplicationData
-      const apps: ApplicationData[] = submissions.map((sub: any) => {
-        const data = sub.data || {}
-        const metadata = sub.metadata || {}
+    const settings = loadedForm.settings || {}
+    const workflowIdFromSettings = settings.workflow_id
+    
+    let activeWorkflow = workflowIdFromSettings 
+      ? allWorkflows.find((w: any) => w.id === workflowIdFromSettings) 
+      : allWorkflows.find((w: any) => w.is_active) || allWorkflows[0]
+    
+    let loadedStages: StageWithConfig[] = []
+    
+    if (activeWorkflow) {
+      setWorkflow(activeWorkflow)
+      
+      // Map stages with their configs already included from combined response
+      loadedStages = stagesWithDetails.map((stageData: any) => {
+        const configs = stageData.reviewer_configs || stageData.stage_reviewer_configs || []
+        const actions = stageData.stage_actions || []
         
-        const name = data['Full Name'] || data['name'] || data['Name'] || 
-                    `${data['First Name'] || ''} ${data['Last Name'] || ''}`.trim() ||
-                    `Applicant ${sub.id.substring(0, 6)}`
-        
-        const email = data['_applicant_email'] || data['Email'] || data['email'] || data['personal_email'] || data['personalEmail'] || data['work_email'] || ''
-        
-        const assignedWorkflowId = metadata.assigned_workflow_id
-        const stageId = metadata.current_stage_id || (loadedStages.length > 0 ? loadedStages[0].id : '')
-        const stage = loadedStages.find(s => s.id === stageId)
+        const primaryConfig = configs[0]
+        let stageRubric: Rubric | null = null
+        if (primaryConfig?.rubric_id) {
+          stageRubric = allRubrics.find((r: any) => r.id === primaryConfig.rubric_id) || null
+        } else if (primaryConfig?.assigned_rubric_id) {
+          stageRubric = allRubrics.find((r: any) => r.id === primaryConfig.assigned_rubric_id) || null
+        }
+        if (!stageRubric && activeWorkflow.default_rubric_id) {
+          stageRubric = allRubrics.find((r: any) => r.id === activeWorkflow.default_rubric_id) || null
+        }
         
         return {
-          id: sub.id,
-          name,
-          email,
-          submittedAt: sub.submitted_at,
-          stageId,
-          stageName: stage?.name || 'Unassigned',
-          status: metadata.status || 'pending',
-          score: metadata.total_score || null,
-          maxScore: stage?.rubric?.max_score || 100,
-          reviewCount: metadata.review_count || 0,
-          requiredReviews: stage?.reviewerConfigs?.[0]?.min_reviews_required || 1,
-          assignedReviewers: metadata.assigned_reviewers || [],
-          tags: metadata.tags || [],
-          raw_data: data,
-          scores: metadata.scores || {},
-          comments: metadata.comments || '',
-          flagged: metadata.flagged || false,
-          workflowId: assignedWorkflowId,
-          reviewHistory: (metadata.review_history || []) as ReviewHistoryEntry[]
-        }
+          id: stageData.id,
+          name: stageData.name,
+          description: stageData.description,
+          order_index: stageData.order_index,
+          stage_type: stageData.stage_type,
+          review_workflow_id: stageData.review_workflow_id,
+          workspace_id: stageData.workspace_id,
+          color: stageData.color,
+          start_date: stageData.start_date,
+          end_date: stageData.end_date,
+          relative_deadline: stageData.relative_deadline,
+          custom_statuses: stageData.custom_statuses,
+          custom_tags: stageData.custom_tags,
+          logic_rules: stageData.logic_rules,
+          created_at: stageData.created_at,
+          updated_at: stageData.updated_at,
+          hide_pii: stageData.hide_pii,
+          hidden_pii_fields: stageData.hidden_pii_fields,
+          reviewerConfigs: configs,
+          rubric: stageRubric,
+          applicationCount: 0,
+          stageActions: actions
+        } as StageWithConfig
       })
       
-      setApplications(apps)
+      loadedStages = loadedStages.sort((a, b) => a.order_index - b.order_index)
+      setStages(loadedStages)
+    }
+
+    // Map submissions to ApplicationData
+    const apps: ApplicationData[] = submissions.map((sub: any) => {
+      const subData = sub.data || {}
+      const metadata = sub.metadata || {}
       
-      // Update stage counts
-      const updatedStages = loadedStages.map(stage => ({
-        ...stage,
-        applicationCount: apps.filter(a => a.stageId === stage.id).length
-      }))
-      setStages(updatedStages)
+      const name = subData['Full Name'] || subData['name'] || subData['Name'] || 
+                  `${subData['First Name'] || ''} ${subData['Last Name'] || ''}`.trim() ||
+                  `Applicant ${sub.id.substring(0, 6)}`
+      
+      const email = subData['_applicant_email'] || subData['Email'] || subData['email'] || subData['personal_email'] || subData['personalEmail'] || subData['work_email'] || ''
+      
+      const assignedWorkflowId = metadata.assigned_workflow_id
+      const stageId = metadata.current_stage_id || (loadedStages.length > 0 ? loadedStages[0].id : '')
+      const stage = loadedStages.find(s => s.id === stageId)
+      
+      return {
+        id: sub.id,
+        name,
+        email,
+        submittedAt: sub.submitted_at,
+        stageId,
+        stageName: stage?.name || 'Unassigned',
+        status: metadata.status || 'pending',
+        score: metadata.total_score || null,
+        maxScore: stage?.rubric?.max_score || 100,
+        reviewCount: metadata.review_count || 0,
+        requiredReviews: stage?.reviewerConfigs?.[0]?.min_reviews_required || 1,
+        assignedReviewers: metadata.assigned_reviewers || [],
+        tags: metadata.tags || [],
+        raw_data: subData,
+        scores: metadata.scores || {},
+        comments: metadata.comments || '',
+        flagged: metadata.flagged || false,
+        workflowId: assignedWorkflowId,
+        reviewHistory: (metadata.review_history || []) as ReviewHistoryEntry[]
+      }
+    })
+    
+    setApplications(apps)
+    
+    // Update stage counts
+    const updatedStages = loadedStages.map(stage => ({
+      ...stage,
+      applicationCount: apps.filter(a => a.stageId === stage.id).length
+    }))
+    setStages(updatedStages)
+    
+    return { apps, loadedStages: updatedStages }
+  }, [titleFieldName, workflows, rubrics, reviewerTypes, workflowActions, groups, stageGroups])
+
+  const loadData = useCallback(async () => {
+    // Phase 1: Try to load from cache for instant rendering (0ms)
+    if (formId) {
+      console.time('📦 Cache load')
+      const cached = getCachedReviewWorkspace(formId)
+      console.timeEnd('📦 Cache load')
+      
+      if (cached && cached.form) {
+        console.log('✅ Rendering from cache instantly')
+        setIsLoading(false) // Show UI immediately!
+        
+        // Process cached data
+        processFormData({
+          form: cached.form,
+          submissions: cached.submissions,
+          workflows: cached.workflow.workflows,
+          rubrics: cached.workflow.rubrics,
+          reviewer_types: cached.workflow.reviewer_types,
+          stages: cached.workflow.stages,
+          workflow_actions: cached.workflow.workflow_actions,
+          groups: cached.workflow.groups,
+          stage_groups: cached.workflow.stage_groups,
+        }, { fromCache: true })
+      } else {
+        setIsLoading(true)
+      }
+    } else {
+      setIsLoading(true)
+    }
+    
+    // Phase 2: Fetch fresh data in background
+    try {
+      console.time('🔄 Fresh data fetch')
+      const data = await formsClient.getFull(formId as string)
+      console.timeEnd('🔄 Fresh data fetch')
+      
+      // Process fresh data
+      processFormData({
+        form: data.form,
+        submissions: data.submissions,
+        workflows: data.workflows,
+        rubrics: data.rubrics,
+        reviewer_types: data.reviewer_types,
+        stages: data.stages,
+        workflow_actions: data.workflow_actions,
+        groups: data.groups,
+        stage_groups: data.stage_groups,
+      }, { fromCache: false })
+      
+      // Cache for next time
+      if (workspaceId) {
+        setCachedReviewWorkspace(formId as string, workspaceId, {
+          form: data.form,
+          workflows: data.workflows || [],
+          stages: data.stages || [],
+          rubrics: data.rubrics || [],
+          reviewer_types: data.reviewer_types || [],
+          groups: data.groups || [],
+          stage_groups: data.stage_groups || [],
+          workflow_actions: data.workflow_actions || [],
+          submissions: data.submissions || [],
+        })
+      }
       
       // Mark initial load as done
       initialLoadDone.current = true
@@ -1049,7 +1133,7 @@ export function ReviewWorkspace({
       setIsLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formId])
+  }, [formId, workspaceId, processFormData])
 
   // Load all data - different paths for internal vs external mode
   useEffect(() => {
@@ -1878,6 +1962,17 @@ export function ReviewWorkspace({
                 <span className="hidden sm:inline">
                   {realtimeStatus === 'connected' ? 'Live' : realtimeStatus === 'connecting' ? 'Connecting' : 'Offline'}
                 </span>
+              </div>
+            )}
+            
+            {/* Cache Status Indicator */}
+            {isFromCache && (
+              <div 
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-700"
+                title="Showing cached data - refreshing in background"
+              >
+                <Database className="w-3 h-3" />
+                <span className="hidden sm:inline">Cached</span>
               </div>
             )}
             
