@@ -217,28 +217,8 @@ function SingleFilePreview({
   
   const status = scanStatusInfo()
   
-  // Render redaction boxes over detected PII
-  const renderRedactionBoxes = () => {
-    if (!showRedactions || !scanComplete || detectedPII.length === 0) return null
-    
-    return detectedPII.map((pii, idx) => {
-      if (!pii.bounding_box) return null
-      const { x, y, width, height } = pii.bounding_box
-      return (
-        <div
-          key={idx}
-          className="absolute bg-black pointer-events-none"
-          style={{
-            left: `${x * 100}%`,
-            top: `${y * 100}%`,
-            width: `${width * 100}%`,
-            height: `${height * 100}%`,
-          }}
-          title={`Redacted: ${pii.type}`}
-        />
-      )
-    })
-  }
+  // Check if we found PII that needs redaction
+  const hasPIIToRedact = scanComplete && detectedPII.length > 0
   
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
@@ -278,32 +258,54 @@ function SingleFilePreview({
                 style={{ maxHeight: isPrivacyMode ? 'calc(100% - 1.5rem)' : '100%' }}
                 onError={() => setImageError(true)}
               />
-              {/* Redaction boxes overlay */}
-              {showRedactions && scanComplete && detectedPII.length > 0 && (
-                <div className="absolute inset-0 pointer-events-none" style={{ top: isPrivacyMode ? '1.5rem' : 0 }}>
-                  {renderRedactionBoxes()}
+              {/* Blur overlay when PII detected or while scanning */}
+              {showRedactions && (isScanning || hasPIIToRedact) && (
+                <div 
+                  className="absolute inset-0 pointer-events-none flex items-center justify-center" 
+                  style={{ top: isPrivacyMode ? '1.5rem' : 0 }}
+                >
+                  <div className="absolute inset-0 backdrop-blur-lg bg-black/40" />
+                  <div className="relative bg-black/80 text-white px-4 py-3 rounded-lg text-center max-w-[80%]">
+                    <Shield className="w-6 h-6 mx-auto mb-2" />
+                    <div className="text-sm font-medium">
+                      {isScanning ? 'Scanning...' : `${detectedPII.length} PII items detected`}
+                    </div>
+                    {hasPIIToRedact && (
+                      <div className="text-xs mt-1 opacity-80">
+                        {detectedPII.slice(0, 3).map(p => p.text.substring(0, 15) + (p.text.length > 15 ? '...' : '')).join(', ')}
+                        {detectedPII.length > 3 && ` +${detectedPII.length - 3} more`}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-              {/* Blur while scanning (not on error - we show doc with warning instead) */}
-              {showRedactions && isScanning && (
-                <div className="absolute inset-0 backdrop-blur-md bg-amber-100/20 pointer-events-none" style={{ top: isPrivacyMode ? '1.5rem' : 0 }} />
               )}
             </div>
           </div>
         ) : fileType === 'pdf' ? (
           <div className={cn("w-full h-full relative", isPrivacyMode ? "pt-6" : "")}>
-            {/* Show PDF - for PDFs we can't easily overlay, so show with warning */}
-            {showRedactions && isScanning ? (
+            {/* Show PDF - blur when PII detected or scanning */}
+            {showRedactions && (isScanning || hasPIIToRedact) ? (
               <div className="absolute inset-0 pt-6 bg-gray-100 flex flex-col items-center justify-center">
                 <div className="relative">
                   <FileText className="w-16 h-16 text-gray-300" />
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                    {isScanning ? (
+                      <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                    ) : (
+                      <Shield className="w-8 h-8 text-amber-500" />
+                    )}
                   </div>
                 </div>
                 <span className="text-sm font-medium text-gray-600 mt-3">
-                  Scanning PDF...
+                  {isScanning ? 'Scanning PDF...' : `${detectedPII.length} PII items detected`}
                 </span>
+                {hasPIIToRedact && (
+                  <span className="text-xs text-amber-600 mt-1 px-4 text-center">
+                    Found: {detectedPII.slice(0, 3).map(p => p.type).join(', ')}
+                    {detectedPII.length > 3 && ` +${detectedPII.length - 3} more`}
+                  </span>
+                )}
+                <span className="text-xs text-gray-500 mt-2">Click "View Original" to see document</span>
               </div>
             ) : (
               <>
@@ -312,16 +314,6 @@ function SingleFilePreview({
                   className="w-full h-full border-0"
                   title={displayName}
                 />
-                {/* PDF redaction info overlay */}
-                {showRedactions && scanComplete && detectedPII.length > 0 && (
-                  <div className="absolute bottom-2 left-2 right-2 bg-amber-500/90 text-white px-3 py-2 rounded-lg text-xs flex items-center gap-2 z-20">
-                    <Shield className="w-4 h-4 flex-shrink-0" />
-                    <span>
-                      <strong>{detectedPII.length} PII items</strong> detected in PDF: {detectedPII.slice(0, 3).map(p => p.type).join(', ')}
-                      {detectedPII.length > 3 && ` +${detectedPII.length - 3} more`}
-                    </span>
-                  </div>
-                )}
                 {/* Warning when scan failed */}
                 {showRedactions && scanError && (
                   <div className="absolute bottom-2 left-2 right-2 bg-amber-500/90 text-white px-3 py-2 rounded-lg text-xs flex items-center gap-2 z-20">
