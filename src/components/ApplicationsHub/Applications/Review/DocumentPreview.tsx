@@ -1,13 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   FileText, 
-  Image as ImageIcon, 
   Download, 
   ExternalLink, 
   Eye,
-  EyeOff,
   Shield,
   AlertTriangle,
   X,
@@ -15,12 +13,9 @@ import {
   File,
   FileImage,
   FileVideo,
-  FileAudio,
-  Loader2,
-  ShieldCheck
+  FileAudio
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { analyzeDocumentPII, PIILocation } from '@/lib/api/document-pii-client'
 
 interface FileData {
   url?: string
@@ -138,41 +133,7 @@ function SingleFilePreview({
 }) {
   const [imageError, setImageError] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
-  const [isScanning, setIsScanning] = useState(false)
-  const [scanComplete, setScanComplete] = useState(false)
-  const [detectedPII, setDetectedPII] = useState<PIILocation[]>([])
-  const [scanError, setScanError] = useState<string | null>(null)
   const fileType = getFileType(file)
-  
-  // Scan document for PII when user clicks "View Anyway"
-  const handleViewAnyway = useCallback(async () => {
-    if (!file.url || !isPrivacyMode) {
-      setShowPreview(true)
-      return
-    }
-    
-    setIsScanning(true)
-    setScanError(null)
-    
-    try {
-      const result = await analyzeDocumentPII({
-        document_url: file.url,
-        document_type: fileType === 'pdf' ? 'pdf' : 'image',
-        known_pii: knownPII,
-        redact_all: true
-      })
-      
-      setDetectedPII(result.locations || [])
-      setScanComplete(true)
-      setShowPreview(true)
-    } catch (err) {
-      console.error('Failed to scan document for PII:', err)
-      setScanError('Could not scan document. Proceed with caution.')
-      setShowPreview(true)
-    } finally {
-      setIsScanning(false)
-    }
-  }, [file.url, fileType, isPrivacyMode, knownPII])
   
   // Redact PII from filename if needed
   const displayName = (() => {
@@ -193,47 +154,26 @@ function SingleFilePreview({
         {/* Privacy Mode Overlay - only show when not viewing */}
         {isPrivacyMode && !showPreview && (
           <div className="absolute inset-0 bg-amber-50/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center p-4">
-            {isScanning ? (
-              <>
-                <Loader2 className="w-8 h-8 text-amber-600 mb-2 animate-spin" />
-                <span className="text-sm font-medium text-amber-800">Scanning for PII...</span>
-                <span className="text-xs text-amber-600 text-center mt-1">
-                  AI is analyzing document for sensitive information
-                </span>
-              </>
-            ) : (
-              <>
-                <Shield className="w-8 h-8 text-amber-600 mb-2" />
-                <span className="text-sm font-medium text-amber-800">Privacy Mode Active</span>
-                <span className="text-xs text-amber-600 text-center mt-1">
-                  Document may contain sensitive information
-                </span>
-                <button
-                  onClick={handleViewAnyway}
-                  disabled={isScanning}
-                  className="mt-3 px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-lg hover:bg-amber-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  Scan & View
-                </button>
-              </>
-            )}
+            <Shield className="w-8 h-8 text-amber-600 mb-2" />
+            <span className="text-sm font-medium text-amber-800">Privacy Mode Active</span>
+            <span className="text-xs text-amber-600 text-center mt-1">
+              Document may contain sensitive information
+            </span>
+            <button
+              onClick={() => setShowPreview(true)}
+              className="mt-3 px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-lg hover:bg-amber-700 transition-colors flex items-center gap-1.5"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              View Document
+            </button>
           </div>
         )}
         
-        {/* Scan complete banner */}
-        {showPreview && scanComplete && detectedPII.length > 0 && (
+        {/* Privacy warning banner when viewing in privacy mode */}
+        {isPrivacyMode && showPreview && (
           <div className="absolute top-0 left-0 right-0 bg-amber-500 text-white px-3 py-1.5 z-20 flex items-center justify-center gap-2 text-xs">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Found {detectedPII.length} PII item{detectedPII.length !== 1 ? 's' : ''} - text redacted below</span>
-          </div>
-        )}
-        
-        {/* Scan error banner */}
-        {showPreview && scanError && (
-          <div className="absolute top-0 left-0 right-0 bg-red-500 text-white px-3 py-1.5 z-20 flex items-center justify-center gap-2 text-xs">
             <AlertTriangle className="w-3.5 h-3.5" />
-            <span>{scanError}</span>
+            <span>Document may contain PII - review with caution</span>
           </div>
         )}
         
@@ -246,21 +186,13 @@ function SingleFilePreview({
                   alt={displayName}
                   className={cn(
                     "max-h-full max-w-full object-contain mx-auto",
-                    scanComplete && detectedPII.length > 0 ? "mt-6" : ""
+                    isPrivacyMode && showPreview ? "mt-6" : ""
                   )}
                   onError={() => setImageError(true)}
                 />
-                {/* PII overlay for images - blur regions where PII was detected */}
-                {scanComplete && detectedPII.length > 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="text-amber-600 bg-amber-50/80 px-2 py-1 rounded text-xs">
-                      {detectedPII.length} PII items redacted
-                    </div>
-                  </div>
-                )}
               </div>
             ) : fileType === 'pdf' ? (
-              <div className={cn("w-full h-full", scanComplete && detectedPII.length > 0 ? "pt-6" : "")}>
+              <div className={cn("w-full h-full", isPrivacyMode && showPreview ? "pt-6" : "")}>
                 <iframe
                   src={`${file.url}#toolbar=0&navpanes=0`}
                   className="w-full h-full border-0"
@@ -303,26 +235,35 @@ function SingleFilePreview({
           </div>
         </div>
         
-        {/* Actions */}
-        <div className="flex gap-2 mt-3">
-          <a
-            href={file.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            Open
-          </a>
-          <a
-            href={file.url}
-            download={file.name}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg transition-colors"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Download
-          </a>
-        </div>
+        {/* Actions - hidden in privacy mode until user chooses to view */}
+        {isPrivacyMode && !showPreview ? (
+          <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-center gap-2 text-amber-700 text-xs">
+              <Shield className="w-4 h-4 flex-shrink-0" />
+              <span>Document access restricted in privacy mode</span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-2 mt-3">
+            <a
+              href={file.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Open
+            </a>
+            <a
+              href={file.url}
+              download={file.name}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download
+            </a>
+          </div>
+        )}
       </div>
     </div>
   )
