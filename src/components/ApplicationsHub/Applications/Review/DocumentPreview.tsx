@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { 
   FileText, 
   Download, 
@@ -13,9 +13,13 @@ import {
   File,
   FileImage,
   FileVideo,
-  FileAudio
+  FileAudio,
+  Loader2,
+  CheckCircle,
+  XCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { analyzeDocumentPII, PIILocation } from '@/lib/api/document-pii-client'
 
 interface FileData {
   url?: string
@@ -133,10 +137,45 @@ function SingleFilePreview({
 }) {
   const [imageError, setImageError] = useState(false)
   const [showUnredacted, setShowUnredacted] = useState(false)
+  const [isScanning, setIsScanning] = useState(false)
+  const [scanComplete, setScanComplete] = useState(false)
+  const [scanError, setScanError] = useState<string | null>(null)
+  const [detectedPII, setDetectedPII] = useState<PIILocation[]>([])
   const fileType = getFileType(file)
   
   // In privacy mode, show redacted by default. User can click to see unredacted.
   const isRedacted = isPrivacyMode && !showUnredacted
+  
+  // Auto-scan document when in privacy mode
+  useEffect(() => {
+    if (isPrivacyMode && file.url && !scanComplete && !isScanning && !scanError) {
+      const scanDocument = async () => {
+        setIsScanning(true)
+        try {
+          const result = await analyzeDocumentPII({
+            document_url: file.url!,
+            document_type: fileType === 'pdf' ? 'pdf' : fileType === 'image' ? 'image' : undefined,
+            known_pii: knownPII,
+            redact_all: true,
+          })
+          
+          if (result.error) {
+            setScanError(result.error)
+          } else {
+            setDetectedPII(result.locations || [])
+            setScanComplete(true)
+          }
+        } catch (err) {
+          console.error('Document PII scan failed:', err)
+          setScanError(err instanceof Error ? err.message : 'Scan failed')
+        } finally {
+          setIsScanning(false)
+        }
+      }
+      
+      scanDocument()
+    }
+  }, [isPrivacyMode, file.url, scanComplete, isScanning, scanError, fileType, knownPII])
   
   // Redact PII from filename if needed
   const displayName = (() => {
@@ -150,20 +189,40 @@ function SingleFilePreview({
     return name
   })()
   
+  // Get scan status info
+  const scanStatusInfo = () => {
+    if (isScanning) return { icon: Loader2, text: 'Scanning for PII...', color: 'text-blue-600', animate: true }
+    if (scanError) return { icon: XCircle, text: 'Scan failed', color: 'text-red-500', animate: false }
+    if (scanComplete) {
+      if (detectedPII.length > 0) {
+        return { icon: AlertTriangle, text: `${detectedPII.length} PII found`, color: 'text-amber-600', animate: false }
+      }
+      return { icon: CheckCircle, text: 'No PII detected', color: 'text-green-600', animate: false }
+    }
+    return null
+  }
+  
+  const status = scanStatusInfo()
+  
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
       {/* Preview Area */}
       <div className="relative bg-gray-50 h-48 flex items-center justify-center overflow-hidden">
-        {/* Redaction indicator banner */}
-        {isRedacted && (
-          <div className="absolute top-0 left-0 right-0 bg-amber-500 text-white px-3 py-1.5 z-30 flex items-center justify-center gap-2 text-xs">
-            <Shield className="w-3.5 h-3.5" />
-            <span>Viewing redacted document</span>
+        {/* Scan status banner */}
+        {isPrivacyMode && status && (
+          <div className={cn(
+            "absolute top-0 left-0 right-0 px-3 py-1.5 z-30 flex items-center justify-center gap-2 text-xs text-white",
+            isScanning ? "bg-blue-500" : 
+            scanError ? "bg-red-500" : 
+            detectedPII.length > 0 ? "bg-amber-500" : "bg-green-500"
+          )}>
+            <status.icon className={cn("w-3.5 h-3.5", status.animate && "animate-spin")} />
+            <span>{status.text}</span>
           </div>
         )}
         
         {/* Unredacted warning banner */}
-        {isPrivacyMode && showUnredacted && (
+        {isPrivacyMode && showUnredacted && !isScanning && (
           <div className="absolute top-0 left-0 right-0 bg-red-500 text-white px-3 py-1.5 z-30 flex items-center justify-center gap-2 text-xs">
             <AlertTriangle className="w-3.5 h-3.5" />
             <span>Viewing unredacted - contains PII</span>
@@ -187,9 +246,16 @@ function SingleFilePreview({
               <div className="absolute inset-0 mt-6 pointer-events-none">
                 <div className="w-full h-full backdrop-blur-md bg-gradient-to-b from-transparent via-amber-100/30 to-transparent" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="bg-black/70 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium">
-                    <Shield className="w-4 h-4" />
-                    Document Redacted
+                  <div className="bg-black/70 text-white px-4 py-2 rounded-lg flex flex-col items-center gap-1">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Shield className="w-4 h-4" />
+                      Document Redacted
+                    </div>
+                    {scanComplete && detectedPII.length > 0 && (
+                      <span className="text-xs opacity-80">
+                        {detectedPII.length} sensitive item{detectedPII.length !== 1 ? 's' : ''} detected
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -207,7 +273,13 @@ function SingleFilePreview({
                   </div>
                 </div>
                 <span className="text-sm font-medium text-gray-600 mt-3">PDF Document (Redacted)</span>
-                <span className="text-xs text-gray-500 mt-1">Click "View Original" to see unredacted version</span>
+                {scanComplete && detectedPII.length > 0 ? (
+                  <span className="text-xs text-amber-600 mt-1">
+                    {detectedPII.length} sensitive item{detectedPII.length !== 1 ? 's' : ''} detected
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-500 mt-1">Click "View Original" to see full document</span>
+                )}
               </div>
             ) : (
               <iframe
@@ -260,21 +332,49 @@ function SingleFilePreview({
           </div>
         </div>
         
+        {/* Detected PII list when scanned */}
+        {isPrivacyMode && scanComplete && detectedPII.length > 0 && (
+          <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="text-xs font-medium text-amber-800 mb-1">Detected PII:</div>
+            <div className="flex flex-wrap gap-1">
+              {detectedPII.slice(0, 5).map((pii, idx) => (
+                <span key={idx} className="inline-flex items-center px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs rounded">
+                  {pii.type}
+                </span>
+              ))}
+              {detectedPII.length > 5 && (
+                <span className="text-xs text-amber-600">+{detectedPII.length - 5} more</span>
+              )}
+            </div>
+          </div>
+        )}
+        
         {/* Actions */}
         {isPrivacyMode ? (
           <div className="mt-3 space-y-2">
             {/* Toggle between redacted/unredacted */}
             <button
               onClick={() => setShowUnredacted(!showUnredacted)}
+              disabled={isScanning}
               className={cn(
                 "w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
+                isScanning ? "bg-gray-100 text-gray-400 cursor-not-allowed" :
                 showUnredacted 
                   ? "bg-amber-100 hover:bg-amber-200 text-amber-700 border border-amber-300"
                   : "bg-gray-100 hover:bg-gray-200 text-gray-700"
               )}
             >
-              <Eye className="w-3.5 h-3.5" />
-              {showUnredacted ? 'Show Redacted' : 'View Original'}
+              {isScanning ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Scanning...
+                </>
+              ) : (
+                <>
+                  <Eye className="w-3.5 h-3.5" />
+                  {showUnredacted ? 'Show Redacted' : 'View Original'}
+                </>
+              )}
             </button>
             
             {/* Only show download/open when viewing unredacted */}
