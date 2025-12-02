@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   FileText, 
   Download, 
   ExternalLink, 
-  Eye,
   Shield,
   AlertTriangle,
   X,
@@ -15,8 +14,7 @@ import {
   FileVideo,
   FileAudio,
   Loader2,
-  CheckCircle,
-  XCircle
+  CheckCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { analyzeDocumentPII, PIILocation } from '@/lib/api/document-pii-client'
@@ -136,25 +134,14 @@ function SingleFilePreview({
   onExpand?: () => void
 }) {
   const [imageError, setImageError] = useState(false)
-  const [showUnredacted, setShowUnredacted] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
   const [scanComplete, setScanComplete] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
   const [detectedPII, setDetectedPII] = useState<PIILocation[]>([])
-  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null)
-  const imageRef = useCallback((node: HTMLImageElement | null) => {
-    if (node) {
-      const updateSize = () => {
-        setImageSize({ width: node.clientWidth, height: node.clientHeight })
-      }
-      node.onload = updateSize
-      if (node.complete) updateSize()
-    }
-  }, [])
   const fileType = getFileType(file)
   
-  // In privacy mode, show redacted version. Toggle to see unredacted.
-  const showRedactions = isPrivacyMode && !showUnredacted
+  // In privacy mode, always show redacted version
+  const showRedactions = isPrivacyMode
   
   // Auto-scan document when in privacy mode
   useEffect(() => {
@@ -225,7 +212,7 @@ function SingleFilePreview({
       {/* Preview Area */}
       <div className="relative bg-gray-50 h-48 flex items-center justify-center overflow-hidden">
         {/* Status banner */}
-        {isPrivacyMode && status && !showUnredacted && (
+        {isPrivacyMode && status && (
           <div className={cn(
             "absolute top-0 left-0 right-0 px-3 py-1.5 z-30 flex items-center justify-center gap-2 text-xs text-white",
             status.bgColor
@@ -235,20 +222,11 @@ function SingleFilePreview({
           </div>
         )}
         
-        {/* Unredacted warning banner */}
-        {isPrivacyMode && showUnredacted && (
-          <div className="absolute top-0 left-0 right-0 bg-red-500 text-white px-3 py-1.5 z-30 flex items-center justify-center gap-2 text-xs">
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Viewing original - contains PII</span>
-          </div>
-        )}
-        
         {/* Document preview with redaction overlays */}
         {fileType === 'image' && !imageError ? (
           <div className="relative w-full h-full flex items-center justify-center">
             <div className="relative inline-block">
               <img
-                ref={imageRef}
                 src={file.url}
                 alt={displayName}
                 className={cn(
@@ -367,71 +345,18 @@ function SingleFilePreview({
           </div>
         </div>
         
-        {/* Detected PII list when scanned */}
-        {isPrivacyMode && scanComplete && detectedPII.length > 0 && (
-          <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
-            <div className="text-xs font-medium text-amber-800 mb-1">Detected PII:</div>
-            <div className="flex flex-wrap gap-1">
-              {detectedPII.slice(0, 5).map((pii, idx) => (
-                <span key={idx} className="inline-flex items-center px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs rounded">
-                  {pii.type}
-                </span>
-              ))}
-              {detectedPII.length > 5 && (
-                <span className="text-xs text-amber-600">+{detectedPII.length - 5} more</span>
-              )}
-            </div>
-          </div>
-        )}
-        
         {/* Actions */}
         {isPrivacyMode ? (
-          <div className="mt-3 space-y-2">
-            {/* Toggle between redacted/unredacted */}
-            <button
-              onClick={() => setShowUnredacted(!showUnredacted)}
-              disabled={isScanning}
-              className={cn(
-                "w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
-                isScanning ? "bg-gray-100 text-gray-400 cursor-not-allowed" :
-                showUnredacted 
-                  ? "bg-amber-100 hover:bg-amber-200 text-amber-700 border border-amber-300"
-                  : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-              )}
+          <div className="mt-3">
+            {/* Only download button in privacy mode */}
+            <a
+              href={file.url}
+              download={file.name}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg transition-colors"
             >
-              {isScanning ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Scanning...
-                </>
-              ) : (
-                <>
-                  <Eye className="w-3.5 h-3.5" />
-                  {showUnredacted ? 'Show Redacted' : 'View Original'}
-                </>
-              )}
-            </button>
-            
-            {/* Always show open/download buttons */}
-            <div className="flex gap-2">
-              <a
-                href={file.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                Open
-              </a>
-              <a
-                href={file.url}
-                download={file.name}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg transition-colors"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Download
-              </a>
-            </div>
+              <Download className="w-3.5 h-3.5" />
+              Download
+            </a>
           </div>
         ) : (
           <div className="flex gap-2 mt-3">
