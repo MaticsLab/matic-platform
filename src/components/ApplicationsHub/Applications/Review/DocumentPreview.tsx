@@ -132,13 +132,16 @@ function SingleFilePreview({
   onExpand?: () => void
 }) {
   const [imageError, setImageError] = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
+  const [showUnredacted, setShowUnredacted] = useState(false)
   const fileType = getFileType(file)
+  
+  // In privacy mode, show redacted by default. User can click to see unredacted.
+  const isRedacted = isPrivacyMode && !showUnredacted
   
   // Redact PII from filename if needed
   const displayName = (() => {
     let name = file.name || 'Document'
-    if (isPrivacyMode && piiValuesToRedact.length > 0) {
+    if (isRedacted && piiValuesToRedact.length > 0) {
       piiValuesToRedact.forEach(pii => {
         const regex = new RegExp(pii.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
         name = name.replace(regex, '████')
@@ -150,66 +153,88 @@ function SingleFilePreview({
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
       {/* Preview Area */}
-      <div className="relative bg-gray-50 h-48 flex items-center justify-center">
-        {/* Privacy Mode Overlay - only show when not viewing */}
-        {isPrivacyMode && !showPreview && (
-          <div className="absolute inset-0 bg-amber-50/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center p-4">
-            <Shield className="w-8 h-8 text-amber-600 mb-2" />
-            <span className="text-sm font-medium text-amber-800">Privacy Mode Active</span>
-            <span className="text-xs text-amber-600 text-center mt-1">
-              Document may contain sensitive information
-            </span>
-            <button
-              onClick={() => setShowPreview(true)}
-              className="mt-3 px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-lg hover:bg-amber-700 transition-colors flex items-center gap-1.5"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              View Document
-            </button>
+      <div className="relative bg-gray-50 h-48 flex items-center justify-center overflow-hidden">
+        {/* Redaction indicator banner */}
+        {isRedacted && (
+          <div className="absolute top-0 left-0 right-0 bg-amber-500 text-white px-3 py-1.5 z-30 flex items-center justify-center gap-2 text-xs">
+            <Shield className="w-3.5 h-3.5" />
+            <span>Viewing redacted document</span>
           </div>
         )}
         
-        {/* Privacy warning banner when viewing in privacy mode */}
-        {isPrivacyMode && showPreview && (
-          <div className="absolute top-0 left-0 right-0 bg-amber-500 text-white px-3 py-1.5 z-20 flex items-center justify-center gap-2 text-xs">
+        {/* Unredacted warning banner */}
+        {isPrivacyMode && showUnredacted && (
+          <div className="absolute top-0 left-0 right-0 bg-red-500 text-white px-3 py-1.5 z-30 flex items-center justify-center gap-2 text-xs">
             <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Document may contain PII - review with caution</span>
+            <span>Viewing unredacted - contains PII</span>
           </div>
         )}
         
-        {(!isPrivacyMode || showPreview) && (
-          <>
-            {fileType === 'image' && !imageError ? (
-              <div className="relative w-full h-full">
-                <img
-                  src={file.url}
-                  alt={displayName}
-                  className={cn(
-                    "max-h-full max-w-full object-contain mx-auto",
-                    isPrivacyMode && showPreview ? "mt-6" : ""
-                  )}
-                  onError={() => setImageError(true)}
-                />
-              </div>
-            ) : fileType === 'pdf' ? (
-              <div className={cn("w-full h-full", isPrivacyMode && showPreview ? "pt-6" : "")}>
-                <iframe
-                  src={`${file.url}#toolbar=0&navpanes=0`}
-                  className="w-full h-full border-0"
-                  title={displayName}
-                />
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2">
-                <FileIcon type={fileType} className="w-12 h-12" />
-                <span className="text-sm text-gray-500">{fileType.toUpperCase()} File</span>
+        {/* Document preview - always shown, but with blur/redaction overlay in privacy mode */}
+        {fileType === 'image' && !imageError ? (
+          <div className="relative w-full h-full">
+            <img
+              src={file.url}
+              alt={displayName}
+              className={cn(
+                "max-h-full max-w-full object-contain mx-auto",
+                isPrivacyMode ? "mt-6" : ""
+              )}
+              onError={() => setImageError(true)}
+            />
+            {/* Redaction overlay for images */}
+            {isRedacted && (
+              <div className="absolute inset-0 mt-6 pointer-events-none">
+                <div className="w-full h-full backdrop-blur-md bg-gradient-to-b from-transparent via-amber-100/30 to-transparent" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="bg-black/70 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium">
+                    <Shield className="w-4 h-4" />
+                    Document Redacted
+                  </div>
+                </div>
               </div>
             )}
-          </>
+          </div>
+        ) : fileType === 'pdf' ? (
+          <div className={cn("w-full h-full relative", isPrivacyMode ? "pt-6" : "")}>
+            {/* For PDFs in privacy mode, show a placeholder instead of the actual PDF */}
+            {isRedacted ? (
+              <div className="absolute inset-0 pt-6 bg-gray-100 flex flex-col items-center justify-center">
+                <div className="relative">
+                  <FileText className="w-16 h-16 text-gray-300" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Shield className="w-8 h-8 text-amber-500" />
+                  </div>
+                </div>
+                <span className="text-sm font-medium text-gray-600 mt-3">PDF Document (Redacted)</span>
+                <span className="text-xs text-gray-500 mt-1">Click "View Original" to see unredacted version</span>
+              </div>
+            ) : (
+              <iframe
+                src={`${file.url}#toolbar=0&navpanes=0`}
+                className="w-full h-full border-0"
+                title={displayName}
+              />
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2">
+            <div className="relative">
+              <FileIcon type={fileType} className="w-12 h-12" />
+              {isRedacted && (
+                <div className="absolute -bottom-1 -right-1 bg-amber-500 rounded-full p-1">
+                  <Shield className="w-3 h-3 text-white" />
+                </div>
+              )}
+            </div>
+            <span className="text-sm text-gray-500">
+              {fileType.toUpperCase()} File {isRedacted && '(Redacted)'}
+            </span>
+          </div>
         )}
         
-        {/* Expand button */}
-        {file.url && (!isPrivacyMode || showPreview) && (
+        {/* Expand button - only show when not redacted */}
+        {file.url && !isRedacted && (
           <button
             onClick={onExpand}
             className="absolute top-2 right-2 p-1.5 bg-white/90 hover:bg-white rounded-lg shadow-sm transition-colors z-20"
@@ -235,13 +260,55 @@ function SingleFilePreview({
           </div>
         </div>
         
-        {/* Actions - hidden in privacy mode until user chooses to view */}
-        {isPrivacyMode && !showPreview ? (
-          <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded-lg">
-            <div className="flex items-center gap-2 text-amber-700 text-xs">
-              <Shield className="w-4 h-4 flex-shrink-0" />
-              <span>Document access restricted in privacy mode</span>
-            </div>
+        {/* Actions */}
+        {isPrivacyMode ? (
+          <div className="mt-3 space-y-2">
+            {/* Toggle between redacted/unredacted */}
+            <button
+              onClick={() => setShowUnredacted(!showUnredacted)}
+              className={cn(
+                "w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
+                showUnredacted 
+                  ? "bg-amber-100 hover:bg-amber-200 text-amber-700 border border-amber-300"
+                  : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+              )}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              {showUnredacted ? 'Show Redacted' : 'View Original'}
+            </button>
+            
+            {/* Only show download/open when viewing unredacted */}
+            {showUnredacted && (
+              <div className="flex gap-2">
+                <a
+                  href={file.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open
+                </a>
+                <a
+                  href={file.url}
+                  download={file.name}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download
+                </a>
+              </div>
+            )}
+            
+            {/* Info when redacted */}
+            {!showUnredacted && (
+              <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-center gap-2 text-amber-700 text-xs">
+                  <Shield className="w-4 h-4 flex-shrink-0" />
+                  <span>Download restricted while viewing redacted</span>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex gap-2 mt-3">
