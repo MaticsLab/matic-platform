@@ -266,7 +266,7 @@ func (c *GeminiClient) RedactDocument(ctx context.Context, req PIIDetectionReque
 	}
 
 	// Use gemini-2.5-flash-image for image editing/generation
-	url := fmt.Sprintf("%s/models/gemini-2.5-flash-preview-05-20:generateContent?key=%s", c.BaseURL, c.APIKey)
+	url := fmt.Sprintf("%s/models/gemini-2.5-flash-image:generateContent?key=%s", c.BaseURL, c.APIKey)
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
