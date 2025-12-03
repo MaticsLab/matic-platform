@@ -251,10 +251,10 @@ func (c *GeminiClient) RedactDocument(ctx context.Context, req PIIDetectionReque
 			},
 		},
 		"generationConfig": map[string]interface{}{
-			"temperature":      0.1,
-			"topP":             0.8,
-			"topK":             40,
-			"maxOutputTokens":  8192,
+			"temperature":        0.1,
+			"topP":               0.8,
+			"topK":               40,
+			"maxOutputTokens":    8192,
 			"responseModalities": []string{"TEXT", "IMAGE"},
 		},
 	}
