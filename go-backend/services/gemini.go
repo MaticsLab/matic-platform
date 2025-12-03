@@ -55,12 +55,12 @@ type PIIDetectionResponse struct {
 
 // RedactedDocumentResponse contains the redacted document from Gemini
 type RedactedDocumentResponse struct {
-	RedactedData   []byte        `json:"redacted_data"`    // The redacted image/document bytes
-	MimeType       string        `json:"mime_type"`        // MIME type of the returned image
-	PIICount       int           `json:"pii_count"`        // Number of PII items redacted
-	PIITypes       []string      `json:"pii_types"`        // Types of PII found
-	ProcessingMS   int64         `json:"processing_ms"`
-	Error          string        `json:"error,omitempty"`
+	RedactedData []byte   `json:"redacted_data"` // The redacted image/document bytes
+	MimeType     string   `json:"mime_type"`     // MIME type of the returned image
+	PIICount     int      `json:"pii_count"`     // Number of PII items redacted
+	PIITypes     []string `json:"pii_types"`     // Types of PII found
+	ProcessingMS int64    `json:"processing_ms"`
+	Error        string   `json:"error,omitempty"`
 }
 
 // GeminiRequest represents the request body for Gemini API

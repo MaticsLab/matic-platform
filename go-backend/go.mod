@@ -22,7 +22,6 @@ require (
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/bytedance/sonic/loader v0.2.1 // indirect
-	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -33,23 +32,15 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.0 // indirect
 	github.com/gosimple/unidecode v1.0.1 // indirect
-	github.com/hhrutter/lzw v1.0.0 // indirect
-	github.com/hhrutter/pkcs7 v0.2.0 // indirect
-	github.com/hhrutter/tiff v1.0.2 // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/mattn/go-runewidth v0.0.19 // indirect
-	github.com/pdfcpu/pdfcpu v0.11.1 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.54.0 // indirect
 	go.opentelemetry.io/otel v1.29.0 // indirect
 	go.opentelemetry.io/otel/metric v1.29.0 // indirect
 	go.opentelemetry.io/otel/trace v1.29.0 // indirect
-	golang.org/x/image v0.32.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241209162323-e6fa225c2576 // indirect
 	google.golang.org/grpc v1.67.1 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gorm.io/driver/mysql v1.5.6 // indirect
 )
 
