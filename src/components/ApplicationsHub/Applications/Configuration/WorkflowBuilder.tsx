@@ -12,6 +12,7 @@ import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { cn } from '@/lib/utils'
 import { workflowsClient, ReviewWorkflow, ApplicationStage, ReviewerType, Rubric, StageReviewerConfig, ApplicationGroup, WorkflowAction, StageGroup, StatusOption, CustomStatus, StatusActionConfig } from '@/lib/api/workflows-client'
+import { useWorkflowRealtime } from '@/hooks/useApplicationsRealtime'
 
 // Stage color palette - semantic colors for workflow stages
 const STAGE_COLORS = {
@@ -242,6 +243,15 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
       fetchWorkflowData()
     }
   }, [selectedWorkflow, fetchWorkflowData])
+
+  // Subscribe to realtime workflow/stage changes
+  useWorkflowRealtime({
+    workspaceId,
+    workflowId: selectedWorkflow?.id,
+    enabled: !!workspaceId,
+    onStageChange: fetchWorkflowData,
+    onWorkflowChange: fetchWorkflows,
+  })
 
   const handleCreateWorkflow = async (name: string, description?: string, applicationType?: string, defaultRubricId?: string) => {
     try {

@@ -59,8 +59,8 @@ export function useApplicationsRealtime({
         {
           event: '*',
           schema: 'public',
-          table: 'form_submissions',
-          filter: `form_id=eq.${formId}`
+          table: 'table_rows',
+          filter: `table_id=eq.${formId}`
         },
         (payload) => {
           console.log('🔄 Realtime submission update:', payload.eventType, payload)

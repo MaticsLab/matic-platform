@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { 
   BarChart3, Users, FileText, Clock, Eye, ThumbsUp, ThumbsDown, 
   Star, User, Loader2, TrendingUp, TrendingDown, AlertTriangle,
@@ -15,6 +15,7 @@ import { Progress } from '@/ui-components/progress'
 import { goClient } from '@/lib/api/go-client'
 import { workflowsClient } from '@/lib/api/workflows-client'
 import { FormSubmission, Form } from '@/types/forms'
+import { useApplicationsRealtime, RealtimeApplication } from '@/hooks/useApplicationsRealtime'
 
 interface ApplicationDashboardProps {
   workspaceId: string
@@ -136,6 +137,53 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
     }
     fetchData()
   }, [formId, workspaceId])
+
+  // Realtime handlers
+  const mapRealtimeToAppData = useCallback((realtimeApp: RealtimeApplication): ApplicationData => {
+    const data = realtimeApp.data
+    const metadata = realtimeApp.metadata
+    return {
+      id: realtimeApp.id,
+      name: data['Full Name'] || data?.studentName || 'Unknown',
+      stageId: metadata.current_stage_id || null,
+      status: metadata.status || 'pending',
+      score: metadata.total_score || null,
+      maxScore: metadata.max_score || 100,
+      scores: metadata.scores || {},
+      reviewCount: metadata.review_count || 0,
+      assignedReviewers: metadata.assigned_reviewers || [],
+      tags: metadata.tags || [],
+      submittedAt: realtimeApp.submitted_at,
+      raw_data: data
+    }
+  }, [])
+
+  const handleRealtimeInsert = useCallback((app: RealtimeApplication) => {
+    const newApp = mapRealtimeToAppData(app)
+    setApplications(prev => {
+      if (prev.some(a => a.id === newApp.id)) return prev
+      return [...prev, newApp]
+    })
+  }, [mapRealtimeToAppData])
+
+  const handleRealtimeUpdate = useCallback((app: RealtimeApplication) => {
+    const updatedApp = mapRealtimeToAppData(app)
+    setApplications(prev => prev.map(a => a.id === updatedApp.id ? updatedApp : a))
+  }, [mapRealtimeToAppData])
+
+  const handleRealtimeDelete = useCallback((id: string) => {
+    setApplications(prev => prev.filter(a => a.id !== id))
+  }, [])
+
+  // Subscribe to realtime updates
+  useApplicationsRealtime({
+    formId,
+    workspaceId,
+    enabled: !!formId,
+    onInsert: handleRealtimeInsert,
+    onUpdate: handleRealtimeUpdate,
+    onDelete: handleRealtimeDelete,
+  })
 
   // Calculate stats
   const stats = useMemo(() => {
