@@ -107,7 +107,8 @@ export interface RedactedDocumentResponse {
   content_type?: string
   data?: string
   data_url?: string
-  locations?: PIILocation[]
+  pii_count?: number
+  pii_types?: string[]
   total_redacted?: number
   processing_ms?: number
   original_url?: string

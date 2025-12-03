@@ -17,7 +17,7 @@ import {
   CheckCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { analyzeDocumentPII, getRedactedDocument, PIILocation } from '@/lib/api/document-pii-client'
+import { getRedactedDocument } from '@/lib/api/document-pii-client'
 
 interface FileData {
   url?: string
@@ -133,13 +133,14 @@ function SingleFilePreview({
   piiValuesToRedact?: string[]
   knownPII?: Record<string, string>
   onExpand?: () => void
-  onPIIDetected?: (pii: PIILocation[]) => void
+  onPIIDetected?: (count: number, types: string[]) => void
 }) {
   const [imageError, setImageError] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
   const [scanComplete, setScanComplete] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
-  const [detectedPII, setDetectedPII] = useState<PIILocation[]>([])
+  const [piiCount, setPiiCount] = useState(0)
+  const [piiTypes, setPiiTypes] = useState<string[]>([])
   const [redactedImageUrl, setRedactedImageUrl] = useState<string | null>(null)
   const fileType = getFileType(file)
   
@@ -152,7 +153,7 @@ function SingleFilePreview({
       const scanDocument = async () => {
         setIsScanning(true)
         try {
-          // Get the redacted version directly (works for both images and PDFs)
+          // Get the redacted version directly from Gemini
           const result = await getRedactedDocument({
             document_url: file.url!,
             document_type: fileType === 'pdf' ? 'pdf' : 'image',
@@ -164,19 +165,20 @@ function SingleFilePreview({
             console.error('Redaction returned error:', result.error)
             setScanError(result.error)
           } else if (result.redacted && result.data_url) {
-            // We have a redacted document
+            // We have a redacted document from Gemini
             setRedactedImageUrl(result.data_url)
-            setDetectedPII(result.locations || [])
+            setPiiCount(result.pii_count || result.total_redacted || 0)
+            setPiiTypes(result.pii_types || [])
             setScanComplete(true)
           } else {
-            // No PII found, no redactions needed
-            setDetectedPII([])
+            // No redaction applied (may mean no PII)
+            setPiiCount(0)
+            setPiiTypes([])
             setScanComplete(true)
           }
         } catch (err: any) {
-          console.error('Document PII scan failed:', err)
-          // Extract meaningful error message
-          const errorMessage = err?.response?.error || err?.message || 'Scan failed'
+          console.error('Document redaction failed:', err)
+          const errorMessage = err?.response?.error || err?.message || 'Redaction failed'
           setScanError(errorMessage)
         } finally {
           setIsScanning(false)
@@ -190,9 +192,9 @@ function SingleFilePreview({
   // Report detected PII to parent
   useEffect(() => {
     if (scanComplete && onPIIDetected) {
-      onPIIDetected(detectedPII)
+      onPIIDetected(piiCount, piiTypes)
     }
-  }, [scanComplete, detectedPII, onPIIDetected])
+  }, [scanComplete, piiCount, piiTypes, onPIIDetected])
   
   // Redact PII from filename if needed
   const displayName = (() => {
@@ -211,18 +213,18 @@ function SingleFilePreview({
     if (isScanning) return { icon: Loader2, text: 'Scanning for PII...', bgColor: 'bg-blue-500', animate: true }
     if (scanError) return { icon: AlertTriangle, text: 'AI scan unavailable - manual review required', bgColor: 'bg-amber-500', animate: false }
     if (scanComplete) {
-      if (detectedPII.length > 0) {
-        return { icon: Shield, text: `${detectedPII.length} items redacted`, bgColor: 'bg-amber-500', animate: false }
+      if (piiCount > 0) {
+        return { icon: Shield, text: `${piiCount} items redacted`, bgColor: 'bg-amber-500', animate: false }
       }
-      return { icon: CheckCircle, text: 'No PII detected', bgColor: 'bg-green-500', animate: false }
+      return { icon: CheckCircle, text: 'Document scanned', bgColor: 'bg-green-500', animate: false }
     }
     return null
   }
   
   const status = scanStatusInfo()
   
-  // Check if we found PII that needs redaction
-  const hasPIIToRedact = scanComplete && detectedPII.length > 0
+  // Check if we have a redacted document
+  const hasRedactedDocument = scanComplete && redactedImageUrl !== null
   
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
@@ -283,15 +285,15 @@ function SingleFilePreview({
                 </div>
                 <span className="text-sm font-medium text-gray-600 mt-3">Scanning PDF...</span>
               </div>
-            ) : showRedactions && hasPIIToRedact && redactedImageUrl ? (
-              /* Show redacted PDF inline if we have one */
+            ) : showRedactions && hasRedactedDocument ? (
+              /* Show redacted PDF inline */
               <iframe
-                src={redactedImageUrl}
+                src={redactedImageUrl!}
                 className="w-full h-full border-0"
                 title={`${displayName} (Redacted)`}
               />
-            ) : showRedactions && hasPIIToRedact && !redactedImageUrl ? (
-              /* Fallback: Block PDF view when PII detected but no redacted version available */
+            ) : showRedactions && scanComplete && !redactedImageUrl ? (
+              /* Fallback: Show error if redaction failed */
               <div className="absolute inset-0 pt-6 bg-gray-900 flex flex-col items-center justify-center text-white">
                 <div className="relative mb-4">
                   <FileText className="w-16 h-16 text-gray-600" />
@@ -300,22 +302,24 @@ function SingleFilePreview({
                   </div>
                 </div>
                 <div className="text-center px-4">
-                  <h4 className="font-semibold text-lg mb-1">Document Redacted</h4>
+                  <h4 className="font-semibold text-lg mb-1">Document Protected</h4>
                   <p className="text-sm text-gray-400 mb-3">
-                    {detectedPII.length} PII items detected and blocked
+                    {piiCount > 0 ? `${piiCount} PII items detected` : 'Document scanned for privacy'}
                   </p>
-                  <div className="flex flex-wrap justify-center gap-1 mb-4 max-w-xs">
-                    {detectedPII.slice(0, 5).map((pii, idx) => (
-                      <span key={idx} className="bg-gray-800 text-gray-300 px-2 py-0.5 rounded text-xs">
-                        {pii.type}
-                      </span>
-                    ))}
-                    {detectedPII.length > 5 && (
-                      <span className="bg-gray-800 text-gray-300 px-2 py-0.5 rounded text-xs">
-                        +{detectedPII.length - 5} more
-                      </span>
-                    )}
-                  </div>
+                  {piiTypes.length > 0 && (
+                    <div className="flex flex-wrap justify-center gap-1 mb-4 max-w-xs">
+                      {piiTypes.slice(0, 5).map((type, idx) => (
+                        <span key={idx} className="bg-gray-800 text-gray-300 px-2 py-0.5 rounded text-xs">
+                          {type}
+                        </span>
+                      ))}
+                      {piiTypes.length > 5 && (
+                        <span className="bg-gray-800 text-gray-300 px-2 py-0.5 rounded text-xs">
+                          +{piiTypes.length - 5} more
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <p className="text-xs text-gray-500">
                     Disable Privacy Mode to view original document
                   </p>
@@ -342,7 +346,7 @@ function SingleFilePreview({
           <div className="flex flex-col items-center gap-2">
             <div className="relative">
               <FileIcon type={fileType} className="w-12 h-12" />
-              {showRedactions && scanComplete && detectedPII.length > 0 && (
+              {showRedactions && scanComplete && piiCount > 0 && (
                 <div className="absolute -bottom-1 -right-1 bg-amber-500 rounded-full p-1">
                   <Shield className="w-3 h-3 text-white" />
                 </div>
@@ -427,20 +431,20 @@ function DocumentModal({
   onClose,
   isPrivacyMode,
   knownPII = {},
-  detectedPII = []
+  piiCount = 0,
+  piiTypes = []
 }: { 
   file: FileData
   isOpen: boolean
   onClose: () => void
   isPrivacyMode?: boolean
   knownPII?: Record<string, string>
-  detectedPII?: PIILocation[]
+  piiCount?: number
+  piiTypes?: string[]
 }) {
   const fileType = getFileType(file)
   const [redactedUrl, setRedactedUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  
-  const hasPIIToRedact = detectedPII.length > 0
   
   useEffect(() => {
     if (isOpen) {
@@ -490,7 +494,7 @@ function DocumentModal({
         <div className="absolute top-4 left-4 right-20 bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
           <Shield className="w-5 h-5 flex-shrink-0" />
           <span className="text-sm font-medium">
-            Privacy Mode: {hasPIIToRedact ? `${detectedPII.length} PII items redacted` : 'Document scanned for PII'}
+            Privacy Mode: {piiCount > 0 ? `${piiCount} PII items redacted` : 'Document protected'}
           </span>
         </div>
       )}
@@ -517,44 +521,13 @@ function DocumentModal({
                 <span className="text-sm text-gray-500">Loading redacted PDF...</span>
               </div>
             </div>
-          ) : isPrivacyMode && hasPIIToRedact && redactedUrl ? (
+          ) : isPrivacyMode && redactedUrl ? (
             /* Show redacted PDF when available */
             <iframe
               src={redactedUrl}
               className="w-full h-[85vh]"
               title={`${file.name || 'Document'} (Redacted)`}
             />
-          ) : isPrivacyMode && hasPIIToRedact && !redactedUrl ? (
-            /* Fallback: Block PDF view when PII detected but no redacted version */
-            <div className="h-[85vh] bg-gray-900 flex flex-col items-center justify-center text-white">
-              <div className="relative mb-6">
-                <FileText className="w-24 h-24 text-gray-600" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Shield className="w-14 h-14 text-amber-500" />
-                </div>
-              </div>
-              <div className="text-center px-8 max-w-md">
-                <h3 className="font-semibold text-2xl mb-2">Document Redacted</h3>
-                <p className="text-gray-400 mb-4">
-                  {detectedPII.length} PII items have been detected and blocked in this document
-                </p>
-                <div className="flex flex-wrap justify-center gap-2 mb-6">
-                  {detectedPII.slice(0, 8).map((pii, idx) => (
-                    <span key={idx} className="bg-gray-800 text-gray-300 px-3 py-1 rounded-full text-sm">
-                      {pii.type}: {pii.text.substring(0, 20)}{pii.text.length > 20 ? '...' : ''}
-                    </span>
-                  ))}
-                  {detectedPII.length > 8 && (
-                    <span className="bg-gray-800 text-gray-300 px-3 py-1 rounded-full text-sm">
-                      +{detectedPII.length - 8} more
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-gray-500">
-                  Disable Privacy Mode to view the original document
-                </p>
-              </div>
-            </div>
           ) : (
             <iframe
               src={file.url}
@@ -593,7 +566,7 @@ export function DocumentPreview({
   className 
 }: DocumentPreviewProps) {
   const [expandedFile, setExpandedFile] = useState<FileData | null>(null)
-  const [filePIIMap, setFilePIIMap] = useState<Map<string, PIILocation[]>>(new Map())
+  const [filePIIMap, setFilePIIMap] = useState<Map<string, { count: number; types: string[] }>>(new Map())
   
   // Parse the value into file(s)
   const files: FileData[] = (() => {
@@ -604,12 +577,12 @@ export function DocumentPreview({
     return single ? [single] : []
   })()
   
-  // Get detected PII for expanded file
-  const expandedFilePII = expandedFile?.url ? filePIIMap.get(expandedFile.url) || [] : []
+  // Get detected PII info for expanded file
+  const expandedFilePIIInfo = expandedFile?.url ? filePIIMap.get(expandedFile.url) : undefined
   
-  // Handler to store detected PII for a file
-  const handlePIIDetected = (fileUrl: string, pii: PIILocation[]) => {
-    setFilePIIMap(prev => new Map(prev).set(fileUrl, pii))
+  // Handler to store detected PII info for a file
+  const handlePIIDetected = (fileUrl: string, count: number, types: string[]) => {
+    setFilePIIMap(prev => new Map(prev).set(fileUrl, { count, types }))
   }
   
   if (files.length === 0) {
@@ -627,7 +600,7 @@ export function DocumentPreview({
           piiValuesToRedact={piiValuesToRedact}
           knownPII={knownPII}
           onExpand={() => setExpandedFile(files[0])}
-          onPIIDetected={(pii) => files[0].url && handlePIIDetected(files[0].url, pii)}
+          onPIIDetected={(count, types) => files[0].url && handlePIIDetected(files[0].url, count, types)}
         />
       ) : (
         <div className="grid grid-cols-2 gap-3">
@@ -639,7 +612,7 @@ export function DocumentPreview({
               piiValuesToRedact={piiValuesToRedact}
               knownPII={knownPII}
               onExpand={() => setExpandedFile(file)}
-              onPIIDetected={(pii) => file.url && handlePIIDetected(file.url, pii)}
+              onPIIDetected={(count, types) => file.url && handlePIIDetected(file.url, count, types)}
             />
           ))}
         </div>
@@ -653,7 +626,8 @@ export function DocumentPreview({
           onClose={() => setExpandedFile(null)}
           isPrivacyMode={isPrivacyMode}
           knownPII={knownPII}
-          detectedPII={expandedFilePII}
+          piiCount={expandedFilePIIInfo?.count}
+          piiTypes={expandedFilePIIInfo?.types}
         />
       )}
     </div>

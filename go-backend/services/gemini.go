@@ -53,6 +53,16 @@ type PIIDetectionResponse struct {
 	Error        string        `json:"error,omitempty"`
 }
 
+// RedactedDocumentResponse contains the redacted document from Gemini
+type RedactedDocumentResponse struct {
+	RedactedData   []byte        `json:"redacted_data"`    // The redacted image/document bytes
+	MimeType       string        `json:"mime_type"`        // MIME type of the returned image
+	PIICount       int           `json:"pii_count"`        // Number of PII items redacted
+	PIITypes       []string      `json:"pii_types"`        // Types of PII found
+	ProcessingMS   int64         `json:"processing_ms"`
+	Error          string        `json:"error,omitempty"`
+}
+
 // GeminiRequest represents the request body for Gemini API
 type GeminiRequest struct {
 	Contents         []GeminiContent        `json:"contents"`
@@ -204,6 +214,192 @@ func (c *GeminiClient) DetectPII(ctx context.Context, req PIIDetectionRequest) (
 		TotalFound:   len(locations),
 		ProcessingMS: time.Since(startTime).Milliseconds(),
 	}, nil
+}
+
+// RedactDocument uses Gemini to directly redact PII from a document and return the redacted image
+func (c *GeminiClient) RedactDocument(ctx context.Context, req PIIDetectionRequest) (*RedactedDocumentResponse, error) {
+	startTime := time.Now()
+
+	if c.APIKey == "" {
+		return nil, fmt.Errorf("GOOGLE_GEMINI_API_KEY or GOOGLE_API_KEY environment variable not set")
+	}
+
+	// Download the document
+	docData, mimeType, err := c.downloadDocument(req.DocumentURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download document: %w", err)
+	}
+
+	// Build the redaction prompt
+	prompt := c.buildRedactionPrompt(req.KnownPII, req.RedactAll)
+
+	// Build the request - ask Gemini to generate a redacted image
+	geminiReq := GeminiRequest{
+		Contents: []GeminiContent{
+			{
+				Parts: []GeminiPart{
+					{
+						InlineData: &GeminiInlineData{
+							MimeType: mimeType,
+							Data:     base64.StdEncoding.EncodeToString(docData),
+						},
+					},
+					{
+						Text: prompt,
+					},
+				},
+			},
+		},
+		GenerationConfig: GeminiGenerationConfig{
+			Temperature:     0.1,
+			TopP:            0.8,
+			TopK:            40,
+			MaxOutputTokens: 8192,
+		},
+	}
+
+	// Make the API request using imagen model for image generation
+	jsonData, err := json.Marshal(geminiReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	// Use gemini-2.0-flash which supports image output
+	url := fmt.Sprintf("%s/models/gemini-2.0-flash-exp:generateContent?key=%s", c.BaseURL, c.APIKey)
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Gemini API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	// Parse response to extract image
+	var geminiResp struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text       string `json:"text,omitempty"`
+					InlineData *struct {
+						MimeType string `json:"mimeType"`
+						Data     string `json:"data"`
+					} `json:"inlineData,omitempty"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+		Error *struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error,omitempty"`
+	}
+
+	if err := json.Unmarshal(body, &geminiResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	if geminiResp.Error != nil {
+		return nil, fmt.Errorf("Gemini API error: %s", geminiResp.Error.Message)
+	}
+
+	// Look for image in response
+	var redactedData []byte
+	var outputMimeType string
+	var piiInfo struct {
+		Count int      `json:"count"`
+		Types []string `json:"types"`
+	}
+
+	for _, candidate := range geminiResp.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if part.InlineData != nil {
+				// Found the redacted image
+				redactedData, err = base64.StdEncoding.DecodeString(part.InlineData.Data)
+				if err != nil {
+					return nil, fmt.Errorf("failed to decode image: %w", err)
+				}
+				outputMimeType = part.InlineData.MimeType
+			} else if part.Text != "" {
+				// Try to parse PII info from text
+				text := strings.TrimSpace(part.Text)
+				text = strings.TrimPrefix(text, "```json")
+				text = strings.TrimPrefix(text, "```")
+				text = strings.TrimSuffix(text, "```")
+				json.Unmarshal([]byte(text), &piiInfo)
+			}
+		}
+	}
+
+	if redactedData == nil {
+		return nil, fmt.Errorf("no redacted image in response")
+	}
+
+	return &RedactedDocumentResponse{
+		RedactedData: redactedData,
+		MimeType:     outputMimeType,
+		PIICount:     piiInfo.Count,
+		PIITypes:     piiInfo.Types,
+		ProcessingMS: time.Since(startTime).Milliseconds(),
+	}, nil
+}
+
+// buildRedactionPrompt creates the prompt for Gemini to redact PII directly
+func (c *GeminiClient) buildRedactionPrompt(knownPII map[string]string, redactAll bool) string {
+	var sb strings.Builder
+
+	sb.WriteString(`You are a document redaction system. Your task is to:
+1. Analyze this document for personally identifiable information (PII)
+2. Create a NEW image with black rectangles covering ALL PII
+3. Return the redacted image
+
+`)
+
+	if len(knownPII) > 0 {
+		sb.WriteString("KNOWN PII VALUES TO REDACT:\n")
+		for field, value := range knownPII {
+			sb.WriteString(fmt.Sprintf("- %s: \"%s\"\n", field, value))
+		}
+		sb.WriteString("\nRedact ALL occurrences of these values.\n\n")
+	}
+
+	if redactAll {
+		sb.WriteString(`ALSO redact ALL other PII including:
+- Full names and partial names
+- Email addresses  
+- Phone numbers
+- Street addresses, cities, zip codes
+- Social Security Numbers
+- Dates of birth
+- ID numbers (student ID, account numbers, etc.)
+- Signatures
+- Any other identifying information
+
+`)
+	}
+
+	sb.WriteString(`IMPORTANT: 
+- Draw solid BLACK rectangles over each PII item
+- The rectangles should completely cover the text
+- Keep all other content visible
+- Return the modified image
+
+Also return a JSON with the count and types of PII found:
+{"count": N, "types": ["name", "email", ...]}`)
+
+	return sb.String()
 }
 
 // downloadDocument fetches the document from URL and returns its bytes and mime type
