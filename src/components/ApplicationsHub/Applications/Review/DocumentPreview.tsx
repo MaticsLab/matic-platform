@@ -152,44 +152,26 @@ function SingleFilePreview({
       const scanDocument = async () => {
         setIsScanning(true)
         try {
-          // For images, get the redacted version directly
-          if (fileType === 'image') {
-            const result = await getRedactedDocument({
-              document_url: file.url!,
-              document_type: 'image',
-              known_pii: knownPII,
-              redact_all: true,
-            })
-            
-            if (result.error) {
-              console.error('Redaction returned error:', result.error)
-              setScanError(result.error)
-            } else if (result.redacted && result.data_url) {
-              // We have a redacted image
-              setRedactedImageUrl(result.data_url)
-              setDetectedPII(result.locations || [])
-              setScanComplete(true)
-            } else {
-              // No PII found, no redactions needed
-              setDetectedPII([])
-              setScanComplete(true)
-            }
+          // Get the redacted version directly (works for both images and PDFs)
+          const result = await getRedactedDocument({
+            document_url: file.url!,
+            document_type: fileType === 'pdf' ? 'pdf' : 'image',
+            known_pii: knownPII,
+            redact_all: true,
+          })
+          
+          if (result.error) {
+            console.error('Redaction returned error:', result.error)
+            setScanError(result.error)
+          } else if (result.redacted && result.data_url) {
+            // We have a redacted document
+            setRedactedImageUrl(result.data_url)
+            setDetectedPII(result.locations || [])
+            setScanComplete(true)
           } else {
-            // For PDFs and other types, just analyze (no redaction yet)
-            const result = await analyzeDocumentPII({
-              document_url: file.url!,
-              document_type: fileType === 'pdf' ? 'pdf' : undefined,
-              known_pii: knownPII,
-              redact_all: true,
-            })
-            
-            if (result.error) {
-              console.error('PII scan returned error:', result.error)
-              setScanError(result.error)
-            } else {
-              setDetectedPII(result.locations || [])
-              setScanComplete(true)
-            }
+            // No PII found, no redactions needed
+            setDetectedPII([])
+            setScanComplete(true)
           }
         } catch (err: any) {
           console.error('Document PII scan failed:', err)
@@ -301,8 +283,15 @@ function SingleFilePreview({
                 </div>
                 <span className="text-sm font-medium text-gray-600 mt-3">Scanning PDF...</span>
               </div>
-            ) : showRedactions && hasPIIToRedact ? (
-              /* Block PDF view when PII detected - show redacted placeholder */
+            ) : showRedactions && hasPIIToRedact && redactedImageUrl ? (
+              /* Show redacted PDF inline if we have one */
+              <iframe
+                src={redactedImageUrl}
+                className="w-full h-full border-0"
+                title={`${displayName} (Redacted)`}
+              />
+            ) : showRedactions && hasPIIToRedact && !redactedImageUrl ? (
+              /* Fallback: Block PDF view when PII detected but no redacted version available */
               <div className="absolute inset-0 pt-6 bg-gray-900 flex flex-col items-center justify-center text-white">
                 <div className="relative mb-4">
                   <FileText className="w-16 h-16 text-gray-600" />
@@ -448,7 +437,7 @@ function DocumentModal({
   detectedPII?: PIILocation[]
 }) {
   const fileType = getFileType(file)
-  const [redactedImageUrl, setRedactedImageUrl] = useState<string | null>(null)
+  const [redactedUrl, setRedactedUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   
   const hasPIIToRedact = detectedPII.length > 0
@@ -457,17 +446,17 @@ function DocumentModal({
     if (isOpen) {
       document.body.style.overflow = 'hidden'
       
-      // Fetch redacted version for images in privacy mode
-      if (isPrivacyMode && file.url && fileType === 'image' && !redactedImageUrl) {
+      // Fetch redacted version for images and PDFs in privacy mode
+      if (isPrivacyMode && file.url && (fileType === 'image' || fileType === 'pdf') && !redactedUrl) {
         setIsLoading(true)
         getRedactedDocument({
           document_url: file.url,
-          document_type: 'image',
+          document_type: fileType === 'pdf' ? 'pdf' : 'image',
           known_pii: knownPII,
           redact_all: true,
         }).then(result => {
           if (result.redacted && result.data_url) {
-            setRedactedImageUrl(result.data_url)
+            setRedactedUrl(result.data_url)
           }
         }).catch(console.error).finally(() => setIsLoading(false))
       }
@@ -477,11 +466,11 @@ function DocumentModal({
     return () => {
       document.body.style.overflow = ''
     }
-  }, [isOpen, isPrivacyMode, file.url, fileType, knownPII, redactedImageUrl])
+  }, [isOpen, isPrivacyMode, file.url, fileType, knownPII, redactedUrl])
   
   // Reset redacted URL when file changes
   useEffect(() => {
-    setRedactedImageUrl(null)
+    setRedactedUrl(null)
   }, [file.url])
   
   if (!isOpen) return null
@@ -515,14 +504,28 @@ function DocumentModal({
             </div>
           ) : (
             <img
-              src={isPrivacyMode && redactedImageUrl ? redactedImageUrl : file.url}
+              src={isPrivacyMode && redactedUrl ? redactedUrl : file.url}
               alt={file.name || 'Document'}
               className="w-full h-auto max-h-[90vh] object-contain"
             />
           )
         ) : fileType === 'pdf' ? (
-          isPrivacyMode && hasPIIToRedact ? (
-            /* Block PDF view when PII detected in privacy mode */
+          isLoading ? (
+            <div className="h-[85vh] flex items-center justify-center bg-gray-100">
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-2" />
+                <span className="text-sm text-gray-500">Loading redacted PDF...</span>
+              </div>
+            </div>
+          ) : isPrivacyMode && hasPIIToRedact && redactedUrl ? (
+            /* Show redacted PDF when available */
+            <iframe
+              src={redactedUrl}
+              className="w-full h-[85vh]"
+              title={`${file.name || 'Document'} (Redacted)`}
+            />
+          ) : isPrivacyMode && hasPIIToRedact && !redactedUrl ? (
+            /* Fallback: Block PDF view when PII detected but no redacted version */
             <div className="h-[85vh] bg-gray-900 flex flex-col items-center justify-center text-white">
               <div className="relative mb-6">
                 <FileText className="w-24 h-24 text-gray-600" />

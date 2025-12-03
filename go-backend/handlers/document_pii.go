@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/base64"
 	"net/http"
+	"strings"
 
 	"github.com/Jsanchez767/matic-platform/services"
 
@@ -139,8 +140,24 @@ func GetRedactedDocumentBase64(c *gin.Context) {
 		return
 	}
 
-	// Apply redactions to image
-	redactedData, contentType, err := services.RedactImage(req.DocumentURL, result.Locations)
+	// Determine document type from URL or request
+	docType := req.DocumentType
+	if docType == "" {
+		docType = detectDocumentType(req.DocumentURL)
+	}
+
+	var redactedData []byte
+	var contentType string
+
+	if docType == "pdf" {
+		// Apply redactions to PDF
+		redactedData, err = services.RedactPDF(req.DocumentURL, result.Locations)
+		contentType = "application/pdf"
+	} else {
+		// Apply redactions to image
+		redactedData, contentType, err = services.RedactImage(req.DocumentURL, result.Locations)
+	}
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to redact document",
@@ -203,4 +220,23 @@ func BatchAnalyzeDocumentsPII(c *gin.Context) {
 		"results": results,
 		"total":   len(results),
 	})
+}
+
+// detectDocumentType detects the document type from URL
+func detectDocumentType(url string) string {
+	lowerURL := strings.ToLower(url)
+	if strings.Contains(lowerURL, ".pdf") {
+		return "pdf"
+	}
+	if strings.Contains(lowerURL, ".jpg") || strings.Contains(lowerURL, ".jpeg") {
+		return "image"
+	}
+	if strings.Contains(lowerURL, ".png") {
+		return "image"
+	}
+	if strings.Contains(lowerURL, ".gif") || strings.Contains(lowerURL, ".webp") {
+		return "image"
+	}
+	// Default to image for most document previews
+	return "image"
 }
