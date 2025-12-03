@@ -620,6 +620,8 @@ export function ReviewWorkspace({
     const stageId = metadata.current_stage_id || (currentStages.length > 0 ? currentStages[0].id : '')
     const stage = currentStages.find(s => s.id === stageId)
     
+    console.log('[ReviewWorkspace] App metadata.assigned_reviewers:', metadata.assigned_reviewers)
+    
     return {
       id: realtimeApp.id,
       name,
@@ -961,12 +963,14 @@ export function ReviewWorkspace({
     
     // Build reviewers map from form settings
     const formReviewers = (loadedForm.settings as any)?.reviewers || []
+    console.log('[ReviewWorkspace] Form reviewers from settings:', formReviewers)
     const revMap: Record<string, { name: string; email?: string; role?: string }> = {}
     formReviewers.forEach((r: any) => {
       if (r.id) {
         revMap[r.id] = { name: r.name || 'Unknown', email: r.email, role: r.role }
       }
     })
+    console.log('[ReviewWorkspace] Built reviewersMap:', revMap)
     setReviewersMap(revMap)
     
     // Set default title field if not already set
