@@ -233,39 +233,40 @@ func (c *GeminiClient) RedactDocument(ctx context.Context, req PIIDetectionReque
 	// Build the redaction prompt
 	prompt := c.buildRedactionPrompt(req.KnownPII, req.RedactAll)
 
-	// Build the request - ask Gemini to generate a redacted image
-	geminiReq := GeminiRequest{
-		Contents: []GeminiContent{
+	// Build the request with responseModalities for image output
+	requestBody := map[string]interface{}{
+		"contents": []map[string]interface{}{
 			{
-				Parts: []GeminiPart{
+				"parts": []map[string]interface{}{
 					{
-						InlineData: &GeminiInlineData{
-							MimeType: mimeType,
-							Data:     base64.StdEncoding.EncodeToString(docData),
+						"inlineData": map[string]string{
+							"mimeType": mimeType,
+							"data":     base64.StdEncoding.EncodeToString(docData),
 						},
 					},
 					{
-						Text: prompt,
+						"text": prompt,
 					},
 				},
 			},
 		},
-		GenerationConfig: GeminiGenerationConfig{
-			Temperature:     0.1,
-			TopP:            0.8,
-			TopK:            40,
-			MaxOutputTokens: 8192,
+		"generationConfig": map[string]interface{}{
+			"temperature":      0.1,
+			"topP":             0.8,
+			"topK":             40,
+			"maxOutputTokens":  8192,
+			"responseModalities": []string{"TEXT", "IMAGE"},
 		},
 	}
 
-	// Make the API request using imagen model for image generation
-	jsonData, err := json.Marshal(geminiReq)
+	// Make the API request using the image generation model
+	jsonData, err := json.Marshal(requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Use gemini-2.0-flash which supports image output
-	url := fmt.Sprintf("%s/models/gemini-2.0-flash-exp:generateContent?key=%s", c.BaseURL, c.APIKey)
+	// Use gemini-2.5-flash-image for image editing/generation
+	url := fmt.Sprintf("%s/models/gemini-2.5-flash-preview-05-20:generateContent?key=%s", c.BaseURL, c.APIKey)
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {

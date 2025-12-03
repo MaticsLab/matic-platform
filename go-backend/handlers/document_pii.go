@@ -60,8 +60,8 @@ func GetRedactedDocument(c *gin.Context) {
 	// Create Gemini client
 	geminiClient := services.NewGeminiClient()
 
-	// Step 1: Use Gemini to detect PII locations with bounding boxes
-	result, err := geminiClient.DetectPII(c.Request.Context(), services.PIIDetectionRequest{
+	// Use Gemini to directly redact the document and return the redacted image
+	result, err := geminiClient.RedactDocument(c.Request.Context(), services.PIIDetectionRequest{
 		DocumentURL:  req.DocumentURL,
 		DocumentType: req.DocumentType,
 		KnownPII:     req.KnownPII,
@@ -70,14 +70,14 @@ func GetRedactedDocument(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to analyze document",
+			"error":   "Failed to redact document",
 			"details": err.Error(),
 		})
 		return
 	}
 
-	// If no PII found, return original
-	if len(result.Locations) == 0 {
+	// If no PII found, return original URL info
+	if result.PIICount == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"message":      "No PII detected",
 			"original_url": req.DocumentURL,
@@ -85,18 +85,8 @@ func GetRedactedDocument(c *gin.Context) {
 		return
 	}
 
-	// Step 2: Apply redactions to the image using our backend
-	redactedData, contentType, err := services.RedactImage(req.DocumentURL, result.Locations)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to redact document",
-			"details": err.Error(),
-		})
-		return
-	}
-
 	// Return redacted image directly
-	c.Data(http.StatusOK, contentType, redactedData)
+	c.Data(http.StatusOK, result.MimeType, result.RedactedData)
 }
 
 // GetRedactedDocumentBase64 returns a redacted document as base64
@@ -111,8 +101,8 @@ func GetRedactedDocumentBase64(c *gin.Context) {
 	// Create Gemini client
 	geminiClient := services.NewGeminiClient()
 
-	// Step 1: Use Gemini to detect PII locations with bounding boxes
-	result, err := geminiClient.DetectPII(c.Request.Context(), services.PIIDetectionRequest{
+	// Use Gemini to directly redact the document and return the redacted image
+	result, err := geminiClient.RedactDocument(c.Request.Context(), services.PIIDetectionRequest{
 		DocumentURL:  req.DocumentURL,
 		DocumentType: req.DocumentType,
 		KnownPII:     req.KnownPII,
@@ -121,14 +111,14 @@ func GetRedactedDocumentBase64(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to analyze document",
+			"error":   "Failed to redact document",
 			"details": err.Error(),
 		})
 		return
 	}
 
-	// If no PII found, return info
-	if len(result.Locations) == 0 {
+	// If no PII was redacted
+	if result.PIICount == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"redacted":       false,
 			"original_url":   req.DocumentURL,
@@ -139,37 +129,17 @@ func GetRedactedDocumentBase64(c *gin.Context) {
 		return
 	}
 
-	// Step 2: Apply redactions to the image using our backend
-	redactedData, contentType, err := services.RedactImage(req.DocumentURL, result.Locations)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to redact document",
-			"details": err.Error(),
-		})
-		return
-	}
-
 	// Encode as base64
-	base64Data := base64.StdEncoding.EncodeToString(redactedData)
-
-	// Collect PII types
-	piiTypes := make([]string, 0)
-	typeSet := make(map[string]bool)
-	for _, loc := range result.Locations {
-		if !typeSet[loc.Type] {
-			typeSet[loc.Type] = true
-			piiTypes = append(piiTypes, loc.Type)
-		}
-	}
+	base64Data := base64.StdEncoding.EncodeToString(result.RedactedData)
 
 	c.JSON(http.StatusOK, gin.H{
 		"redacted":       true,
-		"content_type":   contentType,
+		"content_type":   result.MimeType,
 		"data":           base64Data,
-		"data_url":       "data:" + contentType + ";base64," + base64Data,
-		"pii_count":      len(result.Locations),
-		"pii_types":      piiTypes,
-		"total_redacted": len(result.Locations),
+		"data_url":       "data:" + result.MimeType + ";base64," + base64Data,
+		"pii_count":      result.PIICount,
+		"pii_types":      result.PIITypes,
+		"total_redacted": result.PIICount,
 		"processing_ms":  result.ProcessingMS,
 	})
 }
