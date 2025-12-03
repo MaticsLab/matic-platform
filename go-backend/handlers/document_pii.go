@@ -60,14 +60,33 @@ func GetRedactedDocument(c *gin.Context) {
 	// Create Gemini client
 	geminiClient := services.NewGeminiClient()
 
-	// Use Gemini to directly redact the document
-	result, err := geminiClient.RedactDocument(c.Request.Context(), services.PIIDetectionRequest{
+	// Step 1: Use Gemini to detect PII locations with bounding boxes
+	result, err := geminiClient.DetectPII(c.Request.Context(), services.PIIDetectionRequest{
 		DocumentURL:  req.DocumentURL,
 		DocumentType: req.DocumentType,
 		KnownPII:     req.KnownPII,
 		RedactAll:    req.RedactAll,
 	})
 
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to analyze document",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// If no PII found, return original
+	if len(result.Locations) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"message":      "No PII detected",
+			"original_url": req.DocumentURL,
+		})
+		return
+	}
+
+	// Step 2: Apply redactions to the image using our backend
+	redactedData, contentType, err := services.RedactImage(req.DocumentURL, result.Locations)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to redact document",
@@ -77,7 +96,7 @@ func GetRedactedDocument(c *gin.Context) {
 	}
 
 	// Return redacted image directly
-	c.Data(http.StatusOK, result.MimeType, result.RedactedData)
+	c.Data(http.StatusOK, contentType, redactedData)
 }
 
 // GetRedactedDocumentBase64 returns a redacted document as base64
@@ -92,14 +111,36 @@ func GetRedactedDocumentBase64(c *gin.Context) {
 	// Create Gemini client
 	geminiClient := services.NewGeminiClient()
 
-	// Use Gemini to directly redact the document and return the image
-	result, err := geminiClient.RedactDocument(c.Request.Context(), services.PIIDetectionRequest{
+	// Step 1: Use Gemini to detect PII locations with bounding boxes
+	result, err := geminiClient.DetectPII(c.Request.Context(), services.PIIDetectionRequest{
 		DocumentURL:  req.DocumentURL,
 		DocumentType: req.DocumentType,
 		KnownPII:     req.KnownPII,
 		RedactAll:    req.RedactAll,
 	})
 
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to analyze document",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// If no PII found, return info
+	if len(result.Locations) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"redacted":       false,
+			"original_url":   req.DocumentURL,
+			"pii_count":      0,
+			"total_redacted": 0,
+			"message":        "No PII detected",
+		})
+		return
+	}
+
+	// Step 2: Apply redactions to the image using our backend
+	redactedData, contentType, err := services.RedactImage(req.DocumentURL, result.Locations)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to redact document",
@@ -109,17 +150,27 @@ func GetRedactedDocumentBase64(c *gin.Context) {
 	}
 
 	// Encode as base64
-	base64Data := base64.StdEncoding.EncodeToString(result.RedactedData)
+	base64Data := base64.StdEncoding.EncodeToString(redactedData)
+
+	// Collect PII types
+	piiTypes := make([]string, 0)
+	typeSet := make(map[string]bool)
+	for _, loc := range result.Locations {
+		if !typeSet[loc.Type] {
+			typeSet[loc.Type] = true
+			piiTypes = append(piiTypes, loc.Type)
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"redacted":        true,
-		"content_type":    result.MimeType,
-		"data":            base64Data,
-		"data_url":        "data:" + result.MimeType + ";base64," + base64Data,
-		"pii_count":       result.PIICount,
-		"pii_types":       result.PIITypes,
-		"total_redacted":  result.PIICount,
-		"processing_ms":   result.ProcessingMS,
+		"redacted":       true,
+		"content_type":   contentType,
+		"data":           base64Data,
+		"data_url":       "data:" + contentType + ";base64," + base64Data,
+		"pii_count":      len(result.Locations),
+		"pii_types":      piiTypes,
+		"total_redacted": len(result.Locations),
+		"processing_ms":  result.ProcessingMS,
 	})
 }
 
