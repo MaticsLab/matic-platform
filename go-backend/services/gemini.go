@@ -242,57 +242,60 @@ func (c *GeminiClient) downloadDocument(url string) ([]byte, string, error) {
 func (c *GeminiClient) buildPIIDetectionPrompt(knownPII map[string]string, redactAll bool) string {
 	var sb strings.Builder
 
-	sb.WriteString(`You are a PII (Personally Identifiable Information) detection system with OCR capabilities. Analyze this document image and identify ALL instances of PII that should be redacted for privacy.
+	sb.WriteString(`You are a document OCR and PII detection system. Analyze this document image carefully and identify ALL text that contains personally identifiable information (PII) that should be redacted.
 
-IMPORTANT: You must provide the BOUNDING BOX coordinates for each PII item found. The coordinates should be normalized (0-1) relative to the image dimensions.
+For each PII item found, you MUST provide accurate bounding box coordinates. Use a coordinate system where:
+- The image is 1000 x 1000 units
+- x=0 is the left edge, x=1000 is the right edge
+- y=0 is the top edge, y=1000 is the bottom edge
 
 `)
 
 	if len(knownPII) > 0 {
-		sb.WriteString("KNOWN PII TO FIND (these are confirmed PII values from the applicant's form):\n")
+		sb.WriteString("KNOWN PII VALUES TO FIND:\n")
 		for field, value := range knownPII {
 			sb.WriteString(fmt.Sprintf("- %s: \"%s\"\n", field, value))
 		}
-		sb.WriteString("\nFind ALL occurrences of these values, including:\n")
-		sb.WriteString("- Partial matches (e.g., first name only, last name only)\n")
-		sb.WriteString("- Variations (e.g., nicknames, abbreviations, misspellings)\n")
-		sb.WriteString("- Related info (e.g., family member names mentioned)\n\n")
+		sb.WriteString("\nSearch for ALL occurrences of these values anywhere in the document.\n\n")
 	}
 
 	if redactAll {
-		sb.WriteString(`ALSO detect any other PII in the document:
-- Names (any person's name)
+		sb.WriteString(`ALSO detect ALL other PII including:
+- Full names and partial names
 - Email addresses
-- Phone numbers  
-- Physical addresses
-- Social Security Numbers (SSN)
+- Phone numbers
+- Street addresses, cities, zip codes
+- Social Security Numbers
 - Dates of birth
-- Student IDs
-- Account numbers
+- ID numbers (student ID, account numbers, etc.)
+- Signatures
 - Any other identifying information
 
 `)
 	}
 
-	sb.WriteString(`Respond with a JSON array of detected PII. Each item MUST have:
-- "text": The exact text found
-- "type": One of "name", "email", "phone", "ssn", "address", "dob", "id", "other"
-- "confidence": A number 0-1 indicating confidence
-- "bounding_box": An object with normalized coordinates (0-1 range):
-  - "x": Left edge (0 = left side of image, 1 = right side)
-  - "y": Top edge (0 = top of image, 1 = bottom)
-  - "width": Width as fraction of image width
-  - "height": Height as fraction of image height
+	sb.WriteString(`Return a JSON array. For EACH PII item, provide:
+{
+  "text": "the exact text found",
+  "type": "name|email|phone|ssn|address|dob|id|signature|other",
+  "confidence": 0.0-1.0,
+  "box": [y_min, x_min, y_max, x_max]
+}
 
-Example response:
+The "box" array uses coordinates from 0-1000 where:
+- y_min: top edge of the text
+- x_min: left edge of the text  
+- y_max: bottom edge of the text
+- x_max: right edge of the text
+
+Example:
 [
-  {"text": "John Smith", "type": "name", "confidence": 0.99, "bounding_box": {"x": 0.15, "y": 0.08, "width": 0.12, "height": 0.025}},
-  {"text": "john.smith@email.com", "type": "email", "confidence": 1.0, "bounding_box": {"x": 0.15, "y": 0.12, "width": 0.25, "height": 0.025}},
-  {"text": "123-45-6789", "type": "ssn", "confidence": 0.95, "bounding_box": {"x": 0.4, "y": 0.35, "width": 0.15, "height": 0.025}}
+  {"text": "John Smith", "type": "name", "confidence": 0.99, "box": [50, 100, 80, 250]},
+  {"text": "john@email.com", "type": "email", "confidence": 1.0, "box": [100, 100, 130, 350]}
 ]
 
-CRITICAL: Include bounding_box for EVERY item. Estimate coordinates based on where the text appears in the document.
-Respond ONLY with the JSON array, no other text.`)
+Be precise with bounding boxes - they should tightly wrap each PII text.
+Return ONLY the JSON array, no other text.`)
 
 	return sb.String()
 }
@@ -312,12 +315,13 @@ func (c *GeminiClient) parseGeminiResponse(resp GeminiResponse) ([]PIILocation, 
 	text = strings.TrimSuffix(text, "```")
 	text = strings.TrimSpace(text)
 
-	// Parse the JSON response
+	// Parse the JSON response - support both old and new format
 	var rawLocations []struct {
-		Text        string  `json:"text"`
-		Type        string  `json:"type"`
-		Confidence  float64 `json:"confidence"`
-		Context     string  `json:"context"`
+		Text       string    `json:"text"`
+		Type       string    `json:"type"`
+		Confidence float64   `json:"confidence"`
+		Box        []float64 `json:"box"` // New format: [y_min, x_min, y_max, x_max] in 0-1000 coords
+		// Old format support
 		BoundingBox *struct {
 			X      float64 `json:"x"`
 			Y      float64 `json:"y"`
@@ -348,7 +352,23 @@ func (c *GeminiClient) parseGeminiResponse(resp GeminiResponse) ([]PIILocation, 
 			Confidence: raw.Confidence,
 			Page:       1, // Default to page 1 for now
 		}
-		if raw.BoundingBox != nil {
+
+		// Handle new box format: [y_min, x_min, y_max, x_max] in 0-1000 coords
+		if len(raw.Box) == 4 {
+			// Convert from 0-1000 to normalized 0-1
+			yMin := raw.Box[0] / 1000.0
+			xMin := raw.Box[1] / 1000.0
+			yMax := raw.Box[2] / 1000.0
+			xMax := raw.Box[3] / 1000.0
+
+			loc.BoundingBox = &BoundingBox{
+				X:      xMin,
+				Y:      yMin,
+				Width:  xMax - xMin,
+				Height: yMax - yMin,
+			}
+		} else if raw.BoundingBox != nil {
+			// Old format
 			loc.BoundingBox = &BoundingBox{
 				X:      raw.BoundingBox.X,
 				Y:      raw.BoundingBox.Y,
