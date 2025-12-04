@@ -166,8 +166,9 @@ func CreateWorkspace(c *gin.Context) {
 	// Add creator as admin member
 	member := models.WorkspaceMember{
 		WorkspaceID: workspace.ID,
-		UserID:      parsedUserID,
+		UserID:      &parsedUserID,
 		Role:        "admin",
+		Status:      "active",
 	}
 
 	if err := tx.Create(&member).Error; err != nil {
@@ -318,4 +319,101 @@ func DeleteWorkspace(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// ListWorkspaceMembers returns all active members for a workspace
+func ListWorkspaceMembers(c *gin.Context) {
+	workspaceID := c.Query("workspace_id")
+	if workspaceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id is required"})
+		return
+	}
+
+	wsID, err := uuid.Parse(workspaceID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace ID"})
+		return
+	}
+
+	var members []models.WorkspaceMember
+	if err := database.DB.Where("workspace_id = ? AND status = ?", wsID, "active").Find(&members).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch members"})
+		return
+	}
+
+	c.JSON(http.StatusOK, members)
+}
+
+// UpdateWorkspaceMember updates a workspace member's role or hub access
+func UpdateWorkspaceMember(c *gin.Context) {
+	memberID := c.Param("id")
+	if memberID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Member ID is required"})
+		return
+	}
+
+	id, err := uuid.Parse(memberID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid member ID"})
+		return
+	}
+
+	var member models.WorkspaceMember
+	if err := database.DB.First(&member, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Member not found"})
+		return
+	}
+
+	// Parse update payload
+	var updates struct {
+		Role      string   `json:"role"`
+		HubAccess []string `json:"hub_access"`
+	}
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Apply updates
+	if updates.Role != "" {
+		member.Role = updates.Role
+	}
+	if updates.HubAccess != nil {
+		member.HubAccess = updates.HubAccess
+	}
+
+	if err := database.DB.Save(&member).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update member"})
+		return
+	}
+
+	c.JSON(http.StatusOK, member)
+}
+
+// RemoveWorkspaceMember removes a member from a workspace
+func RemoveWorkspaceMember(c *gin.Context) {
+	memberID := c.Param("id")
+	if memberID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Member ID is required"})
+		return
+	}
+
+	id, err := uuid.Parse(memberID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid member ID"})
+		return
+	}
+
+	var member models.WorkspaceMember
+	if err := database.DB.First(&member, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Member not found"})
+		return
+	}
+
+	if err := database.DB.Delete(&member).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove member"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Member removed successfully"})
 }

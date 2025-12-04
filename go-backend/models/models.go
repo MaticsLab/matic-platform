@@ -81,13 +81,29 @@ type Workspace struct {
 type WorkspaceMember struct {
 	ID          uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
 	WorkspaceID uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
-	UserID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"`
-	Role        string         `gorm:"type:varchar(50);default:'editor'" json:"role"`
+	UserID      *uuid.UUID     `gorm:"type:uuid;index" json:"user_id,omitempty"` // Nullable for pending invites
+	Role        string         `gorm:"type:varchar(50);default:'viewer'" json:"role"`
 	HubAccess   pq.StringArray `gorm:"type:text[]" json:"hub_access,omitempty"` // List of hub IDs user can access, empty = all
 	Permissions datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"permissions"`
-	AddedAt     time.Time      `gorm:"autoCreateTime" json:"added_at"`
-	UpdatedAt   time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
-	Email       string         `gorm:"-" json:"email,omitempty"` // Populated from auth.users join
+
+	// Invitation fields
+	Status          string     `gorm:"type:varchar(20);default:'active'" json:"status"` // pending, active, declined, expired
+	InvitedEmail    string     `gorm:"index" json:"invited_email,omitempty"`            // Email for pending invites
+	InvitedBy       *uuid.UUID `gorm:"type:uuid" json:"invited_by,omitempty"`
+	InviteToken     string     `gorm:"uniqueIndex" json:"invite_token,omitempty"`
+	InviteExpiresAt *time.Time `json:"invite_expires_at,omitempty"`
+	InvitedAt       *time.Time `json:"invited_at,omitempty"`
+	AcceptedAt      *time.Time `json:"accepted_at,omitempty"`
+
+	AddedAt   time.Time `gorm:"autoCreateTime" json:"added_at"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+
+	// Relations
+	Workspace Workspace `gorm:"foreignKey:WorkspaceID" json:"workspace,omitempty"`
+
+	// Virtual fields populated from joins
+	Email        string `gorm:"-" json:"email,omitempty"`         // From auth.users
+	InviterEmail string `gorm:"-" json:"inviter_email,omitempty"` // From auth.users
 }
 
 // BeforeCreate hook for WorkspaceMember

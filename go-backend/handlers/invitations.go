@@ -8,125 +8,164 @@ import (
 	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
-	"github.com/Jsanchez767/matic-platform/middleware"
 	"github.com/Jsanchez767/matic-platform/models"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 )
 
-// ============================================================================
-// Invitation Handlers
-// ============================================================================
-
-// CreateInvitationInput is the input for creating a new invitation
-type CreateInvitationInput struct {
-	WorkspaceID string   `json:"workspace_id" binding:"required"`
-	Email       string   `json:"email" binding:"required,email"`
-	Role        string   `json:"role"` // admin, editor, viewer
-	HubAccess   []string `json:"hub_access,omitempty"`
+// InvitationRequest represents the request body for creating an invitation
+type InvitationRequest struct {
+	WorkspaceID string `json:"workspace_id" binding:"required"`
+	Email       string `json:"email" binding:"required,email"`
+	Role        string `json:"role"`
 }
 
-// generateToken creates a random token for invitation links
-func generateToken() string {
+// InvitationResponse represents a pending invitation (a workspace member with status='pending')
+type InvitationResponse struct {
+	ID          string     `json:"id"`
+	WorkspaceID string     `json:"workspace_id"`
+	Email       string     `json:"email"`
+	Role        string     `json:"role"`
+	Status      string     `json:"status"`
+	InvitedByID *string    `json:"invited_by_id"`
+	InviteToken string     `json:"invite_token,omitempty"`
+	ExpiresAt   *time.Time `json:"expires_at"`
+	InvitedAt   *time.Time `json:"invited_at"`
+	AcceptedAt  *time.Time `json:"accepted_at,omitempty"`
+}
+
+// generateToken creates a secure random token
+func generateToken() (string, error) {
 	bytes := make([]byte, 32)
-	rand.Read(bytes)
-	return hex.EncodeToString(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }
 
-// CreateInvitation creates a new workspace invitation
+// CreateInvitation creates a new pending workspace member (invitation)
 func CreateInvitation(c *gin.Context) {
-	var input CreateInvitationInput
-	if err := c.ShouldBindJSON(&input); err != nil {
+	var req InvitationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Get authenticated user ID
-	userID, exists := middleware.GetUserID(c)
+	// Get the inviter's user ID from context
+	userID, exists := c.Get("user_id")
 	if !exists {
+		log.Printf("CreateInvitation: No user_id in context")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	parsedUserID, err := uuid.Parse(userID)
+	inviterID, err := uuid.Parse(userID.(string))
 	if err != nil {
+		log.Printf("CreateInvitation: Invalid user_id format: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
-	parsedWorkspaceID, err := uuid.Parse(input.WorkspaceID)
+	workspaceID, err := uuid.Parse(req.WorkspaceID)
 	if err != nil {
+		log.Printf("CreateInvitation: Invalid workspace_id format: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace ID"})
 		return
 	}
 
-	// Verify user has admin access to this workspace
-	var membership models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ?", parsedWorkspaceID, parsedUserID).First(&membership).Error; err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have access to this workspace"})
+	// Check if workspace exists
+	var workspace models.Workspace
+	if err := database.DB.First(&workspace, "id = ?", workspaceID).Error; err != nil {
+		log.Printf("CreateInvitation: Workspace not found: %v", err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Workspace not found"})
 		return
 	}
 
-	if membership.Role != "admin" && membership.Role != "owner" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Only admins can invite members"})
+	// Check if inviter has permission (is a member of the workspace)
+	var inviterMember models.WorkspaceMember
+	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", workspaceID, inviterID, "active").First(&inviterMember).Error; err != nil {
+		log.Printf("CreateInvitation: Inviter is not an active member of workspace: %v", err)
+		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to invite to this workspace"})
 		return
 	}
 
-	// Check if user is already a member
+	// Check if there's already a pending invitation for this email
+	var existingInvite models.WorkspaceMember
+	if err := database.DB.Where("workspace_id = ? AND invited_email = ? AND status = ?", workspaceID, req.Email, "pending").First(&existingInvite).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "An invitation for this email already exists"})
+		return
+	}
+
+	// Check if user is already a member (by looking up their user_id via email)
+	// Note: This requires joining with auth.users or having the email stored somewhere
+	// For now, we'll check if there's an active member with this email in invited_email
 	var existingMember models.WorkspaceMember
-	if err := database.DB.
-		Joins("JOIN auth.users ON auth.users.id = workspace_members.user_id").
-		Where("workspace_members.workspace_id = ? AND auth.users.email = ?", parsedWorkspaceID, input.Email).
-		First(&existingMember).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "This user is already a member of the workspace"})
+	if err := database.DB.Where("workspace_id = ? AND invited_email = ? AND status = ?", workspaceID, req.Email, "active").First(&existingMember).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "User is already a member of this workspace"})
 		return
 	}
 
-	// Check for pending invitation
-	var existingInvite models.WorkspaceInvitation
-	if err := database.DB.Where("workspace_id = ? AND email = ? AND status = 'pending'", parsedWorkspaceID, input.Email).First(&existingInvite).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "An invitation has already been sent to this email"})
+	// Generate invite token
+	token, err := generateToken()
+	if err != nil {
+		log.Printf("CreateInvitation: Failed to generate token: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate invitation"})
 		return
 	}
 
-	// Set default role if not provided
-	role := input.Role
+	// Set expiration to 7 days from now
+	expiresAt := time.Now().Add(7 * 24 * time.Hour)
+	invitedAt := time.Now()
+
+	// Set default role
+	role := req.Role
 	if role == "" {
-		role = "viewer"
+		role = "member"
 	}
 
-	// Validate role
-	validRoles := map[string]bool{"admin": true, "editor": true, "viewer": true}
-	if !validRoles[role] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role. Must be admin, editor, or viewer"})
-		return
+	// Create pending workspace member
+	pendingMember := models.WorkspaceMember{
+		ID:              uuid.New(),
+		WorkspaceID:     workspaceID,
+		UserID:          nil, // NULL until invitation is accepted
+		Role:            role,
+		Status:          "pending",
+		InvitedEmail:    req.Email,
+		InvitedBy:       &inviterID,
+		InviteToken:     token,
+		InviteExpiresAt: &expiresAt,
+		InvitedAt:       &invitedAt,
 	}
 
-	// Create invitation
-	invitation := models.WorkspaceInvitation{
-		WorkspaceID: parsedWorkspaceID,
-		Email:       input.Email,
-		Role:        role,
-		HubAccess:   pq.StringArray(input.HubAccess),
-		Status:      "pending",
-		InvitedBy:   parsedUserID,
-		Token:       generateToken(),
-		ExpiresAt:   time.Now().AddDate(0, 0, 7), // 7 days expiry
-	}
-
-	if err := database.DB.Create(&invitation).Error; err != nil {
-		log.Printf("Failed to create invitation: %v", err)
+	if err := database.DB.Create(&pendingMember).Error; err != nil {
+		log.Printf("CreateInvitation: Failed to create pending member: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create invitation: " + err.Error()})
 		return
 	}
 
-	// TODO: Send email notification to invitee
+	// Send invitation email
+	if err := sendInvitationEmail(req.Email, token, workspace.Name); err != nil {
+		log.Printf("CreateInvitation: Failed to send email (invitation created anyway): %v", err)
+		// Don't fail the request if email fails - invitation is still created
+	}
 
-	c.JSON(http.StatusCreated, invitation)
+	invitedByStr := inviterID.String()
+	response := InvitationResponse{
+		ID:          pendingMember.ID.String(),
+		WorkspaceID: pendingMember.WorkspaceID.String(),
+		Email:       pendingMember.InvitedEmail,
+		Role:        pendingMember.Role,
+		Status:      pendingMember.Status,
+		InvitedByID: &invitedByStr,
+		ExpiresAt:   pendingMember.InviteExpiresAt,
+		InvitedAt:   pendingMember.InvitedAt,
+	}
+
+	c.JSON(http.StatusCreated, response)
 }
 
-// ListInvitations lists all invitations for a workspace
+// ListInvitations returns all pending invitations for a workspace
 func ListInvitations(c *gin.Context) {
 	workspaceID := c.Query("workspace_id")
 	if workspaceID == "" {
@@ -134,410 +173,303 @@ func ListInvitations(c *gin.Context) {
 		return
 	}
 
-	// Get authenticated user ID
-	userID, exists := middleware.GetUserID(c)
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+	wsID, err := uuid.Parse(workspaceID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace ID"})
 		return
 	}
 
-	// Verify user has access to this workspace
-	var membership models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ?", workspaceID, userID).First(&membership).Error; err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have access to this workspace"})
-		return
-	}
-
-	var invitations []models.WorkspaceInvitation
-	if err := database.DB.Where("workspace_id = ?", workspaceID).Order("created_at DESC").Find(&invitations).Error; err != nil {
+	var pendingMembers []models.WorkspaceMember
+	if err := database.DB.Where("workspace_id = ? AND status = ?", wsID, "pending").Find(&pendingMembers).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch invitations"})
 		return
+	}
+
+	// Convert to response format
+	var invitations []InvitationResponse
+	for _, pm := range pendingMembers {
+		var invitedByStr *string
+		if pm.InvitedBy != nil {
+			s := pm.InvitedBy.String()
+			invitedByStr = &s
+		}
+
+		invitations = append(invitations, InvitationResponse{
+			ID:          pm.ID.String(),
+			WorkspaceID: pm.WorkspaceID.String(),
+			Email:       pm.InvitedEmail,
+			Role:        pm.Role,
+			Status:      pm.Status,
+			InvitedByID: invitedByStr,
+			ExpiresAt:   pm.InviteExpiresAt,
+			InvitedAt:   pm.InvitedAt,
+		})
 	}
 
 	c.JSON(http.StatusOK, invitations)
 }
 
-// RevokeInvitation cancels a pending invitation
-func RevokeInvitation(c *gin.Context) {
-	invitationID := c.Param("id")
-
-	// Get authenticated user ID
-	userID, exists := middleware.GetUserID(c)
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+// GetInvitationByToken retrieves an invitation by its token
+func GetInvitationByToken(c *gin.Context) {
+	token := c.Param("token")
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Token is required"})
 		return
 	}
 
-	var invitation models.WorkspaceInvitation
-	if err := database.DB.First(&invitation, "id = ?", invitationID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Invitation not found"})
+	var pendingMember models.WorkspaceMember
+	if err := database.DB.Preload("Workspace").Where("invite_token = ? AND status = ?", token, "pending").First(&pendingMember).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Invitation not found or already used"})
 		return
 	}
 
-	// Verify user has admin access
-	var membership models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ?", invitation.WorkspaceID, userID).First(&membership).Error; err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have access to this workspace"})
+	// Check if expired
+	if pendingMember.InviteExpiresAt != nil && pendingMember.InviteExpiresAt.Before(time.Now()) {
+		c.JSON(http.StatusGone, gin.H{"error": "Invitation has expired"})
 		return
 	}
 
-	if membership.Role != "admin" && membership.Role != "owner" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Only admins can revoke invitations"})
-		return
+	var invitedByStr *string
+	if pendingMember.InvitedBy != nil {
+		s := pendingMember.InvitedBy.String()
+		invitedByStr = &s
 	}
 
-	if invitation.Status != "pending" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Can only revoke pending invitations"})
-		return
+	response := InvitationResponse{
+		ID:          pendingMember.ID.String(),
+		WorkspaceID: pendingMember.WorkspaceID.String(),
+		Email:       pendingMember.InvitedEmail,
+		Role:        pendingMember.Role,
+		Status:      pendingMember.Status,
+		InvitedByID: invitedByStr,
+		ExpiresAt:   pendingMember.InviteExpiresAt,
+		InvitedAt:   pendingMember.InvitedAt,
 	}
 
-	if err := database.DB.Delete(&invitation).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke invitation"})
-		return
-	}
-
-	c.Status(http.StatusNoContent)
+	// Include workspace name if preloaded
+	c.JSON(http.StatusOK, gin.H{
+		"invitation":     response,
+		"workspace_name": pendingMember.Workspace.Name,
+	})
 }
 
-// ResendInvitation resends an invitation email
-func ResendInvitation(c *gin.Context) {
-	invitationID := c.Param("id")
-
-	// Get authenticated user ID
-	userID, exists := middleware.GetUserID(c)
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	var invitation models.WorkspaceInvitation
-	if err := database.DB.First(&invitation, "id = ?", invitationID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Invitation not found"})
-		return
-	}
-
-	// Verify user has admin access
-	var membership models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ?", invitation.WorkspaceID, userID).First(&membership).Error; err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have access to this workspace"})
-		return
-	}
-
-	if membership.Role != "admin" && membership.Role != "owner" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Only admins can resend invitations"})
-		return
-	}
-
-	if invitation.Status != "pending" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Can only resend pending invitations"})
-		return
-	}
-
-	// Generate new token and extend expiry
-	invitation.Token = generateToken()
-	invitation.ExpiresAt = time.Now().AddDate(0, 0, 7)
-
-	if err := database.DB.Save(&invitation).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update invitation"})
-		return
-	}
-
-	// TODO: Send email notification
-
-	c.JSON(http.StatusOK, invitation)
-}
-
-// AcceptInvitation accepts an invitation and adds user to workspace
+// AcceptInvitation accepts a pending invitation and activates membership
 func AcceptInvitation(c *gin.Context) {
 	token := c.Param("token")
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Token is required"})
+		return
+	}
 
-	// Get authenticated user ID
-	userID, exists := middleware.GetUserID(c)
+	// Get the accepting user's ID
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	parsedUserID, err := uuid.Parse(userID)
+	acceptingUserID, err := uuid.Parse(userID.(string))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
-	var invitation models.WorkspaceInvitation
-	if err := database.DB.First(&invitation, "token = ?", token).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Invitation not found or expired"})
+	var pendingMember models.WorkspaceMember
+	if err := database.DB.Where("invite_token = ? AND status = ?", token, "pending").First(&pendingMember).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Invitation not found or already used"})
 		return
 	}
 
-	if invitation.Status != "pending" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invitation has already been " + invitation.Status})
+	// Check if expired
+	if pendingMember.InviteExpiresAt != nil && pendingMember.InviteExpiresAt.Before(time.Now()) {
+		c.JSON(http.StatusGone, gin.H{"error": "Invitation has expired"})
 		return
 	}
 
-	if time.Now().After(invitation.ExpiresAt) {
-		invitation.Status = "expired"
-		database.DB.Save(&invitation)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invitation has expired"})
-		return
-	}
-
-	// Verify the email matches the authenticated user
-	// Get user email from auth.users
-	var userEmail string
-	if err := database.DB.Raw("SELECT email FROM auth.users WHERE id = ?", parsedUserID).Scan(&userEmail).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify user email"})
-		return
-	}
-
-	if userEmail != invitation.Email {
-		c.JSON(http.StatusForbidden, gin.H{"error": "This invitation was sent to a different email address"})
-		return
-	}
-
-	// Check if already a member
+	// Check if user is already an active member of this workspace
 	var existingMember models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ?", invitation.WorkspaceID, parsedUserID).First(&existingMember).Error; err == nil {
+	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", pendingMember.WorkspaceID, acceptingUserID, "active").First(&existingMember).Error; err == nil {
+		// User is already a member, delete the pending invitation
+		database.DB.Delete(&pendingMember)
 		c.JSON(http.StatusConflict, gin.H{"error": "You are already a member of this workspace"})
 		return
 	}
 
-	// Begin transaction
-	tx := database.DB.Begin()
+	// Update the pending member to active
+	now := time.Now()
+	pendingMember.UserID = &acceptingUserID
+	pendingMember.Status = "active"
+	pendingMember.InviteToken = "" // Clear the token
+	pendingMember.AcceptedAt = &now
 
-	// Add user as member
-	member := models.WorkspaceMember{
-		WorkspaceID: invitation.WorkspaceID,
-		UserID:      parsedUserID,
-		Role:        invitation.Role,
-		HubAccess:   invitation.HubAccess,
-	}
-
-	if err := tx.Create(&member).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add you to the workspace"})
+	if err := database.DB.Save(&pendingMember).Error; err != nil {
+		log.Printf("AcceptInvitation: Failed to update member: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to accept invitation"})
 		return
 	}
 
-	// Update invitation status
-	now := time.Now()
-	invitation.Status = "accepted"
-	invitation.AcceptedAt = &now
+	// Fetch the workspace for the response
+	var workspace models.Workspace
+	database.DB.First(&workspace, "id = ?", pendingMember.WorkspaceID)
 
-	if err := tx.Save(&invitation).Error; err != nil {
-		tx.Rollback()
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Invitation accepted successfully",
+		"workspace": gin.H{
+			"id":   workspace.ID.String(),
+			"name": workspace.Name,
+			"slug": workspace.Slug,
+		},
+		"member": pendingMember,
+	})
+}
+
+// RevokeInvitation cancels a pending invitation
+func RevokeInvitation(c *gin.Context) {
+	invitationID := c.Param("id")
+	if invitationID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invitation ID is required"})
+		return
+	}
+
+	id, err := uuid.Parse(invitationID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid invitation ID"})
+		return
+	}
+
+	// Get the revoker's user ID
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	revokerID, err := uuid.Parse(userID.(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var pendingMember models.WorkspaceMember
+	if err := database.DB.Where("id = ? AND status = ?", id, "pending").First(&pendingMember).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pending invitation not found"})
+		return
+	}
+
+	// Check if revoker has permission (is an active member of the workspace)
+	var revokerMember models.WorkspaceMember
+	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", pendingMember.WorkspaceID, revokerID, "active").First(&revokerMember).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to revoke this invitation"})
+		return
+	}
+
+	// Delete the pending member record
+	if err := database.DB.Delete(&pendingMember).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke invitation"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Invitation revoked successfully"})
+}
+
+// ResendInvitation resends an invitation email with a new token
+func ResendInvitation(c *gin.Context) {
+	invitationID := c.Param("id")
+	if invitationID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invitation ID is required"})
+		return
+	}
+
+	id, err := uuid.Parse(invitationID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid invitation ID"})
+		return
+	}
+
+	// Get the resender's user ID
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	resenderID, err := uuid.Parse(userID.(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var pendingMember models.WorkspaceMember
+	if err := database.DB.Preload("Workspace").Where("id = ? AND status = ?", id, "pending").First(&pendingMember).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pending invitation not found"})
+		return
+	}
+
+	// Check if resender has permission
+	var resenderMember models.WorkspaceMember
+	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", pendingMember.WorkspaceID, resenderID, "active").First(&resenderMember).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to resend this invitation"})
+		return
+	}
+
+	// Generate new token and extend expiration
+	newToken, err := generateToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate new token"})
+		return
+	}
+
+	newExpiresAt := time.Now().Add(7 * 24 * time.Hour)
+	pendingMember.InviteToken = newToken
+	pendingMember.InviteExpiresAt = &newExpiresAt
+
+	if err := database.DB.Save(&pendingMember).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update invitation"})
 		return
 	}
 
-	tx.Commit()
+	// Send new invitation email
+	if err := sendInvitationEmail(pendingMember.InvitedEmail, newToken, pendingMember.Workspace.Name); err != nil {
+		log.Printf("ResendInvitation: Failed to send email: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send invitation email"})
+		return
+	}
 
-	// Get workspace info for response
-	var workspace models.Workspace
-	database.DB.First(&workspace, "id = ?", invitation.WorkspaceID)
-
-	c.JSON(http.StatusOK, gin.H{
-		"message":   "Successfully joined workspace",
-		"workspace": workspace,
-		"member":    member,
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "Invitation resent successfully"})
 }
 
-// GetInvitationByToken gets invitation details by token (for preview before accepting)
-func GetInvitationByToken(c *gin.Context) {
+// DeclineInvitation allows a user to decline an invitation
+func DeclineInvitation(c *gin.Context) {
 	token := c.Param("token")
-
-	var invitation models.WorkspaceInvitation
-	if err := database.DB.First(&invitation, "token = ?", token).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Invitation not found"})
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Token is required"})
 		return
 	}
 
-	// Get workspace info
-	var workspace models.Workspace
-	if err := database.DB.First(&workspace, "id = ?", invitation.WorkspaceID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Workspace not found"})
+	var pendingMember models.WorkspaceMember
+	if err := database.DB.Where("invite_token = ? AND status = ?", token, "pending").First(&pendingMember).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Invitation not found or already processed"})
 		return
 	}
 
-	// Don't expose the token in the response
-	invitation.Token = ""
+	// Update status to declined
+	pendingMember.Status = "declined"
+	pendingMember.InviteToken = "" // Clear the token
 
-	c.JSON(http.StatusOK, gin.H{
-		"invitation": invitation,
-		"workspace": gin.H{
-			"id":   workspace.ID,
-			"name": workspace.Name,
-			"slug": workspace.Slug,
-		},
-		"is_expired": time.Now().After(invitation.ExpiresAt),
-	})
+	if err := database.DB.Save(&pendingMember).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decline invitation"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Invitation declined"})
 }
 
-// ============================================================================
-// Workspace Member Handlers
-// ============================================================================
-
-// ListWorkspaceMembers lists all members of a workspace
-func ListWorkspaceMembers(c *gin.Context) {
-	workspaceID := c.Query("workspace_id")
-	if workspaceID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id is required"})
-		return
-	}
-
-	// Get authenticated user ID
-	userID, exists := middleware.GetUserID(c)
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	// Verify user has access to this workspace
-	var membership models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ?", workspaceID, userID).First(&membership).Error; err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have access to this workspace"})
-		return
-	}
-
-	// Get members with emails from auth.users
-	type MemberWithEmail struct {
-		models.WorkspaceMember
-		Email string `json:"email"`
-	}
-
-	var members []MemberWithEmail
-	if err := database.DB.Table("workspace_members").
-		Select("workspace_members.*, auth.users.email").
-		Joins("LEFT JOIN auth.users ON auth.users.id = workspace_members.user_id").
-		Where("workspace_members.workspace_id = ?", workspaceID).
-		Order("workspace_members.added_at ASC").
-		Scan(&members).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch members"})
-		return
-	}
-
-	c.JSON(http.StatusOK, members)
-}
-
-// UpdateMemberInput is the input for updating a workspace member
-type UpdateMemberInput struct {
-	Role      *string  `json:"role,omitempty"`
-	HubAccess []string `json:"hub_access,omitempty"`
-}
-
-// UpdateWorkspaceMember updates a member's role or hub access
-func UpdateWorkspaceMember(c *gin.Context) {
-	memberID := c.Param("id")
-
-	var input UpdateMemberInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Get authenticated user ID
-	userID, exists := middleware.GetUserID(c)
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	var member models.WorkspaceMember
-	if err := database.DB.First(&member, "id = ?", memberID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Member not found"})
-		return
-	}
-
-	// Verify user has admin access to this workspace
-	var currentMembership models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ?", member.WorkspaceID, userID).First(&currentMembership).Error; err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have access to this workspace"})
-		return
-	}
-
-	if currentMembership.Role != "admin" && currentMembership.Role != "owner" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Only admins can update members"})
-		return
-	}
-
-	// Prevent modifying your own role
-	if member.UserID.String() == userID && input.Role != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "You cannot modify your own role"})
-		return
-	}
-
-	// Update fields
-	if input.Role != nil {
-		validRoles := map[string]bool{"admin": true, "editor": true, "viewer": true}
-		if !validRoles[*input.Role] {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role"})
-			return
-		}
-		member.Role = *input.Role
-	}
-
-	if input.HubAccess != nil {
-		member.HubAccess = pq.StringArray(input.HubAccess)
-	}
-
-	if err := database.DB.Save(&member).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update member"})
-		return
-	}
-
-	c.JSON(http.StatusOK, member)
-}
-
-// RemoveWorkspaceMember removes a member from a workspace
-func RemoveWorkspaceMember(c *gin.Context) {
-	memberID := c.Param("id")
-
-	// Get authenticated user ID
-	userID, exists := middleware.GetUserID(c)
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	var member models.WorkspaceMember
-	if err := database.DB.First(&member, "id = ?", memberID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Member not found"})
-		return
-	}
-
-	// Verify user has admin access
-	var currentMembership models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ?", member.WorkspaceID, userID).First(&currentMembership).Error; err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have access to this workspace"})
-		return
-	}
-
-	if currentMembership.Role != "admin" && currentMembership.Role != "owner" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Only admins can remove members"})
-		return
-	}
-
-	// Prevent removing yourself
-	if member.UserID.String() == userID {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "You cannot remove yourself from the workspace"})
-		return
-	}
-
-	// Prevent removing the last admin
-	if member.Role == "admin" || member.Role == "owner" {
-		var adminCount int64
-		database.DB.Model(&models.WorkspaceMember{}).Where("workspace_id = ? AND role IN ('admin', 'owner')", member.WorkspaceID).Count(&adminCount)
-		if adminCount <= 1 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot remove the last admin from the workspace"})
-			return
-		}
-	}
-
-	if err := database.DB.Delete(&member).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove member"})
-		return
-	}
-
-	c.Status(http.StatusNoContent)
+// sendInvitationEmail sends an invitation email
+// TODO: Integrate with actual email service (SendGrid, etc.)
+func sendInvitationEmail(email, token, workspaceName string) error {
+	// For now, just log the invitation URL
+	inviteURL := "http://localhost:3000/invite/" + token
+	log.Printf("📧 Invitation email would be sent to %s for workspace '%s'", email, workspaceName)
+	log.Printf("📧 Invite URL: %s", inviteURL)
+	return nil
 }

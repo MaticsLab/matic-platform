@@ -48,14 +48,25 @@ export interface WorkspaceUpdate {
 
 // Member types
 export type MemberRole = 'admin' | 'editor' | 'viewer'
+export type MemberStatus = 'pending' | 'active' | 'declined' | 'expired'
 
 export interface WorkspaceMember {
   id: string
   workspace_id: string
-  user_id: string
+  user_id?: string | null  // Nullable for pending invites
   role: MemberRole
   hub_access?: string[] | null  // List of hub IDs, null/empty = all access
   permissions: Record<string, any>
+  
+  // Invitation fields
+  status: MemberStatus
+  invited_email?: string
+  invited_by?: string | null
+  invite_token?: string
+  invite_expires_at?: string | null
+  invited_at?: string | null
+  accepted_at?: string | null
+  
   added_at: string
   updated_at: string
   email?: string  // Populated from join with auth.users

@@ -284,14 +284,18 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
           strategy: 'random', 
           count: assignmentCount, 
           only_unassigned: onlyUnassigned,
-          reviewer_type_id: assignToExistingReviewer.reviewer_type_id
+          reviewer_type_id: assignToExistingReviewer.reviewer_type_id,
+          reviewer_name: assignToExistingReviewer.name,
+          reviewer_email: assignToExistingReviewer.email
         })
         newAssignedCount = response.count
       } else if (assignmentStrategy === 'manual' && selectedSubmissionIds.length > 0) {
         const response = await goClient.post<{count: number}>(`/forms/${formId}/reviewers/${assignToExistingReviewer.id}/assign`, {
           strategy: 'manual', 
           submission_ids: selectedSubmissionIds,
-          reviewer_type_id: assignToExistingReviewer.reviewer_type_id
+          reviewer_type_id: assignToExistingReviewer.reviewer_type_id,
+          reviewer_name: assignToExistingReviewer.name,
+          reviewer_email: assignToExistingReviewer.email
         })
         newAssignedCount = response.count
       }
@@ -419,6 +423,9 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
       const submission = submissions.find(s => s.id === reassignSubmissionId)
       if (!submission) throw new Error('Submission not found')
       
+      // Find the target reviewer's info
+      const toReviewer = reviewers.find(r => r.id === reassignToReviewerId)
+      
       // Remove from old reviewer and add to new reviewer
       const currentAssigned = submission.metadata?.assigned_reviewers || []
       const newAssigned = currentAssigned.filter((id: string) => id !== reassignFromReviewerId)
@@ -426,11 +433,22 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
         newAssigned.push(reassignToReviewerId)
       }
       
+      // Update reviewer_info to include the new reviewer
+      const existingReviewerInfo = submission.metadata?.reviewer_info || {}
+      const updatedReviewerInfo = {
+        ...existingReviewerInfo,
+        [reassignToReviewerId]: {
+          name: toReviewer?.name || 'Reviewer',
+          email: toReviewer?.email || ''
+        }
+      }
+      
       // Update the submission metadata
       await goClient.patch(`/forms/${formId}/submissions/${reassignSubmissionId}`, {
         metadata: { 
           ...submission.metadata, 
           assigned_reviewers: newAssigned,
+          reviewer_info: updatedReviewerInfo,
           reassignment_history: [
             ...(submission.metadata?.reassignment_history || []),
             {
@@ -446,7 +464,7 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
       // Update local submission state
       setSubmissions(prev => prev.map(s => 
         s.id === reassignSubmissionId 
-          ? { ...s, metadata: { ...s.metadata, assigned_reviewers: newAssigned } }
+          ? { ...s, metadata: { ...s.metadata, assigned_reviewers: newAssigned, reviewer_info: updatedReviewerInfo } }
           : s
       ))
       

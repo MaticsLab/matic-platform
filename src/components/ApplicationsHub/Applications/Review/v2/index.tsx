@@ -90,9 +90,13 @@ export function ReviewWorkspaceV2({
     // Get score
     const score = metadata.total_score ?? metadata.score ?? null;
     
-    // Get assigned reviewers
+    // Get assigned reviewers - check both revMap and submission's own reviewer_info
     const assignedReviewerIds = metadata.assigned_reviewers || [];
-    const assignedTo = assignedReviewerIds.map((id: string) => revMap[id]?.name || 'Unknown');
+    const submissionReviewerInfo = metadata.reviewer_info || {};
+    const assignedTo = assignedReviewerIds.map((id: string) => {
+      // Try revMap first, then submission's reviewer_info, then fallback
+      return revMap[id]?.name || submissionReviewerInfo[id]?.name || 'Reviewer';
+    });
     
     // Determine priority based on score or flags
     let priority: 'high' | 'medium' | 'low' | undefined;

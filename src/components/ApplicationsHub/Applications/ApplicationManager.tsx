@@ -374,7 +374,7 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
       )}
 
       {/* Reviewers Slide-over Panel - Available on all tabs */}
-      {showReviewersPanel && activeTab !== 'review' && (
+      {showReviewersPanel && (
         <div className="fixed inset-0 z-50 flex">
           {/* Backdrop */}
           <div 

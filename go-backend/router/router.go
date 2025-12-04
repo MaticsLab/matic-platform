@@ -259,6 +259,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				invitations.POST("/:id/resend", handlers.ResendInvitation)
 				invitations.GET("/by-token/:token", handlers.GetInvitationByToken)
 				invitations.POST("/accept/:token", handlers.AcceptInvitation)
+				invitations.POST("/decline/:token", handlers.DeclineInvitation)
 			}
 
 			// Activities Hubs (separate base path to avoid conflicts with /workspaces/:id)
