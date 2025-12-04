@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Toaster, toast } from 'sonner';
 import { goClient } from '@/lib/api/go-client';
-import { workflowsClient, ReviewWorkflow, ApplicationStage } from '@/lib/api/workflows-client';
+import { workflowsClient, ReviewWorkflow, ApplicationStage, Rubric } from '@/lib/api/workflows-client';
 import { Form, FormSubmission } from '@/types/forms';
 import { useApplicationsRealtime, RealtimeApplication } from '@/hooks/useApplicationsRealtime';
 import { 
@@ -19,6 +19,7 @@ import { PipelineHeader } from './PipelineHeader';
 import { ApplicationList } from './ApplicationList';
 import { ApplicationDetail } from './ApplicationDetail';
 import { PipelineActivityPanel } from './PipelineActivityPanel';
+import { ReviewPanel } from './ReviewPanel';
 import { cn } from '@/lib/utils';
 
 // Re-export the old ReviewWorkspace for other views
@@ -55,6 +56,8 @@ export function ReviewWorkspaceV2({
   const [activeView, setActiveView] = useState<'review' | 'workflows' | 'analytics' | 'team' | 'portal' | 'share'>('review');
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [showPipelineActivity, setShowPipelineActivity] = useState(false);
+  const [isReviewMode, setIsReviewMode] = useState(false);
+  const [rubrics, setRubrics] = useState<Rubric[]>([]);
   const [filterStatus, setFilterStatus] = useState<ApplicationStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [committee, setCommittee] = useState('reading committee');
@@ -175,6 +178,14 @@ export function ReviewWorkspaceV2({
       // Fetch workflows for this workspace
       const workflowsData = await workflowsClient.listWorkflows(workspaceId);
       setWorkflows(workflowsData);
+      
+      // Fetch rubrics for this workspace
+      try {
+        const rubricsData = await workflowsClient.listRubrics(workspaceId);
+        setRubrics(rubricsData || []);
+      } catch (error) {
+        console.error('Failed to load rubrics:', error);
+      }
       
       let stagesData: Stage[] = [];
       if (workflowsData.length > 0) {
@@ -510,7 +521,7 @@ export function ReviewWorkspaceV2({
           />
         </div>
         
-        {selectedApp && !showPipelineActivity && (
+        {selectedApp && !showPipelineActivity && !isReviewMode && (
           <div className="flex-1 min-h-0 h-full overflow-hidden bg-white flex flex-col">
             <ApplicationDetail 
               application={selectedApp}
@@ -519,8 +530,7 @@ export function ReviewWorkspaceV2({
               onStatusChange={handleStatusChange}
               onClose={() => setSelectedApp(null)}
               onStartReview={(appId) => {
-                toast.info('Opening review form...');
-                // TODO: Navigate to review mode or open review modal
+                setIsReviewMode(true);
               }}
               onDelete={async (appId) => {
                 try {
@@ -570,6 +580,80 @@ export function ReviewWorkspaceV2({
                   applicationId: null
                 }, ...prev]);
               }}
+            />
+          </div>
+        )}
+        
+        {selectedApp && isReviewMode && (
+          <div className="flex-1 min-h-0 h-full overflow-hidden bg-white flex flex-col">
+            <ReviewPanel
+              application={selectedApp}
+              form={form}
+              rubrics={rubrics}
+              stages={stages}
+              workspaceId={workspaceId}
+              formId={formId || ''}
+              onClose={() => setIsReviewMode(false)}
+              onSaveReview={async (scores: Record<string, number>, comments: string, decision?: string) => {
+                try {
+                  // Save the review to the backend
+                  await goClient.patch(`/forms/${formId}/submissions/${selectedApp.id}/review-data`, {
+                    review_scores: scores,
+                    review_comments: comments,
+                    decision: decision
+                  });
+                  
+                  // Update local state
+                  setApplications(prev => prev.map(app => {
+                    if (app.id === selectedApp.id) {
+                      return {
+                        ...app,
+                        scores: { ...app.scores, ...scores },
+                        comments,
+                        reviewedCount: app.reviewedCount + 1
+                      };
+                    }
+                    return app;
+                  }));
+                  
+                  // Log activity
+                  setActivities(prev => [{
+                    id: `review-${Date.now()}`,
+                    type: 'review',
+                    message: `Review submitted for ${selectedApp.firstName} ${selectedApp.lastName}`,
+                    user: 'You',
+                    time: 'Just now',
+                    applicationId: selectedApp.id
+                  }, ...prev]);
+                  
+                  toast.success('Review saved successfully');
+                  setIsReviewMode(false);
+                  
+                  // Move to next application
+                  const currentIndex = filteredApplications.findIndex(a => a.id === selectedApp.id);
+                  if (currentIndex < filteredApplications.length - 1) {
+                    setSelectedApp(filteredApplications[currentIndex + 1]);
+                    setIsReviewMode(true);
+                  }
+                } catch (error) {
+                  console.error('Failed to save review:', error);
+                  toast.error('Failed to save review');
+                }
+              }}
+              onNext={() => {
+                const currentIndex = filteredApplications.findIndex(a => a.id === selectedApp.id);
+                if (currentIndex < filteredApplications.length - 1) {
+                  setSelectedApp(filteredApplications[currentIndex + 1]);
+                }
+              }}
+              onPrevious={() => {
+                const currentIndex = filteredApplications.findIndex(a => a.id === selectedApp.id);
+                if (currentIndex > 0) {
+                  setSelectedApp(filteredApplications[currentIndex - 1]);
+                }
+              }}
+              currentIndex={filteredApplications.findIndex(a => a.id === selectedApp.id)}
+              totalApplications={filteredApplications.length}
             />
           </div>
         )}
