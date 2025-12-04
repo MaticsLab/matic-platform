@@ -509,7 +509,6 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
       })
       await saveReviewers(updatedReviewers)
       
-      const toReviewer = reviewers.find(r => r.id === reassignToReviewerId)
       showToast(`Application reassigned to ${toReviewer?.name || 'reviewer'}`, 'success')
       setShowReassignModal(false)
     } catch (error) {
