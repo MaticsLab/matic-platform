@@ -136,6 +136,8 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
                           onChange={(val) => handleFieldChange(field.id, val)}
                           themeColor={config.settings.themeColor}
                           formId={formId}
+                          allFields={config.sections.flatMap(s => s.fields)}
+                          formData={formData}
                         />
                       </div>
                     ))}
@@ -190,7 +192,7 @@ const CALLOUT_ICONS: Record<string, any> = {
   help: HelpCircle,
 }
 
-function FieldRenderer({ field, value, onChange, themeColor, formId }: { field: Field, value: any, onChange: (val: any) => void, themeColor: string, formId?: string }) {
+function FieldRenderer({ field, value, onChange, themeColor, formId, allFields = [], formData = {} }: { field: Field, value: any, onChange: (val: any) => void, themeColor: string, formId?: string, allFields?: Field[], formData?: Record<string, any> }) {
   // Layout Fields
   if (field.type === 'divider') return <Separator className="my-4" />
   if (field.type === 'heading') return <h3 className="text-lg font-semibold text-gray-900 mt-4 mb-2">{field.label}</h3>
@@ -243,6 +245,8 @@ function FieldRenderer({ field, value, onChange, themeColor, formId }: { field: 
                  value={value?.[child.id]} 
                  onChange={(val) => onChange({ ...value, [child.id]: val })}
                  themeColor={themeColor}
+                 allFields={allFields}
+                 formData={formData}
                />
              </div>
           ))}
@@ -287,6 +291,8 @@ function FieldRenderer({ field, value, onChange, themeColor, formId }: { field: 
                        onChange(newItems)
                      }}
                      themeColor={themeColor}
+                     allFields={allFields}
+                     formData={formData}
                    />
                  </div>
                ))}
@@ -365,7 +371,7 @@ function FieldRenderer({ field, value, onChange, themeColor, formId }: { field: 
       )}
 
       {/* Selection */}
-      {(field.type === 'select' || field.type === 'rank') && (() => {
+      {field.type === 'select' && (() => {
         const options = field.options || field.config?.items || []
         return (
           <Select value={value} onValueChange={onChange}>
@@ -379,6 +385,96 @@ function FieldRenderer({ field, value, onChange, themeColor, formId }: { field: 
               {options.length === 0 && <SelectItem value="default" disabled>No options defined</SelectItem>}
             </SelectContent>
           </Select>
+        )
+      })()}
+
+      {/* Rank Field - Multiple ranked choices with dynamic options support */}
+      {field.type === 'rank' && (() => {
+        let options = (field.options || field.config?.items || []) as string[]
+        
+        // Handle dynamic options from source field
+        if (field.config?.sourceField) {
+          let sourceData = formData[field.config.sourceField]
+          
+          // If not found by ID, try to find field by ID and use its value
+          if (!sourceData && allFields) {
+            const sourceFieldDef = allFields.find((f: Field) => f.id === field.config?.sourceField)
+            if (sourceFieldDef) {
+              sourceData = formData[sourceFieldDef.id]
+            }
+          }
+
+          if (sourceData && Array.isArray(sourceData)) {
+            const key = field.config?.sourceKey || 'name'
+            const dynamicOptions = sourceData
+              .map((item: any) => {
+                if (typeof item === 'object' && item !== null) {
+                  if (item[key]) return item[key]
+                  const firstString = Object.values(item).find(v => typeof v === 'string')
+                  return firstString || JSON.stringify(item)
+                }
+                return String(item)
+              })
+              .filter((val: string) => val && val.trim() !== '')
+            
+            if (dynamicOptions.length > 0) {
+              options = dynamicOptions
+            }
+          }
+        }
+
+        const maxSelections = field.config?.maxSelections || 3
+        const currentValues = (Array.isArray(value) ? value : []) as string[]
+
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {Array.from({ length: maxSelections }).map((_, index) => (
+                <div key={index} className="space-y-2 relative group">
+                  <div 
+                    className="absolute -left-2 -top-2 w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-xs z-10 shadow-sm border-2 border-white"
+                    style={{ backgroundColor: themeColor || '#000' }}
+                  >
+                    {index + 1}
+                  </div>
+                  <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 pt-5 group-hover:border-gray-300 transition-colors">
+                    <Label className="text-xs text-gray-500 uppercase font-semibold mb-2 block">
+                      Choice #{index + 1}
+                    </Label>
+                    <Select 
+                      value={currentValues[index] || ''} 
+                      onValueChange={v => {
+                        const newValues = [...currentValues]
+                        while (newValues.length < maxSelections) newValues.push('')
+                        newValues[index] = v
+                        onChange(newValues)
+                      }}
+                    >
+                      <SelectTrigger className="bg-white border-gray-200 h-10">
+                        <SelectValue placeholder="Select option" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {options.map((opt: string) => (
+                          <SelectItem 
+                            key={opt} 
+                            value={opt} 
+                            disabled={currentValues.includes(opt) && currentValues[index] !== opt}
+                          >
+                            {opt}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {options.length === 0 && (
+              <div className="text-sm text-gray-400 text-center py-4 bg-gray-50 rounded-lg border border-dashed">
+                No options available. {field.config?.sourceField ? 'Add items to the source field first.' : 'Configure options in field settings.'}
+              </div>
+            )}
+          </div>
         )
       })()}
 

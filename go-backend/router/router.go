@@ -423,6 +423,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				forms.POST("/:id/submissions/:submission_id/assign-workflow", handlers.AssignSubmissionWorkflow)
 				forms.POST("/:id/submissions/:submission_id/move-stage", handlers.MoveSubmissionToStage)
 				forms.PATCH("/:id/submissions/:submission_id/review-data", handlers.UpdateSubmissionReviewData)
+				forms.PATCH("/:id/submissions/:submission_id", handlers.UpdateSubmissionMetadata)
 				forms.POST("/:id/submissions/bulk-assign-workflow", handlers.BulkAssignWorkflow)
 			}
 

@@ -2394,3 +2394,34 @@ func BulkAssignWorkflow(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Workflow assigned", "count": count})
 }
+
+// UpdateSubmissionMetadata updates the metadata for a submission
+func UpdateSubmissionMetadata(c *gin.Context) {
+	formID := c.Param("id")
+	submissionID := c.Param("submission_id")
+
+	var input struct {
+		Metadata map[string]interface{} `json:"metadata"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Find the submission
+	var row models.Row
+	if err := database.DB.Where("table_id = ? AND id = ?", formID, submissionID).First(&row).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
+		return
+	}
+
+	// Update metadata - merge with existing
+	row.Metadata = mapToJSON(input.Metadata)
+
+	if err := database.DB.Save(&row).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, row)
+}

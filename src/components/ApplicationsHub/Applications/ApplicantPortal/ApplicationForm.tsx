@@ -647,8 +647,18 @@ export function ApplicationForm({
 // Section Components
 
 function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fields: any[], allFields?: any[], data: any, onChange: (field: string, value: any) => void, formId?: string }) {
+  // Helper to get column span class based on width
+  const getColSpanClass = (width?: string) => {
+    switch (width) {
+      case 'half': return 'col-span-12 sm:col-span-6'
+      case 'third': return 'col-span-12 sm:col-span-4'
+      case 'quarter': return 'col-span-12 sm:col-span-3'
+      default: return 'col-span-12'
+    }
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-12 gap-6">
       {fields.map((rawField) => {
         // Ensure name exists (fallback to label for nested fields from config)
         const field = { ...rawField, name: rawField.name || rawField.label }
@@ -658,8 +668,9 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
         if (field.type === 'group') {
            // Children can be in field.children (from portal editor) or config.children (from backend)
            const children = field.children || config.children || []
+           const groupWidth = field.width || config.width
            return (
-             <div key={field.id} className="border border-gray-200 p-6 rounded-xl space-y-4 bg-gray-50/30">
+             <div key={field.id} className={cn("border border-gray-200 p-6 rounded-xl space-y-4 bg-gray-50/30", getColSpanClass(groupWidth))}>
                <h3 className="font-semibold text-lg text-gray-900">{field.label}</h3>
                {config.description && <p className="text-sm text-gray-500">{config.description}</p>}
                <DynamicSection 
@@ -677,8 +688,9 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
            const items = (data[field.name] as any[]) || []
            // Children can be in field.children (from portal editor) or config.children (from backend)
            const children = field.children || config.children || []
+           const repeaterWidth = field.width || config.width
            return (
-             <div key={field.id} className="space-y-4">
+             <div key={field.id} className={cn("space-y-4", getColSpanClass(repeaterWidth))}>
                <div className="flex justify-between items-center">
                  <div>
                    <Label className="text-base font-medium">{field.label}</Label>
@@ -735,9 +747,12 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
 
         // Layout fields (heading, paragraph, callout, divider) don't need a label wrapper
         const isLayoutField = ['heading', 'paragraph', 'callout', 'divider'].includes(field.type)
+        
+        // Get width from field or config
+        const fieldWidth = field.width || config.width
 
         return (
-          <div key={field.id} className="space-y-3">
+          <div key={field.id} className={cn("space-y-3", getColSpanClass(fieldWidth))}>
             {!isLayoutField && (
               <Label className="text-base font-medium">
                 {field.label} {isRequired && <span className="text-red-500">*</span>}

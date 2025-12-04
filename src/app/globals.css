@@ -94,6 +94,17 @@
   border-color: var(--border);
 }
 
+/* Text selection highlighting */
+::selection {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+::-moz-selection {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
 body {
   background-color: var(--background);
   color: var(--foreground);
@@ -160,7 +171,7 @@ html {
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
 }
 
-/* Ensure all modal text is visible */
+/* Ensure all modal text is visible (but not selection) */
 [data-radix-dialog-content] *,
 [data-dialog-content] *,
 [data-vaul-drawer] *,
@@ -168,6 +179,17 @@ html {
 [data-sheet-content] *,
 .scan-lookup-modal * {
   color: inherit !important;
+}
+
+/* Override for text selection in modals */
+[data-radix-dialog-content] ::selection,
+[data-dialog-content] ::selection,
+[data-vaul-drawer] ::selection,
+[data-radix-sheet-content] ::selection,
+[data-sheet-content] ::selection,
+.scan-lookup-modal ::selection {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
 }
 
 /* Scanner Modal Specific */

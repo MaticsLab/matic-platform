@@ -160,8 +160,11 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
         settings: { ...form.settings, reviewers: updatedReviewers }
       })
       setReviewers(updatedReviewers)
+      return true
     } catch (error) {
       console.error('Failed to save reviewers:', error)
+      showToast('Failed to save reviewers', 'error')
+      return false
     }
   }
 
@@ -353,17 +356,43 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
       // Hard delete - remove completely and unassign from all applications
       await saveReviewers(reviewers.filter(r => r.id !== id))
       
-      // Also remove from all submissions' assigned_reviewers
+      // Also remove from all submissions' assigned_reviewers and reviewer_info
       if (formId && submissions.length > 0) {
         const updatedSubmissions = submissions.filter(s => 
           s.metadata?.assigned_reviewers?.includes(id)
         )
         for (const sub of updatedSubmissions) {
           const newAssigned = (sub.metadata?.assigned_reviewers || []).filter((rid: string) => rid !== id)
+          // Also remove from reviewer_info object
+          const newReviewerInfo = { ...(sub.metadata?.reviewer_info || {}) }
+          delete newReviewerInfo[id]
+          
           await goClient.patch(`/forms/${formId}/submissions/${sub.id}`, {
-            metadata: { ...sub.metadata, assigned_reviewers: newAssigned }
+            metadata: { 
+              ...sub.metadata, 
+              assigned_reviewers: newAssigned,
+              reviewer_info: newReviewerInfo
+            }
           })
         }
+        
+        // Update local state
+        setSubmissions(prev => prev.map(s => {
+          if (s.metadata?.assigned_reviewers?.includes(id)) {
+            const newAssigned = (s.metadata?.assigned_reviewers || []).filter((rid: string) => rid !== id)
+            const newReviewerInfo = { ...(s.metadata?.reviewer_info || {}) }
+            delete newReviewerInfo[id]
+            return { 
+              ...s, 
+              metadata: { 
+                ...s.metadata, 
+                assigned_reviewers: newAssigned,
+                reviewer_info: newReviewerInfo
+              } 
+            }
+          }
+          return s
+        }))
       }
       showToast('Reviewer and all assignments removed', 'success')
     } else if (deleteAction === 'reassign') {
