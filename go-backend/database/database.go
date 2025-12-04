@@ -48,6 +48,7 @@ func AutoMigrate() error {
 		&models.OrganizationMember{},
 		&models.Workspace{},
 		&models.WorkspaceMember{},
+		&models.WorkspaceInvitation{},
 		&models.Table{},
 		&models.Field{},
 		&models.Row{},

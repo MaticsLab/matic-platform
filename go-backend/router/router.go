@@ -270,6 +270,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				activitiesHubs.GET("/:hub_id", handlers.GetActivitiesHub)
 				activitiesHubs.PATCH("/:hub_id", handlers.UpdateActivitiesHub)
 				activitiesHubs.DELETE("/:hub_id", handlers.DeleteActivitiesHub)
+				activitiesHubs.PATCH("/:hub_id/visibility", handlers.ToggleHubVisibility) // Toggle hub visibility (admin only)
 
 				// Activities Hub Tabs
 				activitiesHubs.GET("/:hub_id/tabs", handlers.ListActivitiesHubTabs)
@@ -287,6 +288,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				tables.GET("/:id", handlers.GetDataTable)
 				tables.PATCH("/:id", handlers.UpdateDataTable)
 				tables.DELETE("/:id", handlers.DeleteDataTable)
+				tables.PATCH("/:id/visibility", handlers.ToggleHubVisibility) // Toggle visibility (admin only)
 
 				// Table rows
 				tables.GET("/:id/rows", handlers.ListTableRows)

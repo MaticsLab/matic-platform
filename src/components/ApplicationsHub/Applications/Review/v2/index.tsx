@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Toaster, toast } from 'sonner';
 import { goClient } from '@/lib/api/go-client';
 import { workflowsClient, ReviewWorkflow, ApplicationStage } from '@/lib/api/workflows-client';
@@ -46,6 +46,10 @@ export function ReviewWorkspaceV2({
   const [applications, setApplications] = useState<Application[]>([]);
   const [reviewersMap, setReviewersMap] = useState<ReviewersMap>({});
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  
+  // Refs to prevent infinite loops
+  const isLoadingRef = useRef(false);
+  const hasLoadedRef = useRef(false);
   
   // UI state
   const [activeView, setActiveView] = useState<'review' | 'workflows' | 'analytics' | 'team' | 'portal' | 'share'>('review');
@@ -142,12 +146,13 @@ export function ReviewWorkspaceV2({
         reviewed_at: rh.submitted_at || rh.reviewed_at
       }))
     };
-  }, [selectedWorkflow]);
+  }, []);
 
   // Load data
   const loadData = useCallback(async () => {
-    if (!formId) return;
+    if (!formId || isLoadingRef.current) return;
     
+    isLoadingRef.current = true;
     setIsLoading(true);
     try {
       // Fetch form with cache bust to ensure fresh data
@@ -266,19 +271,29 @@ export function ReviewWorkspaceV2({
       
       // Sort activities by recency (most recent first)
       setActivities(allActivities.slice(0, 20));
+      hasLoadedRef.current = true;
       
     } catch (error) {
       console.error('Failed to load data:', error);
       toast.error('Failed to load applications');
     } finally {
       setIsLoading(false);
+      isLoadingRef.current = false;
     }
   }, [formId, workspaceId, mapSubmissionToApplication]);
 
-  // Initial load
+  // Initial load - only run once when formId changes
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (formId && !hasLoadedRef.current) {
+      loadData();
+    }
+    
+    // Reset on formId change
+    return () => {
+      hasLoadedRef.current = false;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formId]);
 
   // Setup realtime subscription
   const handleRealtimeInsert = useCallback((app: RealtimeApplication) => {
@@ -457,15 +472,8 @@ export function ReviewWorkspaceV2({
   }, [workflows, workspaceId]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col h-screen overflow-hidden">
+    <div className="bg-gray-50 flex flex-col h-full">
       <Toaster position="top-right" richColors />
-      
-      <Header 
-        formName={form?.name || 'Applications'}
-        activeView={activeView}
-        onViewChange={handleViewChange}
-        onBack={onBack || (() => window.history.back())}
-      />
       
       <PipelineHeader 
         activeTab="Queue"
@@ -485,12 +493,12 @@ export function ReviewWorkspaceV2({
       />
 
       <div className={cn(
-        "flex-1 min-h-0",
-        (selectedApp || showPipelineActivity) && "grid grid-cols-1 md:grid-cols-[400px_1fr] lg:grid-cols-[480px_1fr]"
+        "flex-1 min-h-0 overflow-hidden",
+        (selectedApp || showPipelineActivity) ? "flex" : ""
       )}>
         <div className={cn(
-          "h-full overflow-hidden",
-          (selectedApp || showPipelineActivity) && "hidden md:block"
+          "h-full overflow-y-auto",
+          (selectedApp || showPipelineActivity) ? "hidden md:block md:w-[400px] lg:w-[480px] flex-shrink-0" : "w-full"
         )}>
           <ApplicationList 
             applications={filteredApplications}
@@ -503,7 +511,7 @@ export function ReviewWorkspaceV2({
         </div>
         
         {selectedApp && !showPipelineActivity && (
-          <div className="h-full overflow-hidden">
+          <div className="flex-1 min-h-0 h-full overflow-hidden bg-white flex flex-col">
             <ApplicationDetail 
               application={selectedApp}
               stages={stages}
@@ -524,19 +532,33 @@ export function ReviewWorkspaceV2({
                   toast.error('Failed to delete application');
                 }
               }}
+              workspaceId={workspaceId || undefined}
+              formId={formId || undefined}
+              fields={form?.fields?.map(f => ({ id: f.id, type: f.type || 'text', label: f.label })) || []}
             />
           </div>
         )}
         
         {showPipelineActivity && (
-          <div className="h-full overflow-hidden">
+          <div className="flex-1 min-h-0 h-full overflow-hidden bg-white flex flex-col">
             <PipelineActivityPanel 
               applications={applications}
               activities={activities}
               onClose={() => setShowPipelineActivity(false)}
-              onSendEmail={(to, subject, body) => {
-                console.log('Send email:', { to, subject, body });
-                toast.success('Email sent');
+              workspaceId={workspaceId || undefined}
+              formId={formId || undefined}
+              fields={form?.fields?.map(f => ({ id: f.id, name: f.name, label: f.label })) || []}
+              onSendEmail={(to, subject, body, options) => {
+                console.log('Send email:', { to, subject, body, options });
+                // Email already sent by PipelineActivityPanel - just log activity
+                setActivities(prev => [{
+                  id: `email-${Date.now()}`,
+                  type: 'email',
+                  message: `Email sent: "${subject}" to ${options?.submissionIds?.length || 1} recipient(s)`,
+                  user: 'You',
+                  time: 'Just now',
+                  applicationId: null
+                }, ...prev]);
               }}
               onAddComment={(comment) => {
                 setActivities(prev => [{

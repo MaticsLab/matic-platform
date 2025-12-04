@@ -96,6 +96,7 @@ export interface DataTable {
   import_source?: ImportSource;
   import_metadata?: Record<string, any>;
   is_archived: boolean;
+  is_hidden?: boolean;
   row_count: number;
   created_by: string;
   created_at: string;

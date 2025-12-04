@@ -18,6 +18,7 @@ export type Activity = {
   participants: number;
   settings: Record<string, any>;
   is_active: boolean;
+  is_hidden?: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;

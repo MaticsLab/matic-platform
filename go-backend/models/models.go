@@ -146,6 +146,7 @@ type Table struct {
 	ImportSource     string         `json:"import_source,omitempty"` // Where data was imported from
 	ImportMetadata   datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"import_metadata"`
 	IsArchived       bool           `gorm:"default:false" json:"is_archived"`
+	IsHidden         bool           `gorm:"default:false" json:"is_hidden"` // Hide from navigation and overview for all users
 	RowCount         int            `gorm:"default:0" json:"row_count"`
 	HistorySettings  datatypes.JSON `gorm:"type:jsonb" json:"history_settings,omitempty"`               // Version history config
 	ApprovalSettings datatypes.JSON `gorm:"type:jsonb" json:"approval_settings,omitempty"`              // Change approval config

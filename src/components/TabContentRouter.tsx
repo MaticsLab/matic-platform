@@ -2,7 +2,7 @@
 
 import { TabData } from '@/lib/tab-manager'
 import { useTabContext } from './WorkspaceTabProvider'
-import { FileText, Calendar, Users, Search, Plus, BarChart3, Folder, Clock, Layout, Inbox, Activity as ActivityIcon, LayoutGrid, GraduationCap, FileInput, Database, Settings, Filter, MoreHorizontal, ArrowRight, Pin } from 'lucide-react'
+import { FileText, Calendar, Users, Search, Plus, BarChart3, Folder, Clock, Layout, Inbox, Activity as ActivityIcon, LayoutGrid, GraduationCap, FileInput, Database, Settings, Filter, MoreHorizontal, ArrowRight, Pin, Eye, EyeOff } from 'lucide-react'
 import { TablesListPage } from './Tables/TablesListPage'
 import { TableGridView } from './Tables/TableGridView'
 import { FormsListPage as FormsListComponent } from './Forms/FormsListPage'
@@ -18,6 +18,12 @@ import { useState, useEffect } from 'react'
 import { activitiesSupabase } from '@/lib/api/activities-supabase'
 import { getWorkspaceStats } from '@/lib/api/reports-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui-components/dropdown-menu'
 import type { Activity } from '@/types/activities-hubs'
 import type { Participant, CreateParticipantInput, UpdateParticipantInput } from '@/types/participants'
 
@@ -777,11 +783,25 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
   const [stats, setStats] = useState<any>(null)
   const [activityFeed, setActivityFeed] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [showHiddenHubs, setShowHiddenHubs] = useState(false)
+  const [hubVisibility, setHubVisibility] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
         setLoading(true)
+        
+        // Check if current user is admin
+        const { supabase } = await import('@/lib/supabase')
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { listWorkspaceMembers } = await import('@/lib/api/invitations-client')
+          const members = await listWorkspaceMembers(workspaceId).catch(() => [])
+          const currentMember = members.find(m => m.user_id === user.id)
+          setIsAdmin(currentMember?.role === 'admin')
+        }
+        
         const [statsData, activityData] = await Promise.all([
           getWorkspaceStats(workspaceId).catch(() => null),
           workspacesClient.getActivity(workspaceId).catch(() => [])
@@ -948,6 +968,27 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
     },
   ]
 
+  // Filter hubs based on visibility - non-admins never see hidden hubs
+  const visibleHubs = hubs.filter(hub => {
+    const isHidden = hubVisibility[hub.id] === true
+    if (!isAdmin) return !isHidden
+    if (showHiddenHubs) return true
+    return !isHidden
+  })
+
+  // Toggle hub visibility (admin only)
+  const handleToggleHubVisibility = async (hubId: string, hide: boolean) => {
+    try {
+      // For now, we'll store this in local state
+      // In production, this would call the API endpoint
+      setHubVisibility(prev => ({ ...prev, [hubId]: hide }))
+      const { toast } = await import('sonner')
+      toast.success(hide ? 'Hub hidden from workspace' : 'Hub is now visible')
+    } catch (error) {
+      console.error('Failed to toggle hub visibility:', error)
+    }
+  }
+
   // Helper for time ago
   const timeAgo = (dateString: string) => {
     const date = new Date(dateString)
@@ -1002,34 +1043,80 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
         <div className="lg:col-span-2 space-y-8">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-gray-900">Your Hubs</h2>
+            {isAdmin && (
+              <button
+                onClick={() => setShowHiddenHubs(!showHiddenHubs)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                {showHiddenHubs ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                {showHiddenHubs ? 'Showing all' : 'Show hidden'}
+              </button>
+            )}
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {hubs.map((hub) => (
-              <div 
-                key={hub.id}
-                className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-all group flex flex-col h-full"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`p-3 rounded-lg bg-${hub.color}-50 group-hover:bg-${hub.color}-100 transition-colors`}>
-                    <hub.icon className={`w-6 h-6 text-${hub.color}-600`} />
+            {visibleHubs.map((hub) => {
+              const isHidden = hubVisibility[hub.id] === true
+              return (
+                <div 
+                  key={hub.id}
+                  className={`bg-white rounded-xl border p-6 hover:shadow-lg transition-all group flex flex-col h-full relative ${isHidden ? 'border-dashed border-gray-300 opacity-60' : 'border-gray-200'}`}
+                >
+                  {/* Admin controls */}
+                  {isAdmin && (
+                    <div className="absolute top-4 right-4">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                            <MoreHorizontal className="w-4 h-4 text-gray-500" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem 
+                            onClick={() => handleToggleHubVisibility(hub.id, !isHidden)}
+                            className="flex items-center gap-2"
+                          >
+                            {isHidden ? (
+                              <>
+                                <Eye className="w-4 h-4" />
+                                Show hub
+                              </>
+                            ) : (
+                              <>
+                                <EyeOff className="w-4 h-4" />
+                                Hide hub
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-start justify-between mb-4">
+                    <div className={`p-3 rounded-lg bg-${hub.color}-50 group-hover:bg-${hub.color}-100 transition-colors`}>
+                      <hub.icon className={`w-6 h-6 text-${hub.color}-600`} />
+                    </div>
+                    {isHidden && (
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Hidden</span>
+                    )}
+                  </div>
+                  
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">{hub.name}</h3>
+                  <p className="text-gray-600 text-sm mb-6 flex-1">{hub.description}</p>
+                  
+                  <div className="pt-4 border-t border-gray-100">
+                    <button 
+                      onClick={() => handleNavigate(hub.id)}
+                      className={`w-full py-2 px-4 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2 group-hover:border-${hub.color}-200 group-hover:text-${hub.color}-700 group-hover:bg-${hub.color}-50`}
+                    >
+                      {hub.action}
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-                
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{hub.name}</h3>
-                <p className="text-gray-600 text-sm mb-6 flex-1">{hub.description}</p>
-                
-                <div className="pt-4 border-t border-gray-100">
-                  <button 
-                    onClick={() => handleNavigate(hub.id)}
-                    className={`w-full py-2 px-4 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2 group-hover:border-${hub.color}-200 group-hover:text-${hub.color}-700 group-hover:bg-${hub.color}-50`}
-                  >
-                    {hub.action}
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 

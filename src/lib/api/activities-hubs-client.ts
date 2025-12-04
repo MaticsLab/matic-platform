@@ -63,12 +63,17 @@ export async function listActivitiesHubs(
   workspaceId: string,
   options?: {
     includeInactive?: boolean;
+    includeHidden?: boolean;
   }
 ): Promise<ActivitiesHub[]> {
   const params = new URLSearchParams({ workspace_id: workspaceId });
   
   if (options?.includeInactive) {
     params.append('include_inactive', 'true');
+  }
+  
+  if (options?.includeHidden) {
+    params.append('include_hidden', 'true');
   }
 
   return fetchWithAuth(`${API_BASE}/activities-hubs?${params}`);
@@ -128,6 +133,20 @@ export async function deleteActivitiesHub(
 ): Promise<void> {
   return fetchWithAuth(`${API_BASE}/activities-hubs/${hubId}`, {
     method: 'DELETE',
+  });
+}
+
+/**
+ * Toggle hub visibility (admin only)
+ * When hidden, the hub won't appear in navigation or overview for any user
+ */
+export async function toggleHubVisibility(
+  hubId: string,
+  isHidden: boolean
+): Promise<{ id: string; is_hidden: boolean; message: string }> {
+  return fetchWithAuth(`${API_BASE}/activities-hubs/${hubId}/visibility`, {
+    method: 'PATCH',
+    body: JSON.stringify({ is_hidden: isHidden }),
   });
 }
 

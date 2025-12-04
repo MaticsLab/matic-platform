@@ -47,6 +47,7 @@ type ActivitiesHubResponse struct {
 	Participants int                    `json:"participants"`
 	Settings     map[string]interface{} `json:"settings"`
 	IsActive     bool                   `json:"is_active"`
+	IsHidden     bool                   `json:"is_hidden"`
 	CreatedBy    uuid.UUID              `json:"created_by"`
 	CreatedAt    time.Time              `json:"created_at"`
 	UpdatedAt    time.Time              `json:"updated_at"`
@@ -103,6 +104,7 @@ func tableToActivitiesHub(table models.Table) ActivitiesHubResponse {
 		Participants: participants,
 		Settings:     settings,
 		IsActive:     isActive,
+		IsHidden:     table.IsHidden,
 		CreatedBy:    table.CreatedBy,
 		CreatedAt:    table.CreatedAt,
 		UpdatedAt:    table.UpdatedAt,
@@ -119,6 +121,7 @@ func ListActivitiesHubs(c *gin.Context) {
 		return
 	}
 	includeInactive := c.Query("include_inactive") == "true"
+	includeHidden := c.Query("include_hidden") == "true"
 
 	var tables []models.Table
 	query := database.DB.Where("workspace_id = ? AND hub_type = ?", workspaceID, "activities")
@@ -126,6 +129,11 @@ func ListActivitiesHubs(c *gin.Context) {
 	if !includeInactive {
 		// Check is_active in settings JSONB
 		query = query.Where("(settings->>'is_active')::boolean IS NOT FALSE")
+	}
+
+	if !includeHidden {
+		// Filter out hidden hubs
+		query = query.Where("is_hidden = ? OR is_hidden IS NULL", false)
 	}
 
 	if err := query.Order("created_at DESC").Find(&tables).Error; err != nil {
@@ -616,4 +624,46 @@ func ReorderActivitiesHubTabs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Tabs reordered successfully"})
+}
+
+// ToggleHubVisibility toggles the is_hidden status of a hub (table)
+// Only admins should be able to call this
+type ToggleHubVisibilityInput struct {
+	IsHidden bool `json:"is_hidden"`
+}
+
+func ToggleHubVisibility(c *gin.Context) {
+	hubID := c.Param("hub_id")
+
+	// Parse UUID
+	hubUUID, err := uuid.Parse(hubID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid hub ID"})
+		return
+	}
+
+	var input ToggleHubVisibilityInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var table models.Table
+	if err := database.DB.Where("id = ?", hubUUID).First(&table).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Hub not found"})
+		return
+	}
+
+	// Update the is_hidden field
+	table.IsHidden = input.IsHidden
+	if err := database.DB.Save(&table).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":        table.ID,
+		"is_hidden": table.IsHidden,
+		"message":   "Hub visibility updated successfully",
+	})
 }

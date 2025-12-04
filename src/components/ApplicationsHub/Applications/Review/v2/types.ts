@@ -103,6 +103,9 @@ export interface ApplicationDetailProps {
   onClose: () => void;
   onStartReview?: (appId: string) => void;
   onDelete?: (appId: string) => void;
+  workspaceId?: string;
+  formId?: string;
+  fields?: { id: string; label: string; type: string }[];
 }
 
 export interface PipelineHeaderProps {
@@ -126,13 +129,21 @@ export interface PipelineActivityPanelProps {
   applications: Application[];
   activities: ActivityItem[];
   onClose: () => void;
-  onSendEmail?: (to: string, subject: string, body: string) => void;
+  onSendEmail?: (to: string, subject: string, body: string, options?: { 
+    cc?: string; 
+    bcc?: string; 
+    submissionIds?: string[];
+    formId?: string;
+  }) => void;
   onAddComment?: (comment: string) => void;
+  workspaceId?: string;
+  formId?: string;
+  fields?: Array<{ id: string; name: string; label: string }>;
 }
 
 export interface HeaderProps {
   formName: string;
-  activeView: 'review' | 'workflows' | 'analytics' | 'team' | 'portal' | 'share';
-  onViewChange: (view: 'review' | 'workflows' | 'analytics' | 'team' | 'portal' | 'share') => void;
+  activeView?: 'review' | 'workflows' | 'analytics' | 'team' | 'portal' | 'share';
+  onViewChange?: (view: 'review' | 'workflows' | 'analytics' | 'team' | 'portal' | 'share') => void;
   onBack: () => void;
 }

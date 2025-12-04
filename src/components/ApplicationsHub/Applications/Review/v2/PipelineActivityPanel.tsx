@@ -1,20 +1,29 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Application, ActivityItem, PipelineActivityPanelProps } from './types';
 import { 
   X, Mail, ChevronDown, Send, Plus, Sparkles, Paperclip, 
-  AtSign, ArrowRight, Star, MessageSquare, Users
+  AtSign, ArrowRight, Star, MessageSquare, Users, Tag, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { emailClient, SendEmailRequest, GmailConnection } from '@/lib/api/email-client';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/ui-components/popover";
 
 export function PipelineActivityPanel({ 
   applications, 
   activities,
   onClose,
   onSendEmail,
-  onAddComment
+  onAddComment,
+  workspaceId,
+  formId,
+  fields = []
 }: PipelineActivityPanelProps) {
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
@@ -25,25 +34,122 @@ export function PipelineActivityPanel({
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [activeCommentTab, setActiveCommentTab] = useState<'comment' | 'email'>('email');
   const [comment, setComment] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [gmailConnection, setGmailConnection] = useState<GmailConnection | null>(null);
+  const [isCheckingConnection, setIsCheckingConnection] = useState(true);
 
-  const handleSendEmail = () => {
-    onSendEmail?.(emailTo || `All applicants (${applications.length})`, emailSubject, emailBody);
-    toast.success('Email sent to all applicants');
-    setEmailSubject('');
-    setEmailBody('');
-    setEmailTo('');
-    setEmailCc('');
-    setEmailBcc('');
+  // Check Gmail connection on mount
+  useEffect(() => {
+    const checkConnection = async () => {
+      if (!workspaceId) {
+        setIsCheckingConnection(false);
+        return;
+      }
+      try {
+        setIsCheckingConnection(true);
+        const connection = await emailClient.getConnection(workspaceId);
+        setGmailConnection(connection);
+      } catch (error) {
+        console.error('Failed to check Gmail connection:', error);
+        setGmailConnection({ connected: false, email: '' });
+      } finally {
+        setIsCheckingConnection(false);
+      }
+    };
+    checkConnection();
+  }, [workspaceId]);
+
+  // Insert merge tag into email body
+  const insertMergeTag = (fieldLabel: string) => {
+    setEmailBody(prev => prev + `{{${fieldLabel}}}`);
+  };
+
+  // Get available merge tags from applications
+  const availableMergeTags = (() => {
+    // Use provided fields first
+    if (fields.length > 0) {
+      return fields.map(f => ({ label: f.label, tag: `{{${f.label}}}` }));
+    }
+    // Fall back to extracting from first application's raw_data
+    if (applications.length > 0 && applications[0].raw_data) {
+      return Object.keys(applications[0].raw_data).slice(0, 20).map(key => ({
+        label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        tag: `{{${key}}}`
+      }));
+    }
+    return [];
+  })();
+
+  const handleSendEmail = async () => {
+    if (!workspaceId) {
+      toast.error('Workspace not configured');
+      return;
+    }
+
+    if (!gmailConnection?.connected) {
+      toast.error('Please connect your Gmail account in Communications settings');
+      return;
+    }
+
+    if (!emailSubject.trim() || !emailBody.trim()) {
+      toast.error('Please enter a subject and message');
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const submissionIds = applications.map(a => a.id);
+      
+      const request: SendEmailRequest = {
+        form_id: formId || undefined,
+        submission_ids: submissionIds,
+        subject: emailSubject,
+        body: emailBody,
+        is_html: false,
+        merge_tags: true,
+        track_opens: true,
+      };
+
+      const result = await emailClient.send(workspaceId, request);
+
+      if (result.success) {
+        toast.success(`Successfully sent ${result.sent_count} emails!`);
+        setEmailSubject('');
+        setEmailBody('');
+        setEmailTo('');
+        setEmailCc('');
+        setEmailBcc('');
+        
+        // Also call the callback if provided
+        onSendEmail?.(
+          emailTo || `All applicants (${applications.length})`, 
+          emailSubject, 
+          emailBody,
+          { cc: emailCc, bcc: emailBcc, submissionIds, formId: formId || undefined }
+        );
+      } else {
+        toast.error(result.errors?.[0] || 'Failed to send some emails');
+      }
+    } catch (error) {
+      console.error('Failed to send emails:', error);
+      toast.error('Failed to send emails. Please try again.');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleAddComment = () => {
+    if (!comment.trim()) {
+      toast.error('Please enter a comment');
+      return;
+    }
     onAddComment?.(comment);
     toast.success('Comment added to pipeline');
     setComment('');
   };
 
   return (
-    <div className="bg-white flex flex-col h-full border-l border-gray-200">
+    <div className="bg-white flex flex-col h-full max-h-full border-l border-gray-200 overflow-hidden">
       {/* Header */}
       <div className="px-6 py-3 border-b flex-shrink-0">
         <div className="flex items-center justify-between">
@@ -100,16 +206,30 @@ export function PipelineActivityPanel({
         </div>
       </div>
 
-      {/* Comment/Email Input */}
-      <div className="border-t bg-white flex-shrink-0 p-4">
+      {/* Comment/Email Input - Sticky Bottom */}
+      <div className="border-t bg-white flex-shrink-0 p-4 mt-auto">
         <div className="bg-gray-50 rounded-xl border border-gray-200 p-3">
           {activeCommentTab === 'email' ? (
             <>
+              {/* Gmail Connection Status */}
+              {isCheckingConnection ? (
+                <div className="flex items-center gap-2 py-2 text-sm text-gray-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Checking email connection...
+                </div>
+              ) : !gmailConnection?.connected && workspaceId ? (
+                <div className="py-2 mb-2 text-sm text-amber-600 bg-amber-50 rounded-lg px-3">
+                  Gmail not connected. Go to Communications to connect.
+                </div>
+              ) : null}
+
               {/* From field */}
               <div className="flex items-center gap-3 py-2 border-b border-gray-200">
                 <span className="text-gray-600 text-sm w-16">From</span>
                 <div className="flex-1 flex items-center gap-2">
-                  <span className="text-gray-900 text-sm">You</span>
+                  <span className="text-gray-900 text-sm">
+                    {gmailConnection?.email || 'You'}
+                  </span>
                   <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-auto" />
                 </div>
               </div>
@@ -168,12 +288,41 @@ export function PipelineActivityPanel({
                   className="flex-1 px-0 bg-transparent border-0 text-gray-900 focus:outline-none focus:ring-0 text-sm"
                 />
               </div>
+
+              {/* Merge Tags Button */}
+              {availableMergeTags.length > 0 && (
+                <div className="py-2 border-b border-gray-200">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 px-2 py-1 hover:bg-blue-50 rounded transition-colors">
+                        <Tag className="w-3 h-3" />
+                        Insert Field
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-56 p-0 bg-white border border-gray-200 shadow-lg" align="start">
+                      <div className="max-h-48 overflow-y-auto">
+                        {availableMergeTags.map((field, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => insertMergeTag(field.label)}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center justify-between bg-white"
+                          >
+                            <span className="truncate">{field.label}</span>
+                            <span className="text-xs text-gray-400 ml-2">{field.tag}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
               
               {/* Email body */}
               <textarea
                 value={emailBody}
                 onChange={(e) => setEmailBody(e.target.value)}
-                placeholder="Say something, press 'space' for AI, '/' for commands"
+                placeholder="Write your message. Use Insert Field to add personalized content like {{First Name}}"
                 rows={3}
                 className="w-full px-0 py-3 bg-transparent border-0 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 resize-none text-sm"
               />
@@ -269,9 +418,17 @@ export function PipelineActivityPanel({
                   handleSendEmail();
                 }
               }}
-              className="p-1.5 hover:bg-blue-100 rounded transition-colors text-blue-600"
+              disabled={isSending}
+              className={cn(
+                "p-1.5 rounded transition-colors",
+                isSending ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-100 text-blue-600"
+              )}
             >
-              <Send className="w-4 h-4" />
+              {isSending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
             </button>
           </div>
         </div>
