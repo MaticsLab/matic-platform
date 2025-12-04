@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"log"
 	"net/http"
 	"time"
 
@@ -115,7 +116,8 @@ func CreateInvitation(c *gin.Context) {
 	}
 
 	if err := database.DB.Create(&invitation).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create invitation"})
+		log.Printf("Failed to create invitation: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create invitation: " + err.Error()})
 		return
 	}
 
