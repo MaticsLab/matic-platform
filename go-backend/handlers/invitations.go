@@ -3,12 +3,15 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
 	"github.com/Jsanchez767/matic-platform/models"
+	"github.com/Jsanchez767/matic-platform/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -16,9 +19,10 @@ import (
 
 // InvitationRequest represents the request body for creating an invitation
 type InvitationRequest struct {
-	WorkspaceID string `json:"workspace_id" binding:"required"`
-	Email       string `json:"email" binding:"required,email"`
-	Role        string `json:"role"`
+	WorkspaceID string   `json:"workspace_id" binding:"required"`
+	Email       string   `json:"email" binding:"required,email"`
+	Role        string   `json:"role"`
+	HubAccess   []string `json:"hub_access"`
 }
 
 // InvitationResponse represents a pending invitation (a workspace member with status='pending')
@@ -136,6 +140,7 @@ func CreateInvitation(c *gin.Context) {
 		InviteToken:     token,
 		InviteExpiresAt: &expiresAt,
 		InvitedAt:       &invitedAt,
+		HubAccess:       req.HubAccess,
 	}
 
 	if err := database.DB.Create(&pendingMember).Error; err != nil {
@@ -464,12 +469,42 @@ func DeclineInvitation(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Invitation declined"})
 }
 
-// sendInvitationEmail sends an invitation email
-// TODO: Integrate with actual email service (SendGrid, etc.)
+// sendInvitationEmail sends an invitation email via Supabase Auth
 func sendInvitationEmail(email, token, workspaceName string) error {
-	// For now, just log the invitation URL
-	inviteURL := "http://localhost:3000/invite/" + token
-	log.Printf("📧 Invitation email would be sent to %s for workspace '%s'", email, workspaceName)
+	// Build the invite URL with our custom token
+	siteURL := os.Getenv("SITE_URL")
+	if siteURL == "" {
+		siteURL = "https://maticsapp.com"
+		if os.Getenv("GIN_MODE") == "debug" {
+			siteURL = "http://localhost:3000"
+		}
+	}
+	inviteURL := fmt.Sprintf("%s/invite/%s", siteURL, token)
+
+	log.Printf("📧 Sending invitation email to %s for workspace '%s'", email, workspaceName)
 	log.Printf("📧 Invite URL: %s", inviteURL)
+
+	// Use Supabase Auth service to send magic link email
+	supabaseAuth := services.NewSupabaseAuthService()
+
+	// Try to invite the user via Supabase Auth Admin API
+	// This will send an email through Supabase's email service
+	_, err := supabaseAuth.InviteUserByEmail(email, inviteURL)
+	if err != nil {
+		log.Printf("⚠️ Supabase invite failed (user may already exist): %v", err)
+
+		// If invite fails (user might already exist), try sending a magic link instead
+		err = supabaseAuth.SendMagicLinkEmail(email, inviteURL)
+		if err != nil {
+			log.Printf("⚠️ Supabase magic link also failed: %v", err)
+			// Don't fail the whole request - the invitation is still created
+			// User can use the direct invite link
+			return nil
+		}
+		log.Printf("✅ Magic link email sent to %s", email)
+	} else {
+		log.Printf("✅ Invitation email sent to %s via Supabase", email)
+	}
+
 	return nil
 }
