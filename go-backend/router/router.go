@@ -632,6 +632,15 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			}
 
 			// ============================================================
+			// ADMIN ENDPOINTS
+			// ============================================================
+			admin := protected.Group("/admin")
+			{
+				admin.GET("/users", handlers.ListAuthUsers)
+				admin.DELETE("/users", handlers.DeleteUser)
+			}
+
+			// ============================================================
 			// HUB & MODULE MANAGEMENT
 			// ============================================================
 
