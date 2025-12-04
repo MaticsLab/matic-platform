@@ -224,8 +224,8 @@ func (s *SupabaseAuthService) SendMagicLinkEmail(email, redirectURL string) erro
 
 	// Request body
 	requestBody := map[string]interface{}{
-		"email":               email,
-		"create_user":         true,
+		"email":                email,
+		"create_user":          true,
 		"gotrue_meta_security": map[string]interface{}{},
 	}
 
