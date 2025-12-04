@@ -1498,6 +1498,8 @@ type AssignReviewerInput struct {
 	SubmissionIDs  []string `json:"submission_ids"`
 	OnlyUnassigned bool     `json:"only_unassigned"`  // Only assign applications not assigned to ANY reviewer
 	ReviewerTypeID string   `json:"reviewer_type_id"` // Optional reviewer type for context
+	ReviewerName   string   `json:"reviewer_name"`    // Optional reviewer name for embedding in metadata
+	ReviewerEmail  string   `json:"reviewer_email"`   // Optional reviewer email
 }
 
 func AssignReviewerApplications(c *gin.Context) {
@@ -1601,6 +1603,20 @@ func AssignReviewerApplications(c *gin.Context) {
 		if !exists {
 			assignedReviewers = append(assignedReviewers, reviewerID)
 			metadata["assigned_reviewers"] = assignedReviewers
+
+			// Store reviewer info in metadata for easy lookup
+			// This helps the frontend display reviewer names without needing form.settings
+			if input.ReviewerName != "" {
+				reviewerInfoMap := make(map[string]interface{})
+				if existing, ok := metadata["reviewer_info"].(map[string]interface{}); ok {
+					reviewerInfoMap = existing
+				}
+				reviewerInfoMap[reviewerID] = map[string]interface{}{
+					"name":  input.ReviewerName,
+					"email": input.ReviewerEmail,
+				}
+				metadata["reviewer_info"] = reviewerInfoMap
+			}
 
 			// Set workflow and stage if we found them and not already set
 			if workflowID != "" && metadata["assigned_workflow_id"] == nil {

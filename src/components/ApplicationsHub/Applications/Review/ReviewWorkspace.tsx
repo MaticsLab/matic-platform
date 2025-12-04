@@ -970,6 +970,36 @@ export function ReviewWorkspace({
         revMap[r.id] = { name: r.name || 'Unknown', email: r.email, role: r.role }
       }
     })
+    
+    // Also build reviewers map from submission metadata (reviewer_info, review_history)
+    // This handles cases where reviewers were assigned but form.settings.reviewers wasn't saved
+    (submissions || []).forEach((sub: any) => {
+      const metadata = typeof sub.metadata === 'string' ? JSON.parse(sub.metadata) : (sub.metadata || {});
+      
+      // Check reviewer_info which is stored when reviewers are assigned
+      const reviewerInfo = metadata.reviewer_info || {};
+      Object.entries(reviewerInfo).forEach(([reviewerId, info]: [string, any]) => {
+        if (reviewerId && !revMap[reviewerId]) {
+          revMap[reviewerId] = {
+            name: info?.name || 'Reviewer',
+            email: info?.email,
+            role: info?.role
+          };
+        }
+      });
+      
+      // Extract from review history - these have reviewer names
+      const reviewHistory = Array.isArray(metadata.review_history) ? metadata.review_history : [];
+      reviewHistory.forEach((rh: any) => {
+        if (rh.reviewer_id && rh.reviewer_name && !revMap[rh.reviewer_id]) {
+          revMap[rh.reviewer_id] = { 
+            name: rh.reviewer_name, 
+            role: rh.reviewer_role || undefined 
+          };
+        }
+      });
+    });
+    
     console.log('[ReviewWorkspace] Built reviewersMap:', revMap)
     setReviewersMap(revMap)
     
@@ -1510,6 +1540,7 @@ export function ReviewWorkspace({
         
         for (let i = 0; i < reviewerIds.length; i++) {
           const reviewerId = reviewerIds[i]
+          const reviewer = reviewersMap[reviewerId]
           const startIdx = i * appsPerReviewer
           const endIdx = Math.min(startIdx + appsPerReviewer, appsToAssign.length)
           const appIds = appsToAssign.slice(startIdx, endIdx)
@@ -1517,16 +1548,21 @@ export function ReviewWorkspace({
           if (appIds.length > 0) {
             await goClient.post(`/forms/${formId}/reviewers/${reviewerId}/assign`, {
               strategy: 'manual',
-              submission_ids: appIds
+              submission_ids: appIds,
+              reviewer_name: reviewer?.name || '',
+              reviewer_email: reviewer?.email || ''
             })
           }
         }
       } else {
         // Manual: assign all selected apps to all selected reviewers
         for (const reviewerId of reviewerIds) {
+          const reviewer = reviewersMap[reviewerId]
           await goClient.post(`/forms/${formId}/reviewers/${reviewerId}/assign`, {
             strategy: 'manual',
-            submission_ids: appsToAssign
+            submission_ids: appsToAssign,
+            reviewer_name: reviewer?.name || '',
+            reviewer_email: reviewer?.email || ''
           })
         }
       }

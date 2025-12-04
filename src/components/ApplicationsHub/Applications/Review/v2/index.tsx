@@ -95,7 +95,7 @@ export function ReviewWorkspaceV2({
     else if (score) priority = 'low';
     
     // Calculate relative time for last activity
-    const submittedDate = new Date(sub.submitted_at || sub.created_at);
+    const submittedDate = new Date(sub.submitted_at);
     const now = new Date();
     const diffHours = Math.floor((now.getTime() - submittedDate.getTime()) / (1000 * 60 * 60));
     let lastActivity = 'Just now';
@@ -111,7 +111,7 @@ export function ReviewWorkspaceV2({
       dateOfBirth: data.date_of_birth || data.dob || data['Date of Birth'],
       gender: data.gender || data.Gender,
       status: metadata.status || stage?.name || 'Submitted',
-      submittedDate: sub.submitted_at || sub.created_at,
+      submittedDate: sub.submitted_at,
       reviewedCount: reviewCount,
       totalReviewers: requiredReviews,
       avatar: (fName?.[0] || '?').toUpperCase(),
@@ -150,21 +150,22 @@ export function ReviewWorkspaceV2({
     
     setIsLoading(true);
     try {
-      // Fetch form
-      const loadedForm = await goClient.get<Form>(`/forms/${formId}`);
+      // Fetch form with cache bust to ensure fresh data
+      const loadedForm = await goClient.get<Form>(`/forms/${formId}?_t=${Date.now()}`);
       setForm(loadedForm);
+      
+      // Debug: Log entire settings to see what's there
+      console.log('[ReviewWorkspaceV2] Full form settings:', loadedForm.settings);
       
       // Build reviewers map from form settings
       const formReviewers = (loadedForm.settings as any)?.reviewers || [];
       console.log('[ReviewWorkspaceV2] Form reviewers from settings:', formReviewers);
-      const revMap: ReviewersMap = {};
+      let revMap: ReviewersMap = {};
       formReviewers.forEach((r: any) => {
         if (r.id) {
           revMap[r.id] = { name: r.name || 'Unknown', email: r.email, role: r.role };
         }
       });
-      console.log('[ReviewWorkspaceV2] Built reviewersMap:', revMap);
-      setReviewersMap(revMap);
       
       // Fetch workflows for this workspace
       const workflowsData = await workflowsClient.listWorkflows(workspaceId);
@@ -188,6 +189,50 @@ export function ReviewWorkspaceV2({
       
       // Fetch submissions
       const submissions = await goClient.get<FormSubmission[]>(`/forms/${formId}/submissions`);
+      
+      // Also build reviewers map from submission metadata (assigned_reviewers and review_history)
+      // This handles cases where reviewers were assigned but form.settings.reviewers wasn't saved
+      (submissions || []).forEach((sub: FormSubmission) => {
+        const metadata = typeof sub.metadata === 'string' ? JSON.parse(sub.metadata) : (sub.metadata || {});
+        
+        // Check reviewer_info which is stored when reviewers are assigned
+        const reviewerInfo = metadata.reviewer_info || {};
+        Object.entries(reviewerInfo).forEach(([reviewerId, info]: [string, any]) => {
+          if (reviewerId && !revMap[reviewerId]) {
+            revMap[reviewerId] = {
+              name: info?.name || 'Reviewer',
+              email: info?.email,
+              role: info?.role
+            };
+          }
+        });
+        
+        // Extract from review history - these have reviewer names
+        const reviewHistory = Array.isArray(metadata.review_history) ? metadata.review_history : [];
+        reviewHistory.forEach((rh: any) => {
+          if (rh.reviewer_id && rh.reviewer_name && !revMap[rh.reviewer_id]) {
+            revMap[rh.reviewer_id] = { 
+              name: rh.reviewer_name, 
+              role: rh.reviewer_role || undefined 
+            };
+          }
+        });
+        
+        // Also check for reviewer_assignments which may have more info
+        const reviewerAssignments = metadata.reviewer_assignments || {};
+        Object.entries(reviewerAssignments).forEach(([reviewerId, info]: [string, any]) => {
+          if (reviewerId && !revMap[reviewerId]) {
+            revMap[reviewerId] = {
+              name: info?.name || info?.reviewer_name || `Reviewer`,
+              email: info?.email,
+              role: info?.role
+            };
+          }
+        });
+      });
+      
+      console.log('[ReviewWorkspaceV2] Built reviewersMap (with submission data):', revMap);
+      setReviewersMap(revMap);
       
       // Map submissions to application format
       const apps = (submissions || []).map(sub => mapSubmissionToApplication(sub, stagesData, revMap));
@@ -236,8 +281,6 @@ export function ReviewWorkspaceV2({
   }, [loadData]);
 
   // Setup realtime subscription
-  const tableId = formId ? `form_${formId}` : undefined;
-  
   const handleRealtimeInsert = useCallback((app: RealtimeApplication) => {
     console.log('📥 New application received:', app.id);
     const data = typeof app.data === 'string' ? JSON.parse(app.data) : (app.data || {});
@@ -251,7 +294,7 @@ export function ReviewWorkspaceV2({
       status: metadata.status || 'pending',
       submitted_at: app.submitted_at || new Date().toISOString(),
       created_at: app.created_at || new Date().toISOString(),
-      updated_at: app.updated_at || new Date().toISOString()
+      updated_at: new Date().toISOString()
     } as FormSubmission, stages, reviewersMap);
     
     setApplications(prev => [newApp, ...prev]);
@@ -271,7 +314,7 @@ export function ReviewWorkspaceV2({
       status: metadata.status || 'pending',
       submitted_at: app.submitted_at || new Date().toISOString(),
       created_at: app.created_at || new Date().toISOString(),
-      updated_at: app.updated_at || new Date().toISOString()
+      updated_at: new Date().toISOString()
     } as FormSubmission, stages, reviewersMap);
     
     setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
@@ -282,17 +325,18 @@ export function ReviewWorkspaceV2({
     }
   }, [formId, stages, reviewersMap, selectedApp, mapSubmissionToApplication]);
 
-  const handleRealtimeDelete = useCallback((app: RealtimeApplication) => {
-    console.log('🗑️ Application deleted:', app.id);
-    setApplications(prev => prev.filter(a => a.id !== app.id));
-    if (selectedApp?.id === app.id) {
+  const handleRealtimeDelete = useCallback((id: string) => {
+    console.log('🗑️ Application deleted:', id);
+    setApplications(prev => prev.filter(a => a.id !== id));
+    if (selectedApp?.id === id) {
       setSelectedApp(null);
     }
   }, [selectedApp]);
 
   useApplicationsRealtime({
-    tableId,
-    enabled: !!tableId,
+    formId,
+    workspaceId,
+    enabled: !!formId,
     onInsert: handleRealtimeInsert,
     onUpdate: handleRealtimeUpdate,
     onDelete: handleRealtimeDelete

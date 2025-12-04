@@ -228,7 +228,9 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
           strategy: 'random', 
           count: assignmentCount, 
           reviewer_type_id: primaryAssignment?.reviewer_type_id || undefined,
-          only_unassigned: onlyUnassigned
+          only_unassigned: onlyUnassigned,
+          reviewer_name: newReviewerName,
+          reviewer_email: newReviewerEmail
         })
         setReviewers(updated.map(r => r.id === reviewerId ? { ...r, assignedCount: response.count } : r))
         await fetchSubmissions() // Refresh to update assignment status
@@ -236,7 +238,9 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
         const response = await goClient.post<{count: number}>(`/forms/${formId}/reviewers/${reviewerId}/assign`, {
           strategy: 'manual', 
           submission_ids: selectedSubmissionIds, 
-          reviewer_type_id: primaryAssignment?.reviewer_type_id || undefined
+          reviewer_type_id: primaryAssignment?.reviewer_type_id || undefined,
+          reviewer_name: newReviewerName,
+          reviewer_email: newReviewerEmail
         })
         setReviewers(updated.map(r => r.id === reviewerId ? { ...r, assignedCount: response.count } : r))
         await fetchSubmissions() // Refresh to update assignment status
