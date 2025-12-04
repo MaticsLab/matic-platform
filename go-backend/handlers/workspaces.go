@@ -166,11 +166,11 @@ func CreateWorkspace(c *gin.Context) {
 		return
 	}
 
-	// Add creator as admin member
+	// Add creator as owner member
 	member := models.WorkspaceMember{
 		WorkspaceID: workspace.ID,
 		UserID:      &parsedUserID,
-		Role:        "admin",
+		Role:        "owner",
 		Status:      "active",
 	}
 
@@ -407,10 +407,33 @@ func RemoveWorkspaceMember(c *gin.Context) {
 		return
 	}
 
+	// Get authenticated user ID
+	currentUserID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	var member models.WorkspaceMember
 	if err := database.DB.First(&member, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Member not found"})
 		return
+	}
+
+	// Prevent users from removing themselves
+	if member.UserID != nil && member.UserID.String() == currentUserID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You cannot remove yourself from a workspace"})
+		return
+	}
+
+	// Prevent removing the last owner from a workspace
+	if member.Role == "owner" {
+		var ownerCount int64
+		database.DB.Model(&models.WorkspaceMember{}).Where("workspace_id = ? AND role = ? AND status = ?", member.WorkspaceID, "owner", "active").Count(&ownerCount)
+		if ownerCount <= 1 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Cannot remove the last owner from a workspace"})
+			return
+		}
 	}
 
 	if err := database.DB.Delete(&member).Error; err != nil {
