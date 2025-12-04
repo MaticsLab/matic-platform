@@ -21,10 +21,9 @@ type SupabaseAuthService struct {
 func NewSupabaseAuthService() *SupabaseAuthService {
 	siteURL := os.Getenv("SITE_URL")
 	if siteURL == "" {
-		siteURL = "https://maticsapp.com" // Default production URL
-		if os.Getenv("GIN_MODE") == "debug" {
-			siteURL = "http://localhost:3000"
-		}
+		// Always default to production URL
+		// The actual email URL is controlled by Supabase project settings (Site URL)
+		siteURL = "https://maticsapp.com"
 	}
 
 	return &SupabaseAuthService{
