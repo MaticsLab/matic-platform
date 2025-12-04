@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -28,7 +29,7 @@ func ListWorkspaces(c *gin.Context) {
 	var workspaces []models.Workspace
 	query := database.DB.
 		Joins("JOIN workspace_members ON workspace_members.workspace_id = workspaces.id").
-		Where("workspace_members.user_id = ?", userID)
+		Where("workspace_members.user_id = ? AND workspace_members.status = ?", userID, "active")
 
 	if organizationID != "" {
 		query = query.Where("workspaces.organization_id = ?", organizationID)
@@ -57,13 +58,14 @@ func GetWorkspace(c *gin.Context) {
 	}
 
 	var workspace models.Workspace
-	// Verify user is a member of this workspace
+	// Verify user is an active member of this workspace
 	if err := database.DB.
 		Joins("JOIN workspace_members ON workspace_members.workspace_id = workspaces.id").
-		Where("workspaces.id = ? AND workspace_members.user_id = ?", id, userID).
+		Where("workspaces.id = ? AND workspace_members.user_id = ? AND workspace_members.status = ?", id, userID, "active").
 		Preload("Members").
 		Preload("Tables").
 		First(&workspace).Error; err != nil {
+		log.Printf("GetWorkspace: Failed to find workspace '%s' for user %s: %v", id, userID, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Workspace not found or access denied"})
 		return
 	}
@@ -83,12 +85,13 @@ func GetWorkspaceBySlug(c *gin.Context) {
 	}
 
 	var workspace models.Workspace
-	// Verify user is a member of this workspace
+	// Verify user is an active member of this workspace
 	if err := database.DB.
 		Joins("JOIN workspace_members ON workspace_members.workspace_id = workspaces.id").
-		Where("workspaces.slug = ? AND workspace_members.user_id = ?", slug, userID).
+		Where("workspaces.slug = ? AND workspace_members.user_id = ? AND workspace_members.status = ?", slug, userID, "active").
 		Preload("Members").
 		First(&workspace).Error; err != nil {
+		log.Printf("GetWorkspaceBySlug: Failed to find workspace '%s' for user %s: %v", slug, userID, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Workspace not found or access denied"})
 		return
 	}
