@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink, BarChart3, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search, Plus, Eye, MessageSquare, Workflow, UserPlus, X } from 'lucide-react'
-import { ReviewWorkspace } from './Review/ReviewWorkspace'
+import { ReviewWorkspaceV2 } from './Review/v2'
 import { CommunicationsCenter } from './Communications/CommunicationsCenter'
 import { ReviewerManagement } from './Reviewers/ReviewerManagement'
 import { WorkflowBuilder } from './Configuration/WorkflowBuilder'
@@ -335,14 +335,16 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
 
       {/* Content Area */}
       <div className="flex-1 overflow-hidden relative">
-        {activeTab === 'review' && (
-          <ReviewWorkspace 
+        {activeTab === 'review' && formId && (
+          <ReviewWorkspaceV2 
             workspaceId={workspaceId} 
             formId={formId} 
-            showReviewersPanel={showReviewersPanel}
-            onToggleReviewersPanel={() => setShowReviewersPanel(!showReviewersPanel)}
-            showCommunicationsPanel={showCommunicationsPanel}
-            onToggleCommunicationsPanel={() => setShowCommunicationsPanel(!showCommunicationsPanel)}
+            onBack={() => window.history.back()}
+            onViewChange={(view) => {
+              if (view === 'workflows') setActiveTab('workflows')
+              else if (view === 'analytics') setActiveTab('analytics')
+              else if (view === 'team') setShowReviewersPanel(true)
+            }}
           />
         )}
         {activeTab === 'workflows' && <WorkflowBuilder workspaceId={workspaceId} formId={formId} />}

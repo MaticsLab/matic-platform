@@ -1,0 +1,513 @@
+'use client';
+
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { Toaster, toast } from 'sonner';
+import { goClient } from '@/lib/api/go-client';
+import { workflowsClient, ReviewWorkflow, ApplicationStage } from '@/lib/api/workflows-client';
+import { Form, FormSubmission } from '@/types/forms';
+import { useApplicationsRealtime, RealtimeApplication } from '@/hooks/useApplicationsRealtime';
+import { 
+  Application, 
+  ApplicationStatus, 
+  Stage, 
+  Reviewer, 
+  ReviewersMap,
+  ActivityItem 
+} from './types';
+import { Header } from './Header';
+import { PipelineHeader } from './PipelineHeader';
+import { ApplicationList } from './ApplicationList';
+import { ApplicationDetail } from './ApplicationDetail';
+import { PipelineActivityPanel } from './PipelineActivityPanel';
+import { cn } from '@/lib/utils';
+
+// Re-export the old ReviewWorkspace for other views
+export { ReviewWorkspace } from '../ReviewWorkspace';
+
+interface ReviewWorkspaceV2Props {
+  workspaceId: string;
+  formId: string | null;
+  onBack?: () => void;
+  onViewChange?: (view: 'review' | 'workflows' | 'analytics' | 'team' | 'portal' | 'share') => void;
+}
+
+export function ReviewWorkspaceV2({ 
+  workspaceId, 
+  formId, 
+  onBack,
+  onViewChange 
+}: ReviewWorkspaceV2Props) {
+  // Core state
+  const [isLoading, setIsLoading] = useState(true);
+  const [form, setForm] = useState<Form | null>(null);
+  const [workflows, setWorkflows] = useState<ReviewWorkflow[]>([]);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<ReviewWorkflow | null>(null);
+  const [stages, setStages] = useState<Stage[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [reviewersMap, setReviewersMap] = useState<ReviewersMap>({});
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  
+  // UI state
+  const [activeView, setActiveView] = useState<'review' | 'workflows' | 'analytics' | 'team' | 'portal' | 'share'>('review');
+  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  const [showPipelineActivity, setShowPipelineActivity] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<ApplicationStatus | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [committee, setCommittee] = useState('reading committee');
+  const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'score' | 'name'>('recent');
+
+  // Transform submission to Application format
+  const mapSubmissionToApplication = useCallback((sub: FormSubmission, stagesData: Stage[], revMap: ReviewersMap): Application => {
+    const data = typeof sub.data === 'string' ? JSON.parse(sub.data) : (sub.data || {});
+    const metadata = typeof sub.metadata === 'string' ? JSON.parse(sub.metadata) : (sub.metadata || {});
+    
+    // Try to extract name from different field formats
+    const firstName = data.first_name || data.firstName || data['First Name'] || '';
+    const lastName = data.last_name || data.lastName || data['Last Name'] || '';
+    const fullName = data.name || data.full_name || data['Full Name'] || data.student_name || `${firstName} ${lastName}`.trim();
+    
+    const [fName, ...lNames] = fullName.split(' ');
+    
+    // Get email
+    const email = data._applicant_email || data.email || data.Email || data.personal_email || '';
+    
+    // Get stage info
+    const stageId = metadata.current_stage_id || (stagesData.length > 0 ? stagesData[0].id : '');
+    const stage = stagesData.find(s => s.id === stageId);
+    
+    // Get review history and count
+    const reviewHistory = Array.isArray(metadata.review_history) ? metadata.review_history : [];
+    const reviewCount = reviewHistory.length;
+    const requiredReviews = metadata.required_reviews || 2;
+    
+    // Get score
+    const score = metadata.total_score ?? metadata.score ?? null;
+    
+    // Get assigned reviewers
+    const assignedReviewerIds = metadata.assigned_reviewers || [];
+    const assignedTo = assignedReviewerIds.map((id: string) => revMap[id]?.name || 'Unknown');
+    
+    // Determine priority based on score or flags
+    let priority: 'high' | 'medium' | 'low' | undefined;
+    if (metadata.flagged) priority = 'high';
+    else if (score && score >= 8) priority = 'high';
+    else if (score && score >= 5) priority = 'medium';
+    else if (score) priority = 'low';
+    
+    // Calculate relative time for last activity
+    const submittedDate = new Date(sub.submitted_at || sub.created_at);
+    const now = new Date();
+    const diffHours = Math.floor((now.getTime() - submittedDate.getTime()) / (1000 * 60 * 60));
+    let lastActivity = 'Just now';
+    if (diffHours > 24 * 30) lastActivity = `${Math.floor(diffHours / (24 * 30))} months ago`;
+    else if (diffHours > 24) lastActivity = `${Math.floor(diffHours / 24)} days ago`;
+    else if (diffHours > 0) lastActivity = `${diffHours} hours ago`;
+    
+    return {
+      id: sub.id,
+      firstName: fName || 'Unknown',
+      lastName: lNames.join(' ') || '',
+      email,
+      dateOfBirth: data.date_of_birth || data.dob || data['Date of Birth'],
+      gender: data.gender || data.Gender,
+      status: metadata.status || stage?.name || 'Submitted',
+      submittedDate: sub.submitted_at || sub.created_at,
+      reviewedCount: reviewCount,
+      totalReviewers: requiredReviews,
+      avatar: (fName?.[0] || '?').toUpperCase(),
+      priority,
+      score,
+      maxScore: metadata.max_score || 100,
+      assignedTo,
+      assignedReviewerIds,
+      tags: metadata.tags || [],
+      lastActivity,
+      stageId,
+      stageName: stage?.name || metadata.status || 'Submitted',
+      raw_data: data,
+      scores: metadata.scores || {},
+      comments: metadata.comments || '',
+      flagged: metadata.flagged || false,
+      workflowId: selectedWorkflow?.id,
+      reviewHistory: reviewHistory.map((rh: any) => ({
+        id: rh.id,
+        reviewer_id: rh.reviewer_id || '',
+        reviewer_name: rh.reviewer_name || revMap[rh.reviewer_id]?.name || 'Reviewer',
+        reviewer_type_id: rh.reviewer_type_id,
+        stage_id: rh.stage_id,
+        scores: rh.scores || {},
+        total_score: rh.total_score || 0,
+        notes: rh.notes,
+        comments: rh.comments,
+        reviewed_at: rh.submitted_at || rh.reviewed_at
+      }))
+    };
+  }, [selectedWorkflow]);
+
+  // Load data
+  const loadData = useCallback(async () => {
+    if (!formId) return;
+    
+    setIsLoading(true);
+    try {
+      // Fetch form
+      const loadedForm = await goClient.get<Form>(`/forms/${formId}`);
+      setForm(loadedForm);
+      
+      // Build reviewers map from form settings
+      const formReviewers = (loadedForm.settings as any)?.reviewers || [];
+      console.log('[ReviewWorkspaceV2] Form reviewers from settings:', formReviewers);
+      const revMap: ReviewersMap = {};
+      formReviewers.forEach((r: any) => {
+        if (r.id) {
+          revMap[r.id] = { name: r.name || 'Unknown', email: r.email, role: r.role };
+        }
+      });
+      console.log('[ReviewWorkspaceV2] Built reviewersMap:', revMap);
+      setReviewersMap(revMap);
+      
+      // Fetch workflows for this workspace
+      const workflowsData = await workflowsClient.listWorkflows(workspaceId);
+      setWorkflows(workflowsData);
+      
+      let stagesData: Stage[] = [];
+      if (workflowsData.length > 0) {
+        const wf = workflowsData[0];
+        setSelectedWorkflow(wf);
+        
+        // Fetch stages for first workflow
+        const stagesList = await workflowsClient.listStages(workspaceId, wf.id);
+        stagesData = stagesList.map((s: ApplicationStage) => ({
+          id: s.id,
+          name: s.name,
+          color: s.color,
+          order: s.order_index
+        }));
+        setStages(stagesData);
+      }
+      
+      // Fetch submissions
+      const submissions = await goClient.get<FormSubmission[]>(`/forms/${formId}/submissions`);
+      
+      // Map submissions to application format
+      const apps = (submissions || []).map(sub => mapSubmissionToApplication(sub, stagesData, revMap));
+      setApplications(apps);
+      
+      // Build activity from review history
+      const allActivities: ActivityItem[] = [];
+      apps.forEach(app => {
+        // Add submission activity
+        allActivities.push({
+          id: `submit-${app.id}`,
+          type: 'system',
+          message: `${app.firstName} ${app.lastName} submitted application`,
+          user: 'System',
+          time: app.lastActivity || 'Recently',
+          applicationId: app.id
+        });
+        
+        // Add review activities
+        (app.reviewHistory || []).forEach((review, idx) => {
+          allActivities.push({
+            id: `review-${app.id}-${idx}`,
+            type: 'review',
+            message: `Review submitted for ${app.firstName} ${app.lastName} (Score: ${review.total_score || 0})`,
+            user: review.reviewer_name || 'Reviewer',
+            time: review.reviewed_at ? new Date(review.reviewed_at).toLocaleDateString() : 'Unknown',
+            applicationId: app.id
+          });
+        });
+      });
+      
+      // Sort activities by recency (most recent first)
+      setActivities(allActivities.slice(0, 20));
+      
+    } catch (error) {
+      console.error('Failed to load data:', error);
+      toast.error('Failed to load applications');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [formId, workspaceId, mapSubmissionToApplication]);
+
+  // Initial load
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Setup realtime subscription
+  const tableId = formId ? `form_${formId}` : undefined;
+  
+  const handleRealtimeInsert = useCallback((app: RealtimeApplication) => {
+    console.log('📥 New application received:', app.id);
+    const data = typeof app.data === 'string' ? JSON.parse(app.data) : (app.data || {});
+    const metadata = typeof app.metadata === 'string' ? JSON.parse(app.metadata) : (app.metadata || {});
+    
+    const newApp = mapSubmissionToApplication({
+      id: app.id,
+      form_id: formId || '',
+      data,
+      metadata,
+      status: metadata.status || 'pending',
+      submitted_at: app.submitted_at || new Date().toISOString(),
+      created_at: app.created_at || new Date().toISOString(),
+      updated_at: app.updated_at || new Date().toISOString()
+    } as FormSubmission, stages, reviewersMap);
+    
+    setApplications(prev => [newApp, ...prev]);
+    toast.success(`New application from ${newApp.firstName} ${newApp.lastName}`);
+  }, [formId, stages, reviewersMap, mapSubmissionToApplication]);
+
+  const handleRealtimeUpdate = useCallback((app: RealtimeApplication) => {
+    console.log('🔄 Application updated:', app.id);
+    const data = typeof app.data === 'string' ? JSON.parse(app.data) : (app.data || {});
+    const metadata = typeof app.metadata === 'string' ? JSON.parse(app.metadata) : (app.metadata || {});
+    
+    const updatedApp = mapSubmissionToApplication({
+      id: app.id,
+      form_id: formId || '',
+      data,
+      metadata,
+      status: metadata.status || 'pending',
+      submitted_at: app.submitted_at || new Date().toISOString(),
+      created_at: app.created_at || new Date().toISOString(),
+      updated_at: app.updated_at || new Date().toISOString()
+    } as FormSubmission, stages, reviewersMap);
+    
+    setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
+    
+    // Update selected app if it's the same
+    if (selectedApp?.id === app.id) {
+      setSelectedApp(updatedApp);
+    }
+  }, [formId, stages, reviewersMap, selectedApp, mapSubmissionToApplication]);
+
+  const handleRealtimeDelete = useCallback((app: RealtimeApplication) => {
+    console.log('🗑️ Application deleted:', app.id);
+    setApplications(prev => prev.filter(a => a.id !== app.id));
+    if (selectedApp?.id === app.id) {
+      setSelectedApp(null);
+    }
+  }, [selectedApp]);
+
+  useApplicationsRealtime({
+    tableId,
+    enabled: !!tableId,
+    onInsert: handleRealtimeInsert,
+    onUpdate: handleRealtimeUpdate,
+    onDelete: handleRealtimeDelete
+  });
+
+  // Filter applications
+  const filteredApplications = useMemo(() => {
+    let result = applications;
+    
+    // Filter by status
+    if (filterStatus !== 'all') {
+      result = result.filter(app => 
+        app.status === filterStatus || 
+        app.stageName === filterStatus
+      );
+    }
+    
+    // Filter by search
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(app =>
+        `${app.firstName} ${app.lastName}`.toLowerCase().includes(query) ||
+        app.email.toLowerCase().includes(query)
+      );
+    }
+    
+    // Sort
+    result = [...result].sort((a, b) => {
+      switch (sortBy) {
+        case 'recent':
+          return new Date(b.submittedDate).getTime() - new Date(a.submittedDate).getTime();
+        case 'oldest':
+          return new Date(a.submittedDate).getTime() - new Date(b.submittedDate).getTime();
+        case 'score':
+          return (b.score || 0) - (a.score || 0);
+        case 'name':
+          return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+        default:
+          return 0;
+      }
+    });
+    
+    return result;
+  }, [applications, filterStatus, searchQuery, sortBy]);
+
+  // Handle status change
+  const handleStatusChange = useCallback(async (appId: string, newStatus: ApplicationStatus) => {
+    try {
+      // Find the stage ID for this status
+      const stage = stages.find(s => s.name === newStatus);
+      
+      // Update via API
+      await goClient.patch(`/forms/${formId}/submissions/${appId}`, {
+        metadata: {
+          status: newStatus,
+          current_stage_id: stage?.id
+        }
+      });
+      
+      // Update local state
+      setApplications(prev => prev.map(app => 
+        app.id === appId 
+          ? { ...app, status: newStatus, stageName: newStatus, stageId: stage?.id, lastActivity: 'Just now' }
+          : app
+      ));
+      
+      if (selectedApp?.id === appId) {
+        setSelectedApp(prev => prev ? { 
+          ...prev, 
+          status: newStatus, 
+          stageName: newStatus,
+          stageId: stage?.id,
+          lastActivity: 'Just now' 
+        } : null);
+      }
+      
+      // Add activity
+      setActivities(prev => [{
+        id: `status-${appId}-${Date.now()}`,
+        type: 'status',
+        message: `Application moved to ${newStatus}`,
+        user: 'You',
+        time: 'Just now',
+        applicationId: appId
+      }, ...prev]);
+      
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      toast.error('Failed to update application status');
+    }
+  }, [formId, stages, selectedApp]);
+
+  // Handle view change
+  const handleViewChange = useCallback((view: 'review' | 'workflows' | 'analytics' | 'team' | 'portal' | 'share') => {
+    setActiveView(view);
+    onViewChange?.(view);
+  }, [onViewChange]);
+
+  // Handle workflow change
+  const handleWorkflowChange = useCallback(async (workflowId: string) => {
+    const wf = workflows.find(w => w.id === workflowId);
+    if (!wf) return;
+    
+    setSelectedWorkflow(wf);
+    
+    try {
+      const stagesList = await workflowsClient.listStages(workspaceId, workflowId);
+      const stagesData = stagesList.map((s: ApplicationStage) => ({
+        id: s.id,
+        name: s.name,
+        color: s.color,
+        order: s.order_index
+      }));
+      setStages(stagesData);
+    } catch (error) {
+      console.error('Failed to load stages:', error);
+    }
+  }, [workflows, workspaceId]);
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col h-screen overflow-hidden">
+      <Toaster position="top-right" richColors />
+      
+      <Header 
+        formName={form?.name || 'Applications'}
+        activeView={activeView}
+        onViewChange={handleViewChange}
+        onBack={onBack || (() => window.history.back())}
+      />
+      
+      <PipelineHeader 
+        activeTab="Queue"
+        onTabChange={() => {}}
+        applications={applications}
+        stages={stages}
+        filterStatus={filterStatus}
+        onFilterChange={setFilterStatus}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        committee={committee}
+        onCommitteeChange={setCommittee}
+        onOpenPipelineActivity={() => setShowPipelineActivity(true)}
+        workflows={workflows.map(w => ({ id: w.id, name: w.name }))}
+        selectedWorkflowId={selectedWorkflow?.id}
+        onWorkflowChange={handleWorkflowChange}
+      />
+
+      <div className={cn(
+        "flex-1 min-h-0",
+        (selectedApp || showPipelineActivity) && "grid grid-cols-1 md:grid-cols-[400px_1fr] lg:grid-cols-[480px_1fr]"
+      )}>
+        <div className={cn(
+          "h-full overflow-hidden",
+          (selectedApp || showPipelineActivity) && "hidden md:block"
+        )}>
+          <ApplicationList 
+            applications={filteredApplications}
+            selectedId={selectedApp?.id}
+            onSelect={setSelectedApp}
+            isLoading={isLoading}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+          />
+        </div>
+        
+        {selectedApp && !showPipelineActivity && (
+          <div className="h-full overflow-hidden">
+            <ApplicationDetail 
+              application={selectedApp}
+              stages={stages}
+              reviewersMap={reviewersMap}
+              onStatusChange={handleStatusChange}
+              onClose={() => setSelectedApp(null)}
+              onStartReview={(appId) => {
+                toast.info('Opening review form...');
+                // TODO: Navigate to review mode or open review modal
+              }}
+              onDelete={async (appId) => {
+                try {
+                  await goClient.delete(`/forms/${formId}/submissions/${appId}`);
+                  setApplications(prev => prev.filter(a => a.id !== appId));
+                  setSelectedApp(null);
+                  toast.success('Application deleted');
+                } catch (error) {
+                  toast.error('Failed to delete application');
+                }
+              }}
+            />
+          </div>
+        )}
+        
+        {showPipelineActivity && (
+          <div className="h-full overflow-hidden">
+            <PipelineActivityPanel 
+              applications={applications}
+              activities={activities}
+              onClose={() => setShowPipelineActivity(false)}
+              onSendEmail={(to, subject, body) => {
+                console.log('Send email:', { to, subject, body });
+                toast.success('Email sent');
+              }}
+              onAddComment={(comment) => {
+                setActivities(prev => [{
+                  id: `comment-${Date.now()}`,
+                  type: 'comment',
+                  message: comment,
+                  user: 'You',
+                  time: 'Just now',
+                  applicationId: null
+                }, ...prev]);
+              }}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
