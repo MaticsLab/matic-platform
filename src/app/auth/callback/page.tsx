@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Loader2 } from 'lucide-react'
 
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [error, setError] = useState<string | null>(null)
@@ -64,14 +64,6 @@ export default function AuthCallbackPage() {
         const { data: { session } } = await supabase.auth.getSession()
         
         if (session) {
-          // Check if the session indicates a recovery (user needs to update password)
-          const { data: { user } } = await supabase.auth.getUser()
-          
-          // If user has aal1 and needs password update, redirect to reset
-          if (user?.factors && user.factors.length === 0) {
-            // This might be a recovery session
-          }
-          
           // Default: redirect to workspace
           const next = searchParams.get('next')
           if (next) {
@@ -117,5 +109,20 @@ export default function AuthCallbackPage() {
         <p className="text-gray-600">Completing authentication...</p>
       </div>
     </div>
+  )
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <AuthCallbackContent />
+    </Suspense>
   )
 }
