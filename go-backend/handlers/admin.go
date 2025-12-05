@@ -110,9 +110,9 @@ func ListAuthUsers(c *gin.Context) {
 
 	// Get all users from auth.users
 	type AuthUser struct {
-		ID        string  `json:"id"`
-		Email     string  `json:"email"`
-		CreatedAt string  `json:"created_at"`
+		ID         string  `json:"id"`
+		Email      string  `json:"email"`
+		CreatedAt  string  `json:"created_at"`
 		LastSignIn *string `json:"last_sign_in_at"`
 	}
 

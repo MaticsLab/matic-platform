@@ -966,12 +966,13 @@ export function ReviewWorkspace({
       setIsFromCache(false)
     }
     
-    // Build reviewers map from form settings
+    // Build reviewers map from form settings (exclude removed reviewers)
     const formReviewers = (loadedForm.settings as any)?.reviewers || []
     console.log('[ReviewWorkspace] Form reviewers from settings:', formReviewers)
     const revMap: Record<string, { name: string; email?: string; role?: string }> = {}
     formReviewers.forEach((r: any) => {
-      if (r.id) {
+      // Skip removed/archived reviewers
+      if (r.id && !r.removed && r.status !== 'removed') {
         revMap[r.id] = { name: r.name || 'Unknown', email: r.email, role: r.role }
       }
     })

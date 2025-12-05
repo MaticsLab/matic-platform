@@ -3070,9 +3070,12 @@ function ReviewerStageSettings({
     fetchFormReviewers()
   }, [formId])
 
-  // Helper to get reviewers assigned to a specific role on this stage
+  // Helper to get reviewers assigned to a specific role on this stage (exclude removed)
   const getReviewersForRole = (reviewerTypeId: string): ReviewerInfo[] => {
     return formReviewers.filter(r => {
+      // Skip removed/archived reviewers
+      if ((r as any).removed || (r as any).status === 'removed') return false
+      
       // Check stage_assignments first
       if (r.stage_assignments && r.stage_assignments.length > 0) {
         return r.stage_assignments.some(

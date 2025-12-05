@@ -169,12 +169,13 @@ export function ReviewWorkspaceV2({
       // Debug: Log entire settings to see what's there
       console.log('[ReviewWorkspaceV2] Full form settings:', loadedForm.settings);
       
-      // Build reviewers map from form settings
+      // Build reviewers map from form settings (exclude removed reviewers)
       const formReviewers = (loadedForm.settings as any)?.reviewers || [];
       console.log('[ReviewWorkspaceV2] Form reviewers from settings:', formReviewers);
       let revMap: ReviewersMap = {};
       formReviewers.forEach((r: any) => {
-        if (r.id) {
+        // Skip removed/archived reviewers
+        if (r.id && !r.removed && r.status !== 'removed') {
           revMap[r.id] = { name: r.name || 'Unknown', email: r.email, role: r.role };
         }
       });
