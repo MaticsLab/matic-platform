@@ -842,7 +842,11 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
             )}
             
             {field.type === 'select' && (() => {
+              // Try config.items first (from backend), then field.options (from API)
               let options = (config.items || []) as string[]
+              if (options.length === 0 && field.options && field.options.length > 0) {
+                options = field.options.map((opt: any) => opt.value || opt.label)
+              }
               
               // Support fetching options from another field (e.g. repeater)
               if (config.sourceField) {
@@ -878,7 +882,8 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
                 console.log(`📋 Select field [${field.name}]:`, {
                   options,
                   currentValue,
-                  hasItems: (config.items || []).length,
+                  hasConfigItems: (config.items || []).length,
+                  hasFieldOptions: (field.options || []).length,
                   isSourceField: !!config.sourceField
                 })
               }
@@ -944,7 +949,11 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
             )}
 
             {field.type === 'radio' && (() => {
+               // Try config.items first (from backend), then field.options (from API)
                let options = (config.items || []) as string[]
+               if (options.length === 0 && field.options && field.options.length > 0) {
+                 options = field.options.map((opt: any) => opt.value || opt.label)
+               }
                
                if (config.sourceField) {
                  let sourceData = data[config.sourceField]
@@ -1072,7 +1081,11 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
 
             {/* Multiselect - Multiple options can be selected */}
             {field.type === 'multiselect' && (() => {
+               // Try config.items first (from backend), then field.options (from API)
                let options = (config.items || []) as string[]
+               if (options.length === 0 && field.options && field.options.length > 0) {
+                 options = field.options.map((opt: any) => opt.value || opt.label)
+               }
                const currentValues = (Array.isArray(data[field.name]) ? data[field.name] : []) as string[]
 
                return (
