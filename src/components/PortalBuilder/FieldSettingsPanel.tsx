@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Settings, ArrowUpDown, Sliders, GitBranch, Code2, ShieldCheck, Plus, Trash2, GripVertical } from 'lucide-react'
+import { Settings, ArrowUpDown, Sliders, GitBranch, Code2, ShieldCheck, Plus, Trash2, GripVertical, Type, Hash, Mail, Phone, Link as LinkIcon, List, CheckSquare, Calendar, Clock, Upload, Image, PenTool, Star, Heading2, FileText, AlertCircle, Grid3x3, Repeat2 } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
@@ -13,32 +13,32 @@ import { Textarea } from '@/ui-components/textarea'
 import { cn } from '@/lib/utils'
 import { RichTextEditor } from './RichTextEditor'
 
-const FIELD_TYPES: { value: string; label: string }[] = [
-  { value: 'text', label: 'Text Input' },
-  { value: 'textarea', label: 'Text Area' },
-  { value: 'number', label: 'Number' },
-  { value: 'email', label: 'Email' },
-  { value: 'phone', label: 'Phone' },
-  { value: 'url', label: 'URL' },
-  { value: 'address', label: 'Address' },
-  { value: 'select', label: 'Dropdown' },
-  { value: 'multiselect', label: 'Multi-Select' },
-  { value: 'radio', label: 'Single Choice' },
-  { value: 'checkbox', label: 'Checkbox' },
-  { value: 'date', label: 'Date' },
-  { value: 'datetime', label: 'Date & Time' },
-  { value: 'time', label: 'Time' },
-  { value: 'file', label: 'File Upload' },
-  { value: 'image', label: 'Image Upload' },
-  { value: 'signature', label: 'Signature' },
-  { value: 'rating', label: 'Rating' },
-  { value: 'rank', label: 'Rank' },
-  { value: 'divider', label: 'Divider' },
-  { value: 'heading', label: 'Heading' },
-  { value: 'paragraph', label: 'Paragraph' },
-  { value: 'callout', label: 'Callout Box' },
-  { value: 'group', label: 'Group' },
-  { value: 'repeater', label: 'Repeater' },
+const FIELD_TYPES: { value: string; label: string; icon: React.ReactNode; description: string }[] = [
+  { value: 'text', label: 'Text Input', icon: <Type className="w-4 h-4" />, description: 'Single line text field' },
+  { value: 'textarea', label: 'Text Area', icon: <FileText className="w-4 h-4" />, description: 'Multi-line text field' },
+  { value: 'number', label: 'Number', icon: <Hash className="w-4 h-4" />, description: 'Numeric input' },
+  { value: 'email', label: 'Email', icon: <Mail className="w-4 h-4" />, description: 'Email with validation' },
+  { value: 'phone', label: 'Phone', icon: <Phone className="w-4 h-4" />, description: 'Phone number field' },
+  { value: 'url', label: 'URL', icon: <LinkIcon className="w-4 h-4" />, description: 'Website URL field' },
+  { value: 'address', label: 'Address', icon: <Grid3x3 className="w-4 h-4" />, description: 'Address with autocomplete' },
+  { value: 'select', label: 'Dropdown', icon: <List className="w-4 h-4" />, description: 'Single option selection' },
+  { value: 'multiselect', label: 'Multi-Select', icon: <List className="w-4 h-4" />, description: 'Multiple option selection' },
+  { value: 'radio', label: 'Single Choice', icon: <CheckSquare className="w-4 h-4" />, description: 'Radio button options' },
+  { value: 'checkbox', label: 'Checkbox', icon: <CheckSquare className="w-4 h-4" />, description: 'True/false toggle' },
+  { value: 'date', label: 'Date', icon: <Calendar className="w-4 h-4" />, description: 'Date picker' },
+  { value: 'datetime', label: 'Date & Time', icon: <Calendar className="w-4 h-4" />, description: 'Date and time picker' },
+  { value: 'time', label: 'Time', icon: <Clock className="w-4 h-4" />, description: 'Time picker' },
+  { value: 'file', label: 'File Upload', icon: <Upload className="w-4 h-4" />, description: 'File upload field' },
+  { value: 'image', label: 'Image Upload', icon: <Image className="w-4 h-4" />, description: 'Image upload field' },
+  { value: 'signature', label: 'Signature', icon: <PenTool className="w-4 h-4" />, description: 'Digital signature' },
+  { value: 'rating', label: 'Rating', icon: <Star className="w-4 h-4" />, description: 'Star rating (1-5)' },
+  { value: 'rank', label: 'Rank', icon: <Repeat2 className="w-4 h-4" />, description: 'Ranking field' },
+  { value: 'divider', label: 'Divider', icon: <Grid3x3 className="w-4 h-4" />, description: 'Visual divider' },
+  { value: 'heading', label: 'Heading', icon: <Heading2 className="w-4 h-4" />, description: 'Section heading' },
+  { value: 'paragraph', label: 'Paragraph', icon: <FileText className="w-4 h-4" />, description: 'Display text' },
+  { value: 'callout', label: 'Callout Box', icon: <AlertCircle className="w-4 h-4" />, description: 'Highlighted message' },
+  { value: 'group', label: 'Group', icon: <Grid3x3 className="w-4 h-4" />, description: 'Field group' },
+  { value: 'repeater', label: 'Repeater', icon: <Repeat2 className="w-4 h-4" />, description: 'Repeatable section' },
 ]
 
 const CALLOUT_COLORS = [
@@ -307,19 +307,39 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
               {/* Field Type */}
               <div className="space-y-2">
                 <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Field Type</Label>
-                <Select 
-                  value={selectedField.type} 
-                  onValueChange={(v) => handleUpdate({ type: v as FieldType })}
-                >
-                  <SelectTrigger className="bg-gray-50/50 border-gray-200">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FIELD_TYPES.map(t => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="relative">
+                  <Select 
+                    value={selectedField.type} 
+                    onValueChange={(v) => handleUpdate({ type: v as FieldType })}
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 hover:bg-gray-50 h-auto py-2.5">
+                      <div className="flex items-center gap-2 text-left">
+                        {FIELD_TYPES.find(t => t.value === selectedField.type)?.icon}
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">
+                            {FIELD_TYPES.find(t => t.value === selectedField.type)?.label || selectedField.type}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {FIELD_TYPES.find(t => t.value === selectedField.type)?.description}
+                          </p>
+                        </div>
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {FIELD_TYPES.map(t => (
+                        <SelectItem key={t.value} value={t.value} className="py-2">
+                          <div className="flex items-start gap-2">
+                            {t.icon}
+                            <div>
+                              <p className="text-sm font-medium">{t.label}</p>
+                              <p className="text-xs text-gray-500">{t.description}</p>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Label */}

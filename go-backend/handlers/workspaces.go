@@ -198,7 +198,7 @@ type UpdateWorkspaceInput struct {
 
 func UpdateWorkspace(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	// Get authenticated user ID
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -211,7 +211,7 @@ func UpdateWorkspace(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Workspace not found"})
 		return
 	}
-	
+
 	// Check if user is owner or admin of this workspace
 	var member models.WorkspaceMember
 	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND role IN ('owner', 'admin')", workspace.ID, userID).First(&member).Error; err != nil {
@@ -323,7 +323,7 @@ func isValidSubdomain(subdomain string) bool {
 
 func DeleteWorkspace(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	// Get authenticated user ID
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -336,7 +336,7 @@ func DeleteWorkspace(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Workspace not found"})
 		return
 	}
-	
+
 	// Check if user is owner of this workspace (only owner can delete)
 	var member models.WorkspaceMember
 	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND role = ?", workspace.ID, userID, "owner").First(&member).Error; err != nil {
@@ -429,7 +429,7 @@ func UpdateWorkspaceMember(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid member ID"})
 		return
 	}
-	
+
 	// Get authenticated user ID
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -442,7 +442,7 @@ func UpdateWorkspaceMember(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Member not found"})
 		return
 	}
-	
+
 	// Check if user is owner or admin of this workspace
 	var requesterMember models.WorkspaceMember
 	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND role IN ('owner', 'admin')", member.WorkspaceID, userID).First(&requesterMember).Error; err != nil {
@@ -502,7 +502,7 @@ func RemoveWorkspaceMember(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Member not found"})
 		return
 	}
-	
+
 	// Check if user is owner or admin of this workspace
 	var requesterMember models.WorkspaceMember
 	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND role IN ('owner', 'admin')", member.WorkspaceID, currentUserID).First(&requesterMember).Error; err != nil {

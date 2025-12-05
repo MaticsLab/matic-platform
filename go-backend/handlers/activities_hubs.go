@@ -122,7 +122,7 @@ func ListActivitiesHubs(c *gin.Context) {
 	}
 	includeInactive := c.Query("include_inactive") == "true"
 	includeHidden := c.Query("include_hidden") == "true"
-	
+
 	// Get authenticated user ID
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -137,7 +137,7 @@ func ListActivitiesHubs(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace ID"})
 		return
 	}
-	
+
 	memberExists := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", wsID, userID, "active").First(&member).Error == nil
 	if !memberExists {
 		c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
@@ -179,7 +179,7 @@ func ListActivitiesHubs(c *gin.Context) {
 
 func GetActivitiesHub(c *gin.Context) {
 	hubID := c.Param("hub_id")
-	
+
 	// Get authenticated user ID
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -194,7 +194,7 @@ func GetActivitiesHub(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Activities hub not found"})
 		return
 	}
-	
+
 	// Check if user has access to this hub
 	var member models.WorkspaceMember
 	memberExists := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", table.WorkspaceID, userID, "active").First(&member).Error == nil
@@ -202,7 +202,7 @@ func GetActivitiesHub(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
 		return
 	}
-	
+
 	// If user has hub_access restrictions, check if this hub is allowed
 	if len(member.HubAccess) > 0 {
 		hasAccess := false
@@ -228,7 +228,7 @@ func GetActivitiesHubBySlug(c *gin.Context) {
 		return
 	}
 	slug := c.Param("slug")
-	
+
 	// Get authenticated user ID
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -243,7 +243,7 @@ func GetActivitiesHubBySlug(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Activities hub not found"})
 		return
 	}
-	
+
 	// Check if user has access to this hub
 	var member models.WorkspaceMember
 	wsID, err := uuid.Parse(workspaceID)
@@ -251,13 +251,13 @@ func GetActivitiesHubBySlug(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace ID"})
 		return
 	}
-	
+
 	memberExists := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", wsID, userID, "active").First(&member).Error == nil
 	if !memberExists {
 		c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
 		return
 	}
-	
+
 	// If user has hub_access restrictions, check if this hub is allowed
 	if len(member.HubAccess) > 0 {
 		hasAccess := false

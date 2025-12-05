@@ -309,7 +309,7 @@ export function ColumnEditorModal({ isOpen, onClose, onSubmit, column, mode, wor
                 />
               </div>
 
-              <div className="border border-gray-200 rounded-lg overflow-hidden max-h-60 overflow-y-auto">
+              <div className="border border-gray-200 rounded-lg overflow-hidden max-h-60 overflow-y-auto bg-white shadow-sm">
                 {COLUMN_TYPES.filter(t => 
                   t.label.toLowerCase().includes(typeSearch.toLowerCase()) || 
                   t.description.toLowerCase().includes(typeSearch.toLowerCase())
@@ -324,10 +324,29 @@ export function ColumnEditorModal({ isOpen, onClose, onSubmit, column, mode, wor
                         setColumnType(type.value)
                         setSelectedType(type)
                       }}
-                      className={`w-full flex items-center gap-3 p-3 text-left transition-colors border-b border-gray-100 last:border-0 ${
-                        isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
+                      className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-all border-b border-gray-100 last:border-0 ${
+                        isSelected 
+                          ? 'bg-blue-50 border-l-4 border-l-blue-500' 
+                          : 'hover:bg-gray-50 border-l-4 border-l-transparent'
                       }`}
                     >
+                      <div className={`mt-0.5 flex-shrink-0 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>
+                          {type.label}
+                        </p>
+                        <p className={`text-xs mt-0.5 ${isSelected ? 'text-blue-700' : 'text-gray-500'}`}>
+                          {type.description}
+                        </p>
+                      </div>
+                      {isSelected && (
+                        <ChevronRight className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                      )}
+                    </button>
+                  )
+                })
                       <div className={`p-2 rounded-lg ${isSelected ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
                         <Icon className="w-5 h-5" />
                       </div>
