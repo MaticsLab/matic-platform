@@ -26,6 +26,7 @@ import {
   Key
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Switch } from '@/ui-components/switch'
@@ -484,8 +485,14 @@ export function ProfileSidebar({ isOpen, onClose }: ProfileSidebarProps) {
                               className="mt-3"
                               onClick={async () => {
                                 try {
-                                  await supabase.auth.resetPasswordForEmail(email, {
-                                    redirectTo: `${window.location.origin}/auth/callback`
+                                  // Use implicit flow client for password reset to avoid PKCE issues
+                                  const supabaseSimple = createClient(
+                                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+                                    { auth: { flowType: 'implicit', autoRefreshToken: false, persistSession: false } }
+                                  )
+                                  await supabaseSimple.auth.resetPasswordForEmail(email, {
+                                    redirectTo: `${window.location.origin}/auth/reset-password`
                                   })
                                   toast.success('Password reset email sent!')
                                 } catch (error) {

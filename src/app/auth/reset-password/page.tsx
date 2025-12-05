@@ -18,38 +18,93 @@ function ResetPasswordForm() {
   const [isVerifying, setIsVerifying] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-
-  const tokenHash = searchParams.get('token_hash')
-  const type = searchParams.get('type')
+  const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
-    async function verifyToken() {
-      if (!tokenHash || type !== 'recovery') {
-        setError('Invalid or missing recovery token')
-        setIsVerifying(false)
-        return
-      }
-
+    async function handleAuth() {
       try {
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: 'recovery',
-        })
+        // First, check for hash params (implicit flow)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
+        const type = hashParams.get('type')
 
-        if (verifyError) {
-          console.error('Token verification error:', verifyError)
-          setError(verifyError.message)
+        if (accessToken && refreshToken) {
+          // Set the session from hash tokens
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+
+          if (sessionError) {
+            console.error('Session error:', sessionError)
+            setError(sessionError.message)
+            setIsVerifying(false)
+            return
+          }
+
+          // Session set successfully, ready to reset password
+          setIsReady(true)
+          setIsVerifying(false)
+          // Clear the hash from URL for cleaner look
+          window.history.replaceState(null, '', window.location.pathname)
+          return
         }
+
+        // Check for query params (token_hash flow)
+        const tokenHash = searchParams.get('token_hash')
+        const queryType = searchParams.get('type')
+
+        if (tokenHash && queryType === 'recovery') {
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: 'recovery',
+          })
+
+          if (verifyError) {
+            console.error('Token verification error:', verifyError)
+            setError(verifyError.message)
+            setIsVerifying(false)
+            return
+          }
+
+          setIsReady(true)
+          setIsVerifying(false)
+          return
+        }
+
+        // Check if user already has a valid session (maybe from PASSWORD_RECOVERY event)
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          setIsReady(true)
+          setIsVerifying(false)
+          return
+        }
+
+        // No valid tokens found
+        setError('Invalid or missing recovery token. Please request a new password reset.')
+        setIsVerifying(false)
       } catch (err) {
-        console.error('Token verification failed:', err)
+        console.error('Auth verification failed:', err)
         setError('Failed to verify recovery token')
-      } finally {
         setIsVerifying(false)
       }
     }
 
-    verifyToken()
-  }, [tokenHash, type])
+    // Listen for PASSWORD_RECOVERY event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsReady(true)
+        setIsVerifying(false)
+      }
+    })
+
+    handleAuth()
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -79,7 +134,7 @@ function ResetPasswordForm() {
       setSuccess(true)
       
       setTimeout(() => {
-        router.push('/workspaces')
+        router.push('/')
       }, 2000)
     } catch (err: unknown) {
       console.error('Password update error:', err)
@@ -133,7 +188,19 @@ function ResetPasswordForm() {
             </p>
           </div>
 
-          {error && (
+          {error && !isReady && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-red-800">{error}</p>
+                <a href="/forgot-password" className="text-sm text-blue-600 hover:underline mt-2 block">
+                  Request a new password reset
+                </a>
+              </div>
+            </div>
+          )}
+
+          {error && isReady && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-800">{error}</p>
@@ -152,6 +219,7 @@ function ResetPasswordForm() {
                 required
                 minLength={6}
                 className="mt-1"
+                disabled={!isReady}
               />
               <p className="text-xs text-gray-500 mt-1">Must be at least 6 characters</p>
             </div>
@@ -166,12 +234,13 @@ function ResetPasswordForm() {
                 placeholder="Confirm your new password"
                 required
                 className="mt-1"
+                disabled={!isReady}
               />
             </div>
 
             <Button
               type="submit"
-              disabled={isLoading || !!error}
+              disabled={isLoading || !isReady}
               className="w-full"
             >
               {isLoading ? (

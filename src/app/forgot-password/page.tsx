@@ -2,8 +2,19 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 import { Loader2, ArrowLeft, Mail, CheckCircle } from 'lucide-react'
+
+// Use a simple client without PKCE for password reset
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseSimple = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    flowType: 'implicit',
+    autoRefreshToken: false,
+    persistSession: false,
+  }
+})
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -17,8 +28,8 @@ export default function ForgotPasswordPage() {
     setLoading(true)
 
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback`
+      const { error: resetError } = await supabaseSimple.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`
       })
 
       if (resetError) throw resetError
