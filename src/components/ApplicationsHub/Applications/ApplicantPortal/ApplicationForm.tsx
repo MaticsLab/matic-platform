@@ -873,15 +873,29 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
                 }
               }
 
+              const currentValue = data[field.name] || ''
+              if (process.env.NODE_ENV === 'development') {
+                console.log(`📋 Select field [${field.name}]:`, {
+                  options,
+                  currentValue,
+                  hasItems: (config.items || []).length,
+                  isSourceField: !!config.sourceField
+                })
+              }
+              
               return (
-                <Select value={data[field.name]} onValueChange={v => onChange(field.name, v)}>
+                <Select value={String(currentValue)} onValueChange={v => onChange(field.name, v)}>
                   <SelectTrigger className="h-11">
                     <SelectValue placeholder={config.placeholder || "Select..."} />
                   </SelectTrigger>
                   <SelectContent>
-                    {options.map((opt: string) => (
-                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                    ))}
+                    {options && options.length > 0 ? (
+                      options.map((opt: string) => (
+                        <SelectItem key={opt} value={String(opt)}>{opt}</SelectItem>
+                      ))
+                    ) : (
+                      <div className="px-2 py-1.5 text-sm text-gray-500">No options available</div>
+                    )}
                   </SelectContent>
                 </Select>
               )
@@ -1020,7 +1034,7 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
                           <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 pt-6 group-hover:border-gray-300 transition-colors">
                             <Label className="text-xs text-gray-500 uppercase font-semibold mb-2 block">Choice #{index + 1}</Label>
                             <Select 
-                              value={currentValues[index] || ''} 
+                              value={String(currentValues[index] || '')} 
                               onValueChange={v => {
                                 const newValues = [...currentValues]
                                 // Fill empty slots if needed
@@ -1033,15 +1047,19 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
                                 <SelectValue placeholder="Select option" />
                               </SelectTrigger>
                               <SelectContent>
-                                {options.map((opt: string) => (
-                                  <SelectItem 
-                                    key={opt} 
-                                    value={opt} 
-                                    disabled={currentValues.includes(opt) && currentValues[index] !== opt}
-                                  >
-                                    {opt}
-                                  </SelectItem>
-                                ))}
+                                {options && options.length > 0 ? (
+                                  options.map((opt: string) => (
+                                    <SelectItem 
+                                      key={opt} 
+                                      value={String(opt)} 
+                                      disabled={currentValues.includes(opt) && currentValues[index] !== opt}
+                                    >
+                                      {opt}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <div className="px-2 py-1.5 text-sm text-gray-500">No options available</div>
+                                )}
                               </SelectContent>
                             </Select>
                           </div>
