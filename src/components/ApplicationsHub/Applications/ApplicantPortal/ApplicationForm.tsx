@@ -649,16 +649,33 @@ export function ApplicationForm({
 function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fields: any[], allFields?: any[], data: any, onChange: (field: string, value: any) => void, formId?: string }) {
   // Helper to get column span class based on width
   const getColSpanClass = (width?: string) => {
-    switch (width) {
-      case 'half': return 'col-span-12 sm:col-span-6'
-      case 'third': return 'col-span-12 sm:col-span-4'
-      case 'quarter': return 'col-span-12 sm:col-span-3'
-      default: return 'col-span-12'
+    // Normalize the width value
+    const normalizedWidth = width?.toLowerCase?.()?.trim?.()
+    
+    switch (normalizedWidth) {
+      case 'half':
+      case '1/2':
+      case '50%':
+        return 'col-span-12 md:col-span-6'
+      case 'third':
+      case '1/3':
+      case '33%':
+        return 'col-span-12 md:col-span-4'
+      case 'quarter':
+      case '1/4':
+      case '25%':
+        return 'col-span-12 md:col-span-3'
+      case 'full':
+      case 'full-width':
+      case '100%':
+        return 'col-span-12'
+      default:
+        return 'col-span-12'
     }
   }
 
   return (
-    <div className="grid grid-cols-12 gap-6">
+    <div className="grid grid-cols-12 gap-4 md:gap-6">
       {fields.map((rawField) => {
         // Ensure name exists (fallback to label for nested fields from config)
         const field = { ...rawField, name: rawField.name || rawField.label }
@@ -668,7 +685,7 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
         if (field.type === 'group') {
            // Children can be in field.children (from portal editor) or config.children (from backend)
            const children = field.children || config.children || []
-           const groupWidth = field.width || config.width
+           const groupWidth = config?.width || 'full'
            return (
              <div key={field.id} className={cn("border border-gray-200 p-6 rounded-xl space-y-4 bg-gray-50/30", getColSpanClass(groupWidth))}>
                <h3 className="font-semibold text-lg text-gray-900">{field.label}</h3>
@@ -688,7 +705,7 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
            const items = (data[field.name] as any[]) || []
            // Children can be in field.children (from portal editor) or config.children (from backend)
            const children = field.children || config.children || []
-           const repeaterWidth = field.width || config.width
+           const repeaterWidth = config?.width || 'full'
            return (
              <div key={field.id} className={cn("space-y-4", getColSpanClass(repeaterWidth))}>
                <div className="flex justify-between items-center">
@@ -748,11 +765,11 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
         // Layout fields (heading, paragraph, callout, divider) don't need a label wrapper
         const isLayoutField = ['heading', 'paragraph', 'callout', 'divider'].includes(field.type)
         
-        // Get width from field or config
-        const fieldWidth = field.width || config.width
+        // Get layout width from config (not field.width which is pixel width)
+        const layoutWidth = config?.width || 'full'
 
         return (
-          <div key={field.id} className={cn("space-y-3", getColSpanClass(fieldWidth))}>
+          <div key={field.id} className={cn("space-y-3", getColSpanClass(layoutWidth))}>
             {!isLayoutField && (
               <Label className="text-base font-medium">
                 {field.label} {isRequired && <span className="text-red-500">*</span>}
