@@ -74,7 +74,7 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
   const [showReviewersPanel, setShowReviewersPanel] = useState(false)
   const [showCommunicationsPanel, setShowCommunicationsPanel] = useState(false)
 
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://maticslab.com'
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://www.maticsapp.com'
   const fullUrl = `${baseUrl}/apply/${applicationSlug}`
 
   // Fetch workspace details

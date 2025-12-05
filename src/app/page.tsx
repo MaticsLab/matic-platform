@@ -32,16 +32,16 @@ export default function Home() {
           if (workspaces && workspaces.length > 0) {
             router.push(`/workspace/${workspaces[0].slug}`)
           } else {
-            // No workspaces - redirect to Webflow homepage
-            window.location.href = 'https://www.maticslab.com'
+            // No workspaces - redirect to login
+            router.push('/login')
           }
         } else {
-          window.location.href = 'https://www.maticslab.com'
+          router.push('/login')
         }
       }
     } else {
-      // User is not logged in - redirect to Webflow homepage
-      window.location.href = 'https://www.maticslab.com'
+      // User is not logged in - redirect to login page
+      router.push('/login')
     }
   }
 
