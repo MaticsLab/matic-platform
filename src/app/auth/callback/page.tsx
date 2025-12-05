@@ -11,78 +11,114 @@ function AuthCallbackContent() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const handleCallback = async () => {
-      try {
-        // Check URL hash for tokens (Supabase puts them in the hash for implicit flow)
-        const hashParams = new URLSearchParams(window.location.hash.substring(1))
-        const accessToken = hashParams.get('access_token')
-        const refreshToken = hashParams.get('refresh_token')
-        const type = hashParams.get('type') || searchParams.get('type')
-        const error = hashParams.get('error') || searchParams.get('error')
-        const errorDescription = hashParams.get('error_description') || searchParams.get('error_description')
+    // Listen for auth state changes - this handles the token exchange automatically
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session?.user?.email)
+      
+      if (event === 'PASSWORD_RECOVERY') {
+        // User clicked password recovery link - redirect to reset page
+        router.push('/auth/reset-password')
+        return
+      }
+      
+      if (event === 'SIGNED_IN' && session) {
+        // Check if this was a recovery flow by looking at URL params
+        const type = searchParams.get('type')
+        if (type === 'recovery') {
+          router.push('/auth/reset-password')
+          return
+        }
+        
+        // Normal sign in - redirect to home
+        const next = searchParams.get('next')
+        router.push(next || '/')
+        return
+      }
+    })
 
-        if (error) {
-          setError(errorDescription || error)
-          setTimeout(() => router.push(`/login?error=${encodeURIComponent(errorDescription || error)}`), 2000)
+    // Also handle errors and tokens passed in URL
+    const handleUrlParams = async () => {
+      const errorParam = searchParams.get('error')
+      const errorDescription = searchParams.get('error_description')
+      
+      if (errorParam) {
+        setError(errorDescription || errorParam)
+        setTimeout(() => router.push('/login'), 2000)
+        return
+      }
+
+      // Check URL hash for tokens (implicit flow)
+      const hashParams = new URLSearchParams(window.location.hash.substring(1))
+      const hashError = hashParams.get('error')
+      const hashErrorDescription = hashParams.get('error_description')
+      
+      if (hashError) {
+        setError(hashErrorDescription || hashError)
+        setTimeout(() => router.push('/login'), 2000)
+        return
+      }
+
+      const accessToken = hashParams.get('access_token')
+      const refreshToken = hashParams.get('refresh_token')
+      const type = hashParams.get('type')
+
+      if (accessToken && refreshToken) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        })
+
+        if (sessionError) {
+          setError(sessionError.message)
+          setTimeout(() => router.push('/login'), 2000)
           return
         }
 
-        // If we have tokens in the hash, set the session
-        if (accessToken && refreshToken) {
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          })
-
-          if (sessionError) {
-            throw sessionError
-          }
-
-          // Check if this is a recovery flow
-          if (type === 'recovery') {
-            router.push('/auth/reset-password')
-            return
-          }
+        if (type === 'recovery') {
+          router.push('/auth/reset-password')
+          return
         }
+      }
 
-        // Check for code-based flow (PKCE)
-        const code = searchParams.get('code')
-        if (code) {
+      // Handle PKCE code exchange
+      const code = searchParams.get('code')
+      if (code) {
+        try {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
           if (exchangeError) {
             throw exchangeError
           }
-
-          // Check if this is a recovery flow
-          if (type === 'recovery') {
-            router.push('/auth/reset-password')
-            return
-          }
+          // Auth state change listener will handle the redirect
+        } catch (err: any) {
+          setError(err.message || 'Failed to complete authentication')
+          setTimeout(() => router.push('/login'), 2000)
         }
+        return
+      }
 
-        // Check current session and redirect appropriately
-        const { data: { session } } = await supabase.auth.getSession()
-        
-        if (session) {
-          // Default: redirect to workspace
-          const next = searchParams.get('next')
-          if (next) {
-            router.push(next)
-          } else {
+      // If no tokens, codes, or errors - check for existing session
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        const next = searchParams.get('next')
+        router.push(next || '/')
+      } else {
+        // Give it a moment for auth state to settle
+        setTimeout(async () => {
+          const { data: { session: retrySession } } = await supabase.auth.getSession()
+          if (retrySession) {
             router.push('/')
+          } else {
+            router.push('/login')
           }
-        } else {
-          // No session, redirect to login
-          router.push('/login')
-        }
-      } catch (err: any) {
-        console.error('Auth callback error:', err)
-        setError(err.message || 'Authentication failed')
-        setTimeout(() => router.push('/login'), 2000)
+        }, 1000)
       }
     }
 
-    handleCallback()
+    handleUrlParams()
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [router, searchParams])
 
   if (error) {
