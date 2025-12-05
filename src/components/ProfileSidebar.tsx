@@ -485,7 +485,7 @@ export function ProfileSidebar({ isOpen, onClose }: ProfileSidebarProps) {
                               onClick={async () => {
                                 try {
                                   await supabase.auth.resetPasswordForEmail(email, {
-                                    redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password`
+                                    redirectTo: `${window.location.origin}/auth/callback`
                                   })
                                   toast.success('Password reset email sent!')
                                 } catch (error) {

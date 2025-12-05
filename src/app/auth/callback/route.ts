@@ -10,22 +10,36 @@ export async function GET(request: NextRequest) {
   const token_hash = requestUrl.searchParams.get('token_hash')
   const type = requestUrl.searchParams.get('type')
   const next = requestUrl.searchParams.get('next') || '/'
+  const error = requestUrl.searchParams.get('error')
+  const error_description = requestUrl.searchParams.get('error_description')
 
-  console.log('Auth callback received:', { code, token_hash, type, next })
+  console.log('Auth callback received:', { code, token_hash, type, next, error })
+
+  // Handle errors from Supabase
+  if (error) {
+    console.error('Auth error:', error, error_description)
+    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error_description || error)}`, requestUrl.origin))
+  }
 
   // Create Supabase client
   const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
   // Handle different auth flows
   if (code) {
-    // OAuth or magic link with PKCE
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (error) {
-      console.error('Error exchanging code for session:', error)
-      return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, requestUrl.origin))
+    // OAuth or magic link with PKCE - this also handles password recovery with PKCE
+    const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+    if (exchangeError) {
+      console.error('Error exchanging code for session:', exchangeError)
+      return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(exchangeError.message)}`, requestUrl.origin))
+    }
+    
+    // Check if this is a recovery flow (password reset)
+    // The session will have a user but we need to redirect to reset password
+    if (type === 'recovery' || next === '/auth/reset-password') {
+      return NextResponse.redirect(new URL('/auth/reset-password', requestUrl.origin))
     }
   } else if (token_hash && type) {
-    // Email confirmation, invite, or password recovery
+    // Email confirmation, invite, or password recovery (non-PKCE flow)
     if (type === 'invite' || type === 'signup') {
       // Redirect to set password page with the token
       return NextResponse.redirect(new URL(`/auth/set-password?token_hash=${token_hash}&type=${type}`, requestUrl.origin))
@@ -34,10 +48,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL(`/auth/reset-password?token_hash=${token_hash}&type=${type}`, requestUrl.origin))
     } else if (type === 'email') {
       // Email confirmation
-      const { error } = await supabase.auth.verifyOtp({ token_hash, type: 'email' })
-      if (error) {
-        console.error('Error verifying email:', error)
-        return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, requestUrl.origin))
+      const { error: verifyError } = await supabase.auth.verifyOtp({ token_hash, type: 'email' })
+      if (verifyError) {
+        console.error('Error verifying email:', verifyError)
+        return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(verifyError.message)}`, requestUrl.origin))
       }
     }
   }
