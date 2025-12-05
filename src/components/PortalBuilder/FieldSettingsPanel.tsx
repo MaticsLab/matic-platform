@@ -12,6 +12,7 @@ import { Field, FieldType } from '@/types/portal'
 import { Textarea } from '@/ui-components/textarea'
 import { cn } from '@/lib/utils'
 import { RichTextEditor } from './RichTextEditor'
+import { MentionableInput } from './MentionableInput'
 
 const FIELD_TYPES: { value: string; label: string; icon: React.ReactNode; description: string }[] = [
   { value: 'text', label: 'Text Input', icon: <Type className="w-4 h-4" />, description: 'Single line text field' },
@@ -345,10 +346,12 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
               {/* Label */}
               <div className="space-y-2">
                 <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Label</Label>
-                <Input 
+                <MentionableInput 
                   value={selectedField.label} 
-                  onChange={(e) => handleUpdate({ label: e.target.value })} 
+                  onChange={(v) => handleUpdate({ label: v })}
                   className="font-medium"
+                  previousFields={allFields}
+                  fieldId={selectedField.id}
                 />
               </div>
 
@@ -359,8 +362,13 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                   className="h-20 resize-none bg-gray-50/50 border-gray-200"
                   value={selectedField.config?.description || ''} 
                   onChange={(e) => handleConfigUpdate('description', e.target.value)}
-                  placeholder="Helper text shown below the field"
+                  placeholder="Helper text shown below the field. Type @ to reference other fields."
                 />
+                {selectedField.config?.description?.includes('{') && (
+                  <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                    💡 Mentions will be replaced with field values when the form is submitted
+                  </div>
+                )}
               </div>
 
               {/* Placeholder - not for layout fields */}
