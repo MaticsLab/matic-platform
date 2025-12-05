@@ -122,9 +122,36 @@ func ListActivitiesHubs(c *gin.Context) {
 	}
 	includeInactive := c.Query("include_inactive") == "true"
 	includeHidden := c.Query("include_hidden") == "true"
+	
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	// Get user's hub access restrictions for this workspace
+	var member models.WorkspaceMember
+	wsID, err := uuid.Parse(workspaceID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace ID"})
+		return
+	}
+	
+	memberExists := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", wsID, userID, "active").First(&member).Error == nil
+	if !memberExists {
+		c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
+		return
+	}
 
 	var tables []models.Table
 	query := database.DB.Where("workspace_id = ? AND hub_type = ?", workspaceID, "activities")
+
+	// If user has hub_access restrictions (non-empty array), filter to only those hubs
+	if len(member.HubAccess) > 0 {
+		query = query.Where("id = ANY(?)", member.HubAccess)
+	}
+	// If hub_access is empty/null, user has access to all hubs
 
 	if !includeInactive {
 		// Check is_active in settings JSONB
@@ -152,6 +179,13 @@ func ListActivitiesHubs(c *gin.Context) {
 
 func GetActivitiesHub(c *gin.Context) {
 	hubID := c.Param("hub_id")
+	
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
 
 	var table models.Table
 	if err := database.DB.Preload("Fields").Preload("Views").
@@ -159,6 +193,29 @@ func GetActivitiesHub(c *gin.Context) {
 		First(&table).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Activities hub not found"})
 		return
+	}
+	
+	// Check if user has access to this hub
+	var member models.WorkspaceMember
+	memberExists := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", table.WorkspaceID, userID, "active").First(&member).Error == nil
+	if !memberExists {
+		c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
+		return
+	}
+	
+	// If user has hub_access restrictions, check if this hub is allowed
+	if len(member.HubAccess) > 0 {
+		hasAccess := false
+		for _, allowedHubID := range member.HubAccess {
+			if allowedHubID == hubID {
+				hasAccess = true
+				break
+			}
+		}
+		if !hasAccess {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You do not have access to this hub"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, tableToActivitiesHub(table))
@@ -171,6 +228,13 @@ func GetActivitiesHubBySlug(c *gin.Context) {
 		return
 	}
 	slug := c.Param("slug")
+	
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
 
 	var table models.Table
 	if err := database.DB.Preload("Fields").Preload("Views").
@@ -178,6 +242,35 @@ func GetActivitiesHubBySlug(c *gin.Context) {
 		First(&table).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Activities hub not found"})
 		return
+	}
+	
+	// Check if user has access to this hub
+	var member models.WorkspaceMember
+	wsID, err := uuid.Parse(workspaceID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace ID"})
+		return
+	}
+	
+	memberExists := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", wsID, userID, "active").First(&member).Error == nil
+	if !memberExists {
+		c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
+		return
+	}
+	
+	// If user has hub_access restrictions, check if this hub is allowed
+	if len(member.HubAccess) > 0 {
+		hasAccess := false
+		for _, allowedHubID := range member.HubAccess {
+			if allowedHubID == table.ID.String() {
+				hasAccess = true
+				break
+			}
+		}
+		if !hasAccess {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You do not have access to this hub"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, tableToActivitiesHub(table))

@@ -198,10 +198,24 @@ type UpdateWorkspaceInput struct {
 
 func UpdateWorkspace(c *gin.Context) {
 	id := c.Param("id")
+	
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
 
 	var workspace models.Workspace
 	if err := database.DB.First(&workspace, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Workspace not found"})
+		return
+	}
+	
+	// Check if user is owner or admin of this workspace
+	var member models.WorkspaceMember
+	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND role IN ('owner', 'admin')", workspace.ID, userID).First(&member).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to update this workspace"})
 		return
 	}
 
@@ -309,10 +323,24 @@ func isValidSubdomain(subdomain string) bool {
 
 func DeleteWorkspace(c *gin.Context) {
 	id := c.Param("id")
+	
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
 
 	var workspace models.Workspace
 	if err := database.DB.First(&workspace, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Workspace not found"})
+		return
+	}
+	
+	// Check if user is owner of this workspace (only owner can delete)
+	var member models.WorkspaceMember
+	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND role = ?", workspace.ID, userID, "owner").First(&member).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only the workspace owner can delete this workspace"})
 		return
 	}
 
@@ -344,6 +372,47 @@ func ListWorkspaceMembers(c *gin.Context) {
 		return
 	}
 
+	// Fetch names from auth.users for members with user_id
+	if len(members) > 0 {
+		userIDs := make([]uuid.UUID, 0)
+		for _, m := range members {
+			if m.UserID != nil {
+				userIDs = append(userIDs, *m.UserID)
+			}
+		}
+
+		if len(userIDs) > 0 {
+			type UserProfile struct {
+				ID        uuid.UUID
+				FirstName string
+				LastName  string
+			}
+			var profiles []UserProfile
+			database.DB.Raw(`
+				SELECT id, 
+					COALESCE(raw_user_meta_data->>'first_name', '') as first_name,
+					COALESCE(raw_user_meta_data->>'last_name', '') as last_name
+				FROM auth.users WHERE id IN ?
+			`, userIDs).Scan(&profiles)
+
+			// Create a map for quick lookup
+			profileMap := make(map[uuid.UUID]UserProfile)
+			for _, p := range profiles {
+				profileMap[p.ID] = p
+			}
+
+			// Populate names in members
+			for i, m := range members {
+				if m.UserID != nil {
+					if profile, exists := profileMap[*m.UserID]; exists {
+						members[i].FirstName = profile.FirstName
+						members[i].LastName = profile.LastName
+					}
+				}
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, members)
 }
 
@@ -360,10 +429,24 @@ func UpdateWorkspaceMember(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid member ID"})
 		return
 	}
+	
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
 
 	var member models.WorkspaceMember
 	if err := database.DB.First(&member, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Member not found"})
+		return
+	}
+	
+	// Check if user is owner or admin of this workspace
+	var requesterMember models.WorkspaceMember
+	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND role IN ('owner', 'admin')", member.WorkspaceID, userID).First(&requesterMember).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to update workspace members"})
 		return
 	}
 
@@ -417,6 +500,13 @@ func RemoveWorkspaceMember(c *gin.Context) {
 	var member models.WorkspaceMember
 	if err := database.DB.First(&member, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Member not found"})
+		return
+	}
+	
+	// Check if user is owner or admin of this workspace
+	var requesterMember models.WorkspaceMember
+	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND role IN ('owner', 'admin')", member.WorkspaceID, currentUserID).First(&requesterMember).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to remove workspace members"})
 		return
 	}
 

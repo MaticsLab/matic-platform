@@ -23,6 +23,33 @@ func ListDataTables(c *gin.Context) {
 
 	if workspaceID != "" {
 		query = query.Where("workspace_id = ?", workspaceID)
+		
+		// Get authenticated user ID
+		userID, exists := middleware.GetUserID(c)
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
+		
+		// Get user's hub access restrictions for this workspace
+		var member models.WorkspaceMember
+		wsID, err := uuid.Parse(workspaceID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace ID"})
+			return
+		}
+		
+		memberExists := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", wsID, userID, "active").First(&member).Error == nil
+		if !memberExists {
+			c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
+			return
+		}
+		
+		// If user has hub_access restrictions (non-empty array), filter to only those tables
+		if len(member.HubAccess) > 0 {
+			query = query.Where("id = ANY(?)", member.HubAccess)
+		}
+		// If hub_access is empty/null, user has access to all tables
 	}
 
 	if err := query.Preload("Fields").Order("created_at DESC").Find(&tables).Error; err != nil {

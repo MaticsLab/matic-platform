@@ -12,6 +12,8 @@ export default function SignUpPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -45,6 +47,10 @@ export default function SignUpPage() {
         password: formData.password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            first_name: formData.firstName,
+            last_name: formData.lastName
+          }
         }
       })
 
@@ -61,6 +67,19 @@ export default function SignUpPage() {
       if (!authData.user) throw new Error('Failed to create account')
       
       console.log('Auth data:', authData)
+
+      // Update user metadata with names
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: {
+          first_name: formData.firstName,
+          last_name: formData.lastName
+        }
+      })
+
+      if (updateError) {
+        console.warn('Warning: Could not update user metadata:', updateError)
+        // Don't throw - this isn't critical to signup flow
+      }
 
       // 2. Get the session token from the signup response
       const token = authData.session?.access_token
@@ -160,6 +179,38 @@ export default function SignUpPage() {
           )}
 
           <form onSubmit={handleSignUp} className="space-y-4">
+            {/* First Name and Last Name */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                  First Name
+                </label>
+                <input
+                  id="firstName"
+                  type="text"
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="John"
+                  disabled={loading}
+                />
+              </div>
+              <div>
+                <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                  Last Name
+                </label>
+                <input
+                  id="lastName"
+                  type="text"
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Doe"
+                  disabled={loading}
+                />
+              </div>
+            </div>
+
             {/* Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">

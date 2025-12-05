@@ -12,6 +12,8 @@ function SetPasswordForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -69,9 +71,13 @@ function SetPasswordForm() {
     setIsLoading(true)
 
     try {
-      // Update the user's password
+      // Update the user's password and metadata with names
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
+        data: {
+          first_name: firstName,
+          last_name: lastName
+        }
       })
 
       if (updateError) {
@@ -151,6 +157,32 @@ function SetPasswordForm() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Name Fields */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="firstName">First Name</Label>
+                <Input
+                  id="firstName"
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="John"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input
+                  id="lastName"
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Doe"
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
             <div>
               <Label htmlFor="password">Password</Label>
               <Input

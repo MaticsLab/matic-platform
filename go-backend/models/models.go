@@ -103,6 +103,8 @@ type WorkspaceMember struct {
 
 	// Virtual fields populated from joins
 	Email        string `gorm:"-" json:"email,omitempty"`         // From auth.users
+	FirstName    string `gorm:"-" json:"first_name,omitempty"`    // From auth.users metadata
+	LastName     string `gorm:"-" json:"last_name,omitempty"`     // From auth.users metadata
 	InviterEmail string `gorm:"-" json:"inviter_email,omitempty"` // From auth.users
 }
 

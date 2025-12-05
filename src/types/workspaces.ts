@@ -47,7 +47,7 @@ export interface WorkspaceUpdate {
 }
 
 // Member types
-export type MemberRole = 'admin' | 'editor' | 'viewer'
+export type MemberRole = 'owner' | 'admin' | 'editor' | 'viewer'
 export type MemberStatus = 'pending' | 'active' | 'declined' | 'expired'
 
 export interface WorkspaceMember {
@@ -70,6 +70,8 @@ export interface WorkspaceMember {
   added_at: string
   updated_at: string
   email?: string  // Populated from join with auth.users
+  first_name?: string  // Populated from auth.users metadata
+  last_name?: string  // Populated from auth.users metadata
 }
 
 export interface UpdateMemberInput {

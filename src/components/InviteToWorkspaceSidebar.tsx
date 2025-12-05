@@ -57,6 +57,7 @@ interface InviteToWorkspaceSidebarProps {
 }
 
 const ROLE_OPTIONS: { value: MemberRole; label: string; description: string }[] = [
+  { value: 'owner', label: 'Owner', description: 'Complete workspace ownership and control' },
   { value: 'admin', label: 'Admin', description: 'Full access to all settings and members' },
   { value: 'editor', label: 'Editor', description: 'Can edit data but not settings' },
   { value: 'viewer', label: 'Viewer', description: 'Can only view data, no editing' },
@@ -589,10 +590,19 @@ function MemberCard({ member, hubs, onUpdateRole, onUpdateHubAccess, onRemove }:
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-medium">
-            {member.email?.charAt(0).toUpperCase() || 'U'}
+            {(() => {
+              const firstInitial = member.first_name?.charAt(0).toUpperCase();
+              const lastInitial = member.last_name?.charAt(0).toUpperCase();
+              const initials = (firstInitial || '') + (lastInitial || '');
+              return initials || member.email?.charAt(0).toUpperCase() || 'U';
+            })()}
           </div>
           <div>
-            <p className="font-medium text-sm">{member.email || 'Unknown'}</p>
+            <p className="font-medium text-sm">
+              {member.first_name || member.last_name
+                ? `${member.first_name || ''} ${member.last_name || ''}`.trim()
+                : member.email || 'Unknown'}
+            </p>
             <p className="text-xs text-gray-500">
               Joined {new Date(member.added_at).toLocaleDateString()}
             </p>
