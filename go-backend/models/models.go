@@ -171,6 +171,11 @@ type Table struct {
 	AISettings       datatypes.JSON `gorm:"column:ai_settings;type:jsonb" json:"ai_settings,omitempty"` // AI suggestion settings
 	CreatedBy        uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`
 
+	// Share preview metadata (for forms/portals)
+	PreviewTitle       *string `json:"preview_title,omitempty"`
+	PreviewDescription *string `json:"preview_description,omitempty"`
+	PreviewImageURL    *string `json:"preview_image_url,omitempty"`
+
 	// Relationships
 	Fields []Field `gorm:"foreignKey:TableID;constraint:OnDelete:CASCADE" json:"columns"`
 	Rows   []Row   `gorm:"foreignKey:TableID;constraint:OnDelete:CASCADE" json:"rows"`

@@ -96,6 +96,10 @@ export interface Form {
   updated_at: string
   published_at?: string
   fields?: FormField[]
+  // Preview/Share metadata
+  preview_title?: string | null
+  preview_description?: string | null
+  preview_image_url?: string | null
 }
 
 export interface FormSubmission {
@@ -123,6 +127,9 @@ export interface FormCreate {
 }
 
 export interface FormUpdate {
+    preview_title?: string | null
+    preview_description?: string | null
+    preview_image_url?: string | null
   name?: string
   description?: string
   slug?: string

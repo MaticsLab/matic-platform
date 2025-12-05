@@ -92,23 +92,18 @@ export function ApplicationSidebar({
               const isComplete = isSectionComplete(index)
               const isCurrent = currentSection === index
               const isReviewSection = section.id === 'review'
-              // Allow access to any section that's been completed, is current, or is before current
-              const isAccessible = index <= currentSection || isComplete || sections.slice(0, index).every((_, i) => isSectionComplete(i))
 
               return (
                 <li key={section.id}>
                   <button
-                    onClick={() => isAccessible && onSectionChange(index)}
-                    disabled={!isAccessible}
+                    onClick={() => onSectionChange(index)}
                     className={cn(
                       "w-full text-left px-4 py-3 rounded-lg transition-all duration-200 flex items-center gap-3 group",
                       isCurrent
                         ? isExternal 
                           ? "bg-gray-100 text-gray-900" 
                           : "bg-blue-50 text-blue-700"
-                        : isAccessible
-                        ? "hover:bg-gray-50 text-gray-700"
-                        : "text-gray-400 cursor-not-allowed opacity-60"
+                        : "hover:bg-gray-50 text-gray-700"
                     )}
                     aria-current={isCurrent ? "step" : undefined}
                   >

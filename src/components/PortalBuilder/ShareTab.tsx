@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Copy, Check, Link2, ExternalLink, AlertCircle, Loader2, Sparkles, X, ChevronRight, Globe, ArrowLeft } from 'lucide-react'
+import { Copy, Check, Link2, ExternalLink, AlertCircle, Loader2, Sparkles, X, ChevronRight, Globe, ArrowLeft, Upload, Edit2 } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
+import { Textarea } from '@/ui-components/textarea'
 import { cn } from '@/lib/utils'
 import { formsClient, Form } from '@/lib/api/forms-client'
 import { workspacesClient, Workspace } from '@/lib/api/workspaces-client'
@@ -32,6 +33,11 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
   const [copiedLink, setCopiedLink] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [modalStep, setModalStep] = useState<ModalStep>(null)
+  const [previewTitle, setPreviewTitle] = useState('')
+  const [previewDescription, setPreviewDescription] = useState('')
+  const [previewImageUrl, setPreviewImageUrl] = useState('')
+  const [isEditingPreview, setIsEditingPreview] = useState(false)
+  const [isSavingPreview, setIsSavingPreview] = useState(false)
 
   // For local development, use window.location.origin
   const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
@@ -76,6 +82,9 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
       const formData = await formsClient.get(formId)
       setForm(formData)
       setCustomSlug(formData.custom_slug || '')
+      setPreviewTitle(formData.preview_title || formData.name)
+      setPreviewDescription(formData.preview_description || formData.description || '')
+      setPreviewImageUrl(formData.preview_image_url || '')
     } catch (err) {
       console.error('Failed to load form:', err)
     } finally {
@@ -231,6 +240,26 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     setCustomSlug(form?.custom_slug || '')
   }
 
+  const handleSavePreview = async () => {
+    if (!formId) return
+    setIsSavingPreview(true)
+    try {
+      const updatedForm = await formsClient.update(formId, {
+        preview_title: previewTitle || null,
+        preview_description: previewDescription || null,
+        preview_image_url: previewImageUrl || null
+      })
+      setForm(updatedForm)
+      setIsEditingPreview(false)
+      toast.success('Preview updated successfully')
+    } catch (err: any) {
+      console.error('Failed to update preview:', err)
+      toast.error(err?.message || 'Failed to update preview')
+    } finally {
+      setIsSavingPreview(false)
+    }
+  }
+
   if (!formId) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 text-center">
@@ -263,6 +292,146 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
           <span className="text-sm font-medium text-gray-700">
             {isPublished ? 'Published' : 'Draft'}
           </span>
+        </div>
+
+        {/* Share Preview Settings */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-gray-900">Change share preview</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Customize how your form appears when shared</p>
+            </div>
+            {!isEditingPreview && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditingPreview(true)}
+              >
+                <Edit2 className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+
+          <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+            {isEditingPreview ? (
+              <>
+                {/* Thumbnail Upload */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Thumbnail Image</Label>
+                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center space-y-3 hover:border-gray-300 transition-colors">
+                    {previewImageUrl ? (
+                      <div className="space-y-3">
+                        <img
+                          src={previewImageUrl}
+                          alt="Preview"
+                          className="mx-auto max-h-32 rounded-lg"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPreviewImageUrl('')}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="w-12 h-12 mx-auto rounded-full bg-gray-100 flex items-center justify-center">
+                          <Upload className="w-6 h-6 text-gray-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Add a thumbnail image</p>
+                          <p className="text-xs text-gray-500 mt-1">PNG or JPG (max. 2GB)</p>
+                        </div>
+                        <Input
+                          type="url"
+                          placeholder="Enter image URL..."
+                          value={previewImageUrl}
+                          onChange={(e) => setPreviewImageUrl(e.target.value)}
+                          className="max-w-md mx-auto"
+                        />
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Preview Title */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Preview Title</Label>
+                  <Input
+                    value={previewTitle}
+                    onChange={(e) => setPreviewTitle(e.target.value)}
+                    placeholder={form?.name || 'Form title'}
+                    maxLength={100}
+                  />
+                </div>
+
+                {/* Preview Description */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Preview Description</Label>
+                  <Textarea
+                    value={previewDescription}
+                    onChange={(e) => setPreviewDescription(e.target.value)}
+                    placeholder="A brief description of your form..."
+                    maxLength={200}
+                    rows={3}
+                  />
+                  <p className="text-xs text-gray-500">
+                    {previewDescription.length}/200 characters
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsEditingPreview(false)
+                      setPreviewTitle(form?.preview_title || form?.name || '')
+                      setPreviewDescription(form?.preview_description || form?.description || '')
+                      setPreviewImageUrl(form?.preview_image_url || '')
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSavePreview}
+                    disabled={isSavingPreview}
+                  >
+                    {isSavingPreview ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save'
+                    )}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Preview Display */}
+                {previewImageUrl && (
+                  <img
+                    src={previewImageUrl}
+                    alt="Preview"
+                    className="w-full h-32 object-cover rounded-lg"
+                  />
+                )}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-gray-900">
+                    {previewTitle || form?.name || 'Form Title'}
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    {previewDescription || form?.description || 'No description provided.'}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Main Link Section */}

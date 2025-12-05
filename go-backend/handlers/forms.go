@@ -32,6 +32,10 @@ type FormDTO struct {
 	Fields      []models.Field         `json:"fields,omitempty"`
 	CreatedAt   time.Time              `json:"created_at"`
 	UpdatedAt   time.Time              `json:"updated_at"`
+	// Preview/Share metadata
+	PreviewTitle       *string `json:"preview_title,omitempty"`
+	PreviewDescription *string `json:"preview_description,omitempty"`
+	PreviewImageURL    *string `json:"preview_image_url,omitempty"`
 }
 
 func ListForms(c *gin.Context) {
@@ -66,16 +70,19 @@ func ListForms(c *gin.Context) {
 		}
 
 		forms = append(forms, FormDTO{
-			ID:          table.ID,
-			WorkspaceID: table.WorkspaceID,
-			Name:        table.Name,
-			Slug:        table.Slug,
-			CustomSlug:  table.CustomSlug,
-			Description: table.Description,
-			Settings:    settings,
-			IsPublished: isPublished,
-			CreatedAt:   table.CreatedAt,
-			UpdatedAt:   table.UpdatedAt,
+			ID:                 table.ID,
+			WorkspaceID:        table.WorkspaceID,
+			Name:               table.Name,
+			Slug:               table.Slug,
+			CustomSlug:         table.CustomSlug,
+			Description:        table.Description,
+			Settings:           settings,
+			IsPublished:        isPublished,
+			CreatedAt:          table.CreatedAt,
+			UpdatedAt:          table.UpdatedAt,
+			PreviewTitle:       table.PreviewTitle,
+			PreviewDescription: table.PreviewDescription,
+			PreviewImageURL:    table.PreviewImageURL,
 		})
 	}
 
@@ -108,17 +115,20 @@ func GetForm(c *gin.Context) {
 	json.Unmarshal(table.Settings, &settings)
 
 	form := FormDTO{
-		ID:          table.ID,
-		WorkspaceID: table.WorkspaceID,
-		Name:        table.Name,
-		Slug:        table.Slug,
-		CustomSlug:  table.CustomSlug,
-		Description: table.Description,
-		Settings:    settings,
-		IsPublished: isPublished,
-		Fields:      fields,
-		CreatedAt:   table.CreatedAt,
-		UpdatedAt:   table.UpdatedAt,
+		ID:                 table.ID,
+		WorkspaceID:        table.WorkspaceID,
+		Name:               table.Name,
+		Slug:               table.Slug,
+		CustomSlug:         table.CustomSlug,
+		Description:        table.Description,
+		Settings:           settings,
+		IsPublished:        isPublished,
+		Fields:             fields,
+		CreatedAt:          table.CreatedAt,
+		UpdatedAt:          table.UpdatedAt,
+		PreviewTitle:       table.PreviewTitle,
+		PreviewDescription: table.PreviewDescription,
+		PreviewImageURL:    table.PreviewImageURL,
 	}
 
 	c.JSON(http.StatusOK, form)
@@ -165,17 +175,20 @@ found:
 	json.Unmarshal(table.Settings, &settings)
 
 	form := FormDTO{
-		ID:          table.ID,
-		WorkspaceID: table.WorkspaceID,
-		Name:        table.Name,
-		Slug:        table.Slug,
-		CustomSlug:  table.CustomSlug,
-		Description: table.Description,
-		Settings:    settings,
-		IsPublished: isPublished,
-		Fields:      fields,
-		CreatedAt:   table.CreatedAt,
-		UpdatedAt:   table.UpdatedAt,
+		ID:                 table.ID,
+		WorkspaceID:        table.WorkspaceID,
+		Name:               table.Name,
+		Slug:               table.Slug,
+		CustomSlug:         table.CustomSlug,
+		Description:        table.Description,
+		Settings:           settings,
+		IsPublished:        isPublished,
+		Fields:             fields,
+		CreatedAt:          table.CreatedAt,
+		UpdatedAt:          table.UpdatedAt,
+		PreviewTitle:       table.PreviewTitle,
+		PreviewDescription: table.PreviewDescription,
+		PreviewImageURL:    table.PreviewImageURL,
 	}
 
 	c.JSON(http.StatusOK, form)
@@ -255,15 +268,18 @@ func CreateForm(c *gin.Context) {
 	database.DB.Create(&view)
 
 	c.JSON(http.StatusCreated, FormDTO{
-		ID:          table.ID,
-		WorkspaceID: table.WorkspaceID,
-		Name:        table.Name,
-		Slug:        table.Slug,
-		Description: table.Description,
-		Settings:    input.Settings,
-		IsPublished: input.IsPublished,
-		CreatedAt:   table.CreatedAt,
-		UpdatedAt:   table.UpdatedAt,
+		ID:                 table.ID,
+		WorkspaceID:        table.WorkspaceID,
+		Name:               table.Name,
+		Slug:               table.Slug,
+		Description:        table.Description,
+		Settings:           input.Settings,
+		IsPublished:        input.IsPublished,
+		CreatedAt:          table.CreatedAt,
+		UpdatedAt:          table.UpdatedAt,
+		PreviewTitle:       table.PreviewTitle,
+		PreviewDescription: table.PreviewDescription,
+		PreviewImageURL:    table.PreviewImageURL,
 	})
 }
 
@@ -273,6 +289,10 @@ type UpdateFormInput struct {
 	Description *string                 `json:"description"`
 	Settings    *map[string]interface{} `json:"settings"`
 	IsPublished *bool                   `json:"is_published"`
+	// Preview/Share metadata
+	PreviewTitle       *string `json:"preview_title"`
+	PreviewDescription *string `json:"preview_description"`
+	PreviewImageURL    *string `json:"preview_image_url"`
 }
 
 func UpdateForm(c *gin.Context) {
@@ -301,6 +321,15 @@ func UpdateForm(c *gin.Context) {
 	}
 	if input.Settings != nil {
 		table.Settings = mapToJSON(*input.Settings)
+	}
+	if input.PreviewTitle != nil {
+		table.PreviewTitle = input.PreviewTitle
+	}
+	if input.PreviewDescription != nil {
+		table.PreviewDescription = input.PreviewDescription
+	}
+	if input.PreviewImageURL != nil {
+		table.PreviewImageURL = input.PreviewImageURL
 	}
 
 	if err := database.DB.Save(&table).Error; err != nil {
@@ -468,16 +497,19 @@ func UpdateFormCustomSlug(c *gin.Context) {
 	}
 
 	form := FormDTO{
-		ID:          table.ID,
-		WorkspaceID: table.WorkspaceID,
-		Name:        table.Name,
-		Slug:        table.Slug,
-		CustomSlug:  table.CustomSlug,
-		Description: table.Description,
-		Settings:    settings,
-		IsPublished: isPublished,
-		CreatedAt:   table.CreatedAt,
-		UpdatedAt:   table.UpdatedAt,
+		ID:                 table.ID,
+		WorkspaceID:        table.WorkspaceID,
+		Name:               table.Name,
+		Slug:               table.Slug,
+		CustomSlug:         table.CustomSlug,
+		Description:        table.Description,
+		Settings:           settings,
+		IsPublished:        isPublished,
+		CreatedAt:          table.CreatedAt,
+		UpdatedAt:          table.UpdatedAt,
+		PreviewTitle:       table.PreviewTitle,
+		PreviewDescription: table.PreviewDescription,
+		PreviewImageURL:    table.PreviewImageURL,
 	}
 
 	c.JSON(http.StatusOK, form)
@@ -544,17 +576,20 @@ found:
 
 	form := PortalFormDTO{
 		FormDTO: FormDTO{
-			ID:          table.ID,
-			WorkspaceID: table.WorkspaceID,
-			Name:        table.Name,
-			Slug:        table.Slug,
-			CustomSlug:  table.CustomSlug,
-			Description: table.Description,
-			Settings:    settings,
-			IsPublished: isPublished,
-			Fields:      fields,
-			CreatedAt:   table.CreatedAt,
-			UpdatedAt:   table.UpdatedAt,
+			ID:                 table.ID,
+			WorkspaceID:        table.WorkspaceID,
+			Name:               table.Name,
+			Slug:               table.Slug,
+			CustomSlug:         table.CustomSlug,
+			Description:        table.Description,
+			Settings:           settings,
+			IsPublished:        isPublished,
+			Fields:             fields,
+			CreatedAt:          table.CreatedAt,
+			UpdatedAt:          table.UpdatedAt,
+			PreviewTitle:       table.PreviewTitle,
+			PreviewDescription: table.PreviewDescription,
+			PreviewImageURL:    table.PreviewImageURL,
 		},
 		WorkspaceName:      workspace.Name,
 		WorkspaceSubdomain: workspace.CustomSubdomain,
