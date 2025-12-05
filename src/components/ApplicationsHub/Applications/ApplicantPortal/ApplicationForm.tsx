@@ -440,7 +440,15 @@ export function ApplicationForm({
         return val !== undefined && val !== '' && val !== null && (Array.isArray(val) ? val.length > 0 : true)
       })
       
-      return Math.round((filledFields.length / requiredFields.length) * 100)
+      const progress = Math.round((filledFields.length / requiredFields.length) * 100)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📊 Progress Calculation:', {
+          requiredFields: requiredFields.length,
+          filledFields: filledFields.length,
+          progress
+        })
+      }
+      return progress
     }
     // Simplified progress calculation for static form
     const staticFields = [
@@ -450,7 +458,11 @@ export function ApplicationForm({
       formData?.essays?.whyScholarship
     ]
     const filledCount = staticFields.filter(f => f && f !== '').length
-    return Math.round((filledCount / staticFields.length) * 100)
+    const progress = Math.round((filledCount / staticFields.length) * 100)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📊 Progress Calculation (static):', { filledCount, total: staticFields.length, progress })
+    }
+    return progress
   }, [formData, formDefinition?.fields, isDynamic])
 
   // Calculate completion for a specific section

@@ -41,6 +41,10 @@ export function ProgressHeader({
   formName = 'Application',
   isExternal = false
 }: ProgressHeaderProps) {
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🎯 ProgressHeader rendered with progress:', progress)
+  }
+  
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
