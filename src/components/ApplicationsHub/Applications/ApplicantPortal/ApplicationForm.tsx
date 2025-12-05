@@ -1535,7 +1535,7 @@ function ReviewSection({
                 {Object.entries(item).map(([k, v]) => (
                   <div key={k} className="flex gap-2">
                     <span className="text-gray-500 capitalize">{k.replace(/_/g, ' ')}:</span>
-                    <span className="text-gray-900">{String(v)}</span>
+                    <span className="text-gray-900 break-words">{String(v)}</span>
                   </div>
                 ))}
               </div>
@@ -1559,7 +1559,40 @@ function ReviewSection({
         return value.formatted_address
       }
       
-      return JSON.stringify(value)
+      const isFileLike = value.url || value.path || value.signedUrl || value.mime_type || value.name || value.fileName
+      if (isFileLike) {
+        const displayName = value.name || value.fileName || value.originalName || 'File'
+        const href = value.url || value.signedUrl || value.path
+        const size = typeof value.size === 'number' ? `${Math.round(value.size / 1024)} KB` : undefined
+
+        return (
+          <div className="space-y-1 text-sm">
+            <div className="font-medium text-gray-900 break-words">{displayName}</div>
+            {href && (
+              <a
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-600 hover:text-blue-700 break-all"
+              >
+                {href}
+              </a>
+            )}
+            {(value.mime_type || size) && (
+              <div className="text-xs text-gray-500 space-x-2">
+                {value.mime_type && <span>{value.mime_type}</span>}
+                {size && <span>• {size}</span>}
+              </div>
+            )}
+          </div>
+        )
+      }
+
+      return (
+        <pre className="text-xs bg-gray-50 text-gray-700 rounded-md p-3 border border-gray-200 overflow-x-auto whitespace-pre-wrap break-words">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      )
     }
     
     // For long text, truncate
@@ -1616,7 +1649,7 @@ function ReviewSection({
                 {section.fields.filter((f: any) => f.type !== 'group' && f.type !== 'divider' && f.type !== 'paragraph').map((field: any) => (
                   <div key={field.id} className="grid grid-cols-3 gap-4 text-sm">
                     <dt className="text-gray-600">{field.label}</dt>
-                    <dd className="col-span-2 text-gray-900">{renderFieldValue(field, formData[field.name])}</dd>
+                    <dd className="col-span-2 text-gray-900 break-words">{renderFieldValue(field, formData[field.name])}</dd>
                   </div>
                 ))}
               </div>

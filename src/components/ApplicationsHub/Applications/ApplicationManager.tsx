@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink, BarChart3, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search, Plus, Eye, MessageSquare, Workflow, UserPlus, X } from 'lucide-react'
+import { FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink, BarChart3, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search, Plus, Eye, MessageSquare, Workflow, UserPlus, X, Loader2 } from 'lucide-react'
 import { ReviewWorkspaceV2 } from './Review/v2'
 import { CommunicationsCenter } from './Communications/CommunicationsCenter'
 import { ReviewerManagement } from './Reviewers/ReviewerManagement'
@@ -19,6 +19,7 @@ import { workspacesClient } from '@/lib/api/workspaces-client'
 import { Form } from '@/types/forms'
 import { useParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface ApplicationManagerProps {
   workspaceId: string
@@ -73,6 +74,7 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
   const [copied, setCopied] = useState(false)
   const [showReviewersPanel, setShowReviewersPanel] = useState(false)
   const [showCommunicationsPanel, setShowCommunicationsPanel] = useState(false)
+  const [isSavingSlug, setIsSavingSlug] = useState(false)
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://www.maticsapp.com'
   const fullUrl = `${baseUrl}/apply/${applicationSlug}`
@@ -123,16 +125,27 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
 
   const handleSaveSlug = async () => {
     if (!form) return
+    
     // Basic validation: slugify
     const cleanSlug = tempSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-')
     
+    if (!cleanSlug || cleanSlug.trim() === '') {
+      toast.error('Please enter a valid URL slug')
+      return
+    }
+    
+    setIsSavingSlug(true)
     try {
       const updatedForm = await goClient.patch<Form>(`/forms/${form.id}`, { slug: cleanSlug })
       setForm(updatedForm)
       setApplicationSlug(updatedForm.slug)
       setIsEditingSlug(false)
-    } catch (error) {
+      toast.success('Application URL updated successfully')
+    } catch (error: any) {
       console.error('Failed to update slug:', error)
+      toast.error(error?.message || 'Failed to update URL. Please try again.')
+    } finally {
+      setIsSavingSlug(false)
     }
   }
 
@@ -313,7 +326,16 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
                     </Button>
                   </>
                 ) : (
-                  <Button onClick={handleSaveSlug}>Save</Button>
+                  <Button onClick={handleSaveSlug} disabled={isSavingSlug}>
+                    {isSavingSlug ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save'
+                    )}
+                  </Button>
                 )}
               </div>
             </div>

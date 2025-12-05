@@ -146,15 +146,6 @@ export function ProgressHeader({
         </div>
       </div>
 
-      {/* Keyboard shortcuts hint */}
-      <div className="hidden lg:block mt-2 text-xs text-gray-500">
-        <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-[10px]">Ctrl</kbd> +{' '}
-        <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-[10px]">S</kbd> to save •{' '}
-        <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-[10px]">Ctrl</kbd> +{' '}
-        <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-[10px]">→</kbd> next section •{' '}
-        <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-[10px]">Ctrl</kbd> +{' '}
-        <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-[10px]">←</kbd> previous section
-      </div>
     </header>
   )
 }
