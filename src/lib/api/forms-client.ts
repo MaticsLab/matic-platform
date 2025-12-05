@@ -61,7 +61,14 @@ export const formsClient = {
   create: (data: { workspace_id: string; name: string; description?: string }) => 
     goClient.post<Form>('/forms', data),
 
-  update: (id: string, data: { name?: string; description?: string; is_published?: boolean }) => 
+  update: (id: string, data: { 
+    name?: string; 
+    description?: string; 
+    is_published?: boolean;
+    preview_title?: string | null;
+    preview_description?: string | null;
+    preview_image_url?: string | null;
+  }) => 
     goClient.patch<Form>(`/forms/${id}`, data),
 
   updateStructure: (id: string, config: PortalConfig) => 
