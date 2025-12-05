@@ -123,7 +123,13 @@ function ResetPasswordForm() {
     setIsLoading(true)
 
     try {
-      const { error: updateError } = await supabase.auth.updateUser({
+      // Verify we have a valid session before updating
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('Session expired. Please request a new password reset.')
+      }
+
+      const { data, error: updateError } = await supabase.auth.updateUser({
         password: password,
       })
 
@@ -131,10 +137,18 @@ function ResetPasswordForm() {
         throw updateError
       }
 
+      if (!data.user) {
+        throw new Error('Password update failed. Please try again.')
+      }
+
+      console.log('Password updated successfully for:', data.user.email)
       setSuccess(true)
       
+      // Sign out after password reset so they can log in fresh
+      await supabase.auth.signOut()
+      
       setTimeout(() => {
-        router.push('/')
+        router.push('/login')
       }, 2000)
     } catch (err: unknown) {
       console.error('Password update error:', err)
@@ -165,7 +179,7 @@ function ResetPasswordForm() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Password Reset Successfully!</h1>
             <p className="text-gray-600 mb-4">
-              Redirecting you to your workspaces...
+              Redirecting you to sign in...
             </p>
             <Loader2 className="w-5 h-5 animate-spin text-blue-600 mx-auto" />
           </div>
