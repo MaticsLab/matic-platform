@@ -205,24 +205,6 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
               )}
             </Button>
           </form>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-gray-100" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-gray-400">Or continue with</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Button variant="outline" className="w-full" type="button">
-              Google
-            </Button>
-            <Button variant="outline" className="w-full" type="button">
-              Microsoft
-            </Button>
-          </div>
         </div>
 
         <p className="text-center mt-6 text-sm text-gray-500">
