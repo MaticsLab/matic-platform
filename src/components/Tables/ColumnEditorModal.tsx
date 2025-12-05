@@ -346,21 +346,6 @@ export function ColumnEditorModal({ isOpen, onClose, onSubmit, column, mode, wor
                       )}
                     </button>
                   )
-                })
-                      <div className={`p-2 rounded-lg ${isSelected ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className={`font-medium text-sm ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>
-                          {type.label}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">
-                          {type.description}
-                        </div>
-                      </div>
-                      {isSelected && <div className="w-2 h-2 rounded-full bg-blue-500" />}
-                    </button>
-                  )
                 })}
               </div>
             </div>
