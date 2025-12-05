@@ -13,7 +13,7 @@ import {
   UserCheck, UserPlus, ArrowUpRight, Inbox,
   GraduationCap, Search, Settings2, Type, Shield,
   Plus, Sparkles, Trash2, Wifi, WifiOff, Database,
-  Paperclip, Download, ExternalLink
+  Paperclip, Download, ExternalLink, Info
 } from 'lucide-react'
 import { 
   getCachedReviewWorkspace, 
@@ -39,6 +39,11 @@ import {
 } from '@/lib/api/workflows-client'
 import { Button } from '@/ui-components/button'
 import { Badge } from '@/ui-components/badge'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/ui-components/tooltip'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -5151,33 +5156,97 @@ function FocusReviewMode({
             {/* Rubric Categories */}
             {rubric && Array.isArray(rubric.categories) ? (
               <div className="space-y-6">
-                {rubric.categories.map((cat: any) => (
-                  <div key={cat.id} className="bg-gray-50 rounded-xl p-5 border border-gray-200">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{cat.name}</h3>
-                        {cat.description && (
-                          <p className="text-sm text-gray-500 mt-1">{cat.description}</p>
-                        )}
+                {rubric.categories.map((cat: any) => {
+                  const catMaxPoints = cat.max_points || cat.points || 20
+                  const guidelines = cat.guidelines || cat.levels || []
+                  const currentScore = scores[cat.id] || 0
+                  
+                  // Find the current guideline/level based on score
+                  const currentGuideline = guidelines.find((g: any) => {
+                    const minPts = g.min_points ?? g.minScore ?? 0
+                    const maxPts = g.max_points ?? g.maxScore ?? catMaxPoints
+                    return currentScore >= minPts && currentScore <= maxPts
+                  })
+                  
+                  return (
+                    <div key={cat.id} className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-gray-900">{cat.name}</h3>
+                            {guidelines.length > 0 && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button className="text-gray-400 hover:text-blue-500 transition-colors">
+                                    <Info className="w-4 h-4" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-sm p-0 bg-white border border-gray-200 shadow-lg rounded-lg overflow-hidden">
+                                  <div className="p-3 bg-gray-50 border-b border-gray-100">
+                                    <p className="font-semibold text-gray-900 text-sm">{cat.name} - Scoring Guide</p>
+                                  </div>
+                                  <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
+                                    {guidelines.map((g: any, idx: number) => {
+                                      const minPts = g.min_points ?? g.minScore ?? 0
+                                      const maxPts = g.max_points ?? g.maxScore ?? catMaxPoints
+                                      return (
+                                        <div 
+                                          key={g.id || idx} 
+                                          className={cn(
+                                            "p-2 rounded-lg text-sm",
+                                            currentScore >= minPts && currentScore <= maxPts
+                                              ? "bg-blue-50 border border-blue-200"
+                                              : "bg-gray-50"
+                                          )}
+                                        >
+                                          <div className="flex items-center justify-between mb-1">
+                                            <span className="font-medium text-gray-900">
+                                              {g.label || `Level ${guidelines.length - idx}`}
+                                            </span>
+                                            <span className="text-xs text-gray-500 font-mono">
+                                              {minPts === maxPts ? minPts : `${minPts}-${maxPts}`} pts
+                                            </span>
+                                          </div>
+                                          {g.description && (
+                                            <p className="text-xs text-gray-600">{g.description}</p>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                          {cat.description && (
+                            <p className="text-sm text-gray-500 mt-1">{cat.description}</p>
+                          )}
+                          {/* Show current level indicator */}
+                          {currentGuideline && currentGuideline.label && (
+                            <p className="text-xs text-blue-600 mt-1 font-medium">
+                              Current: {currentGuideline.label}
+                            </p>
+                          )}
+                        </div>
+                        <span className="font-bold text-gray-900 text-lg">
+                          {currentScore}<span className="text-gray-400">/{catMaxPoints}</span>
+                        </span>
                       </div>
-                      <span className="font-bold text-gray-900 text-lg">
-                        {scores[cat.id] || 0}<span className="text-gray-400">/{cat.points}</span>
-                      </span>
+                      <input
+                        type="range"
+                        min="0"
+                        max={catMaxPoints}
+                        value={currentScore}
+                        onChange={(e) => onScoreChange(cat.id, parseInt(e.target.value))}
+                        className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-blue-600"
+                      />
+                      <div className="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>0</span>
+                        <span>{catMaxPoints}</span>
+                      </div>
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max={cat.points}
-                      value={scores[cat.id] || 0}
-                      onChange={(e) => onScoreChange(cat.id, parseInt(e.target.value))}
-                      className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-blue-600"
-                    />
-                    <div className="flex justify-between text-xs text-gray-400 mt-1">
-                      <span>0</span>
-                      <span>{cat.points}</span>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
               <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
