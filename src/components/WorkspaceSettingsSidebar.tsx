@@ -13,6 +13,23 @@ import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { ScrollArea } from '@/ui-components/scroll-area'
 import { Separator } from '@/ui-components/separator'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui-components/select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/ui-components/alert-dialog'
 import { 
   Upload, 
   Palette, 
@@ -22,11 +39,14 @@ import {
   Settings,
   Building2,
   Image,
-  Type,
-  Loader2
+  Loader2,
+  Users,
+  Trash2,
+  UserX
 } from 'lucide-react'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
+import { adminClient, type AuthUser } from '@/lib/api/admin-client'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import type { Workspace } from '@/types/workspaces'
@@ -56,7 +76,7 @@ const COLOR_PRESETS = [
 
 const APP_DOMAIN = 'maticapp.com'
 
-type SettingsSection = 'general' | 'branding' | 'domain'
+type SettingsSection = 'general' | 'branding' | 'domain' | 'users'
 
 export function WorkspaceSettingsSidebar({ isOpen, onClose, workspace, onUpdate }: WorkspaceSettingsSidebarProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
@@ -69,6 +89,14 @@ export function WorkspaceSettingsSidebar({ isOpen, onClose, workspace, onUpdate 
   const [isLogoUploading, setIsLogoUploading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [subdomainError, setSubdomainError] = useState<string | null>(null)
+
+  // User management state
+  const [authUsers, setAuthUsers] = useState<AuthUser[]>([])
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<AuthUser | null>(null)
+  const [reassignToUserId, setReassignToUserId] = useState<string>('')
+  const [isDeletingUser, setIsDeletingUser] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   // Reset form when workspace changes
   useEffect(() => {
@@ -227,7 +255,56 @@ export function WorkspaceSettingsSidebar({ isOpen, onClose, workspace, onUpdate 
     { id: 'general' as SettingsSection, label: 'General', icon: Building2 },
     { id: 'branding' as SettingsSection, label: 'Branding', icon: Palette },
     { id: 'domain' as SettingsSection, label: 'Domain', icon: Globe },
+    { id: 'users' as SettingsSection, label: 'Users', icon: Users },
   ]
+
+  // Fetch current user and users list when Users section is active
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user?.id) {
+        setCurrentUserId(session.user.id)
+      }
+    }
+    fetchCurrentUser()
+  }, [])
+
+  useEffect(() => {
+    if (activeSection === 'users') {
+      loadUsers()
+    }
+  }, [activeSection])
+
+  const loadUsers = async () => {
+    setIsLoadingUsers(true)
+    try {
+      const users = await adminClient.listUsers()
+      setAuthUsers(users)
+    } catch (error: any) {
+      console.error('Error loading users:', error)
+      toast.error(error.message || 'Failed to load users')
+    } finally {
+      setIsLoadingUsers(false)
+    }
+  }
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return
+
+    setIsDeletingUser(true)
+    try {
+      await adminClient.deleteUser(userToDelete.id, reassignToUserId || undefined)
+      toast.success(`User ${userToDelete.email} deleted successfully`)
+      setUserToDelete(null)
+      setReassignToUserId('')
+      loadUsers()
+    } catch (error: any) {
+      console.error('Error deleting user:', error)
+      toast.error(error.message || 'Failed to delete user')
+    } finally {
+      setIsDeletingUser(false)
+    }
+  }
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
@@ -499,6 +576,77 @@ export function WorkspaceSettingsSidebar({ isOpen, onClose, workspace, onUpdate 
                   </div>
                 </>
               )}
+
+              {activeSection === 'users' && (
+                <>
+                  {/* Users Management */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-blue-500" />
+                        <Label className="text-sm font-medium">All Users</Label>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={loadUsers}
+                        disabled={isLoadingUsers}
+                      >
+                        {isLoadingUsers ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          'Refresh'
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-sm text-gray-500">
+                      Manage all users in the system. When deleting a user, you can optionally reassign their data to another user.
+                    </p>
+                    
+                    {isLoadingUsers ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                      </div>
+                    ) : authUsers.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        No users found
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {authUsers.map((user) => (
+                          <div
+                            key={user.id}
+                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-gray-900 truncate">
+                                {user.email}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Created: {new Date(user.created_at).toLocaleDateString()}
+                                {user.id === currentUserId && (
+                                  <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+                                    You
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setUserToDelete(user)}
+                              disabled={user.id === currentUserId}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </ScrollArea>
         </div>
@@ -514,6 +662,66 @@ export function WorkspaceSettingsSidebar({ isOpen, onClose, workspace, onUpdate 
           </Button>
         </div>
       </SheetContent>
+
+      {/* Delete User Confirmation Dialog */}
+      <AlertDialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <UserX className="w-5 h-5 text-red-500" />
+              Delete User
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                Are you sure you want to delete <strong>{userToDelete?.email}</strong>? This action cannot be undone.
+              </p>
+              <div className="space-y-2 pt-2">
+                <Label className="text-sm font-medium text-gray-700">
+                  Reassign data to (optional):
+                </Label>
+                <Select
+                  value={reassignToUserId}
+                  onValueChange={setReassignToUserId}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Leave data orphaned (or select user)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Don't reassign (delete all data)</SelectItem>
+                    {authUsers
+                      .filter((u) => u.id !== userToDelete?.id && u.id !== currentUserId)
+                      .map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.email}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500">
+                  If you select a user, their workspaces, tables, and other content will be reassigned to that user.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingUser}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              disabled={isDeletingUser}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              {isDeletingUser ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete User'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   )
 }
