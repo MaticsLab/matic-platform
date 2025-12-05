@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Copy, Check, Link2, ExternalLink, AlertCircle, Loader2, Sparkles, X, ChevronRight, Globe, ArrowLeft, Upload, Edit2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Copy, Check, Link2, ExternalLink, AlertCircle, Loader2, Sparkles, X, ChevronRight, Globe, ArrowLeft, Upload, Edit2, Image as ImageIcon } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
@@ -38,6 +38,9 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
   const [previewImageUrl, setPreviewImageUrl] = useState('')
   const [isEditingPreview, setIsEditingPreview] = useState(false)
   const [isSavingPreview, setIsSavingPreview] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // For local development, use window.location.origin
   const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
@@ -260,6 +263,66 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     }
   }
 
+  const handleFileUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file (PNG or JPG)')
+      return
+    }
+
+    if (file.size > 2 * 1024 * 1024 * 1024) { // 2GB
+      toast.error('File size must be less than 2GB')
+      return
+    }
+
+    setIsUploading(true)
+    try {
+      // Create FormData for file upload
+      const formData = new FormData()
+      formData.append('file', file)
+      
+      // Upload to your file storage service
+      // For now, we'll use a temporary URL - you should replace this with actual upload logic
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setPreviewImageUrl(reader.result as string)
+        toast.success('Image uploaded successfully')
+      }
+      reader.readAsDataURL(file)
+    } catch (err: any) {
+      console.error('Failed to upload image:', err)
+      toast.error('Failed to upload image')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length > 0) {
+      handleFileUpload(files[0])
+    }
+  }
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      handleFileUpload(files[0])
+    }
+  }
+
   if (!formId) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 text-center">
@@ -318,21 +381,46 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
                 {/* Thumbnail Upload */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Thumbnail Image</Label>
-                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center space-y-3 hover:border-gray-300 transition-colors">
-                    {previewImageUrl ? (
+                  <div 
+                    className={cn(
+                      "border-2 border-dashed rounded-lg p-6 text-center space-y-3 transition-all",
+                      isDragging 
+                        ? "border-blue-400 bg-blue-50" 
+                        : "border-gray-200 hover:border-gray-300"
+                    )}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                  >
+                    {isUploading ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                        <p className="text-sm text-gray-600">Uploading image...</p>
+                      </div>
+                    ) : previewImageUrl ? (
                       <div className="space-y-3">
                         <img
                           src={previewImageUrl}
                           alt="Preview"
-                          className="mx-auto max-h-32 rounded-lg"
+                          className="mx-auto max-h-32 rounded-lg object-contain"
                         />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setPreviewImageUrl('')}
-                        >
-                          Remove
-                        </Button>
+                        <div className="flex gap-2 justify-center">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            <ImageIcon className="w-4 h-4 mr-2" />
+                            Change
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPreviewImageUrl('')}
+                          >
+                            Remove
+                          </Button>
+                        </div>
                       </div>
                     ) : (
                       <>
@@ -343,15 +431,35 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
                           <p className="text-sm font-medium text-gray-900">Add a thumbnail image</p>
                           <p className="text-xs text-gray-500 mt-1">PNG or JPG (max. 2GB)</p>
                         </div>
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="mx-auto"
+                          >
+                            <Upload className="w-4 h-4 mr-2" />
+                            Upload Image
+                          </Button>
+                          <p className="text-xs text-gray-500">or drag and drop</p>
+                        </div>
                         <Input
                           type="url"
-                          placeholder="Enter image URL..."
+                          placeholder="Or enter image URL..."
                           value={previewImageUrl}
                           onChange={(e) => setPreviewImageUrl(e.target.value)}
                           className="max-w-md mx-auto"
                         />
                       </>
                     )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg"
+                      className="hidden"
+                      onChange={handleFileInputChange}
+                    />
                   </div>
                 </div>
 
