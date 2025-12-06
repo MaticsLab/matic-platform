@@ -84,7 +84,6 @@ function OptionEditor({
   onChange: (options: string[]) => void 
 }) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
-  const [bulkInput, setBulkInput] = useState('')
 
   const handleAddOption = () => {
     onChange([...options, `Option ${options.length + 1}`])
@@ -117,14 +116,6 @@ function OptionEditor({
 
   const handleDragEnd = () => {
     setDraggedIndex(null)
-  }
-
-  const handleBulkImport = () => {
-    const lines = bulkInput.split('\n').map(l => l.trim()).filter(Boolean)
-    if (lines.length > 0) {
-      onChange([...options, ...lines])
-      setBulkInput('')
-    }
   }
 
   return (
@@ -193,28 +184,6 @@ function OptionEditor({
           </Button>
         </div>
       )}
-
-      <div className="pt-3 border-t border-gray-100">
-        <Label className="text-xs text-gray-400 mb-1.5 block">Bulk add options (one per line)</Label>
-        <Textarea
-          value={bulkInput}
-          onChange={(e) => setBulkInput(e.target.value)}
-          placeholder="Option 1&#10;Option 2&#10;Option 3"
-          className="min-h-[80px] font-mono text-xs bg-gray-50/50 resize-none"
-        />
-        {bulkInput.trim() && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleBulkImport}
-            className="mt-2 w-full text-xs"
-          >
-            <Plus className="w-3 h-3 mr-1" />
-            Add {bulkInput.split('\n').filter(l => l.trim()).length} options
-          </Button>
-        )}
-      </div>
     </div>
   )
 }
