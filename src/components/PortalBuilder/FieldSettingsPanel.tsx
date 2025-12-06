@@ -238,6 +238,43 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
     handleConfigUpdate('logic', newLogic)
   }
 
+  const findFieldById = (fieldId?: string) => allFields.find((f) => f.id === fieldId)
+
+  const getFieldOptionsForLogic = (field?: Field) => {
+    if (!field) return []
+    if (Array.isArray(field.options) && field.options.length > 0) {
+      return field.options.map((option) => ({
+        label: typeof option === 'string' ? option : String(option),
+        value: typeof option === 'string' ? option : String(option)
+      }))
+    }
+
+    if (field.type === 'checkbox') {
+      return [
+        { label: 'Checked', value: 'true' },
+        { label: 'Unchecked', value: 'false' }
+      ]
+    }
+
+    if (field.type === 'rating') {
+      return Array.from({ length: 5 }).map((_, i) => {
+        const value = String(i + 1)
+        return { label: `${value} star${i === 0 ? '' : 's'}`, value }
+      })
+    }
+
+    return []
+  }
+
+  const getValueInputType = (field?: Field) => {
+    if (!field) return 'text'
+    if (field.type === 'number') return 'number'
+    if (field.type === 'date') return 'date'
+    if (field.type === 'datetime') return 'datetime-local'
+    if (field.type === 'time') return 'time'
+    return 'text'
+  }
+
   const isOptionField = ['select', 'multiselect', 'radio', 'rank'].includes(selectedField.type)
   const isLayoutField = ['divider', 'heading', 'paragraph', 'callout'].includes(selectedField.type)
   const isContainerField = ['group', 'repeater'].includes(selectedField.type)
@@ -687,73 +724,118 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
             </AccordionTrigger>
             <AccordionContent className="px-4 pb-4 pt-2">
               <div className="space-y-4">
-                {(selectedField.config?.logic || []).map((rule: LogicRule) => (
-                  <div key={rule.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Select 
-                        value={rule.action} 
-                        onValueChange={(v) => handleUpdateLogicRule(rule.id, { action: v as any })}
-                      >
-                        <SelectTrigger className="w-20 bg-white h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="show">Show</SelectItem>
-                          <SelectItem value="hide">Hide</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <span className="text-xs text-gray-500">this field if</span>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-6 w-6 p-0 ml-auto text-gray-400 hover:text-red-500"
-                        onClick={() => handleDeleteLogicRule(rule.id)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                    <div className="grid gap-2">
-                      <Select 
-                        value={rule.fieldId} 
-                        onValueChange={(v) => handleUpdateLogicRule(rule.id, { fieldId: v })}
-                      >
-                        <SelectTrigger className="bg-white h-8 text-xs">
-                          <SelectValue placeholder="Select field..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {allFields.filter(f => f.id !== selectedField.id).map(f => (
-                            <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <div className="flex gap-2">
+                {(selectedField.config?.logic || []).map((rule: LogicRule) => {
+                  const logicField = findFieldById(rule.fieldId)
+                  const logicFieldOptions = getFieldOptionsForLogic(logicField)
+                  const showValueControl = !['is_empty', 'is_not_empty'].includes(rule.operator)
+                  const valueInputType = getValueInputType(logicField)
+
+                  return (
+                    <div key={rule.id} className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2">
                         <Select 
-                          value={rule.operator} 
-                          onValueChange={(v) => handleUpdateLogicRule(rule.id, { operator: v as any })}
+                          value={rule.action} 
+                          onValueChange={(v) => handleUpdateLogicRule(rule.id, { action: v as any })}
                         >
-                          <SelectTrigger className="w-32 bg-white h-8 text-xs">
+                          <SelectTrigger className="w-24 bg-white h-8 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="equals">equals</SelectItem>
-                            <SelectItem value="not_equals">not equals</SelectItem>
-                            <SelectItem value="contains">contains</SelectItem>
-                            <SelectItem value="is_empty">is empty</SelectItem>
-                            <SelectItem value="is_not_empty">is not empty</SelectItem>
+                            <SelectItem value="show">Show</SelectItem>
+                            <SelectItem value="hide">Hide</SelectItem>
                           </SelectContent>
                         </Select>
-                        {!['is_empty', 'is_not_empty'].includes(rule.operator) && (
-                          <Input 
-                            value={rule.value}
-                            onChange={(e) => handleUpdateLogicRule(rule.id, { value: e.target.value })}
-                            className="flex-1 h-8 text-xs bg-white"
-                            placeholder="Value..."
-                          />
+                        <span className="text-xs text-gray-500">this field when</span>
+                        {logicField && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-gray-600 bg-gray-50 border border-gray-200 px-2 py-1 rounded-md">
+                            <span className="h-2 w-2 rounded-full bg-purple-500" />
+                            {logicField.label}
+                          </span>
                         )}
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-7 w-7 p-0 ml-auto text-gray-400 hover:text-red-500"
+                          onClick={() => handleDeleteLogicRule(rule.id)}
+                          aria-label="Remove condition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+
+                      <div className="grid gap-2">
+                        <div className="grid gap-1">
+                          <span className="text-[11px] uppercase font-semibold text-gray-500 tracking-wide">Field to evaluate</span>
+                          <Select 
+                            value={rule.fieldId} 
+                            onValueChange={(v) => handleUpdateLogicRule(rule.id, { fieldId: v, value: '' })}
+                          >
+                            <SelectTrigger className="bg-white h-9 text-xs">
+                              <SelectValue placeholder="Select field..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {allFields
+                                .filter(f => f.id !== selectedField.id && !['divider', 'heading', 'paragraph', 'callout', 'group', 'repeater'].includes(f.type))
+                                .map(f => (
+                                  <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-[1fr,1.2fr]">
+                          <div className="grid gap-1">
+                            <span className="text-[11px] uppercase font-semibold text-gray-500 tracking-wide">Operator</span>
+                            <Select 
+                              value={rule.operator} 
+                              onValueChange={(v) => handleUpdateLogicRule(rule.id, { operator: v as any, value: ['is_empty', 'is_not_empty'].includes(v as any) ? '' : rule.value })}
+                            >
+                              <SelectTrigger className="bg-white h-9 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="equals">equals</SelectItem>
+                                <SelectItem value="not_equals">not equals</SelectItem>
+                                <SelectItem value="contains">contains</SelectItem>
+                                <SelectItem value="is_empty">is empty</SelectItem>
+                                <SelectItem value="is_not_empty">is not empty</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {showValueControl && (
+                            <div className="grid gap-1">
+                              <span className="text-[11px] uppercase font-semibold text-gray-500 tracking-wide">Value</span>
+                              {logicFieldOptions.length > 0 ? (
+                                <Select
+                                  value={rule.value}
+                                  onValueChange={(v) => handleUpdateLogicRule(rule.id, { value: v })}
+                                >
+                                  <SelectTrigger className="bg-white h-9 text-xs">
+                                    <SelectValue placeholder="Choose a value from this field" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {logicFieldOptions.map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <Input 
+                                  type={valueInputType}
+                                  value={rule.value}
+                                  onChange={(e) => handleUpdateLogicRule(rule.id, { value: e.target.value })}
+                                  className="h-9 text-xs bg-white"
+                                  placeholder={logicField ? 'Enter a value for this field' : 'Value...'}
+                                />
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
                 
                 <Button 
                   variant="outline" 
