@@ -4,6 +4,13 @@ import { PublicPortal } from '@/components/ApplicationsHub/Applications/Applican
 const BASE_URL = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://maticsapp.com'
 
+// Ensure we always emit an absolute URL for social previews
+const toAbsoluteUrl = (url?: string | null) => {
+  if (!url) return undefined
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+  return `${APP_URL}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
 async function getFormMetadata(slug: string, subdomain?: string) {
   try {
     const endpoint = subdomain 
@@ -29,7 +36,7 @@ export async function generateMetadata(
   
   const title = form?.preview_title || form?.name || 'Application Form'
   const description = form?.preview_description || form?.description || 'Fill out this application form'
-  const image = form?.preview_image_url
+  const image = toAbsoluteUrl(form?.preview_image_url)
   
   // Build the share URL
   const shareUrl = subdomain 
@@ -59,7 +66,7 @@ export async function generateMetadata(
       card: 'summary_large_image',
       title,
       description,
-      ...(image && { image }),
+      ...(image && { images: [image] }),
     },
   }
 }
