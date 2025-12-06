@@ -1097,7 +1097,23 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId, rootDa
                             {index + 1}
                           </div>
                           <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 pt-6 group-hover:border-gray-300 transition-colors">
-                            <Label className="text-xs text-gray-500 uppercase font-semibold mb-2 block">Choice #{index + 1}</Label>
+                            <div className="flex items-center justify-between mb-2">
+                              <Label className="text-xs text-gray-500 uppercase font-semibold block">Choice #{index + 1}</Label>
+                              {currentValues[index] && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs text-gray-500 hover:text-gray-900"
+                                  onClick={() => {
+                                    const newValues = [...currentValues]
+                                    newValues[index] = ''
+                                    onChange(field.name, newValues)
+                                  }}
+                                >
+                                  Clear
+                                </Button>
+                              )}
+                            </div>
                             <Select 
                               value={String(currentValues[index] || '')} 
                               onValueChange={v => {
