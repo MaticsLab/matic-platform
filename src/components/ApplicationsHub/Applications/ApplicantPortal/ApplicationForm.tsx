@@ -686,6 +686,35 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
     }
   }
 
+  // Normalize mixed option shapes into consistent value/label pairs
+  const normalizeOptions = (rawOptions?: any[]) => {
+    return (rawOptions || [])
+      .map((opt) => {
+        if (opt === undefined || opt === null) return null
+
+        if (typeof opt === 'string' || typeof opt === 'number' || typeof opt === 'boolean') {
+          const str = String(opt).trim()
+          if (!str) return null
+          return { value: str, label: str }
+        }
+
+        if (typeof opt === 'object') {
+          const value = opt.value ?? opt.id ?? opt.key ?? opt.name ?? opt.label ?? opt.title ?? opt.text
+          const label = opt.label ?? opt.name ?? opt.title ?? opt.text ?? value
+
+          const valueStr = value !== undefined && value !== null ? String(value) : ''
+          const labelStr = label !== undefined && label !== null ? String(label) : valueStr
+          const finalValue = valueStr || labelStr
+
+          if (!finalValue.trim()) return null
+          return { value: finalValue, label: labelStr || finalValue }
+        }
+
+        return null
+      })
+      .filter(Boolean) as { value: string; label: string }[]
+  }
+
   return (
     <div className="grid grid-cols-12 gap-4 md:gap-6">
       {fields.map((rawField) => {
@@ -843,9 +872,9 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
             
             {field.type === 'select' && (() => {
               // Try config.items first (from backend), then field.options (from API)
-              let options = (config.items || []) as string[]
+              let options = normalizeOptions(config.items)
               if (options.length === 0 && field.options && field.options.length > 0) {
-                options = field.options.map((opt: any) => opt.value || opt.label)
+                options = normalizeOptions(field.options)
               }
               
               // Support fetching options from another field (e.g. repeater)
@@ -872,7 +901,7 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
                     .filter((val: string) => val && val.trim() !== '')
                   
                   if (dynamicOptions.length > 0) {
-                    options = dynamicOptions
+                    options = normalizeOptions(dynamicOptions)
                   }
                 }
               }
@@ -895,8 +924,8 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
                   </SelectTrigger>
                   <SelectContent>
                     {options && options.length > 0 ? (
-                      options.map((opt: string) => (
-                        <SelectItem key={opt} value={String(opt)}>{opt}</SelectItem>
+                      options.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                       ))
                     ) : (
                       <div className="px-2 py-1.5 text-sm text-gray-500">No options available</div>
@@ -950,9 +979,9 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
 
             {field.type === 'radio' && (() => {
                // Try config.items first (from backend), then field.options (from API)
-               let options = (config.items || []) as string[]
+               let options = normalizeOptions(config.items)
                if (options.length === 0 && field.options && field.options.length > 0) {
-                 options = field.options.map((opt: any) => opt.value || opt.label)
+                 options = normalizeOptions(field.options)
                }
                
                if (config.sourceField) {
@@ -978,17 +1007,17 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
                      .filter((val: string) => val && val.trim() !== '')
                    
                    if (dynamicOptions.length > 0) {
-                     options = dynamicOptions
+                     options = normalizeOptions(dynamicOptions)
                    }
                  }
                }
 
                return (
                  <RadioGroup value={data[field.name]} onValueChange={(val) => onChange(field.name, val)} className="space-y-2">
-                   {options.map((item: string) => (
-                     <div key={item} className="flex items-center space-x-2">
-                       <RadioGroupItem value={item} id={`${field.id}-${item}`} />
-                       <Label htmlFor={`${field.id}-${item}`} className="cursor-pointer">{item}</Label>
+                   {options.map((item) => (
+                     <div key={item.value} className="flex items-center space-x-2">
+                       <RadioGroupItem value={item.value} id={`${field.id}-${item.value}`} />
+                       <Label htmlFor={`${field.id}-${item.value}`} className="cursor-pointer">{item.label}</Label>
                      </div>
                    ))}
                  </RadioGroup>
@@ -996,7 +1025,7 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
             })()}
 
             {field.type === 'rank' && (() => {
-               let options = (config.items || []) as string[]
+              let options = normalizeOptions(config.items)
                
                if (config.sourceField) {
                  let sourceData = data[config.sourceField]
@@ -1024,13 +1053,13 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
                      .filter((val: string) => val && val.trim() !== '')
                    
                    if (dynamicOptions.length > 0) {
-                     options = dynamicOptions
+                     options = normalizeOptions(dynamicOptions)
                    }
                  }
                }
 
                const maxSelections = config.maxSelections || 3
-               const currentValues = (Array.isArray(data[field.name]) ? data[field.name] : []) as string[]
+               const currentValues = (Array.isArray(data[field.name]) ? data[field.name].map((v: any) => String(v)) : []) as string[]
 
                return (
                  <div className="space-y-6">
@@ -1057,13 +1086,13 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
                               </SelectTrigger>
                               <SelectContent>
                                 {options && options.length > 0 ? (
-                                  options.map((opt: string) => (
+                                  options.map((opt) => (
                                     <SelectItem 
-                                      key={opt} 
-                                      value={String(opt)} 
-                                      disabled={currentValues.includes(opt) && currentValues[index] !== opt}
+                                      key={opt.value} 
+                                      value={opt.value} 
+                                      disabled={currentValues.includes(opt.value) && currentValues[index] !== opt.value}
                                     >
-                                      {opt}
+                                      {opt.label}
                                     </SelectItem>
                                   ))
                                 ) : (
@@ -1082,29 +1111,29 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
             {/* Multiselect - Multiple options can be selected */}
             {field.type === 'multiselect' && (() => {
                // Try config.items first (from backend), then field.options (from API)
-               let options = (config.items || []) as string[]
+               let options = normalizeOptions(config.items)
                if (options.length === 0 && field.options && field.options.length > 0) {
-                 options = field.options.map((opt: any) => opt.value || opt.label)
+                 options = normalizeOptions(field.options)
                }
-               const currentValues = (Array.isArray(data[field.name]) ? data[field.name] : []) as string[]
+               const currentValues = (Array.isArray(data[field.name]) ? data[field.name] : []).map((v: any) => String(v)) as string[]
 
                return (
                  <div className="space-y-2">
-                   {options.map((opt: string) => (
-                     <div key={opt} className="flex items-center space-x-2 p-2 border rounded-md hover:bg-gray-50">
+                   {options.map((opt) => (
+                     <div key={opt.value} className="flex items-center space-x-2 p-2 border rounded-md hover:bg-gray-50">
                        <Checkbox 
-                         id={`${field.id}-${opt}`}
-                         checked={currentValues.includes(opt)}
+                         id={`${field.id}-${opt.value}`}
+                         checked={currentValues.includes(opt.value)}
                          onCheckedChange={(checked) => {
                            if (checked) {
-                             onChange(field.name, [...currentValues, opt])
+                             onChange(field.name, [...currentValues, opt.value])
                            } else {
-                             onChange(field.name, currentValues.filter(v => v !== opt))
+                             onChange(field.name, currentValues.filter(v => v !== opt.value))
                            }
                          }}
                        />
-                       <label htmlFor={`${field.id}-${opt}`} className="text-sm font-medium leading-none cursor-pointer flex-1">
-                         {opt}
+                       <label htmlFor={`${field.id}-${opt.value}`} className="text-sm font-medium leading-none cursor-pointer flex-1">
+                         {opt.label}
                        </label>
                      </div>
                    ))}
