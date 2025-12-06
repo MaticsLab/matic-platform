@@ -15,6 +15,7 @@ import { PortalConfig } from '@/types/portal'
 import { translateContent } from '@/lib/ai/translation'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/ui-components/dropdown-menu'
 
 interface SettingsModalProps {
   open: boolean
@@ -50,11 +51,26 @@ const LANGUAGES = [
 export function SettingsModal({ open, onOpenChange, config, onUpdate }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState('language')
   const [isTranslating, setIsTranslating] = useState(false)
+  const [lastLanguage, setLastLanguage] = useState<string | null>(null)
+
+  const toggleLanguage = async (langCode: string, enable: boolean) => {
+    if (enable) {
+      await handleAddLanguage(langCode)
+    } else {
+      // Prevent removing default language
+      if (langCode === (config.settings.language?.default || 'en')) {
+        toast.error('Cannot remove the default language')
+        return
+      }
+      handleRemoveLanguage(langCode)
+    }
+  }
 
   const handleAddLanguage = async (langCode: string) => {
     if (!langCode) return
     
     setIsTranslating(true)
+    setLastLanguage(langCode)
     try {
       // Collect all translatable text
       const contentToTranslate: Record<string, string> = {}
@@ -258,20 +274,73 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
                             ))}
                          </div>
 
+                         <div className="w-full max-w-md bg-white border border-gray-100 rounded-xl p-4 shadow-sm text-left space-y-2">
+                           <div className="flex items-center justify-between">
+                             <span className="text-sm text-gray-500">Selected languages</span>
+                             <span className="text-xs text-gray-400">Default cannot be removed</span>
+                           </div>
+                           <div className="text-sm font-medium text-gray-900 flex flex-wrap gap-2">
+                             {(config.settings.language?.supported || []).length === 0 ? 'None' : (config.settings.language?.supported || []).map(code => {
+                               const name = LANGUAGES.find(l => l.code === code)?.name || code
+                               const isDefault = code === (config.settings.language?.default || 'en')
+                               return (
+                                 <span key={code} className="px-2 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
+                                   {name}{isDefault ? ' (default)' : ''}
+                                 </span>
+                               )
+                             })}
+                           </div>
+                           <div className="flex items-center gap-2 text-sm text-gray-500">
+                             {isTranslating ? (
+                               <>
+                                 <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                                 <span>Translating {LANGUAGES.find(l => l.code === lastLanguage)?.name || lastLanguage}</span>
+                               </>
+                             ) : (
+                               <span>Translation status: Idle</span>
+                             )}
+                           </div>
+                         </div>
+
                          <div className="flex items-center justify-center gap-2">
-                            <Select onValueChange={handleAddLanguage} disabled={isTranslating}>
-                                <SelectTrigger className="w-auto min-w-[160px] bg-white border-gray-200 shadow-sm h-11 px-5 font-medium text-blue-600 hover:border-blue-300 transition-colors">
-                                    <div className="flex items-center gap-2">
-                                        <Plus className="w-5 h-5" />
-                                        <span>{isTranslating ? 'Translating...' : 'Add language'}</span>
-                                    </div>
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {LANGUAGES.filter(l => !(config.settings.language?.supported || []).includes(l.code)).map(l => (
-                                        <SelectItem key={l.code} value={l.code}>{l.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className="min-w-[180px] bg-white border-gray-200 shadow-sm h-11 px-5 font-medium text-blue-600 hover:border-blue-300 transition-colors"
+                                  disabled={isTranslating}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Plus className="w-5 h-5" />
+                                    <span>{isTranslating ? 'Translating…' : 'Select languages'}</span>
+                                  </div>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent className="w-56">
+                                {(() => {
+                                  const supported = config.settings.language?.supported || []
+                                  const defaultLang = config.settings.language?.default || 'en'
+                                  return LANGUAGES.map(l => {
+                                    const checked = supported.includes(l.code)
+                                    const isDefault = l.code === defaultLang
+                                  return (
+                                    <DropdownMenuCheckboxItem
+                                      key={l.code}
+                                      checked={checked}
+                                      disabled={isDefault || (isTranslating && !checked)}
+                                      onCheckedChange={async (val) => {
+                                        // val can be boolean or 'indeterminate'
+                                        const next = val === true
+                                        await toggleLanguage(l.code, next)
+                                      }}
+                                    >
+                                      {l.name}{isDefault ? ' (default)' : ''}
+                                    </DropdownMenuCheckboxItem>
+                                  )
+                                  })
+                                })()}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                          </div>
                       </div>
                     </div>

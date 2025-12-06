@@ -101,7 +101,6 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-gray-900 truncate">{section.title || variant.label}</p>
-              <p className="text-xs text-gray-500 truncate">{section.description || variant.description}</p>
             </div>
           </div>
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5">
