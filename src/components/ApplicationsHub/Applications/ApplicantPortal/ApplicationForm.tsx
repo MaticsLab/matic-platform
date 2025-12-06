@@ -612,6 +612,7 @@ export function ApplicationForm({
                         data={formData}
                         onChange={(field, value) => updateField(activeTab, field, value)}
                         formId={formDefinition?.id}
+                        rootData={formData}
                       />
                     ) : (
                       <>
@@ -658,7 +659,7 @@ export function ApplicationForm({
 
 // Section Components
 
-function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fields: any[], allFields?: any[], data: any, onChange: (field: string, value: any) => void, formId?: string }) {
+function DynamicSection({ fields, allFields = [], data, onChange, formId, rootData }: { fields: any[], allFields?: any[], data: any, onChange: (field: string, value: any) => void, formId?: string, rootData?: any }) {
   // Helper to get column span class based on width
   const getColSpanClass = (width?: string) => {
     // Normalize the width value
@@ -715,6 +716,8 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
       .filter(Boolean) as { value: string; label: string }[]
   }
 
+  const effectiveRoot = rootData || data
+
   return (
     <div className="grid grid-cols-12 gap-4 md:gap-6">
       {fields.map((rawField) => {
@@ -731,12 +734,13 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
              <div key={field.id} className={cn("border border-gray-200 p-6 rounded-xl space-y-4 bg-gray-50/30", getColSpanClass(groupWidth))}>
                <h3 className="font-semibold text-lg text-gray-900">{field.label}</h3>
                {config.description && <p className="text-sm text-gray-500">{config.description}</p>}
-               <DynamicSection 
+                 <DynamicSection 
                  fields={children} 
                  allFields={allFields}
                  data={data} 
                  onChange={onChange}
                  formId={formId}
+                 rootData={rootData || data}
                />
              </div>
            )
@@ -795,6 +799,7 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
                          onChange(field.name, newItems)
                        }}
                        formId={formId}
+                       rootData={rootData || data}
                      />
                    </CardContent>
                  </Card>
@@ -880,12 +885,18 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
               // Support fetching options from another field (e.g. repeater)
               if (config.sourceField) {
                 let sourceData = data[config.sourceField]
+                if (!sourceData && effectiveRoot) {
+                  sourceData = effectiveRoot[config.sourceField]
+                }
                 
                 // If not found by key, try to find field by ID and use its name
                 if (!sourceData && allFields) {
                    const sourceFieldDef = allFields.find((f: any) => f.id === config.sourceField)
                    if (sourceFieldDef) {
                        sourceData = data[sourceFieldDef.name || sourceFieldDef.label]
+                       if (!sourceData && effectiveRoot) {
+                         sourceData = effectiveRoot[sourceFieldDef.name || sourceFieldDef.label]
+                       }
                    }
                 }
 
@@ -986,12 +997,18 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
                
                if (config.sourceField) {
                  let sourceData = data[config.sourceField]
+                 if (!sourceData && effectiveRoot) {
+                   sourceData = effectiveRoot[config.sourceField]
+                 }
                  
                  // If not found by key, try to find field by ID and use its name
                  if (!sourceData && allFields) {
                     const sourceFieldDef = allFields.find((f: any) => f.id === config.sourceField)
                     if (sourceFieldDef) {
                         sourceData = data[sourceFieldDef.name || sourceFieldDef.label]
+                        if (!sourceData && effectiveRoot) {
+                          sourceData = effectiveRoot[sourceFieldDef.name || sourceFieldDef.label]
+                        }
                     }
                  }
 
@@ -1029,12 +1046,18 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId }: { fi
                
                if (config.sourceField) {
                  let sourceData = data[config.sourceField]
+                 if (!sourceData && effectiveRoot) {
+                   sourceData = effectiveRoot[config.sourceField]
+                 }
                  
                  // If not found by key, try to find field by ID and use its name
                  if (!sourceData && allFields) {
                     const sourceFieldDef = allFields.find((f: any) => f.id === config.sourceField)
                     if (sourceFieldDef) {
                         sourceData = data[sourceFieldDef.name || sourceFieldDef.label]
+                        if (!sourceData && effectiveRoot) {
+                          sourceData = effectiveRoot[sourceFieldDef.name || sourceFieldDef.label]
+                        }
                     }
                  }
 
