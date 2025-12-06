@@ -737,10 +737,10 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                           value={rule.action} 
                           onValueChange={(v) => handleUpdateLogicRule(rule.id, { action: v as any })}
                         >
-                          <SelectTrigger className="w-24 bg-white h-8 text-xs">
+                          <SelectTrigger className="w-24 bg-white h-9 text-xs border-gray-300 shadow-sm">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent position="popper" align="start" className="w-[var(--radix-select-trigger-width)]">
                             <SelectItem value="show">Show</SelectItem>
                             <SelectItem value="hide">Hide</SelectItem>
                           </SelectContent>
@@ -770,10 +770,10 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                             value={rule.fieldId} 
                             onValueChange={(v) => handleUpdateLogicRule(rule.id, { fieldId: v, value: '' })}
                           >
-                            <SelectTrigger className="bg-white h-9 text-xs">
+                            <SelectTrigger className="bg-white h-10 text-sm w-full border-gray-300 shadow-sm">
                               <SelectValue placeholder="Select field..." />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent position="popper" align="start" className="w-[var(--radix-select-trigger-width)] max-h-64 overflow-auto">
                               {allFields
                                 .filter(f => f.id !== selectedField.id && !['divider', 'heading', 'paragraph', 'callout', 'group', 'repeater'].includes(f.type))
                                 .map(f => (
@@ -790,10 +790,10 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                               value={rule.operator} 
                               onValueChange={(v) => handleUpdateLogicRule(rule.id, { operator: v as any, value: ['is_empty', 'is_not_empty'].includes(v as any) ? '' : rule.value })}
                             >
-                              <SelectTrigger className="bg-white h-9 text-xs">
+                              <SelectTrigger className="bg-white h-10 text-sm border-gray-300 shadow-sm">
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent position="popper" align="start" className="w-[var(--radix-select-trigger-width)]">
                                 <SelectItem value="equals">equals</SelectItem>
                                 <SelectItem value="not_equals">not equals</SelectItem>
                                 <SelectItem value="contains">contains</SelectItem>
@@ -811,10 +811,10 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                                   value={rule.value}
                                   onValueChange={(v) => handleUpdateLogicRule(rule.id, { value: v })}
                                 >
-                                  <SelectTrigger className="bg-white h-9 text-xs">
+                                  <SelectTrigger className="bg-white h-10 text-sm border-gray-300 shadow-sm">
                                     <SelectValue placeholder="Choose a value from this field" />
                                   </SelectTrigger>
-                                  <SelectContent>
+                                  <SelectContent position="popper" align="start" className="w-[var(--radix-select-trigger-width)] max-h-60 overflow-auto">
                                     {logicFieldOptions.map((option) => (
                                       <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                                     ))}
@@ -825,7 +825,7 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                                   type={valueInputType}
                                   value={rule.value}
                                   onChange={(e) => handleUpdateLogicRule(rule.id, { value: e.target.value })}
-                                  className="h-9 text-xs bg-white"
+                                  className="h-10 text-sm bg-white border-gray-300 shadow-sm"
                                   placeholder={logicField ? 'Enter a value for this field' : 'Value...'}
                                 />
                               )}
