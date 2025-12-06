@@ -28,6 +28,7 @@ export type Section = {
   id: string
   title: string
   description?: string
+  sectionType?: 'form' | 'cover' | 'ending' | 'review'
   fields: Field[]
 }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { GripVertical, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
+import { GripVertical, Trash2, ChevronUp, ChevronDown, BookOpen, CheckCircle, Eye, ScrollText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Section } from '@/types/portal'
@@ -16,6 +16,13 @@ interface SectionListProps {
 
 export function SectionList({ sections, activeId, onSelect, onReorder, onDelete }: SectionListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+
+  const variants = {
+    form: { label: 'Form', description: 'Page to collect user input', icon: ScrollText, bg: 'bg-amber-50', fg: 'text-amber-700', border: 'border-amber-100' },
+    cover: { label: 'Cover', description: 'Welcome users to your form', icon: BookOpen, bg: 'bg-blue-50', fg: 'text-blue-700', border: 'border-blue-100' },
+    ending: { label: 'Ending', description: 'Show a thank you page or redirect users', icon: CheckCircle, bg: 'bg-rose-50', fg: 'text-rose-700', border: 'border-rose-100' },
+    review: { label: 'Review', description: 'Let users review their submission', icon: Eye, bg: 'bg-purple-50', fg: 'text-purple-700', border: 'border-purple-100' },
+  } as const
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index)
@@ -65,7 +72,11 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
 
   return (
     <div className="space-y-1 p-2">
-      {sections.map((section, index) => (
+      {sections.map((section, index) => {
+        const variant = variants[(section as any).sectionType || 'form']
+        const Icon = variant.icon
+
+        return (
         <div
           key={section.id}
           draggable
@@ -82,7 +93,15 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
           )}
         >
           <GripVertical className="w-4 h-4 text-gray-400 cursor-grab flex-shrink-0" />
-          <span className="flex-1 truncate">{section.title}</span>
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <div className={cn("h-10 w-10 flex items-center justify-center rounded-lg border flex-shrink-0", variant.bg, variant.fg, variant.border)}>
+              <Icon className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-900 truncate">{section.title || variant.label}</p>
+              <p className="text-xs text-gray-500 truncate">{section.description || variant.description}</p>
+            </div>
+          </div>
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5">
             <Button 
               variant="ghost" 
@@ -117,7 +136,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
             </Button>
           </div>
         </div>
-      ))}
+      )})}
     </div>
   )
 }

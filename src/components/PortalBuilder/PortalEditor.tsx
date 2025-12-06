@@ -5,7 +5,8 @@ import { DndProvider } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { 
   Layout, Settings, FileText, Plus, Save, Eye, 
-  ChevronLeft, Monitor, Smartphone, Palette, Lock, Loader2, X, CheckCircle2
+  ChevronLeft, Monitor, Smartphone, Palette, Lock, Loader2, X, CheckCircle2,
+  BookOpen, CheckCircle, Eye as EyeIcon, ScrollText
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -24,12 +25,19 @@ import { formsClient } from '@/lib/api/forms-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { toast } from 'sonner'
 import { SettingsModal } from './SettingsModal'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui-components/dropdown-menu'
 
 const INITIAL_CONFIG: PortalConfig = {
   sections: [
     {
       id: 'personal',
       title: 'Personal Information',
+      sectionType: 'form',
       fields: [
         { id: '1', type: 'text', label: 'Full Name', required: true, width: 'full' },
         { id: '2', type: 'email', label: 'Email Address', required: true, width: 'full' }
@@ -302,12 +310,55 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     handleUpdateSection(activeSection.id, { fields: updatedFields })
   }
 
-  const handleAddSection = () => {
-    const newSection: Section = {
+  const createSectionTemplate = (type: Section['sectionType']): Section => {
+    if (type === 'cover') {
+      return {
+        id: Date.now().toString(),
+        title: 'Cover',
+        sectionType: 'cover',
+        description: 'Welcome users to your form',
+        fields: [
+          { id: `${Date.now()}-h`, type: 'heading', label: 'Welcome', required: false, width: 'full' },
+          { id: `${Date.now()}-p`, type: 'paragraph', label: 'Use this space to greet applicants and explain what to expect.', required: false, width: 'full', config: { content: '' } }
+        ]
+      }
+    }
+    if (type === 'ending') {
+      return {
+        id: Date.now().toString(),
+        title: 'Ending',
+        sectionType: 'ending',
+        description: 'Show a thank you page or redirect users',
+        fields: [
+          { id: `${Date.now()}-h`, type: 'heading', label: 'Thank you!', required: false, width: 'full' },
+          { id: `${Date.now()}-p`, type: 'paragraph', label: 'We received your submission. You can add next steps or a redirect.', required: false, width: 'full', config: { content: '' } }
+        ]
+      }
+    }
+    if (type === 'review') {
+      return {
+        id: Date.now().toString(),
+        title: 'Review',
+        sectionType: 'review',
+        description: 'Let users review their submission',
+        fields: [
+          { id: `${Date.now()}-h`, type: 'heading', label: 'Review your answers', required: false, width: 'full' },
+          { id: `${Date.now()}-p`, type: 'paragraph', label: 'Double-check your responses before submitting.', required: false, width: 'full', config: { content: '' } }
+        ]
+      }
+    }
+
+    return {
       id: Date.now().toString(),
-      title: 'New Section',
+      title: 'Form',
+      sectionType: 'form',
+      description: 'Page to collect user input',
       fields: []
     }
+  }
+
+  const handleAddSection = (type: Section['sectionType']) => {
+    const newSection = createSectionTemplate(type)
     setConfig(prev => ({ ...prev, sections: [...prev.sections, newSection] }))
     setActiveSectionId(newSection.id)
     setHasUnsavedChanges(true)
@@ -531,9 +582,51 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             <TabsContent value="structure" className="flex-1 data-[state=active]:flex flex-col mt-0 min-h-0 overflow-hidden">
               <div className="p-4 pb-2 flex justify-between items-center">
                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sections</span>
-                <Button variant="ghost" size="sm" onClick={handleAddSection}>
-                  <Plus className="w-4 h-4" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem className="flex items-start gap-3" onClick={() => handleAddSection('form')}>
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600 border border-amber-100">
+                        <ScrollText className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Form</p>
+                        <p className="text-xs text-gray-500">Page to collect user input</p>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="flex items-start gap-3" onClick={() => handleAddSection('cover')}>
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
+                        <BookOpen className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Cover</p>
+                        <p className="text-xs text-gray-500">Welcome users to your form</p>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="flex items-start gap-3" onClick={() => handleAddSection('ending')}>
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-50 text-rose-600 border border-rose-100">
+                        <CheckCircle className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Ending</p>
+                        <p className="text-xs text-gray-500">Show a thank you page or redirect</p>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="flex items-start gap-3" onClick={() => handleAddSection('review')}>
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-50 text-purple-600 border border-purple-100">
+                        <EyeIcon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Review</p>
+                        <p className="text-xs text-gray-500">Let users review their submission</p>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               <ScrollArea className="flex-1">
                 <SectionList 
