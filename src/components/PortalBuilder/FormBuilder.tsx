@@ -286,6 +286,7 @@ function FieldEditor({
   const labelInputRef = useRef<HTMLInputElement>(null)
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+  const wasSelectedRef = useRef<boolean>(false)
   
   const isLayoutField = ['divider', 'heading', 'paragraph', 'callout'].includes(field.type)
   const isContainerField = ['group', 'repeater'].includes(field.type)
@@ -299,6 +300,13 @@ function FieldEditor({
       labelInputRef.current.select()
     }
   }, [isEditingLabel])
+
+  useEffect(() => {
+    if (!isLayoutField && isSelected && !wasSelectedRef.current) {
+      setIsEditingLabel(true)
+    }
+    wasSelectedRef.current = isSelected
+  }, [isSelected, isLayoutField])
 
   useEffect(() => {
     if (isEditingDescription && descriptionInputRef.current) {
