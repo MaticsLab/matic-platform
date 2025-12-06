@@ -53,6 +53,9 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
   const [isTranslating, setIsTranslating] = useState(false)
   const [lastLanguage, setLastLanguage] = useState<string | null>(null)
 
+  const defaultLanguage = config.settings.language?.default || 'en'
+  const supportedLanguages = config.settings.language?.supported || []
+
   const toggleLanguage = async (langCode: string, enable: boolean) => {
     if (enable) {
       await handleAddLanguage(langCode)
@@ -74,32 +77,36 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
     try {
       // Collect all translatable text
       const contentToTranslate: Record<string, string> = {}
-      
+
+      const collectField = (field: any) => {
+        contentToTranslate[`field_${field.id}_label`] = field.label
+        if (field.placeholder) {
+          contentToTranslate[`field_${field.id}_placeholder`] = field.placeholder
+        }
+        if (Array.isArray(field.options)) {
+          field.options.forEach((opt: string, idx: number) => {
+            contentToTranslate[`field_${field.id}_opt_${idx}`] = opt
+          })
+        }
+        if (Array.isArray(field.children)) {
+          field.children.forEach((child: any) => collectField(child))
+        }
+      }
+
       // Portal settings
       contentToTranslate['portal_name'] = config.settings.name
       
-      // Sections and Fields
+      // Sections and Fields (recursive for children)
       config.sections.forEach(section => {
         contentToTranslate[`section_${section.id}_title`] = section.title
         if (section.description) {
           contentToTranslate[`section_${section.id}_desc`] = section.description
         }
-        
-        section.fields.forEach(field => {
-          contentToTranslate[`field_${field.id}_label`] = field.label
-          if (field.placeholder) {
-            contentToTranslate[`field_${field.id}_placeholder`] = field.placeholder
-          }
-          // Add options for select/radio etc
-          if (field.options) {
-             field.options.forEach((opt, idx) => {
-                 contentToTranslate[`field_${field.id}_opt_${idx}`] = opt
-             })
-          }
-        })
+        section.fields.forEach(collectField)
       })
 
       // Call AI
+      toast.success(`Starting translation to ${LANGUAGES.find(l => l.code === langCode)?.name || langCode}`)
       const translations = await translateContent(contentToTranslate, LANGUAGES.find(l => l.code === langCode)?.name || langCode)
       
       // Update config
@@ -109,7 +116,7 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
         [langCode]: translations
       }
       
-      const currentSupported = config.settings.language?.supported || []
+      const currentSupported = supportedLanguages
       
       onUpdate({
         settings: {
@@ -124,7 +131,7 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
         translations: newTranslations
       })
       
-      toast.success(`Added ${LANGUAGES.find(l => l.code === langCode)?.name} translation`)
+      toast.success(`Added ${LANGUAGES.find(l => l.code === langCode)?.name || langCode} translation`)
     } catch (error) {
       console.error(error)
       toast.error('Failed to translate content')
@@ -137,7 +144,7 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
       const currentSupported = config.settings.language?.supported || []
       const newSupported = currentSupported.filter(c => c !== langCode)
       
-      const currentTranslations = { ...config.translations }
+      const currentTranslations = { ...(config.translations || {}) }
       delete currentTranslations[langCode]
       
       onUpdate({
