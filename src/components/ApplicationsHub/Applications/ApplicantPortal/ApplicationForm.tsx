@@ -50,6 +50,9 @@ const CALLOUT_ICONS: Record<string, any> = {
   help: HelpCircle,
 }
 
+// Consistent hover/highlight styling for all dropdown items
+const SELECT_ITEM_HOVER = 'data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900'
+
 // Types
 type TabId = string
 
@@ -936,7 +939,7 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId, rootDa
                   <SelectContent>
                     {options && options.length > 0 ? (
                       options.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        <SelectItem key={opt.value} value={opt.value} className={SELECT_ITEM_HOVER}>{opt.label}</SelectItem>
                       ))
                     ) : (
                       <div className="px-2 py-1.5 text-sm text-gray-500">No options available</div>
@@ -1134,6 +1137,7 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId, rootDa
                                       key={opt.value} 
                                       value={opt.value} 
                                       disabled={currentValues.includes(opt.value) && currentValues[index] !== opt.value}
+                                      className={SELECT_ITEM_HOVER}
                                     >
                                       {opt.label}
                                     </SelectItem>
@@ -1995,11 +1999,11 @@ function PersonalSection({ data, onChange }: { data: ApplicationState['personal'
               <SelectValue placeholder="Select pronouns" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="she/her">She/Her</SelectItem>
-              <SelectItem value="he/him">He/Him</SelectItem>
-              <SelectItem value="they/them">They/Them</SelectItem>
-              <SelectItem value="other">Other</SelectItem>
-              <SelectItem value="prefer_not_to_say">Prefer not to say</SelectItem>
+              <SelectItem value="she/her" className={SELECT_ITEM_HOVER}>She/Her</SelectItem>
+              <SelectItem value="he/him" className={SELECT_ITEM_HOVER}>He/Him</SelectItem>
+              <SelectItem value="they/them" className={SELECT_ITEM_HOVER}>They/Them</SelectItem>
+              <SelectItem value="other" className={SELECT_ITEM_HOVER}>Other</SelectItem>
+              <SelectItem value="prefer_not_to_say" className={SELECT_ITEM_HOVER}>Prefer not to say</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -2253,7 +2257,7 @@ function AcademicSection({ data, onChange }: { data: ApplicationState['academic'
                   </SelectTrigger>
                   <SelectContent>
                     {data.universities.filter(u => u.name).map(u => (
-                      <SelectItem key={u.id} value={u.name} disabled={data.top3.includes(u.name) && data.top3[rank] !== u.name}>
+                      <SelectItem key={u.id} value={u.name} disabled={data.top3.includes(u.name) && data.top3[rank] !== u.name} className={SELECT_ITEM_HOVER}>
                         {u.name}
                       </SelectItem>
                     ))}
@@ -2376,9 +2380,9 @@ function FinancialSection({ data, top3Universities, onChange }: { data: Applicat
                 <Select value={data.pellEligible} onValueChange={v => onChange('pellEligible', v)}>
                   <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="yes">Yes</SelectItem>
-                    <SelectItem value="no">No</SelectItem>
-                    <SelectItem value="unsure">Not sure yet</SelectItem>
+                    <SelectItem value="yes" className={SELECT_ITEM_HOVER}>Yes</SelectItem>
+                    <SelectItem value="no" className={SELECT_ITEM_HOVER}>No</SelectItem>
+                    <SelectItem value="unsure" className={SELECT_ITEM_HOVER}>Not sure yet</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2607,12 +2611,12 @@ function ActivitiesSection({ data, onChange }: { data: ApplicationState['activit
                     }}>
                       <SelectTrigger className="h-11"><SelectValue placeholder="Select type" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="club">School Club / Organization</SelectItem>
-                        <SelectItem value="sport">Athletics / Sports Team</SelectItem>
-                        <SelectItem value="arts">Arts / Music / Theater</SelectItem>
-                        <SelectItem value="volunteer">Community Service / Volunteer</SelectItem>
-                        <SelectItem value="work">Employment / Internship</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
+                        <SelectItem value="club" className={SELECT_ITEM_HOVER}>School Club / Organization</SelectItem>
+                        <SelectItem value="sport" className={SELECT_ITEM_HOVER}>Athletics / Sports Team</SelectItem>
+                        <SelectItem value="arts" className={SELECT_ITEM_HOVER}>Arts / Music / Theater</SelectItem>
+                        <SelectItem value="volunteer" className={SELECT_ITEM_HOVER}>Community Service / Volunteer</SelectItem>
+                        <SelectItem value="work" className={SELECT_ITEM_HOVER}>Employment / Internship</SelectItem>
+                        <SelectItem value="other" className={SELECT_ITEM_HOVER}>Other</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
