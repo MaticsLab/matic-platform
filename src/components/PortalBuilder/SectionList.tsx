@@ -23,6 +23,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
     ending: { label: 'Ending', description: 'Show a thank you page or redirect users', icon: CheckCircle, bg: 'bg-rose-50', fg: 'text-rose-700', border: 'border-rose-100' },
     review: { label: 'Review', description: 'Let users review their submission', icon: Eye, bg: 'bg-purple-50', fg: 'text-purple-700', border: 'border-purple-100' },
   } as const
+  type VariantKey = keyof typeof variants
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index)
@@ -73,7 +74,8 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
   return (
     <div className="space-y-1 p-2">
       {sections.map((section, index) => {
-        const variant = variants[(section as any).sectionType || 'form']
+        const key: VariantKey = (section.sectionType ?? 'form') as VariantKey
+        const variant = variants[key]
         const Icon = variant.icon
 
         return (

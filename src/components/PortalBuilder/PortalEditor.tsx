@@ -504,7 +504,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const displayConfig = activeLanguage === defaultLanguage
     ? config
     : applyTranslationsToConfig(config, activeLanguage)
-  const displaySection = displayConfig.sections.find(s => s.id === activeSectionId)
+  const displaySection = displayConfig.sections.find((s: Section) => s.id === activeSectionId)
 
   if (isLoading) {
     return (

@@ -40,7 +40,10 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [isSaving, setIsSaving] = useState(false)
 
-  const activeSectionIndex = translatedConfig.sections.findIndex(s => s.id === activeSectionId)
+  const activeSectionIndex = Math.max(
+    0,
+    translatedConfig.sections.findIndex((s: Section) => s.id === activeSectionId)
+  )
   const activeSection = translatedConfig.sections[activeSectionIndex]
 
   const handleFieldChange = (fieldId: string, value: any) => {
@@ -148,7 +151,7 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
                 </CardHeader>
                 <CardContent className={cn("space-y-6", isExternal ? "px-0" : "")}>
                   <div className="grid grid-cols-12 gap-6">
-                    {activeSection.fields.map((field) => (
+                    {activeSection.fields.map((field: Field) => (
                       <div key={field.id} className={cn(
                         field.width === 'half' ? 'col-span-12 sm:col-span-6' : 
                         field.width === 'third' ? 'col-span-12 sm:col-span-4' :
@@ -161,7 +164,7 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
                           onChange={(val) => handleFieldChange(field.id, val)}
                           themeColor={config.settings.themeColor}
                           formId={formId}
-                          allFields={translatedConfig.sections.flatMap(s => s.fields)}
+                          allFields={translatedConfig.sections.flatMap((s: Section) => s.fields)}
                           formData={formData}
                         />
                       </div>
