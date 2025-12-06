@@ -31,6 +31,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui-components/dropdown-menu'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
+import { applyTranslationsToConfig, updateTranslationsForField, updateTranslationsForSection } from '@/lib/portal-translations'
 
 const INITIAL_CONFIG: PortalConfig = {
   sections: [
@@ -75,6 +77,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isPublished, setIsPublished] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [activeLanguage, setActiveLanguage] = useState(config.settings.language?.default || 'en')
   
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
@@ -93,6 +96,10 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
       setRightSidebarTab('settings')
     }
   }, [selectedFieldId])
+
+  useEffect(() => {
+    setActiveLanguage(config.settings.language?.default || 'en')
+  }, [config.settings.language?.default])
 
   // Autosave when user clicks off a field (deselects it)
   useEffect(() => {
@@ -296,18 +303,77 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   }
 
   const handleUpdateSection = (sectionId: string, updates: Partial<Section>) => {
-    setConfig(prev => ({
-      ...prev,
-      sections: prev.sections.map(s => s.id === sectionId ? { ...s, ...updates } : s)
-    }))
+    const defaultLang = config.settings.language?.default || 'en'
+    const languageEnabled = config.settings.language?.enabled
+
+    if (languageEnabled && activeLanguage !== defaultLang) {
+      const translations = updateTranslationsForSection(
+        config.translations || {},
+        activeLanguage,
+        sectionId,
+        updates
+      )
+
+      const nonTextUpdates: Partial<Section> = { ...updates }
+      delete (nonTextUpdates as any).title
+      delete (nonTextUpdates as any).description
+
+      setConfig(prev => ({
+        ...prev,
+        translations,
+        sections: Object.keys(nonTextUpdates).length === 0
+          ? prev.sections
+          : prev.sections.map(s => s.id === sectionId ? { ...s, ...nonTextUpdates } : s)
+      }))
+    } else {
+      setConfig(prev => ({
+        ...prev,
+        sections: prev.sections.map(s => s.id === sectionId ? { ...s, ...updates } : s)
+      }))
+    }
+
     setHasUnsavedChanges(true)
     setIsPublished(false)
   }
 
   const handleUpdateField = (fieldId: string, updates: Partial<Field>) => {
     if (!activeSection) return
-    const updatedFields = updateFieldRecursive(activeSection.fields, fieldId, updates)
-    handleUpdateSection(activeSection.id, { fields: updatedFields })
+    const defaultLang = config.settings.language?.default || 'en'
+    const languageEnabled = config.settings.language?.enabled
+    const baseField = findFieldRecursive(activeSection.fields, fieldId)
+
+    if (languageEnabled && activeLanguage !== defaultLang) {
+      const translations = updateTranslationsForField(
+        config.translations || {},
+        activeLanguage,
+        fieldId,
+        updates,
+        baseField
+      )
+
+      const nonTextUpdates: Partial<Field> = { ...updates }
+      delete (nonTextUpdates as any).label
+      delete (nonTextUpdates as any).placeholder
+      delete (nonTextUpdates as any).options
+
+      let sections = config.sections
+      if (Object.keys(nonTextUpdates).length > 0) {
+        const updatedFields = updateFieldRecursive(activeSection.fields, fieldId, nonTextUpdates)
+        sections = config.sections.map(s => s.id === activeSection.id ? { ...s, fields: updatedFields } : s)
+      }
+
+      setConfig(prev => ({
+        ...prev,
+        translations,
+        sections
+      }))
+    } else {
+      const updatedFields = updateFieldRecursive(activeSection.fields, fieldId, updates)
+      handleUpdateSection(activeSection.id, { fields: updatedFields })
+    }
+
+    setHasUnsavedChanges(true)
+    setIsPublished(false)
   }
 
   const createSectionTemplate = (type: Section['sectionType']): Section => {
@@ -433,6 +499,13 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     return fields
   }
 
+  const defaultLanguage = config.settings.language?.default || 'en'
+  const supportedLanguages = Array.from(new Set([defaultLanguage, ...(config.settings.language?.supported || [])]))
+  const displayConfig = activeLanguage === defaultLanguage
+    ? config
+    : applyTranslationsToConfig(config, activeLanguage)
+  const displaySection = displayConfig.sections.find(s => s.id === activeSectionId)
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center bg-gray-50">
@@ -470,6 +543,18 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     <Smartphone className="w-4 h-4" />
                   </Button>
                 </div>
+                {config.settings.language?.enabled && (
+                  <Select value={activeLanguage} onValueChange={setActiveLanguage}>
+                    <SelectTrigger className="w-32 h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {supportedLanguages.map(lang => (
+                        <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
             </div>
 
             <div className="flex items-center justify-center bg-gray-100 p-1 rounded-full">
@@ -673,12 +758,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                 )}>
                   {isPreview ? (
                     <div className="p-4">
-                      <DynamicApplicationForm config={config} isExternal={true} formId={formId || undefined} />
+                      <DynamicApplicationForm config={displayConfig} isExternal={true} formId={formId || undefined} />
                     </div>
-                  ) : activeSection ? (
+                  ) : displaySection ? (
                     <FormBuilder 
-                      section={activeSection} 
-                      onUpdate={(updates: Partial<Section>) => handleUpdateSection(activeSection.id, updates)} 
+                      section={displaySection} 
+                      onUpdate={(updates: Partial<Section>) => handleUpdateSection(displaySection.id, updates)} 
                       selectedFieldId={selectedFieldId}
                       onSelectField={setSelectedFieldId}
                     />

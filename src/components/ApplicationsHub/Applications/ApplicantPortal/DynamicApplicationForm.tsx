@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, ArrowRight, CheckCircle2, Save, Upload, Star, Calendar as CalendarIcon, Plus, Trash2, Lightbulb, Info, AlertCircle, AlertTriangle, CheckCircle, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -17,6 +17,7 @@ import { Separator } from '@/ui-components/separator'
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { AddressField, AddressValue } from '@/components/Tables/AddressField'
 import { FileUploadField } from '@/components/ui/FileUploadField'
+import { applyTranslationsToConfig } from '@/lib/portal-translations'
 
 interface DynamicApplicationFormProps {
   config: PortalConfig
@@ -26,34 +27,43 @@ interface DynamicApplicationFormProps {
 }
 
 export function DynamicApplicationForm({ config, onBack, isExternal = false, formId }: DynamicApplicationFormProps) {
-  const [activeSectionId, setActiveSectionId] = useState<string>(config.sections[0]?.id || '')
+  const defaultLanguage = config.settings.language?.default || 'en'
+  const supportedLanguages = Array.from(new Set([defaultLanguage, ...(config.settings.language?.supported || [])]))
+  const [activeLanguage, setActiveLanguage] = useState<string>(defaultLanguage)
+  const translatedConfig = useMemo(() => {
+    return activeLanguage === defaultLanguage
+      ? config
+      : applyTranslationsToConfig(config, activeLanguage)
+  }, [activeLanguage, defaultLanguage, config])
+
+  const [activeSectionId, setActiveSectionId] = useState<string>(translatedConfig.sections[0]?.id || '')
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [isSaving, setIsSaving] = useState(false)
 
-  const activeSectionIndex = config.sections.findIndex(s => s.id === activeSectionId)
-  const activeSection = config.sections[activeSectionIndex]
+  const activeSectionIndex = translatedConfig.sections.findIndex(s => s.id === activeSectionId)
+  const activeSection = translatedConfig.sections[activeSectionIndex]
 
   const handleFieldChange = (fieldId: string, value: any) => {
     setFormData(prev => ({ ...prev, [fieldId]: value }))
   }
 
   const handleNext = () => {
-    if (activeSectionIndex < config.sections.length - 1) {
-      setActiveSectionId(config.sections[activeSectionIndex + 1].id)
+    if (activeSectionIndex < translatedConfig.sections.length - 1) {
+      setActiveSectionId(translatedConfig.sections[activeSectionIndex + 1].id)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
 
   const handlePrevious = () => {
     if (activeSectionIndex > 0) {
-      setActiveSectionId(config.sections[activeSectionIndex - 1].id)
+      setActiveSectionId(translatedConfig.sections[activeSectionIndex - 1].id)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
 
   const calculateProgress = () => {
-    if (config.sections.length === 0) return 0
-    return ((activeSectionIndex + 1) / config.sections.length) * 100
+    if (translatedConfig.sections.length === 0) return 0
+    return ((activeSectionIndex + 1) / translatedConfig.sections.length) * 100
   }
 
   return (
@@ -83,14 +93,29 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
                   {config.settings.name.charAt(0)}
                 </div>
               )}
-              <span className="font-semibold text-gray-900">{config.settings.name}</span>
+              <span className="font-semibold text-gray-900">{translatedConfig.settings.name}</span>
             </div>
           </div>
           
           <div className="flex items-center gap-6">
+            {config.settings.language?.enabled && supportedLanguages.length > 0 && (
+              <Select value={activeLanguage} onValueChange={(v) => {
+                setActiveLanguage(v)
+                setActiveSectionId((applyTranslationsToConfig(config, v).sections[0]?.id) || translatedConfig.sections[0]?.id || '')
+              }}>
+                <SelectTrigger className="w-28 h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {supportedLanguages.map(lang => (
+                    <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <div className="text-right hidden sm:block">
               <div className="text-xs text-gray-500 mb-1">
-                Step {activeSectionIndex + 1} of {config.sections.length}
+                Step {activeSectionIndex + 1} of {translatedConfig.sections.length}
               </div>
               <Progress value={calculateProgress()} className="w-32 h-2" />
             </div>
@@ -136,7 +161,7 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
                           onChange={(val) => handleFieldChange(field.id, val)}
                           themeColor={config.settings.themeColor}
                           formId={formId}
-                          allFields={config.sections.flatMap(s => s.fields)}
+                          allFields={translatedConfig.sections.flatMap(s => s.fields)}
                           formData={formData}
                         />
                       </div>
@@ -160,7 +185,7 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
           </Button>
           <Button 
             onClick={handleNext}
-            disabled={activeSectionIndex === config.sections.length - 1}
+            disabled={activeSectionIndex === translatedConfig.sections.length - 1}
             style={{ backgroundColor: config.settings.themeColor || '#000' }}
             className="text-white"
           >

@@ -54,5 +54,5 @@ export type PortalConfig = {
       rightToLeft?: boolean
     }
   }
-  translations?: Record<string, Record<string, string>> // langCode -> fieldId/key -> text
+  translations?: Record<string, Record<string, string>> // langCode -> key -> text
 }
