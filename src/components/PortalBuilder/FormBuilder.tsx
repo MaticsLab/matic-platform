@@ -7,7 +7,7 @@ import {
   GripVertical, Trash2, Plus, Type, AlignLeft, Hash, Mail, Calendar, 
   CheckSquare, List, Image as ImageIcon, Phone, Link, Clock, PenTool, 
   Star, Minus, Heading, Pilcrow, CheckCircle2, Layout, X, Settings, Info, ArrowUpDown, MapPin,
-  Upload, MessageSquare, Lightbulb, FileText, AlertCircle, CheckCircle, AlertTriangle, HelpCircle
+  Upload, MessageSquare, Lightbulb, FileText, AlertCircle, CheckCircle, AlertTriangle, HelpCircle, EyeOff
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -291,6 +291,7 @@ function FieldEditor({
   const isContainerField = ['group', 'repeater'].includes(field.type)
   const Icon = FIELD_ICONS[field.type] || Type
   const isSelected = field.id === selectedFieldId
+  const hasConditionalLogic = Array.isArray((field as any)?.config?.logic) && ((field as any).config.logic || []).length > 0
 
   useEffect(() => {
     if (isEditingLabel && labelInputRef.current) {
@@ -623,6 +624,12 @@ function FieldEditor({
           onSelectField(field.id)
         }}
       >
+        {hasConditionalLogic && (
+          <div className="pointer-events-none absolute -top-3 right-2 z-20 inline-flex items-center gap-1.5 rounded-full bg-gray-900 text-white text-[11px] font-semibold px-2.5 py-1 shadow-md">
+            <EyeOff className="w-3.5 h-3.5" />
+            <span>Hidden</span>
+          </div>
+        )}
         <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 flex items-center gap-1">
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-red-500" onClick={(e) => {
             e.stopPropagation()
@@ -662,6 +669,12 @@ function FieldEditor({
       </div>
 
       <div className="space-y-4" ref={cardRef}>
+        {hasConditionalLogic && (
+          <div className="pointer-events-none absolute -top-3 right-2 z-20 inline-flex items-center gap-1.5 rounded-full bg-gray-900 text-white text-[11px] font-semibold px-2.5 py-1 shadow-md">
+            <EyeOff className="w-3.5 h-3.5" />
+            <span>Hidden</span>
+          </div>
+        )}
         <div className="flex items-start gap-4">
           <div className="mt-1 cursor-grab text-gray-300 hover:text-gray-500">
             <GripVertical className="w-5 h-5" />
