@@ -19,6 +19,10 @@ interface MentionableInputProps {
   className?: string
   previousFields: Field[]
   fieldId?: string
+  onBlur?: () => void
+  onFocus?: () => void
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  showHint?: boolean
 }
 
 interface Mention {
@@ -34,6 +38,10 @@ export function MentionableInput({
   className,
   previousFields,
   fieldId,
+  onBlur,
+  onFocus,
+  onKeyDown,
+  showHint = true,
 }: MentionableInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [showMentions, setShowMentions] = useState(false)
@@ -117,6 +125,7 @@ export function MentionableInput({
       setShowMentions(false)
       e.preventDefault()
     }
+    onKeyDown?.(e)
   }
 
   return (
@@ -127,6 +136,8 @@ export function MentionableInput({
           type="text"
           value={value}
           onChange={handleInputChange}
+          onBlur={onBlur}
+          onFocus={onFocus}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className={cn('font-medium pr-9', className)}
@@ -188,10 +199,12 @@ export function MentionableInput({
       </div>
 
       {/* Show hint about @ mention */}
-      <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
-        <AtSign className="w-3 h-3" />
-        <span>Type @ to reference previous questions</span>
-      </div>
+      {showHint && (
+        <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
+          <AtSign className="w-3 h-3" />
+          <span>Type @ to reference previous questions</span>
+        </div>
+      )}
     </div>
   )
 }

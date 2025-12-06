@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/ui-components/textarea'
 import { Section, Field, FieldType } from '@/types/portal'
 import { RichTextContent, RichTextEditor } from './RichTextEditor'
+import { MentionableInput } from './MentionableInput'
 
 // Callout color configurations
 const CALLOUT_COLORS = {
@@ -117,7 +118,7 @@ export function FormBuilder({ section, onUpdate, selectedFieldId, onSelectField 
             </div>
           ) : (
             section.fields.map((field, index) => (
-              <DraggableFieldEditor 
+                <DraggableFieldEditor 
                 key={field.id}
                 index={index}
                 field={field} 
@@ -126,6 +127,7 @@ export function FormBuilder({ section, onUpdate, selectedFieldId, onSelectField 
                 onUpdate={(updates) => handleUpdateField(field.id, updates)}
                 onDelete={() => handleDeleteField(field.id)}
                 onAddChild={() => handleAddChildField(field.id)}
+                  previousFields={section.fields.slice(0, index)}
                 moveField={moveField}
               />
             ))
@@ -191,6 +193,7 @@ function DraggableFieldEditor({
   onUpdate,
   onDelete,
   onAddChild,
+  previousFields,
   moveField
 }: {
   index: number
@@ -200,6 +203,7 @@ function DraggableFieldEditor({
   onUpdate: (u: Partial<Field>) => void
   onDelete: () => void
   onAddChild: () => void
+  previousFields: Field[]
   moveField: (dragIndex: number, hoverIndex: number) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -252,6 +256,7 @@ function DraggableFieldEditor({
         onUpdate={onUpdate}
         onDelete={onDelete}
         onAddChild={onAddChild}
+        previousFields={previousFields}
       />
     </div>
   )
@@ -263,14 +268,16 @@ function FieldEditor({
   onSelectField, 
   onUpdate, 
   onDelete, 
-  onAddChild 
+  onAddChild,
+  previousFields = []
 }: { 
   field: Field, 
   selectedFieldId: string | null,
   onSelectField: (id: string) => void,
   onUpdate: (u: Partial<Field>) => void, 
   onDelete: () => void, 
-  onAddChild: () => void 
+  onAddChild: () => void,
+  previousFields?: Field[]
 }) {
   const [isEditingLabel, setIsEditingLabel] = useState(false)
   const [editedLabel, setEditedLabel] = useState(field.label)
@@ -654,15 +661,19 @@ function FieldEditor({
             {!['heading', 'paragraph', 'callout'].includes(field.type) && (
               <div className="flex items-center gap-2">
                 {isEditingLabel ? (
-                  <Input
-                    ref={labelInputRef}
-                    value={editedLabel}
-                    onChange={(e) => setEditedLabel(e.target.value)}
-                    onBlur={handleLabelSave}
-                    onKeyDown={handleLabelKeyDown}
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-base font-medium border-blue-500 focus:ring-blue-500"
-                  />
+                  <div onClick={(e) => e.stopPropagation()} className="w-full">
+                    <MentionableInput
+                      value={editedLabel}
+                      onChange={setEditedLabel}
+                      onBlur={handleLabelSave}
+                      onKeyDown={handleLabelKeyDown}
+                      previousFields={previousFields}
+                      fieldId={field.id}
+                      showHint={false}
+                      placeholder="Field label..."
+                      className="text-base font-medium border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
                 ) : (
                   <div 
                     className="group/label flex items-center gap-2 cursor-text"
@@ -722,7 +733,7 @@ function FieldEditor({
                   </Button>
                 </div>
                 <div className="space-y-4 pl-4 border-l-2 border-gray-100">
-                  {field.children?.map((child) => (
+                  {field.children?.map((child, childIndex) => (
                     <FieldEditor 
                       key={child.id} 
                       field={child} 
@@ -751,6 +762,7 @@ function FieldEditor({
                         const newParentChildren = field.children?.map(c => c.id === child.id ? updatedChild : c)
                         onUpdate({ children: newParentChildren })
                       }}
+                      previousFields={[...previousFields, field, ...(field.children?.slice(0, childIndex) || [])]}
                     />
                   ))}
                   {(!field.children || field.children.length === 0) && (
