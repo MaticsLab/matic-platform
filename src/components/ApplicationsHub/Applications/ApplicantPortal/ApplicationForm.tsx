@@ -1042,7 +1042,11 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId, rootDa
             })()}
 
             {field.type === 'rank' && (() => {
+              // Start with items from config, then fallback to explicit field.options
               let options = normalizeOptions(config.items)
+              if (options.length === 0 && field.options && field.options.length > 0) {
+                options = normalizeOptions(field.options)
+              }
                
                if (config.sourceField) {
                  let sourceData = data[config.sourceField]
