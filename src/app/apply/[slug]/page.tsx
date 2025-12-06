@@ -1,14 +1,23 @@
 import { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { PublicPortal } from '@/components/ApplicationsHub/Applications/ApplicantPortal/PublicPortal'
 
 const BASE_URL = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://maticsapp.com'
 
+const getRequestOrigin = () => {
+  const hdrs = headers()
+  const host = hdrs.get('x-forwarded-host') || hdrs.get('host')
+  const proto = hdrs.get('x-forwarded-proto') || 'https'
+  return host ? `${proto}://${host}` : APP_URL
+}
+
 // Ensure we always emit an absolute URL for social previews
 const toAbsoluteUrl = (url?: string | null) => {
   if (!url) return undefined
   if (url.startsWith('http://') || url.startsWith('https://')) return url
-  return `${APP_URL}${url.startsWith('/') ? '' : '/'}${url}`
+  const origin = getRequestOrigin()
+  return `${origin}${url.startsWith('/') ? '' : '/'}${url}`
 }
 
 async function getFormMetadata(slug: string, subdomain?: string) {
@@ -38,10 +47,11 @@ export async function generateMetadata(
   const description = form?.preview_description || form?.description || 'Fill out this application form'
   const image = toAbsoluteUrl(form?.preview_image_url)
   
-  // Build the share URL
+  // Build the share URL anchored to the current request origin for proper previews
+  const origin = getRequestOrigin()
   const shareUrl = subdomain 
-    ? `${APP_URL}/apply/${params.slug}?subdomain=${subdomain}`
-    : `${APP_URL}/apply/${params.slug}`
+    ? `${origin}/apply/${params.slug}?subdomain=${subdomain}`
+    : `${origin}/apply/${params.slug}`
 
   return {
     title,
