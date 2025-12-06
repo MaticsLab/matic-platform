@@ -23,6 +23,8 @@ interface MentionableInputProps {
   onFocus?: () => void
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
   showHint?: boolean
+  autoFocus?: boolean
+  inputRef?: React.RefObject<HTMLInputElement>
 }
 
 interface Mention {
@@ -42,8 +44,11 @@ export function MentionableInput({
   onFocus,
   onKeyDown,
   showHint = true,
+  autoFocus = false,
+  inputRef,
 }: MentionableInputProps) {
-  const inputRef = useRef<HTMLInputElement>(null)
+  const internalRef = useRef<HTMLInputElement>(null)
+  const mergedRef = inputRef ?? internalRef
   const [showMentions, setShowMentions] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
   const [mentionQuery, setMentionQuery] = useState('')
@@ -90,7 +95,7 @@ export function MentionableInput({
   }
 
   const insertMention = (mention: Mention) => {
-    if (!inputRef.current) return
+    if (!mergedRef.current) return
 
     const pos = cursorPosition
     const textBeforeCursor = value.substring(0, pos)
@@ -112,10 +117,10 @@ export function MentionableInput({
 
     // Move cursor after the inserted mention
     setTimeout(() => {
-      if (inputRef.current) {
+      if (mergedRef.current) {
         const newPos = lastAtIndex + mention.label.length + 2
-        inputRef.current.setSelectionRange(newPos, newPos)
-        inputRef.current.focus()
+        mergedRef.current.setSelectionRange(newPos, newPos)
+        mergedRef.current.focus()
       }
     }, 0)
   }
@@ -128,11 +133,17 @@ export function MentionableInput({
     onKeyDown?.(e)
   }
 
+  useEffect(() => {
+    if (autoFocus && mergedRef.current) {
+      mergedRef.current.focus()
+    }
+  }, [autoFocus])
+
   return (
     <div className="relative">
       <div className="relative">
         <Input
-          ref={inputRef}
+          ref={mergedRef}
           type="text"
           value={value}
           onChange={handleInputChange}

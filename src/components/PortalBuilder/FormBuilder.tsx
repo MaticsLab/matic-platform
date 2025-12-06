@@ -285,6 +285,7 @@ function FieldEditor({
   const [editedDescription, setEditedDescription] = useState(field.placeholder || '')
   const labelInputRef = useRef<HTMLInputElement>(null)
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
   
   const isLayoutField = ['divider', 'heading', 'paragraph', 'callout'].includes(field.type)
   const isContainerField = ['group', 'repeater'].includes(field.type)
@@ -313,14 +314,14 @@ function FieldEditor({
     setEditedDescription(field.placeholder || '')
   }, [field.placeholder])
 
-  const handleLabelSave = () => {
+  const handleLabelSave = useCallback(() => {
     if (editedLabel.trim()) {
       onUpdate({ label: editedLabel.trim() })
     } else {
       setEditedLabel(field.label)
     }
     setIsEditingLabel(false)
-  }
+  }, [editedLabel, field.label, onUpdate])
 
   const handleDescriptionSave = () => {
     onUpdate({ placeholder: editedDescription.trim() })
@@ -335,6 +336,23 @@ function FieldEditor({
       setIsEditingLabel(false)
     }
   }
+
+  useEffect(() => {
+    if (!isSelected && isEditingLabel) {
+      handleLabelSave()
+    }
+  }, [isSelected, isEditingLabel, handleLabelSave])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!isEditingLabel) return
+      if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
+        handleLabelSave()
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isEditingLabel, handleLabelSave])
 
   const handleDescriptionKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -643,7 +661,7 @@ function FieldEditor({
         </Button>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4" ref={cardRef}>
         <div className="flex items-start gap-4">
           <div className="mt-1 cursor-grab text-gray-300 hover:text-gray-500">
             <GripVertical className="w-5 h-5" />
@@ -665,11 +683,12 @@ function FieldEditor({
                     <MentionableInput
                       value={editedLabel}
                       onChange={setEditedLabel}
-                      onBlur={handleLabelSave}
                       onKeyDown={handleLabelKeyDown}
                       previousFields={previousFields}
                       fieldId={field.id}
                       showHint={false}
+                      autoFocus
+                      inputRef={labelInputRef}
                       placeholder="Field label..."
                       className="text-base font-medium border-blue-500 focus:ring-blue-500"
                     />
