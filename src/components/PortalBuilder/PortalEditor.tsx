@@ -32,7 +32,9 @@ import {
   DropdownMenuTrigger,
 } from '@/ui-components/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
-import { applyTranslationsToConfig, updateTranslationsForField, updateTranslationsForSection } from '@/lib/portal-translations'
+import { applyTranslationsToConfig, collectTranslatableContent, updateTranslationsForField, updateTranslationsForSection } from '@/lib/portal-translations'
+import { translateContent } from '@/lib/ai/translation'
+import { LANGUAGES, getLanguageName } from '@/lib/languages'
 
 const INITIAL_CONFIG: PortalConfig = {
   sections: [
@@ -78,6 +80,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [isPublished, setIsPublished] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [activeLanguage, setActiveLanguage] = useState(config.settings.language?.default || 'en')
+  const [isTranslatingActiveLanguage, setIsTranslatingActiveLanguage] = useState(false)
   
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
@@ -431,6 +434,51 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     setIsPublished(false)
   }
 
+  const handleLanguageChange = async (lang: string) => {
+    const defaultLang = config.settings.language?.default || 'en'
+    if (lang === activeLanguage) return
+
+    // If default language or translation already exists, just switch
+    if (lang === defaultLang || config.translations?.[lang]) {
+      setActiveLanguage(lang)
+      return
+    }
+
+    setIsTranslatingActiveLanguage(true)
+    const targetLanguageName = getLanguageName(lang)
+    try {
+      toast.success(`Translating to ${targetLanguageName}`)
+      const contentToTranslate = collectTranslatableContent(config)
+      const translations = await translateContent(contentToTranslate, targetLanguageName)
+
+      setConfig(prev => ({
+        ...prev,
+        translations: {
+          ...(prev.translations || {}),
+          [lang]: translations
+        },
+        settings: {
+          ...prev.settings,
+          language: {
+            ...prev.settings.language,
+            enabled: true,
+            default: prev.settings.language?.default || 'en',
+            supported: Array.from(new Set([...(prev.settings.language?.supported || []), lang])),
+            rightToLeft: prev.settings.language?.rightToLeft || false
+          }
+        }
+      }))
+
+      setActiveLanguage(lang)
+      toast.success(`Switched to ${targetLanguageName}`)
+    } catch (error) {
+      console.error('Language switch translation failed', error)
+      toast.error(`Failed to translate to ${targetLanguageName}`)
+    } finally {
+      setIsTranslatingActiveLanguage(false)
+    }
+  }
+
   const handleAddField = (type: Field['type']) => {
     if (!activeSection) return
     
@@ -544,16 +592,19 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   </Button>
                 </div>
                 {config.settings.language?.enabled && (
-                  <Select value={activeLanguage} onValueChange={setActiveLanguage}>
-                    <SelectTrigger className="w-32 h-8 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {supportedLanguages.map(lang => (
-                        <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Select value={activeLanguage} onValueChange={handleLanguageChange} disabled={isTranslatingActiveLanguage}>
+                      <SelectTrigger className="w-32 h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {supportedLanguages.map(lang => (
+                          <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {isTranslatingActiveLanguage && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
+                  </div>
                 )}
             </div>
 

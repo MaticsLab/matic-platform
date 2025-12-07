@@ -13,6 +13,8 @@ import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { PortalConfig } from '@/types/portal'
 import { translateContent } from '@/lib/ai/translation'
+import { collectTranslatableContent } from '@/lib/portal-translations'
+import { LANGUAGES, getLanguageName } from '@/lib/languages'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/ui-components/dropdown-menu'
@@ -33,19 +35,6 @@ const TABS = [
   { id: 'quiz', label: 'Quiz mode', icon: GraduationCap },
   { id: 'custom', label: 'Custom code', icon: Code },
   { id: 'conversion', label: 'Conversion kit', icon: BarChart3 },
-]
-
-const LANGUAGES = [
-  { code: 'es', name: 'Spanish' },
-  { code: 'fr', name: 'French' },
-  { code: 'de', name: 'German' },
-  { code: 'it', name: 'Italian' },
-  { code: 'pt', name: 'Portuguese' },
-  { code: 'zh', name: 'Chinese' },
-  { code: 'ja', name: 'Japanese' },
-  { code: 'ko', name: 'Korean' },
-  { code: 'ru', name: 'Russian' },
-  { code: 'ar', name: 'Arabic' },
 ]
 
 export function SettingsModal({ open, onOpenChange, config, onUpdate }: SettingsModalProps) {
@@ -75,39 +64,13 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
     setIsTranslating(true)
     setLastLanguage(langCode)
     try {
-      // Collect all translatable text
-      const contentToTranslate: Record<string, string> = {}
+      const contentToTranslate = collectTranslatableContent(config)
 
-      const collectField = (field: any) => {
-        contentToTranslate[`field_${field.id}_label`] = field.label
-        if (field.placeholder) {
-          contentToTranslate[`field_${field.id}_placeholder`] = field.placeholder
-        }
-        if (Array.isArray(field.options)) {
-          field.options.forEach((opt: string, idx: number) => {
-            contentToTranslate[`field_${field.id}_opt_${idx}`] = opt
-          })
-        }
-        if (Array.isArray(field.children)) {
-          field.children.forEach((child: any) => collectField(child))
-        }
-      }
-
-      // Portal settings
-      contentToTranslate['portal_name'] = config.settings.name
-      
-      // Sections and Fields (recursive for children)
-      config.sections.forEach(section => {
-        contentToTranslate[`section_${section.id}_title`] = section.title
-        if (section.description) {
-          contentToTranslate[`section_${section.id}_desc`] = section.description
-        }
-        section.fields.forEach(collectField)
-      })
+      const targetLanguageName = getLanguageName(langCode)
 
       // Call AI
-      toast.success(`Starting translation to ${LANGUAGES.find(l => l.code === langCode)?.name || langCode}`)
-      const translations = await translateContent(contentToTranslate, LANGUAGES.find(l => l.code === langCode)?.name || langCode)
+      toast.success(`Starting translation to ${targetLanguageName}`)
+      const translations = await translateContent(contentToTranslate, targetLanguageName)
       
       // Update config
       const currentTranslations = config.translations || {}

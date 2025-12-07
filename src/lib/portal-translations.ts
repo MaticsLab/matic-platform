@@ -7,6 +7,39 @@ const sectionTitleKey = (sectionId: string) => `section_${sectionId}_title`
 const sectionDescKey = (sectionId: string) => `section_${sectionId}_desc`
 const portalNameKey = 'portal_name'
 
+// Collect all translatable strings from the portal config so we can send them to the
+// translation provider in one shot.
+export function collectTranslatableContent(config: any): Record<string, string> {
+  const contentToTranslate: Record<string, string> = {}
+
+  contentToTranslate[portalNameKey] = config.settings?.name
+
+  const collectField = (field: any) => {
+    contentToTranslate[labelKey(field.id)] = field.label
+    if (field.placeholder) {
+      contentToTranslate[placeholderKey(field.id)] = field.placeholder
+    }
+    if (Array.isArray(field.options)) {
+      field.options.forEach((opt: string, idx: number) => {
+        contentToTranslate[optionKey(field.id, idx)] = opt
+      })
+    }
+    if (Array.isArray(field.children)) {
+      field.children.forEach((child: any) => collectField(child))
+    }
+  }
+
+  ;(config.sections || []).forEach((section: any) => {
+    contentToTranslate[sectionTitleKey(section.id)] = section.title
+    if (section.description) {
+      contentToTranslate[sectionDescKey(section.id)] = section.description
+    }
+    (section.fields || []).forEach(collectField)
+  })
+
+  return contentToTranslate
+}
+
 export function applyTranslationsToField(field: any, translations?: TranslationsMap): any {
   if (!translations) return field
   const cloned = { ...field }

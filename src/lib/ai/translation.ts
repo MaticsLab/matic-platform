@@ -42,7 +42,16 @@ export async function translateContent(
   }
 
   const data = await response.json()
-  const text = data?.text || data?.message?.content || data?.generations?.[0]?.text
+
+  const messageContent = data?.message?.content
+  const messageTextArray = Array.isArray(messageContent)
+    ? messageContent.map((part: any) => part?.text || '').filter(Boolean)
+    : []
+
+  const text = data?.text
+    || (messageTextArray.length > 0 ? messageTextArray.join('\n') : undefined)
+    || (typeof messageContent === 'string' ? messageContent : undefined)
+    || data?.generations?.[0]?.text
   if (!text) {
     console.error('Cohere translate malformed response', data)
     throw new Error('Translation response missing text')
