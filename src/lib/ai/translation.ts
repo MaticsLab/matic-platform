@@ -4,7 +4,9 @@ export async function translateContent(
   content: Record<string, string>,
   targetLanguage: string
 ): Promise<Record<string, string>> {
+  console.log('🔑 Cohere API Key present:', !!COHERE_API_KEY)
   if (!COHERE_API_KEY) {
+    console.error('❌ Missing NEXT_PUBLIC_COHERE_API_KEY')
     throw new Error('Missing NEXT_PUBLIC_COHERE_API_KEY')
   }
 
@@ -26,6 +28,7 @@ export async function translateContent(
     max_tokens: 2000,
   }
 
+  console.log('📤 Sending request to Cohere...')
   const response = await fetch('https://api.cohere.ai/v1/chat', {
     method: 'POST',
     headers: {
@@ -35,9 +38,10 @@ export async function translateContent(
     body: JSON.stringify(body),
   })
 
+  console.log('📥 Response status:', response.status)
   if (!response.ok) {
     const errText = await response.text()
-    console.error('Cohere translate error', errText)
+    console.error('❌ Cohere translate error:', errText)
     throw new Error('Failed to translate')
   }
 

@@ -61,16 +61,21 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
   const handleAddLanguage = async (langCode: string) => {
     if (!langCode) return
     
+    console.log('🌐 Starting translation for:', langCode)
+    console.log('📋 Current config:', config)
+    
     setIsTranslating(true)
     setLastLanguage(langCode)
     try {
       const contentToTranslate = collectTranslatableContent(config)
+      console.log('📝 Content to translate:', contentToTranslate)
 
       const targetLanguageName = getLanguageName(langCode)
 
       // Call AI
       toast.success(`Starting translation to ${targetLanguageName}`)
       const translations = await translateContent(contentToTranslate, targetLanguageName)
+      console.log('✅ Translations received:', translations)
       
       // Update config
       const currentTranslations = config.translations || {}
@@ -114,8 +119,10 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
           settings: {
               ...config.settings,
               language: {
-                  ...config.settings.language!,
-                  supported: newSupported
+                  default: config.settings.language?.default || 'en',
+                  enabled: config.settings.language?.enabled ?? false,
+                  supported: newSupported,
+                  rightToLeft: config.settings.language?.rightToLeft || false
               }
           },
           translations: currentTranslations
@@ -182,8 +189,10 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
                                 settings: {
                                     ...config.settings,
                                     language: {
-                                        ...config.settings.language!,
-                                        default: v
+                                        default: v,
+                                        enabled: config.settings.language?.enabled ?? false,
+                                        supported: config.settings.language?.supported || [],
+                                        rightToLeft: config.settings.language?.rightToLeft || false
                                     }
                                 }
                             })}
@@ -214,7 +223,9 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
                                 settings: {
                                     ...config.settings,
                                     language: {
-                                        ...config.settings.language!,
+                                        default: config.settings.language?.default || 'en',
+                                        enabled: config.settings.language?.enabled ?? false,
+                                        supported: config.settings.language?.supported || [],
                                         rightToLeft: c
                                     }
                                 }

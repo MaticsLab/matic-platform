@@ -56,6 +56,12 @@ const INITIAL_CONFIG: PortalConfig = {
     buttonStyle: 'rounded',
     authLayout: 'centered',
     socialLogin: false,
+    language: {
+      default: 'en',
+      enabled: false,
+      supported: [],
+      rightToLeft: false
+    },
     loginFields: [
       { id: 'l1', type: 'email', label: 'Email', required: true, width: 'full' },
       { id: 'l2', type: 'text', label: 'Password', required: true, width: 'full' }
@@ -215,9 +221,16 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                      name: fullForm.name,
                      themeColor: fullForm.settings.themeColor || '#3B82F6',
                      logoUrl: fullForm.settings.logoUrl,
+                     language: fullForm.settings.language || {
+                       default: 'en',
+                       enabled: false,
+                       supported: [],
+                       rightToLeft: false
+                     },
                      loginFields: fullForm.settings.loginFields || INITIAL_CONFIG.settings.loginFields,
                      signupFields: fullForm.settings.signupFields || INITIAL_CONFIG.settings.signupFields
-                 }
+                 },
+                 translations: fullForm.translations || {}
              })
              if (sections.length > 0) {
                setActiveSectionId(sections[0].id)
@@ -251,9 +264,16 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                      name: fullForm.name,
                      themeColor: fullForm.settings?.themeColor || '#3B82F6',
                      logoUrl: fullForm.settings?.logoUrl,
+                     language: fullForm.settings?.language || {
+                       default: 'en',
+                       enabled: false,
+                       supported: [],
+                       rightToLeft: false
+                     },
                      loginFields: fullForm.settings?.loginFields || INITIAL_CONFIG.settings.loginFields,
                      signupFields: fullForm.settings?.signupFields || INITIAL_CONFIG.settings.signupFields
-                  }
+                  },
+                  translations: fullForm.translations || {}
               })
               setActiveSectionId('default')
           }
