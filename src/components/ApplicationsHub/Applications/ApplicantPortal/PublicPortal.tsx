@@ -44,8 +44,10 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       return form
     }
     // Apply translations to the form's settings and fields
+    // translations are stored in form.settings.translations or as a top-level property
+    const translations = (form.settings as any).translations || (form as any).translations || {}
     const translated = applyTranslationsToConfig(
-      { sections: [], settings: form.settings, translations: form.translations },
+      { sections: [], settings: form.settings, translations },
       activeLanguage
     )
     return {
