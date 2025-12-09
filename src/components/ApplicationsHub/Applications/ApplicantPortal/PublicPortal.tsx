@@ -124,8 +124,12 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         toast.success('Logged in successfully')
       } else {
         // Sign up new account
+        console.log('Form object:', { id: form.id, view_id: form.view_id })
+        const formIdToUse = form.view_id || form.id
+        console.log('Using form_id:', formIdToUse)
+        
         const applicant = await portalAuthClient.signup({
-          form_id: form.view_id || form.id,
+          form_id: formIdToUse,
           email,
           password,
           full_name: signupData.name || '',
