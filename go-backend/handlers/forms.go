@@ -582,11 +582,28 @@ found:
 
 	var view models.View
 	isPublished := false
+	var viewID *uuid.UUID
 	if err := database.DB.Where("table_id = ? AND type = ?", table.ID, "form").First(&view).Error; err == nil {
+		viewID = &view.ID
 		var config map[string]interface{}
 		json.Unmarshal(view.Config, &config)
 		if val, ok := config["is_published"].(bool); ok {
 			isPublished = val
+		}
+	} else {
+		// No form view exists - create one automatically
+		viewConfig := map[string]interface{}{
+			"is_published": false,
+		}
+		view = models.View{
+			TableID:   table.ID,
+			Name:      "Form View",
+			Type:      "form",
+			Config:    mapToJSON(viewConfig),
+			CreatedBy: table.CreatedBy,
+		}
+		if err := database.DB.Create(&view).Error; err == nil {
+			viewID = &view.ID
 		}
 	}
 
@@ -596,6 +613,7 @@ found:
 	form := PortalFormDTO{
 		FormDTO: FormDTO{
 			ID:                 table.ID,
+			ViewID:             viewID,
 			WorkspaceID:        table.WorkspaceID,
 			Name:               table.Name,
 			Slug:               table.Slug,
