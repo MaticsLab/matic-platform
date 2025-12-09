@@ -105,7 +105,10 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
               </div>
               <div className="flex-1 min-w-0 overflow-hidden pr-1">
                 <div className="text-xs font-medium text-gray-900 truncate">
-                  {section.title || variant.label}
+                  {(section.title || variant.label).length > 17 
+                    ? (section.title || variant.label).substring(0, 17) + '...'
+                    : (section.title || variant.label)
+                  }
                 </div>
               </div>
               <DropdownMenu>
