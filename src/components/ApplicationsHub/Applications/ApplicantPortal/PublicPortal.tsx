@@ -5,9 +5,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowRight, Mail, Lock, Sparkles, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
+import { Textarea } from '@/ui-components/textarea'
 import { Label } from '@/ui-components/label'
 import { ApplicationForm, EMPTY_APPLICATION_STATE } from './ApplicationForm'
 import { Form } from '@/types/forms'
+import { Field } from '@/types/portal'
+import { cn } from '@/lib/utils'
 
 interface PublicPortalProps {
   slug: string
@@ -17,6 +20,7 @@ interface PublicPortalProps {
 export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [email, setEmail] = useState('')
+  const [signupData, setSignupData] = useState<Record<string, any>>({})
   const [isLogin, setIsLogin] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [isFormLoading, setIsFormLoading] = useState(true)
@@ -156,35 +160,116 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         {/* Auth Card */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 space-y-6">
           <form onSubmit={handleAuth} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input 
-                  id="email" 
-                  type="email" 
-                  placeholder="you@example.com" 
-                  className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
+            {/* Render login fields (always email + password) */}
+            {isLogin ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email Address</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      placeholder="you@example.com" 
+                      className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input 
-                  id="password" 
-                  type="password" 
-                  placeholder="••••••••" 
-                  className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors"
-                  required
-                />
-              </div>
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input 
+                      id="password" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors"
+                      required
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* Render signup fields from portal config */
+              (form?.settings?.signupFields || []).map((field: Field) => (
+                <div key={field.id} className="space-y-2">
+                  <Label className="text-base font-medium text-gray-700">
+                    {field.label}
+                    {field.required && <span className="text-red-500 ml-1">*</span>}
+                  </Label>
+                  {field.placeholder && (
+                    <p className="text-sm text-gray-500 -mt-1">{field.placeholder}</p>
+                  )}
+                  
+                  {/* Email field */}
+                  {field.type === 'email' && (
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input 
+                        type="email" 
+                        className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors h-11"
+                        value={signupData[field.id] || ''}
+                        onChange={e => {
+                          setSignupData(prev => ({ ...prev, [field.id]: e.target.value }))
+                          setEmail(e.target.value)
+                        }}
+                        required={field.required}
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Password field (shown as text type with "password" in label) */}
+                  {field.type === 'text' && field.label.toLowerCase().includes('password') && (
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input 
+                        type="password" 
+                        className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors h-11"
+                        value={signupData[field.id] || ''}
+                        onChange={e => setSignupData(prev => ({ ...prev, [field.id]: e.target.value }))}
+                        required={field.required}
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Regular text fields */}
+                  {field.type === 'text' && !field.label.toLowerCase().includes('password') && (
+                    <Input 
+                      type="text" 
+                      className="bg-gray-50/50 border-gray-200 focus:bg-white transition-colors h-11"
+                      value={signupData[field.id] || ''}
+                      onChange={e => setSignupData(prev => ({ ...prev, [field.id]: e.target.value }))}
+                      required={field.required}
+                    />
+                  )}
+                  
+                  {/* Phone field */}
+                  {field.type === 'phone' && (
+                    <Input 
+                      type="tel" 
+                      className="bg-gray-50/50 border-gray-200 focus:bg-white transition-colors h-11"
+                      value={signupData[field.id] || ''}
+                      onChange={e => setSignupData(prev => ({ ...prev, [field.id]: e.target.value }))}
+                      required={field.required}
+                    />
+                  )}
+                  
+                  {/* Textarea */}
+                  {field.type === 'textarea' && (
+                    <Textarea 
+                      className="bg-gray-50/50 border-gray-200 focus:bg-white transition-colors min-h-[100px]"
+                      value={signupData[field.id] || ''}
+                      onChange={e => setSignupData(prev => ({ ...prev, [field.id]: e.target.value }))}
+                      required={field.required}
+                    />
+                  )}
+                </div>
+              ))
+            )}
 
             <Button 
               type="submit" 

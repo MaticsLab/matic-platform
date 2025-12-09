@@ -70,7 +70,8 @@ const INITIAL_CONFIG: PortalConfig = {
     ],
     signupFields: [
       { id: 's1', type: 'text', label: 'Full Name', required: true, width: 'full' },
-      { id: 's2', type: 'email', label: 'Email', required: true, width: 'full' }
+      { id: 's2', type: 'email', label: 'Email', required: true, width: 'full' },
+      { id: 's3', type: 'text', label: 'Password', required: true, width: 'full' }
     ]
   }
 }

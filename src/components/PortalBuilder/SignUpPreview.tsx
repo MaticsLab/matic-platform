@@ -59,7 +59,11 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId }: SignUp
                   <p className="text-sm text-gray-500 -mt-1">{field.placeholder}</p>
                 )}
                 <Input
-                  type={field.type === 'email' ? 'email' : 'text'}
+                  type={
+                    field.type === 'email' ? 'email' : 
+                    field.label.toLowerCase().includes('password') ? 'password' :
+                    'text'
+                  }
                   placeholder={field.label}
                   className="h-11"
                   disabled
