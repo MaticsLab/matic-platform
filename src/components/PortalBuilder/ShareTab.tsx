@@ -185,17 +185,15 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     return getDefaultUrl()
   }
 
-  // Default URL: forms.maticapp.com/{UUID} (or localhost in dev)
+  // Default URL: forms.maticapp.com/{UUID}
   const getDefaultUrl = () => {
     if (!formId) return ''
-    if (isDev) return `${devBaseUrl}/apply/${formId}`
     return `https://${FORMS_DOMAIN}/${formId}`
   }
 
   // Pretty URL: {subdomain}.maticapp.com/{custom_slug}
   const getPrettyUrl = () => {
     if (!workspace?.custom_subdomain || !form?.custom_slug) return ''
-    if (isDev) return `${devBaseUrl}/apply/${form.custom_slug}` // Dev fallback
     return `https://${workspace.custom_subdomain}.${APP_DOMAIN}/${form.custom_slug}`
   }
 

@@ -76,8 +76,8 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
   const [showCommunicationsPanel, setShowCommunicationsPanel] = useState(false)
   const [isSavingSlug, setIsSavingSlug] = useState(false)
 
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://www.maticsapp.com'
-  const fullUrl = `${baseUrl}/apply/${applicationSlug}`
+  // Forms are now accessed via forms.maticsapp.com/{slug} or custom subdomains
+  const fullUrl = applicationSlug ? `https://forms.maticsapp.com/${applicationSlug}` : ''
 
   // Fetch workspace details
   useEffect(() => {
@@ -294,7 +294,7 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
                   {isEditingSlug ? (
                     <div className="flex items-center border rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
                       <div className="bg-gray-50 px-3 py-2 text-sm text-gray-500 border-r border-gray-200 whitespace-nowrap">
-                        .../apply/
+                        forms.maticsapp.com/
                       </div>
                       <input 
                         value={tempSlug}
