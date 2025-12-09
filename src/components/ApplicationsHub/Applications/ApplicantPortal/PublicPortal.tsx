@@ -99,7 +99,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       if (isLogin) {
         // Login with existing account
         const applicant = await portalAuthClient.login({
-          form_id: form.id,
+          form_id: form.view_id || form.id,
           email,
           password
         })
@@ -125,7 +125,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       } else {
         // Sign up new account
         const applicant = await portalAuthClient.signup({
-          form_id: form.id,
+          form_id: form.view_id || form.id,
           email,
           password,
           full_name: signupData.name || '',

@@ -22,6 +22,7 @@ import (
 
 type FormDTO struct {
 	ID          uuid.UUID              `json:"id"`
+	ViewID      *uuid.UUID             `json:"view_id,omitempty"`
 	WorkspaceID uuid.UUID              `json:"workspace_id"`
 	Name        string                 `json:"name"`
 	Slug        string                 `json:"slug"`
@@ -163,7 +164,9 @@ found:
 
 	var view models.View
 	isPublished := false
+	var viewID *uuid.UUID
 	if err := database.DB.Where("table_id = ? AND type = ?", table.ID, "form").First(&view).Error; err == nil {
+		viewID = &view.ID
 		var config map[string]interface{}
 		json.Unmarshal(view.Config, &config)
 		if val, ok := config["is_published"].(bool); ok {
@@ -176,6 +179,7 @@ found:
 
 	form := FormDTO{
 		ID:                 table.ID,
+		ViewID:             viewID,
 		WorkspaceID:        table.WorkspaceID,
 		Name:               table.Name,
 		Slug:               table.Slug,

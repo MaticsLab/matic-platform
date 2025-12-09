@@ -81,6 +81,7 @@ export interface FormField {
 
 export interface Form {
   id: string
+  view_id?: string
   workspace_id: string
   name: string
   description?: string
