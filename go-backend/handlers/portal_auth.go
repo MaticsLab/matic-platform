@@ -77,7 +77,9 @@ func PortalSignup(c *gin.Context) {
 	}
 
 	if err := database.DB.Create(&applicant).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create account"})
+		// Log the actual error for debugging
+		c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create account: " + err.Error()})
 		return
 	}
 
