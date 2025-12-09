@@ -64,11 +64,23 @@ export function ProgressHeader({
   const estimatedTimeRemaining = Math.max(0, Math.ceil((100 - progress) / 10) * 2)
 
   return (
-    <header className={cn(
-      "border-b px-4 sm:px-6 lg:px-8 py-4",
-      isExternal ? "bg-white/80 backdrop-blur-md border-gray-100" : "bg-white border-gray-200"
-    )}>
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+    <>
+      {/* Top progress bar */}
+      <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gray-100">
+        <div 
+          className={cn(
+            "h-full transition-all duration-500 ease-out",
+            progress >= 100 ? "bg-green-500" : "bg-blue-600"
+          )}
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      
+      <header className={cn(
+        "border-b px-4 sm:px-6 lg:px-8 py-4 mt-1",
+        isExternal ? "bg-white/80 backdrop-blur-md border-gray-100" : "bg-white border-gray-200"
+      )}>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
         {/* Progress Section */}
         <div className="flex-1 min-w-[200px] max-w-md">
           <div className="flex items-center justify-between mb-2">
@@ -153,5 +165,6 @@ export function ProgressHeader({
       </div>
 
     </header>
+    </>
   )
 }
