@@ -12,7 +12,7 @@ import { ApplicationForm, EMPTY_APPLICATION_STATE } from './ApplicationForm'
 import { Form } from '@/types/forms'
 import { Field } from '@/types/portal'
 import { cn } from '@/lib/utils'
-import { applyTranslationsToConfig } from '@/lib/portal-translations'
+import { applyTranslationsToConfig, applyTranslationsToField } from '@/lib/portal-translations'
 import { portalAuthClient } from '@/lib/api/portal-auth-client'
 import { toast } from 'sonner'
 
@@ -49,18 +49,34 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     // Apply translations to the form's settings and fields
     // translations are stored in form.settings.translations or as a top-level property
     const translations = (form.settings as any).translations || (form as any).translations || {}
-    const translated = applyTranslationsToConfig(
-      { sections: [], settings: form.settings, translations },
+    
+    // 1. Translate Config (Settings & Sections)
+    // We pass form.settings.sections so the utility can translate section titles
+    const rawSections = (form.settings as any).sections || []
+    const translatedConfig = applyTranslationsToConfig(
+      { sections: rawSections, settings: form.settings, translations },
       activeLanguage
     )
+
+    // 2. Translate Fields (Flat Array)
+    // Since the utility expects nested fields in sections, we must manually translate the flat fields array
+    // using the helper function from portal-translations
+    const translatedFields = (form.fields || []).map((field: Field) => 
+      applyTranslationsToField(field, translations[activeLanguage])
+    )
+
     return {
       ...form,
-      name: translated.settings.name || form.name,
+      name: translatedConfig.settings.name || form.name,
       description: form.description, // Keep original or translate if needed
       settings: {
         ...form.settings,
-        signupFields: translated.settings.signupFields || form.settings.signupFields
-      }
+        // Use the translated sections from the config
+        sections: translatedConfig.sections,
+        signupFields: translatedConfig.settings.signupFields || form.settings.signupFields
+      },
+      // Use the manually translated fields
+      fields: translatedFields
     }
   }, [form, activeLanguage, defaultLanguage])
 

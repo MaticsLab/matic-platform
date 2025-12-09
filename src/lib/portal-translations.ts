@@ -37,6 +37,14 @@ export function collectTranslatableContent(config: any): Record<string, string> 
     (section.fields || []).forEach(collectField)
   })
 
+  // Also collect from signup and login fields
+  if (config.settings?.signupFields) {
+    (config.settings.signupFields || []).forEach(collectField)
+  }
+  if (config.settings?.loginFields) {
+    (config.settings.loginFields || []).forEach(collectField)
+  }
+
   return contentToTranslate
 }
 
@@ -79,6 +87,8 @@ export function applyTranslationsToConfig(config: any, lang?: string): any {
     settings: {
       ...config.settings,
       name: translations[portalNameKey] || config.settings.name,
+      signupFields: (config.settings.signupFields || []).map((f: any) => applyTranslationsToField(f, translations)),
+      loginFields: (config.settings.loginFields || []).map((f: any) => applyTranslationsToField(f, translations)),
     },
     sections: (config.sections || []).map((s: any) => applyTranslationsToSection(s, translations)),
   }

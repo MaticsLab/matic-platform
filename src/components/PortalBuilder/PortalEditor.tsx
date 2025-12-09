@@ -957,14 +957,14 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     </div>
                   ) : activeSpecialPage === 'signup' ? (
                     <SignUpPreview 
-                      config={config} 
+                      config={displayConfig} 
                       onSelectField={setSelectedFieldId}
                       selectedFieldId={selectedFieldId}
                     />
                   ) : activeSpecialPage === 'review' ? (
-                    <ReviewPreview config={config} />
+                    <ReviewPreview config={displayConfig} />
                   ) : activeSpecialPage === 'ending' ? (
-                    <ConfirmationPreview config={config} />
+                    <ConfirmationPreview config={displayConfig} />
                   ) : displaySection ? (
                     <FormBuilder 
                       section={displaySection} 
