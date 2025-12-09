@@ -220,6 +220,19 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                  };
              });
 
+             // Ensure signupFields has required authentication fields
+             let signupFields = fullForm.settings.signupFields || INITIAL_CONFIG.settings.signupFields
+             const hasEmail = signupFields.some((f: any) => f.type === 'email')
+             const hasPassword = signupFields.some((f: any) => f.type === 'text' && f.label.toLowerCase().includes('password'))
+             
+             if (!hasPassword) {
+               // Add password field if missing
+               signupFields = [
+                 ...signupFields,
+                 { id: `pwd-${Date.now()}`, type: 'text', label: 'Password', required: true, width: 'full' }
+               ]
+             }
+
              setConfig({
                  sections: sections,
                  settings: {
@@ -233,7 +246,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                        rightToLeft: false
                      },
                      loginFields: fullForm.settings.loginFields || INITIAL_CONFIG.settings.loginFields,
-                     signupFields: fullForm.settings.signupFields || INITIAL_CONFIG.settings.signupFields
+                     signupFields
                  },
                  translations: fullForm.translations || {}
              })
@@ -263,6 +276,18 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   }).sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
               }
               
+              // Ensure signupFields has required authentication fields
+              let signupFieldsFallback = fullForm.settings?.signupFields || INITIAL_CONFIG.settings.signupFields
+              const hasPasswordFallback = signupFieldsFallback.some((f: any) => f.type === 'text' && f.label.toLowerCase().includes('password'))
+              
+              if (!hasPasswordFallback) {
+                // Add password field if missing
+                signupFieldsFallback = [
+                  ...signupFieldsFallback,
+                  { id: `pwd-${Date.now()}`, type: 'text', label: 'Password', required: true, width: 'full' }
+                ]
+              }
+              
               setConfig({
                   sections: [defaultSection],
                   settings: {
@@ -276,7 +301,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                        rightToLeft: false
                      },
                      loginFields: fullForm.settings?.loginFields || INITIAL_CONFIG.settings.loginFields,
-                     signupFields: fullForm.settings?.signupFields || INITIAL_CONFIG.settings.signupFields
+                     signupFields: signupFieldsFallback
                   },
                   translations: fullForm.translations || {}
               })
@@ -756,113 +781,14 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             </div>
 
             <TabsContent value="structure" className="flex-1 data-[state=active]:flex flex-col mt-0 min-h-0 overflow-hidden">
-              {/* Special Pages Section */}
-              <div className="border-b border-gray-200 bg-gray-50/50">
-                <div className="px-3 pt-4 pb-2">
-                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Pages</span>
-                </div>
-                <div className="space-y-1.5 px-3 pb-4">
-                  {/* Sign Up Page */}
-                  <div
-                    onClick={() => {
-                      setActiveSpecialPage('signup')
-                      setActiveSectionId('')
-                      setSelectedFieldId(null)
-                    }}
-                    className={cn(
-                      "group flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg cursor-pointer transition-all",
-                      activeSpecialPage === 'signup'
-                        ? "bg-blue-50 shadow-sm ring-1 ring-blue-100" 
-                        : "hover:bg-white hover:shadow-sm"
-                    )}
-                  >
-                    <div className={cn(
-                      "h-8 w-8 flex items-center justify-center rounded-lg flex-shrink-0 transition-colors",
-                      activeSpecialPage === 'signup'
-                        ? "bg-green-500 text-white"
-                        : "bg-green-50 text-green-700 border border-green-100"
-                    )}>
-                      <Lock className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        "text-sm font-semibold truncate",
-                        activeSpecialPage === 'signup' ? "text-blue-900" : "text-gray-900"
-                      )}>Sign Up</p>
-                      <p className="text-xs text-gray-500 truncate">Account creation</p>
-                    </div>
-                  </div>
-
-                  {/* Review Page */}
-                  <div
-                    onClick={() => {
-                      setActiveSpecialPage('review')
-                      setActiveSectionId('')
-                      setSelectedFieldId(null)
-                    }}
-                    className={cn(
-                      "group flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg cursor-pointer transition-all",
-                      activeSpecialPage === 'review'
-                        ? "bg-blue-50 shadow-sm ring-1 ring-blue-100" 
-                        : "hover:bg-white hover:shadow-sm"
-                    )}
-                  >
-                    <div className={cn(
-                      "h-8 w-8 flex items-center justify-center rounded-lg flex-shrink-0 transition-colors",
-                      activeSpecialPage === 'review'
-                        ? "bg-purple-500 text-white"
-                        : "bg-purple-50 text-purple-700 border border-purple-100"
-                    )}>
-                      <EyeIcon className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        "text-sm font-semibold truncate",
-                        activeSpecialPage === 'review' ? "text-blue-900" : "text-gray-900"
-                      )}>Review & Submit</p>
-                      <p className="text-xs text-gray-500 truncate">Final review page</p>
-                    </div>
-                  </div>
-
-                  {/* Ending Page */}
-                  <div
-                    onClick={() => {
-                      setActiveSpecialPage('ending')
-                      setActiveSectionId('')
-                      setSelectedFieldId(null)
-                    }}
-                    className={cn(
-                      "group flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg cursor-pointer transition-all",
-                      activeSpecialPage === 'ending'
-                        ? "bg-blue-50 shadow-sm ring-1 ring-blue-100" 
-                        : "hover:bg-white hover:shadow-sm"
-                    )}
-                  >
-                    <div className={cn(
-                      "h-8 w-8 flex items-center justify-center rounded-lg flex-shrink-0 transition-colors",
-                      activeSpecialPage === 'ending'
-                        ? "bg-emerald-500 text-white"
-                        : "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                    )}>
-                      <CheckCircle2 className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        "text-sm font-semibold truncate",
-                        activeSpecialPage === 'ending' ? "text-blue-900" : "text-gray-900"
-                      )}>Ending</p>
-                      <p className="text-xs text-gray-500 truncate">Success page</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="px-3 pt-4 pb-2 flex justify-between items-center">
-                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Form Sections</span>
+              {/* Header with Add Button */}
+              <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900">All Sections</h3>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <Plus className="w-4 h-4" />
+                    <Button size="sm" className="h-8 text-xs gap-1">
+                      <Plus className="w-3.5 h-3.5" />
+                      Add
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
@@ -872,7 +798,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">Form</p>
-                        <p className="text-xs text-gray-500">Page to collect user input</p>
+                        <p className="text-xs text-gray-500">Collect user information</p>
                       </div>
                     </DropdownMenuItem>
                     <DropdownMenuItem className="flex items-start gap-3" onClick={() => handleAddSection('cover')}>
@@ -881,16 +807,16 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">Cover</p>
-                        <p className="text-xs text-gray-500">Welcome users to your form</p>
+                        <p className="text-xs text-gray-500">Welcome page intro</p>
                       </div>
                     </DropdownMenuItem>
                     <DropdownMenuItem className="flex items-start gap-3" onClick={() => handleAddSection('ending')}>
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-50 text-rose-600 border border-rose-100">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
                         <CheckCircle className="w-4 h-4" />
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">Ending</p>
-                        <p className="text-xs text-gray-500">Show a thank you page or redirect</p>
+                        <p className="text-xs text-gray-500">Thank you / confirmation</p>
                       </div>
                     </DropdownMenuItem>
                     <DropdownMenuItem className="flex items-start gap-3" onClick={() => handleAddSection('review')}>
@@ -899,12 +825,81 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">Review</p>
-                        <p className="text-xs text-gray-500">Let users review their submission</p>
+                        <p className="text-xs text-gray-500">Let users review answers</p>
                       </div>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
+
+              {/* Special Pages */}
+              <div className="px-3 pt-3 pb-2 space-y-1">
+                {/* Sign Up Page */}
+                <button
+                  onClick={() => {
+                    setActiveSpecialPage('signup')
+                    setActiveSectionId('')
+                    setSelectedFieldId(null)
+                  }}
+                  title="Sign Up Page"
+                  className={cn(
+                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left",
+                    activeSpecialPage === 'signup'
+                      ? "bg-blue-50 text-blue-900" 
+                      : "text-gray-700 hover:bg-gray-50"
+                  )}
+                >
+                  <Lock className="w-4 h-4 flex-shrink-0 text-green-600" />
+                  <span className="flex-1 truncate font-medium">Sign Up</span>
+                </button>
+
+                {/* Review Page */}
+                <button
+                  onClick={() => {
+                    setActiveSpecialPage('review')
+                    setActiveSectionId('')
+                    setSelectedFieldId(null)
+                  }}
+                  title="Review & Submit Page"
+                  className={cn(
+                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left",
+                    activeSpecialPage === 'review'
+                      ? "bg-blue-50 text-blue-900" 
+                      : "text-gray-700 hover:bg-gray-50"
+                  )}
+                >
+                  <EyeIcon className="w-4 h-4 flex-shrink-0 text-purple-600" />
+                  <span className="flex-1 truncate font-medium">Review & Submit</span>
+                </button>
+
+                {/* Ending Page */}
+                <button
+                  onClick={() => {
+                    setActiveSpecialPage('ending')
+                    setActiveSectionId('')
+                    setSelectedFieldId(null)
+                  }}
+                  title="Ending Page"
+                  className={cn(
+                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left",
+                    activeSpecialPage === 'ending'
+                      ? "bg-blue-50 text-blue-900" 
+                      : "text-gray-700 hover:bg-gray-50"
+                  )}
+                >
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-600" />
+                  <span className="flex-1 truncate font-medium">Ending</span>
+                </button>
+              </div>
+
+              {/* Divider */}
+              {config.sections.length > 0 && (
+                <div className="px-3 py-2">
+                  <div className="border-t border-gray-200" />
+                </div>
+              )}
+
+              {/* Form Sections */}
               <ScrollArea className="flex-1">
                 <SectionList 
                   sections={config.sections} 
