@@ -27,14 +27,6 @@ export function middleware(request: NextRequest) {
   // Check if this is a main domain (not a custom subdomain)
   const isMainDomain = MAIN_DOMAINS.includes(hostname)
   
-  // Redirect old /apply/{slug} URLs to forms.maticsapp.com/{slug}
-  if (isMainDomain && url.pathname.startsWith('/apply/')) {
-    const slug = url.pathname.replace('/apply/', '')
-    if (slug) {
-      return NextResponse.redirect(new URL(`https://forms.maticsapp.com/${slug}`, request.url))
-    }
-  }
-  
   // Handle forms.maticsapp.com - rewrite to /apply/{slug}
   if (hostname === 'forms.maticsapp.com' && url.pathname !== '/' && !url.pathname.startsWith('/apply')) {
     const slug = url.pathname.slice(1) // Remove leading slash
