@@ -24,6 +24,7 @@ interface PublicPortalProps {
 export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [signupData, setSignupData] = useState<Record<string, any>>({})
   const [isLogin, setIsLogin] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
@@ -265,6 +266,8 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
                       type="password" 
                       placeholder="••••••••" 
                       className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
                       required
                     />
                   </div>
@@ -307,7 +310,11 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
                         type="password" 
                         className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors h-11"
                         value={signupData[field.id] || ''}
-                        onChange={e => setSignupData(prev => ({ ...prev, [field.id]: e.target.value }))}
+                        onChange={e => {
+                          const value = e.target.value
+                          setSignupData(prev => ({ ...prev, [field.id]: value }))
+                          setPassword(value) // Also set password state for signup
+                        }}
                         required={field.required}
                       />
                     </div>
