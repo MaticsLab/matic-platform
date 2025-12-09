@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { formsClient, Form } from '@/lib/api/forms-client'
 import { workspacesClient, Workspace } from '@/lib/api/workspaces-client'
 import { toast } from 'sonner'
+import { createClient } from '@/lib/supabase'
 
 interface ShareTabProps {
   formId: string | null
@@ -267,25 +268,41 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
       return
     }
 
-    if (file.size > 2 * 1024 * 1024 * 1024) { // 2GB
-      toast.error('File size must be less than 2GB')
+    if (file.size > 2 * 1024 * 1024) { // 2MB limit
+      toast.error('File size must be less than 2MB')
       return
     }
 
     setIsUploading(true)
     try {
-      // Create FormData for file upload
-      const formData = new FormData()
-      formData.append('file', file)
+      const supabase = createClient()
       
-      // Upload to your file storage service
-      // For now, we'll use a temporary URL - you should replace this with actual upload logic
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setPreviewImageUrl(reader.result as string)
-        toast.success('Image uploaded successfully')
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${formId}-preview-${Date.now()}.${fileExt}`
+      const filePath = `form-previews/${fileName}`
+      
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('workspace-assets')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        })
+      
+      if (uploadError) {
+        console.error('Upload error:', uploadError)
+        toast.error('Failed to upload image')
+        return
       }
-      reader.readAsDataURL(file)
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('workspace-assets')
+        .getPublicUrl(filePath)
+      
+      setPreviewImageUrl(publicUrl)
+      toast.success('Image uploaded successfully')
     } catch (err: any) {
       console.error('Failed to upload image:', err)
       toast.error('Failed to upload image')
