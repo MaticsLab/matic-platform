@@ -72,7 +72,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
   }
 
   return (
-    <div className="space-y-1 px-2 pb-3">
+    <div className="space-y-1 px-1.5 pb-3">
       {sections.map((section, index) => {
         const key: VariantKey = (section.sectionType ?? 'form') as VariantKey
         const variant = variants[key]
@@ -97,8 +97,8 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
         >
           <GripVertical className="w-3.5 h-3.5 text-gray-400 cursor-grab flex-shrink-0" />
           <Icon className={cn("w-4 h-4 flex-shrink-0", variant.fg)} />
-          <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium pr-20">{section.title || variant.label}</span>
-          <div className="absolute right-1.5 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 bg-white rounded shadow-sm border border-gray-200 transition-opacity">
+          <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium pr-[72px]">{section.title || variant.label}</span>
+          <div className="absolute right-1 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 bg-white rounded shadow-sm border border-gray-200 transition-opacity">
             <Button 
               variant="ghost" 
               size="sm" 

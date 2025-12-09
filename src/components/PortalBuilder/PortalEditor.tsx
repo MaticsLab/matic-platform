@@ -833,7 +833,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
               </div>
 
               {/* Special Pages */}
-              <div className="px-3 pt-3 pb-2 space-y-1">
+              <div className="px-2 pt-3 pb-2 space-y-1">
                 {/* Sign Up Page */}
                 <button
                   onClick={() => {
@@ -894,7 +894,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
               {/* Divider */}
               {config.sections.length > 0 && (
-                <div className="px-3 py-2">
+                <div className="px-2 py-2">
                   <div className="border-t border-gray-200" />
                 </div>
               )}
