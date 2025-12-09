@@ -957,7 +957,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                               ? findFieldRecursive(activeSection.fields, selectedFieldId) 
                               : null
                         }
-                        onUpdate={(updates) => {
+                        onUpdate={(fieldId: string, updates: Partial<Field>) => {
                           if (activeSpecialPage === 'signup') {
                             // Update signup field
                             setConfig(prev => ({
@@ -965,13 +965,13 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                               settings: {
                                 ...prev.settings,
                                 signupFields: prev.settings.signupFields.map(f => 
-                                  f.id === selectedFieldId ? { ...f, ...updates } : f
+                                  f.id === fieldId ? { ...f, ...updates } : f
                                 )
                               }
                             }))
                             setHasUnsavedChanges(true)
                           } else {
-                            handleUpdateField(updates)
+                            handleUpdateField(fieldId, updates)
                           }
                         }}
                         onClose={() => setSelectedFieldId(null)}
