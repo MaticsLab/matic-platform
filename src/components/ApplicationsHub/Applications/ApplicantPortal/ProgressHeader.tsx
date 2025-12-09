@@ -98,44 +98,46 @@ export function ProgressHeader({
             </div>
           )}
 
-          {/* Version History */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <History className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">History</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel>Version History</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {versionHistory.length === 0 ? (
-                <div className="px-2 py-4 text-sm text-gray-500 text-center">
-                  No saved versions yet
-                </div>
-              ) : (
-                versionHistory
-                  .slice()
-                  .reverse()
-                  .map((version, index) => (
-                    <DropdownMenuItem
-                      key={index}
-                      onClick={() => onRestoreVersion(version)}
-                      className="cursor-pointer"
-                    >
-                      <div>
-                        <div className="text-sm font-medium">
-                          Version {versionHistory.length - index}
+          {/* Version History - Hidden for external/public portal */}
+          {!isExternal && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <History className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">History</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel>Version History</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {versionHistory.length === 0 ? (
+                  <div className="px-2 py-4 text-sm text-gray-500 text-center">
+                    No saved versions yet
+                  </div>
+                ) : (
+                  versionHistory
+                    .slice()
+                    .reverse()
+                    .map((version, index) => (
+                      <DropdownMenuItem
+                        key={index}
+                        onClick={() => onRestoreVersion(version)}
+                        className="cursor-pointer"
+                      >
+                        <div>
+                          <div className="text-sm font-medium">
+                            Version {versionHistory.length - index}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {formatDateTime(version.date)}
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {formatDateTime(version.date)}
-                        </div>
-                      </div>
-                    </DropdownMenuItem>
-                  ))
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                      </DropdownMenuItem>
+                    ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           {/* Save & Exit */}
           <Button 
