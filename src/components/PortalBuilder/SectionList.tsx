@@ -88,7 +88,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
           onClick={() => onSelect(section.id)}
           title={section.title || variant.label}
           className={cn(
-            "group flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm cursor-pointer transition-colors relative",
+            "group flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm cursor-pointer transition-colors relative min-w-0",
             activeId === section.id 
               ? "bg-blue-50 text-blue-900" 
               : "text-gray-700 hover:bg-gray-50",
@@ -97,7 +97,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
         >
           <GripVertical className="w-3.5 h-3.5 text-gray-400 cursor-grab flex-shrink-0" />
           <Icon className={cn("w-4 h-4 flex-shrink-0", variant.fg)} />
-          <span className="flex-1 min-w-0 truncate font-medium group-hover:pr-16">{section.title || variant.label}</span>
+          <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium group-hover:pr-16">{section.title || variant.label}</span>
           <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 bg-white rounded shadow-sm border border-gray-200">
             <Button 
               variant="ghost" 
