@@ -72,7 +72,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
   }
 
   return (
-    <div className="space-y-1 pb-3">
+    <div className="space-y-1 px-2 pb-3">
       {sections.map((section, index) => {
         const key: VariantKey = (section.sectionType ?? 'form') as VariantKey
         const variant = variants[key]
