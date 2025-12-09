@@ -21,6 +21,7 @@ import { FieldSettingsPanel } from './FieldSettingsPanel'
 import { ShareTab } from './ShareTab'
 import { SignUpPreview } from './SignUpPreview'
 import { ConfirmationPreview } from './ConfirmationPreview'
+import { ReviewPreview } from './ReviewPreview'
 import { DynamicApplicationForm } from '@/components/ApplicationsHub/Applications/ApplicantPortal/DynamicApplicationForm'
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { formsClient } from '@/lib/api/forms-client'
@@ -79,7 +80,7 @@ const INITIAL_CONFIG: PortalConfig = {
 export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: string, initialFormId?: string | null }) {
   const [config, setConfig] = useState<PortalConfig>(INITIAL_CONFIG)
   const [activeSectionId, setActiveSectionId] = useState<string>(INITIAL_CONFIG.sections[0].id)
-  const [activeSpecialPage, setActiveSpecialPage] = useState<'signup' | 'confirmation' | null>(null)
+  const [activeSpecialPage, setActiveSpecialPage] = useState<'signup' | 'ending' | 'review' | null>(null)
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop')
   const [isPreview, setIsPreview] = useState(false)
   const [formId, setFormId] = useState<string | null>(initialFormId || null)
@@ -756,11 +757,11 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
             <TabsContent value="structure" className="flex-1 data-[state=active]:flex flex-col mt-0 min-h-0 overflow-hidden">
               {/* Special Pages Section */}
-              <div className="border-b border-gray-200">
-                <div className="p-4 pb-2">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pages</span>
+              <div className="border-b border-gray-200 bg-gray-50/50">
+                <div className="px-3 pt-4 pb-2">
+                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Pages</span>
                 </div>
-                <div className="space-y-1 p-2 pb-4">
+                <div className="space-y-1.5 px-3 pb-4">
                   {/* Sign Up Page */}
                   <div
                     onClick={() => {
@@ -769,54 +770,95 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       setSelectedFieldId(null)
                     }}
                     className={cn(
-                      "group flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors",
+                      "group flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg cursor-pointer transition-all",
                       activeSpecialPage === 'signup'
-                        ? "bg-blue-50 text-blue-700" 
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                        ? "bg-blue-50 shadow-sm ring-1 ring-blue-100" 
+                        : "hover:bg-white hover:shadow-sm"
                     )}
                   >
-                    <Lock className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="h-10 w-10 flex items-center justify-center rounded-lg border bg-green-50 text-green-700 border-green-100 flex-shrink-0">
-                        <Lock className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">Sign Up</p>
-                        <p className="text-xs text-gray-500">Account creation fields</p>
-                      </div>
+                    <div className={cn(
+                      "h-8 w-8 flex items-center justify-center rounded-lg flex-shrink-0 transition-colors",
+                      activeSpecialPage === 'signup'
+                        ? "bg-green-500 text-white"
+                        : "bg-green-50 text-green-700 border border-green-100"
+                    )}>
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        "text-sm font-semibold truncate",
+                        activeSpecialPage === 'signup' ? "text-blue-900" : "text-gray-900"
+                      )}>Sign Up</p>
+                      <p className="text-xs text-gray-500 truncate">Account creation</p>
                     </div>
                   </div>
 
-                  {/* Confirmation Page */}
+                  {/* Review Page */}
                   <div
                     onClick={() => {
-                      setActiveSpecialPage('confirmation')
+                      setActiveSpecialPage('review')
                       setActiveSectionId('')
                       setSelectedFieldId(null)
                     }}
                     className={cn(
-                      "group flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors",
-                      activeSpecialPage === 'confirmation'
-                        ? "bg-blue-50 text-blue-700" 
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      "group flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg cursor-pointer transition-all",
+                      activeSpecialPage === 'review'
+                        ? "bg-blue-50 shadow-sm ring-1 ring-blue-100" 
+                        : "hover:bg-white hover:shadow-sm"
                     )}
                   >
-                    <CheckCircle2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="h-10 w-10 flex items-center justify-center rounded-lg border bg-emerald-50 text-emerald-700 border-emerald-100 flex-shrink-0">
-                        <CheckCircle2 className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">Confirmation</p>
-                        <p className="text-xs text-gray-500">Submission success page</p>
-                      </div>
+                    <div className={cn(
+                      "h-8 w-8 flex items-center justify-center rounded-lg flex-shrink-0 transition-colors",
+                      activeSpecialPage === 'review'
+                        ? "bg-purple-500 text-white"
+                        : "bg-purple-50 text-purple-700 border border-purple-100"
+                    )}>
+                      <EyeIcon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        "text-sm font-semibold truncate",
+                        activeSpecialPage === 'review' ? "text-blue-900" : "text-gray-900"
+                      )}>Review & Submit</p>
+                      <p className="text-xs text-gray-500 truncate">Final review page</p>
+                    </div>
+                  </div>
+
+                  {/* Ending Page */}
+                  <div
+                    onClick={() => {
+                      setActiveSpecialPage('ending')
+                      setActiveSectionId('')
+                      setSelectedFieldId(null)
+                    }}
+                    className={cn(
+                      "group flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg cursor-pointer transition-all",
+                      activeSpecialPage === 'ending'
+                        ? "bg-blue-50 shadow-sm ring-1 ring-blue-100" 
+                        : "hover:bg-white hover:shadow-sm"
+                    )}
+                  >
+                    <div className={cn(
+                      "h-8 w-8 flex items-center justify-center rounded-lg flex-shrink-0 transition-colors",
+                      activeSpecialPage === 'ending'
+                        ? "bg-emerald-500 text-white"
+                        : "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                    )}>
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        "text-sm font-semibold truncate",
+                        activeSpecialPage === 'ending' ? "text-blue-900" : "text-gray-900"
+                      )}>Ending</p>
+                      <p className="text-xs text-gray-500 truncate">Success page</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="p-4 pb-2 flex justify-between items-center">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Form Sections</span>
+              <div className="px-3 pt-4 pb-2 flex justify-between items-center">
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Form Sections</span>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm">
@@ -920,7 +962,9 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       onSelectField={setSelectedFieldId}
                       selectedFieldId={selectedFieldId}
                     />
-                  ) : activeSpecialPage === 'confirmation' ? (
+                  ) : activeSpecialPage === 'review' ? (
+                    <ReviewPreview config={config} />
+                  ) : activeSpecialPage === 'ending' ? (
                     <ConfirmationPreview config={config} />
                   ) : displaySection ? (
                     <FormBuilder 
