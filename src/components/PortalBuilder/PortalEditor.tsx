@@ -900,7 +900,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
               )}
 
               {/* Form Sections - Scrollable */}
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 overflow-hidden px-1">
                 <ScrollArea className="h-full">
                   <SectionList 
                     sections={config.sections} 
