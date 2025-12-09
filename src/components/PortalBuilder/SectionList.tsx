@@ -72,7 +72,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
   }
 
   return (
-    <div className="space-y-0.5 px-3 pb-3">
+    <div className="space-y-1 px-2 pb-3">
       {sections.map((section, index) => {
         const key: VariantKey = (section.sectionType ?? 'form') as VariantKey
         const variant = variants[key]
@@ -88,47 +88,47 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
           onClick={() => onSelect(section.id)}
           title={section.title || variant.label}
           className={cn(
-            "group flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm cursor-pointer transition-colors relative min-w-0",
+            "group flex items-center gap-2 px-2.5 py-2 rounded-md text-sm cursor-pointer transition-all relative min-w-0",
             activeId === section.id 
-              ? "bg-blue-50 text-blue-900" 
+              ? "bg-blue-50 text-blue-900 shadow-sm" 
               : "text-gray-700 hover:bg-gray-50",
             draggedIndex === index && "opacity-50"
           )}
         >
           <GripVertical className="w-3.5 h-3.5 text-gray-400 cursor-grab flex-shrink-0" />
           <Icon className={cn("w-4 h-4 flex-shrink-0", variant.fg)} />
-          <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium group-hover:pr-16">{section.title || variant.label}</span>
-          <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 bg-white rounded shadow-sm border border-gray-200">
+          <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium pr-20">{section.title || variant.label}</span>
+          <div className="absolute right-1.5 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 bg-white rounded shadow-sm border border-gray-200 transition-opacity">
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-5 w-5 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
               onClick={(e) => { e.stopPropagation(); moveSection(index, 'up') }}
               disabled={index === 0}
             >
-              <ChevronUp className="w-3 h-3" />
+              <ChevronUp className="w-3.5 h-3.5" />
             </Button>
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-5 w-5 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
               onClick={(e) => { e.stopPropagation(); moveSection(index, 'down') }}
               disabled={index === sections.length - 1}
             >
-              <ChevronDown className="w-3 h-3" />
+              <ChevronDown className="w-3.5 h-3.5" />
             </Button>
             <Button 
               variant="ghost" 
               size="sm" 
               className={cn(
-                "h-5 w-5 p-0 text-gray-400 hover:text-red-500 hover:bg-red-50",
+                "h-6 w-6 p-0 text-gray-400 hover:text-red-500 hover:bg-red-50",
                 sections.length <= 1 && "opacity-30 cursor-not-allowed hover:text-gray-400 hover:bg-transparent"
               )}
               onClick={(e) => handleDelete(e, section.id)}
               disabled={sections.length <= 1}
               title={sections.length <= 1 ? "Cannot delete the last section" : "Delete section"}
             >
-              <Trash2 className="w-3 h-3" />
+              <Trash2 className="w-3.5 h-3.5" />
             </Button>
           </div>
         </div>
