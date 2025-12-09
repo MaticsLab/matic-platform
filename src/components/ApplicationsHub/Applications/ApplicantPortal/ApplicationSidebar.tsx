@@ -61,7 +61,7 @@ export function ApplicationSidebar({
       {/* Sidebar */}
       <aside
         className={cn(
-          "w-72 bg-white border-r border-gray-200 flex flex-col fixed lg:static inset-y-0 left-0 z-40 transition-transform duration-300",
+          "w-72 min-w-[18rem] max-w-[20rem] bg-white border-r border-gray-200 flex flex-col fixed lg:static inset-y-0 left-0 z-40 transition-transform duration-300",
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
@@ -98,7 +98,7 @@ export function ApplicationSidebar({
                   <button
                     onClick={() => onSectionChange(index)}
                     className={cn(
-                      "w-full text-left px-4 py-3 rounded-lg transition-all duration-200 flex items-center gap-3 group",
+                      "w-full text-left px-4 py-3 rounded-lg transition-all duration-200 flex items-center gap-3 group min-w-0",
                       isCurrent
                         ? isExternal 
                           ? "bg-gray-100 text-gray-900" 
@@ -128,11 +128,13 @@ export function ApplicationSidebar({
                     </div>
 
                     {/* Section Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{section.title}</div>
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <div className="font-medium truncate overflow-hidden text-ellipsis whitespace-nowrap">
+                        {section.title}
+                      </div>
                       {!isComplete && !isReviewSection && (
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="flex items-center gap-2 mt-1 min-w-0">
+                          <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden min-w-0">
                             <div
                               className={cn(
                                 "h-full transition-all duration-500 rounded-full",
@@ -145,7 +147,7 @@ export function ApplicationSidebar({
                               style={{ width: `${completion}%` }}
                             />
                           </div>
-                          <span className="text-xs text-gray-500 w-8 text-right">
+                          <span className="text-xs text-gray-500 flex-shrink-0 w-8 text-right">
                             {completion}%
                           </span>
                         </div>
