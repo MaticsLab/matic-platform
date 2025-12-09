@@ -1,16 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Mail, Lock, Sparkles, CheckCircle2 } from 'lucide-react'
+import { ArrowRight, Mail, Lock, Sparkles, CheckCircle2, Languages } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Textarea } from '@/ui-components/textarea'
 import { Label } from '@/ui-components/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
 import { ApplicationForm, EMPTY_APPLICATION_STATE } from './ApplicationForm'
 import { Form } from '@/types/forms'
 import { Field } from '@/types/portal'
 import { cn } from '@/lib/utils'
+import { applyTranslationsToConfig } from '@/lib/portal-translations'
 
 interface PublicPortalProps {
   slug: string
@@ -27,6 +29,35 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   const [form, setForm] = useState<Form | null>(null)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [initialData, setInitialData] = useState<any>(null)
+
+  // Language support
+  const defaultLanguage = form?.settings?.language?.default || 'en'
+  const supportedLanguages = useMemo(() => {
+    if (!form?.settings?.language?.enabled) return []
+    return Array.from(new Set([defaultLanguage, ...(form.settings.language?.supported || [])]))
+  }, [form, defaultLanguage])
+  const [activeLanguage, setActiveLanguage] = useState<string>(defaultLanguage)
+
+  // Apply translations to form config
+  const translatedForm = useMemo(() => {
+    if (!form || !form.settings?.language?.enabled || activeLanguage === defaultLanguage) {
+      return form
+    }
+    // Apply translations to the form's settings and fields
+    const translated = applyTranslationsToConfig(
+      { sections: [], settings: form.settings, translations: form.translations },
+      activeLanguage
+    )
+    return {
+      ...form,
+      name: translated.settings.name || form.name,
+      description: form.description, // Keep original or translate if needed
+      settings: {
+        ...form.settings,
+        signupFields: translated.settings.signupFields || form.settings.signupFields
+      }
+    }
+  }, [form, activeLanguage, defaultLanguage])
 
   useEffect(() => {
     const fetchForm = async () => {
@@ -130,6 +161,23 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
 
   return (
     <div className="min-h-screen bg-[#F7F7F5] flex flex-col items-center justify-center p-4 font-sans text-gray-900">
+      {/* Language Selector - Top Right */}
+      {form?.settings?.language?.enabled && supportedLanguages.length > 1 && (
+        <div className="fixed top-4 right-4 z-50">
+          <Select value={activeLanguage} onValueChange={setActiveLanguage}>
+            <SelectTrigger className="w-32 h-9 text-sm bg-white/90 backdrop-blur-sm">
+              <Languages className="w-4 h-4 mr-2" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {supportedLanguages.map(lang => (
+                <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -145,14 +193,14 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
             <div className="h-10 bg-gray-200 rounded-lg w-3/4 mx-auto animate-pulse" />
           ) : (
             <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-              {form?.name || 'Application Portal'}
+              {translatedForm?.name || 'Application Portal'}
             </h1>
           )}
           {isFormLoading ? (
             <div className="h-6 bg-gray-200 rounded-lg w-1/2 mx-auto animate-pulse" />
           ) : (
             <p className="text-gray-500 text-lg">
-              {form?.description || (isLogin ? 'Please log in to continue your application.' : 'Please sign up to continue your application.')}
+              {translatedForm?.description || (isLogin ? 'Please log in to continue your application.' : 'Please sign up to continue your application.')}
             </p>
           )}
         </div>
@@ -195,7 +243,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
               </>
             ) : (
               /* Render signup fields from portal config */
-              (form?.settings?.signupFields || []).map((field: Field) => (
+              (translatedForm?.settings?.signupFields || []).map((field: Field) => (
                 <div key={field.id} className="space-y-2">
                   <Label className="text-base font-medium text-gray-700">
                     {field.label}
