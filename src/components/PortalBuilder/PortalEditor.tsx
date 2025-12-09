@@ -19,6 +19,8 @@ import { SectionList } from './SectionList'
 import { FieldToolbox } from './FieldToolbox'
 import { FieldSettingsPanel } from './FieldSettingsPanel'
 import { ShareTab } from './ShareTab'
+import { SignUpPreview } from './SignUpPreview'
+import { ConfirmationPreview } from './ConfirmationPreview'
 import { DynamicApplicationForm } from '@/components/ApplicationsHub/Applications/ApplicantPortal/DynamicApplicationForm'
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { formsClient } from '@/lib/api/forms-client'
@@ -76,6 +78,7 @@ const INITIAL_CONFIG: PortalConfig = {
 export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: string, initialFormId?: string | null }) {
   const [config, setConfig] = useState<PortalConfig>(INITIAL_CONFIG)
   const [activeSectionId, setActiveSectionId] = useState<string>(INITIAL_CONFIG.sections[0].id)
+  const [activeSpecialPage, setActiveSpecialPage] = useState<'signup' | 'confirmation' | null>(null)
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop')
   const [isPreview, setIsPreview] = useState(false)
   const [formId, setFormId] = useState<string | null>(initialFormId || null)
@@ -500,8 +503,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   }
 
   const handleAddField = (type: Field['type']) => {
-    if (!activeSection) return
-    
     // Default config based on field type
     let config: Field['config'] = undefined
     if (type === 'callout') {
@@ -523,6 +524,23 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
       width: 'full',
       ...(config && { config })
     }
+
+    // Add to signup fields if on signup page
+    if (activeSpecialPage === 'signup') {
+      setConfig(prev => ({
+        ...prev,
+        settings: {
+          ...prev.settings,
+          signupFields: [...prev.settings.signupFields, newField]
+        }
+      }))
+      setHasUnsavedChanges(true)
+      setIsPublished(false)
+      return
+    }
+
+    // Otherwise add to active section
+    if (!activeSection) return
     handleUpdateSection(activeSection.id, { fields: [...activeSection.fields, newField] })
     setHasUnsavedChanges(true)
     setIsPublished(false)
@@ -736,8 +754,68 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             </div>
 
             <TabsContent value="structure" className="flex-1 data-[state=active]:flex flex-col mt-0 min-h-0 overflow-hidden">
+              {/* Special Pages Section */}
+              <div className="border-b border-gray-200">
+                <div className="p-4 pb-2">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pages</span>
+                </div>
+                <div className="space-y-1 p-2 pb-4">
+                  {/* Sign Up Page */}
+                  <div
+                    onClick={() => {
+                      setActiveSpecialPage('signup')
+                      setActiveSectionId('')
+                      setSelectedFieldId(null)
+                    }}
+                    className={cn(
+                      "group flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors",
+                      activeSpecialPage === 'signup'
+                        ? "bg-blue-50 text-blue-700" 
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    )}
+                  >
+                    <Lock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="h-10 w-10 flex items-center justify-center rounded-lg border bg-green-50 text-green-700 border-green-100 flex-shrink-0">
+                        <Lock className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">Sign Up</p>
+                        <p className="text-xs text-gray-500">Account creation fields</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Confirmation Page */}
+                  <div
+                    onClick={() => {
+                      setActiveSpecialPage('confirmation')
+                      setActiveSectionId('')
+                      setSelectedFieldId(null)
+                    }}
+                    className={cn(
+                      "group flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors",
+                      activeSpecialPage === 'confirmation'
+                        ? "bg-blue-50 text-blue-700" 
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    )}
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="h-10 w-10 flex items-center justify-center rounded-lg border bg-emerald-50 text-emerald-700 border-emerald-100 flex-shrink-0">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">Confirmation</p>
+                        <p className="text-xs text-gray-500">Submission success page</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="p-4 pb-2 flex justify-between items-center">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sections</span>
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Form Sections</span>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm">
@@ -788,7 +866,11 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                 <SectionList 
                   sections={config.sections} 
                   activeId={activeSectionId} 
-                  onSelect={setActiveSectionId}
+                  onSelect={(id) => {
+                    setActiveSectionId(id)
+                    setActiveSpecialPage(null)
+                    setSelectedFieldId(null)
+                  }}
                   onReorder={(sections: Section[]) => setConfig(prev => ({ ...prev, sections }))}
                   onDelete={(sectionId: string) => {
                     setConfig(prev => ({
@@ -824,13 +906,21 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             {/* Canvas */}
             <div className="flex-1 overflow-y-auto p-4 bg-gray-100 flex justify-center relative">
                 <div className={cn(
-                  "bg-white shadow-lg border border-gray-200 rounded-xl transition-all duration-300 min-h-[800px]",
+                  "bg-white shadow-lg border border-gray-200 rounded-xl transition-all duration-300 min-h-[800px] overflow-hidden",
                   viewMode === 'mobile' ? "w-[375px]" : "w-full max-w-3xl"
                 )}>
                   {isPreview ? (
                     <div className="p-4">
                       <DynamicApplicationForm config={displayConfig} isExternal={true} formId={formId || undefined} />
                     </div>
+                  ) : activeSpecialPage === 'signup' ? (
+                    <SignUpPreview 
+                      config={config} 
+                      onSelectField={setSelectedFieldId}
+                      selectedFieldId={selectedFieldId}
+                    />
+                  ) : activeSpecialPage === 'confirmation' ? (
+                    <ConfirmationPreview config={config} />
                   ) : displaySection ? (
                     <FormBuilder 
                       section={displaySection} 
@@ -860,8 +950,30 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                <div className="flex-1 overflow-hidden">
                    {selectedFieldId && (
                       <FieldSettingsPanel 
-                        selectedField={activeSection ? findFieldRecursive(activeSection.fields, selectedFieldId) : null}
-                        onUpdate={handleUpdateField}
+                        selectedField={
+                          activeSpecialPage === 'signup' 
+                            ? config.settings.signupFields.find(f => f.id === selectedFieldId) || null
+                            : activeSection 
+                              ? findFieldRecursive(activeSection.fields, selectedFieldId) 
+                              : null
+                        }
+                        onUpdate={(updates) => {
+                          if (activeSpecialPage === 'signup') {
+                            // Update signup field
+                            setConfig(prev => ({
+                              ...prev,
+                              settings: {
+                                ...prev.settings,
+                                signupFields: prev.settings.signupFields.map(f => 
+                                  f.id === selectedFieldId ? { ...f, ...updates } : f
+                                )
+                              }
+                            }))
+                            setHasUnsavedChanges(true)
+                          } else {
+                            handleUpdateField(updates)
+                          }
+                        }}
                         onClose={() => setSelectedFieldId(null)}
                         allFields={getAllFields()}
                       />
