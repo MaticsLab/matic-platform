@@ -81,31 +81,30 @@ export function ProgressHeader({
         isExternal ? "bg-white/80 backdrop-blur-md border-gray-100" : "bg-white border-gray-200"
       )}>
         <div className="flex items-center justify-between gap-6">
-        {/* Progress Section */}
-        <div className="flex items-center gap-4 flex-1 max-w-lg">
-          <div className="flex items-center gap-3 min-w-fit">
-            <span className="text-sm font-medium text-gray-700">Overall Progress</span>
-            <span className={cn(
-              "text-sm font-semibold tabular-nums",
-              progress >= 100 ? "text-green-600" : "text-blue-600"
-            )}>
-              {progress}% Complete
-            </span>
-          </div>
-          <div className="flex-1 min-w-[120px]">
-            <Progress value={progress} className="h-2" />
-          </div>
-          {progress < 100 && estimatedTimeRemaining > 0 && (
-            <div className="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
-              <Clock className="h-3 w-3" />
-              <span>~{estimatedTimeRemaining} min</span>
+          {/* Progress Section */}
+          <div className="flex items-center gap-4 flex-1 max-w-lg">
+            <div className="flex items-center gap-3 min-w-fit">
+              <span className="text-sm font-medium text-gray-700">Overall Progress</span>
+              <span className={cn(
+                "text-sm font-semibold tabular-nums",
+                progress >= 100 ? "text-green-600" : "text-blue-600"
+              )}>
+                {progress}% Complete
+              </span>
             </div>
-          )}
-        </div>
-        </div>
+            <div className="flex-1 min-w-[120px]">
+              <Progress value={progress} className="h-2" />
+            </div>
+            {progress < 100 && estimatedTimeRemaining > 0 && (
+              <div className="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
+                <Clock className="h-3 w-3" />
+                <span>~{estimatedTimeRemaining} min</span>
+              </div>
+            )}
+          </div>
 
-        {/* Actions Section */}
-        <div className="flex items-center gap-2">
+          {/* Actions Section */}
+          <div className="flex items-center gap-2">
           {/* Last Saved Status */}
           {lastSaved && (
             <div className="hidden sm:block text-xs text-gray-500 mr-2">
@@ -165,9 +164,8 @@ export function ProgressHeader({
             Save & Exit
           </Button>
         </div>
-      </div>
-
-    </header>
+        </div>
+      </header>
     </>
   )
 }
