@@ -209,6 +209,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.POST("/forms/:id/submit", handlers.SubmitForm)
 		api.GET("/forms/:id/submission", handlers.GetFormSubmission)
 
+		// Portal Authentication Routes (Public)
+		api.POST("/portal/signup", handlers.PortalSignup)
+		api.POST("/portal/login", handlers.PortalLogin)
+		api.POST("/portal/request-reset", handlers.PortalRequestReset)
+		api.POST("/portal/reset-password", handlers.PortalResetPassword)
+
 		// Public Email Tracking (must be public for tracking pixel to work)
 		api.GET("/email/track/:tracking_id", handlers.TrackEmailOpen)
 		api.GET("/email/oauth/callback", handlers.HandleGmailCallback)

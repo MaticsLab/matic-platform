@@ -13,6 +13,8 @@ import { Form } from '@/types/forms'
 import { Field } from '@/types/portal'
 import { cn } from '@/lib/utils'
 import { applyTranslationsToConfig } from '@/lib/portal-translations'
+import { portalAuthClient } from '@/lib/api/portal-auth-client'
+import { toast } from 'sonner'
 
 interface PublicPortalProps {
   slug: string
@@ -88,31 +90,56 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!form?.id) return
+    
     setIsLoading(true)
 
-    // Fetch existing submission
-    if (form?.id) {
-      try {
-        const baseUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
-        console.log('Fetching submission for:', form.id, email)
-        const res = await fetch(`${baseUrl}/forms/${form.id}/submission?email=${encodeURIComponent(email)}`)
-        if (res.ok) {
-          const data = await res.json()
-          console.log('Submission data received:', data)
-          setInitialData(data)
-        } else {
-          console.log('No submission found or error:', res.status)
-        }
-      } catch (err) {
-        console.error("Failed to fetch submission", err)
-      }
-    }
+    try {
+      if (isLogin) {
+        // Login with existing account
+        const applicant = await portalAuthClient.login({
+          form_id: form.id,
+          email,
+          password
+        })
 
-    // Simulate auth delay
-    setTimeout(() => {
+        // Fetch existing submission if available
+        if (applicant.submission_data) {
+          setInitialData(applicant.submission_data)
+        } else {
+          try {
+            const baseUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
+            const res = await fetch(`${baseUrl}/forms/${form.id}/submission?email=${encodeURIComponent(email)}`)
+            if (res.ok) {
+              const data = await res.json()
+              setInitialData(data)
+            }
+          } catch (err) {
+            console.error("Failed to fetch submission", err)
+          }
+        }
+
+        setIsAuthenticated(true)
+        toast.success('Logged in successfully')
+      } else {
+        // Sign up new account
+        const applicant = await portalAuthClient.signup({
+          form_id: form.id,
+          email,
+          password,
+          full_name: signupData.name || '',
+          data: signupData
+        })
+
+        setIsAuthenticated(true)
+        toast.success('Account created successfully')
+      }
+    } catch (error: any) {
+      console.error('Authentication error:', error)
+      toast.error(error.message || 'Authentication failed')
+    } finally {
       setIsLoading(false)
-      setIsAuthenticated(true)
-    }, 1000)
+    }
   }
 
   if (isSubmitted) {
