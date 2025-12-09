@@ -899,32 +899,34 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                 </div>
               )}
 
-              {/* Form Sections */}
-              <ScrollArea className="flex-1">
-                <SectionList 
-                  sections={config.sections} 
-                  activeId={activeSectionId} 
-                  onSelect={(id) => {
-                    setActiveSectionId(id)
-                    setActiveSpecialPage(null)
-                    setSelectedFieldId(null)
-                  }}
-                  onReorder={(sections: Section[]) => setConfig(prev => ({ ...prev, sections }))}
-                  onDelete={(sectionId: string) => {
-                    setConfig(prev => ({
-                      ...prev,
-                      sections: prev.sections.filter(s => s.id !== sectionId)
-                    }));
-                    // Select first remaining section if active one was deleted
-                    if (activeSectionId === sectionId) {
-                      const remaining = config.sections.filter(s => s.id !== sectionId);
-                      if (remaining.length > 0) {
-                        setActiveSectionId(remaining[0].id);
+              {/* Form Sections - Scrollable */}
+              <div className="flex-1 overflow-hidden">
+                <ScrollArea className="h-full">
+                  <SectionList 
+                    sections={config.sections} 
+                    activeId={activeSectionId} 
+                    onSelect={(id) => {
+                      setActiveSectionId(id)
+                      setActiveSpecialPage(null)
+                      setSelectedFieldId(null)
+                    }}
+                    onReorder={(sections: Section[]) => setConfig(prev => ({ ...prev, sections }))}
+                    onDelete={(sectionId: string) => {
+                      setConfig(prev => ({
+                        ...prev,
+                        sections: prev.sections.filter(s => s.id !== sectionId)
+                      }));
+                      // Select first remaining section if active one was deleted
+                      if (activeSectionId === sectionId) {
+                        const remaining = config.sections.filter(s => s.id !== sectionId);
+                        if (remaining.length > 0) {
+                          setActiveSectionId(remaining[0].id);
+                        }
                       }
-                    }
-                  }}
-                />
-              </ScrollArea>
+                    }}
+                  />
+                </ScrollArea>
+              </div>
             </TabsContent>
 
             <TabsContent value="elements" className="flex-1 mt-0 overflow-hidden data-[state=active]:flex flex-col min-h-0">

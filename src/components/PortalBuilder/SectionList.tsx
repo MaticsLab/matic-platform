@@ -88,7 +88,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
           onClick={() => onSelect(section.id)}
           title={section.title || variant.label}
           className={cn(
-            "group flex items-center gap-2 px-2 py-1.5 rounded-md text-sm cursor-pointer transition-colors",
+            "group flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm cursor-pointer transition-colors",
             activeId === section.id 
               ? "bg-blue-50 text-blue-900" 
               : "text-gray-700 hover:bg-gray-50",
@@ -97,12 +97,12 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
         >
           <GripVertical className="w-3.5 h-3.5 text-gray-400 cursor-grab flex-shrink-0" />
           <Icon className={cn("w-4 h-4 flex-shrink-0", variant.fg)} />
-          <span className="flex-1 truncate font-medium">{section.title || variant.label}</span>
-          <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5">
+          <span className="flex-1 min-w-0 truncate font-medium pr-1">{section.title || variant.label}</span>
+          <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 flex-shrink-0">
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
+              className="h-5 w-5 p-0 text-gray-400 hover:text-gray-600"
               onClick={(e) => { e.stopPropagation(); moveSection(index, 'up') }}
               disabled={index === 0}
             >
@@ -111,7 +111,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
+              className="h-5 w-5 p-0 text-gray-400 hover:text-gray-600"
               onClick={(e) => { e.stopPropagation(); moveSection(index, 'down') }}
               disabled={index === sections.length - 1}
             >
@@ -121,7 +121,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
               variant="ghost" 
               size="sm" 
               className={cn(
-                "h-6 w-6 p-0 text-gray-400 hover:text-red-500",
+                "h-5 w-5 p-0 text-gray-400 hover:text-red-500",
                 sections.length <= 1 && "opacity-30 cursor-not-allowed hover:text-gray-400"
               )}
               onClick={(e) => handleDelete(e, section.id)}
