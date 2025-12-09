@@ -72,7 +72,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
   }
 
   return (
-    <div className="space-y-1 px-1 pb-3">
+    <div className="space-y-1 pb-3">
       {sections.map((section, index) => {
         const key: VariantKey = (section.sectionType ?? 'form') as VariantKey
         const variant = variants[key]
@@ -88,7 +88,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
           onClick={() => onSelect(section.id)}
           title={section.title || variant.label}
           className={cn(
-            "group flex items-center gap-1.5 px-1.5 py-1.5 rounded-md text-sm cursor-pointer transition-all relative min-w-0",
+            "group flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm cursor-pointer transition-all relative min-w-0",
             activeId === section.id 
               ? "bg-blue-50 text-blue-900 shadow-sm" 
               : "text-gray-700 hover:bg-gray-50",
