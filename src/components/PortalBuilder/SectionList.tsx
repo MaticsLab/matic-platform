@@ -76,7 +76,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
   }
 
   return (
-    <div className="space-y-1.5 px-3 py-3">
+    <div className="space-y-1.5 px-2 py-3">
       {sections.map((section, index) => {
         const key: VariantKey = (section.sectionType ?? 'form') as VariantKey
         const variant = variants[key]
@@ -91,19 +91,19 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
             onDragEnd={handleDragEnd}
             onClick={() => onSelect(section.id)}
             className={cn(
-              "group relative flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-all border",
+              "group relative flex items-center gap-1.5 px-2 py-1.5 rounded-lg cursor-pointer transition-all border",
               activeId === section.id 
                 ? "bg-blue-50 border-blue-200 shadow-sm" 
                 : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm",
               draggedIndex === index && "opacity-50"
             )}
           >
-            <GripVertical className="w-4 h-4 text-gray-400 cursor-grab flex-shrink-0" />
-            <div className={cn("w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0", variant.bg)}>
-              <Icon className={cn("w-4 h-4", variant.fg)} />
+            <GripVertical className="w-3.5 h-3.5 text-gray-400 cursor-grab flex-shrink-0" />
+            <div className={cn("w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0", variant.bg)}>
+              <Icon className={cn("w-3.5 h-3.5", variant.fg)} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-gray-900 truncate">
+              <div className="text-xs font-medium text-gray-900 truncate">
                 {section.title || variant.label}
               </div>
             </div>
@@ -112,9 +112,9 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                 >
-                  <MoreVertical className="w-4 h-4 text-gray-500" />
+                  <MoreVertical className="w-3.5 h-3.5 text-gray-500" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
