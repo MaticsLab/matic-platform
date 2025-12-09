@@ -77,28 +77,31 @@ export function ProgressHeader({
       </div>
       
       <header className={cn(
-        "border-b px-4 sm:px-6 lg:px-8 py-4 mt-1",
+        "border-b px-4 sm:px-6 lg:px-8 py-3 mt-1",
         isExternal ? "bg-white/80 backdrop-blur-md border-gray-100" : "bg-white border-gray-200"
       )}>
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center justify-between gap-6">
         {/* Progress Section */}
-        <div className="flex-1 min-w-[200px] max-w-md">
-          <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-4 flex-1 max-w-lg">
+          <div className="flex items-center gap-3 min-w-fit">
             <span className="text-sm font-medium text-gray-700">Overall Progress</span>
             <span className={cn(
-              "text-sm font-semibold",
+              "text-sm font-semibold tabular-nums",
               progress >= 100 ? "text-green-600" : "text-blue-600"
             )}>
               {progress}% Complete
             </span>
           </div>
-          <Progress value={progress} className="h-2" />
+          <div className="flex-1 min-w-[120px]">
+            <Progress value={progress} className="h-2" />
+          </div>
           {progress < 100 && estimatedTimeRemaining > 0 && (
-            <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+            <div className="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
               <Clock className="h-3 w-3" />
-              <span>~{estimatedTimeRemaining} min remaining</span>
+              <span>~{estimatedTimeRemaining} min</span>
             </div>
           )}
+        </div>
         </div>
 
         {/* Actions Section */}
