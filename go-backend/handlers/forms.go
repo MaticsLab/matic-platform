@@ -172,6 +172,21 @@ found:
 		if val, ok := config["is_published"].(bool); ok {
 			isPublished = val
 		}
+	} else {
+		// No form view exists - create one automatically
+		viewConfig := map[string]interface{}{
+			"is_published": false,
+		}
+		view = models.View{
+			TableID:   table.ID,
+			Name:      "Form View",
+			Type:      "form",
+			Config:    mapToJSON(viewConfig),
+			CreatedBy: table.CreatedBy,
+		}
+		if err := database.DB.Create(&view).Error; err == nil {
+			viewID = &view.ID
+		}
 	}
 
 	var settings map[string]interface{}
