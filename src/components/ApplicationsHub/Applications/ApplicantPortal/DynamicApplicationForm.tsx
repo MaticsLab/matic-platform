@@ -344,6 +344,9 @@ function FieldRenderer({ field, value, onChange, themeColor, formId, allFields =
         {field.label}
         {field.required && <span className="text-red-500 ml-1">*</span>}
       </Label>
+      {field.placeholder && (
+        <p className="text-sm text-gray-500 -mt-1">{field.placeholder}</p>
+      )}
       
       {/* Text Inputs */}
       {(field.type === 'text' || field.type === 'email' || field.type === 'url' || field.type === 'phone') && (
@@ -351,7 +354,6 @@ function FieldRenderer({ field, value, onChange, themeColor, formId, allFields =
           type={field.type === 'email' ? 'email' : field.type === 'url' ? 'url' : field.type === 'phone' ? 'tel' : 'text'}
           value={value || ''} 
           onChange={e => onChange(e.target.value)} 
-          placeholder={field.placeholder}
           className="h-11"
         />
       )}
@@ -361,7 +363,7 @@ function FieldRenderer({ field, value, onChange, themeColor, formId, allFields =
         <AddressField
           value={value as AddressValue | null}
           onChange={(addressValue) => onChange(addressValue)}
-          placeholder={field.placeholder || 'Start typing an address...'}
+          placeholder="Start typing an address..."
           isTableCell={false}
         />
       )}
@@ -371,7 +373,6 @@ function FieldRenderer({ field, value, onChange, themeColor, formId, allFields =
           type="number"
           value={value || ''} 
           onChange={e => onChange(e.target.value)} 
-          placeholder={field.placeholder}
           className="h-11"
         />
       )}
@@ -380,7 +381,6 @@ function FieldRenderer({ field, value, onChange, themeColor, formId, allFields =
         <Textarea 
           value={value || ''} 
           onChange={e => onChange(e.target.value)} 
-          placeholder={field.placeholder}
           className="min-h-[120px] resize-y"
         />
       )}
@@ -404,7 +404,7 @@ function FieldRenderer({ field, value, onChange, themeColor, formId, allFields =
         return (
           <Select value={value} onValueChange={onChange}>
             <SelectTrigger className="h-11">
-              <SelectValue placeholder={field.placeholder || "Select an option"} />
+              <SelectValue placeholder="Select an option" />
             </SelectTrigger>
             <SelectContent>
               {options.map((opt: string) => (
