@@ -413,14 +413,14 @@ func (f *TableFile) FormatSize() string {
 // PortalApplicant - Stores applicant accounts for portal authentication
 type PortalApplicant struct {
 	BaseModel
-	FormID           uuid.UUID  `gorm:"type:uuid;not null;index" json:"form_id"`
-	Email            string     `gorm:"uniqueIndex:idx_form_email;not null" json:"email"`
-	PasswordHash     string     `gorm:"not null" json:"-"` // Never expose password hash in JSON
-	FullName         string     `json:"full_name,omitempty"`
+	FormID           uuid.UUID      `gorm:"type:uuid;not null;index" json:"form_id"`
+	Email            string         `gorm:"uniqueIndex:idx_form_email;not null" json:"email"`
+	PasswordHash     string         `gorm:"not null" json:"-"` // Never expose password hash in JSON
+	FullName         string         `json:"full_name,omitempty"`
 	SubmissionData   datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"submission_data,omitempty"`
-	ResetToken       *string    `gorm:"uniqueIndex" json:"-"`
-	ResetTokenExpiry *time.Time `json:"-"`
-	LastLoginAt      *time.Time `json:"last_login_at,omitempty"`
+	ResetToken       *string        `gorm:"uniqueIndex" json:"-"`
+	ResetTokenExpiry *time.Time     `json:"-"`
+	LastLoginAt      *time.Time     `json:"last_login_at,omitempty"`
 }
 
 func (PortalApplicant) TableName() string {

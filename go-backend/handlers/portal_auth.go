@@ -6,10 +6,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Jsanchez767/matic-platform/database"
+	"github.com/Jsanchez767/matic-platform/models"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"matic-platform/database"
-	"matic-platform/models"
 )
 
 // PortalSignupRequest for creating a new portal applicant account
@@ -64,7 +65,7 @@ func PortalSignup(c *gin.Context) {
 
 	// Create applicant
 	applicant := models.PortalApplicant{
-		FormID:       parseUUID(req.FormID),
+		FormID:       uuid.MustParse(req.FormID),
 		Email:        req.Email,
 		PasswordHash: string(hashedPassword),
 		FullName:     req.FullName,
@@ -72,8 +73,7 @@ func PortalSignup(c *gin.Context) {
 
 	// Store signup data if provided
 	if req.Data != nil && len(req.Data) > 0 {
-		jsonData, _ := jsonMarshal(req.Data)
-		applicant.SubmissionData = jsonData
+		applicant.SubmissionData = mapToJSON(req.Data)
 	}
 
 	if err := database.DB.Create(&applicant).Error; err != nil {
@@ -115,11 +115,11 @@ func PortalLogin(c *gin.Context) {
 	database.DB.Save(&applicant)
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":               applicant.ID,
-		"email":            applicant.Email,
-		"name":             applicant.FullName,
-		"submission_data":  applicant.SubmissionData,
-		"last_login_at":    applicant.LastLoginAt,
+		"id":              applicant.ID,
+		"email":           applicant.Email,
+		"name":            applicant.FullName,
+		"submission_data": applicant.SubmissionData,
+		"last_login_at":   applicant.LastLoginAt,
 	})
 }
 
