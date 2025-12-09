@@ -274,6 +274,7 @@ export function ApplicationForm({
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [versionHistory, setVersionHistory] = useState<VersionEntry[]>([])
+  const [visitedSections, setVisitedSections] = useState<Set<number>>(new Set([0])) // Track which sections user has advanced past
 
   const activeTab = TABS[currentSectionIndex]?.id || TABS[0]?.id
 
@@ -501,8 +502,9 @@ export function ApplicationForm({
   }, [TABS, formData, formDefinition?.fields, isDynamic, sections])
 
   const isSectionComplete = useCallback((sectionIndex: number) => {
-    return getSectionCompletion(sectionIndex) === 100
-  }, [getSectionCompletion])
+    // Section is only complete if user has visited it (advanced past it) AND all required fields are filled
+    return visitedSections.has(sectionIndex) && getSectionCompletion(sectionIndex) === 100
+  }, [getSectionCompletion, visitedSections])
 
   const goToSection = (index: number) => {
     setCurrentSectionIndex(index)
@@ -514,6 +516,8 @@ export function ApplicationForm({
 
   const nextSection = () => {
     if (currentSectionIndex < TABS.length - 1) {
+      // Mark current section as visited when advancing to next
+      setVisitedSections(prev => new Set([...prev, currentSectionIndex]))
       setCurrentSectionIndex(currentSectionIndex + 1)
     }
   }
@@ -1593,6 +1597,9 @@ function ReviewSection({
 
   const handleSubmit = async () => {
     if (!agreedToTerms || !agreedToAccuracy) return
+    
+    // Mark the review section as visited when submitting
+    setVisitedSections(prev => new Set([...prev, currentSectionIndex]))
     
     setIsSubmitting(true)
     await new Promise(resolve => setTimeout(resolve, 1500))
