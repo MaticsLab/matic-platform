@@ -1598,9 +1598,6 @@ function ReviewSection({
   const handleSubmit = async () => {
     if (!agreedToTerms || !agreedToAccuracy) return
     
-    // Mark the review section as visited when submitting
-    setVisitedSections(prev => new Set([...prev, currentSectionIndex]))
-    
     setIsSubmitting(true)
     await new Promise(resolve => setTimeout(resolve, 1500))
     onSubmit()
