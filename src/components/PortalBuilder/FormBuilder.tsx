@@ -773,38 +773,49 @@ function FieldEditor({
                   </Button>
                 </div>
                 <div className="space-y-4 pl-4 border-l-2 border-gray-100">
-                  {field.children?.map((child, childIndex) => (
-                    <FieldEditor 
-                      key={child.id} 
-                      field={child} 
-                      selectedFieldId={selectedFieldId}
-                      onSelectField={onSelectField}
-                      onUpdate={(u) => {
-                        const newChildren = field.children?.map(c => c.id === child.id ? { ...c, ...u } : c)
-                        onUpdate({ children: newChildren })
-                      }}
-                      onDelete={() => {
-                        const newChildren = field.children?.filter(c => c.id !== child.id)
-                        onUpdate({ children: newChildren })
-                      }}
-                      onAddChild={() => {
-                        // Recursive add child logic needs to be passed down or handled via a global handler
-                        // For now, we can just call the parent's onUpdate with the new child
-                        const newChild: Field = {
-                          id: Date.now().toString(),
-                          type: 'text',
-                          label: 'New Field',
-                          required: false,
-                          width: 'full'
-                        }
-                        const newChildren = [...(child.children || []), newChild]
-                        const updatedChild = { ...child, children: newChildren }
-                        const newParentChildren = field.children?.map(c => c.id === child.id ? updatedChild : c)
-                        onUpdate({ children: newParentChildren })
-                      }}
-                      previousFields={[...previousFields, field, ...(field.children?.slice(0, childIndex) || [])]}
-                    />
-                  ))}
+                  {field.children?.map((child, childIndex) => {
+                    const moveChildField = (dragIndex: number, hoverIndex: number) => {
+                      const newChildren = [...(field.children || [])]
+                      const [draggedChild] = newChildren.splice(dragIndex, 1)
+                      newChildren.splice(hoverIndex, 0, draggedChild)
+                      onUpdate({ children: newChildren })
+                    }
+
+                    return (
+                      <DraggableFieldEditor
+                        key={child.id}
+                        index={childIndex}
+                        field={child}
+                        selectedFieldId={selectedFieldId}
+                        onSelectField={onSelectField}
+                        onUpdate={(u) => {
+                          const newChildren = field.children?.map(c => c.id === child.id ? { ...c, ...u } : c)
+                          onUpdate({ children: newChildren })
+                        }}
+                        onDelete={() => {
+                          const newChildren = field.children?.filter(c => c.id !== child.id)
+                          onUpdate({ children: newChildren })
+                        }}
+                        onAddChild={() => {
+                          // Recursive add child logic needs to be passed down or handled via a global handler
+                          // For now, we can just call the parent's onUpdate with the new child
+                          const newChild: Field = {
+                            id: Date.now().toString(),
+                            type: 'text',
+                            label: 'New Field',
+                            required: false,
+                            width: 'full'
+                          }
+                          const newChildren = [...(child.children || []), newChild]
+                          const updatedChild = { ...child, children: newChildren }
+                          const newParentChildren = field.children?.map(c => c.id === child.id ? updatedChild : c)
+                          onUpdate({ children: newParentChildren })
+                        }}
+                        previousFields={[...previousFields, field, ...(field.children?.slice(0, childIndex) || [])]}
+                        moveField={moveChildField}
+                      />
+                    )
+                  })}
                   {(!field.children || field.children.length === 0) && (
                     <div className="text-sm text-gray-400 italic">No child fields yet</div>
                   )}
