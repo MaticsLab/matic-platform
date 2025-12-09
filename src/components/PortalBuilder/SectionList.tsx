@@ -17,6 +17,8 @@ interface SectionListProps {
 export function SectionList({ sections, activeId, onSelect, onReorder, onDelete }: SectionListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
 
+  console.log('🔍 SectionList rendering with', sections.length, 'sections:', sections.map(s => s.title))
+
   const variants = {
     form: { label: 'Form', description: 'Page to collect user input', icon: ScrollText, bg: 'bg-amber-50', fg: 'text-amber-700', border: 'border-amber-100' },
     cover: { label: 'Cover', description: 'Welcome users to your form', icon: BookOpen, bg: 'bg-blue-50', fg: 'text-blue-700', border: 'border-blue-100' },

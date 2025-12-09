@@ -233,6 +233,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                ]
              }
 
+             console.log('📊 Setting config with sections:', sections.length, sections)
+
              setConfig({
                  sections: sections,
                  settings: {
@@ -253,6 +255,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
              if (sections.length > 0) {
                setActiveSectionId(sections[0].id)
              }
+             console.log('✅ Config loaded. Active section:', sections[0]?.id, 'Total sections:', sections.length)
           } else if (fullForm.fields && fullForm.fields.length > 0) {
               // Fallback: Create a default section with all fields if no sections defined
               const defaultSection = {
