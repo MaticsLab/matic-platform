@@ -58,6 +58,9 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
             formsClient.get(formId).then((formData) => {
               setForm(formData)
               setCustomSlug(formData.custom_slug || '')
+              setPreviewTitle(formData.preview_title || formData.name)
+              setPreviewDescription(formData.preview_description || formData.description || '')
+              setPreviewImageUrl(formData.preview_image_url || '')
             })
           )
         }
