@@ -922,12 +922,16 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       setActiveSpecialPage(null)
                       setSelectedFieldId(null)
                     }}
-                    onReorder={(sections: Section[]) => setConfig(prev => ({ ...prev, sections }))}
+                    onReorder={(sections: Section[]) => {
+                      setConfig(prev => ({ ...prev, sections }))
+                      setHasUnsavedChanges(true)
+                    }}
                     onDelete={(sectionId: string) => {
                       setConfig(prev => ({
                         ...prev,
                         sections: prev.sections.filter(s => s.id !== sectionId)
                       }));
+                      setHasUnsavedChanges(true)
                       // Select first remaining section if active one was deleted
                       if (activeSectionId === sectionId) {
                         const remaining = config.sections.filter(s => s.id !== sectionId);
@@ -950,7 +954,10 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                <PortalSettings 
                   type="branding" 
                   settings={config.settings} 
-                  onUpdate={(updates: Partial<PortalConfig['settings']>) => setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))} 
+                  onUpdate={(updates: Partial<PortalConfig['settings']>) => {
+                    setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))
+                    setHasUnsavedChanges(true)
+                  }} 
                 />
             </TabsContent>
           </Tabs>
@@ -1043,7 +1050,10 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         open={isSettingsOpen} 
         onOpenChange={setIsSettingsOpen}
         config={config}
-        onUpdate={(updates) => setConfig(prev => ({ ...prev, ...updates }))}
+        onUpdate={(updates) => {
+          setConfig(prev => ({ ...prev, ...updates }))
+          setHasUnsavedChanges(true)
+        }}
       />
     </DndProvider>
   )
