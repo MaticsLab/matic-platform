@@ -68,7 +68,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     return {
       ...form,
       name: translatedConfig.settings.name || form.name,
-      description: form.description, // Keep original or translate if needed
+      description: translatedConfig.settings.description || form.description,
       settings: {
         ...form.settings,
         // Use the translated sections from the config

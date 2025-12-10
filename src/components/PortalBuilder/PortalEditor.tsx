@@ -237,6 +237,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                  sections: sections,
                  settings: {
                      name: fullForm.name,
+                     description: fullForm.description || fullForm.settings?.description,
                      themeColor: fullForm.settings.themeColor || '#3B82F6',
                      logoUrl: fullForm.settings.logoUrl,
                      language: fullForm.settings.language || {
@@ -292,6 +293,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   sections: [defaultSection],
                   settings: {
                      name: fullForm.name,
+                     description: fullForm.description || fullForm.settings?.description,
                      themeColor: fullForm.settings?.themeColor || '#3B82F6',
                      logoUrl: fullForm.settings?.logoUrl,
                      language: fullForm.settings?.language || {

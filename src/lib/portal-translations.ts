@@ -2,10 +2,12 @@ export type TranslationsMap = Record<string, string>
 
 const labelKey = (fieldId: string) => `field_${fieldId}_label`
 const placeholderKey = (fieldId: string) => `field_${fieldId}_placeholder`
+const descriptionKey = (fieldId: string) => `field_${fieldId}_desc`
 const optionKey = (fieldId: string, idx: number) => `field_${fieldId}_opt_${idx}`
 const sectionTitleKey = (sectionId: string) => `section_${sectionId}_title`
 const sectionDescKey = (sectionId: string) => `section_${sectionId}_desc`
 const portalNameKey = 'portal_name'
+const portalDescKey = 'portal_desc'
 
 // Collect all translatable strings from the portal config so we can send them to the
 // translation provider in one shot.
@@ -13,11 +15,17 @@ export function collectTranslatableContent(config: any): Record<string, string> 
   const contentToTranslate: Record<string, string> = {}
 
   contentToTranslate[portalNameKey] = config.settings?.name
+  if (config.settings?.description) {
+    contentToTranslate[portalDescKey] = config.settings.description
+  }
 
   const collectField = (field: any) => {
     contentToTranslate[labelKey(field.id)] = field.label
     if (field.placeholder) {
       contentToTranslate[placeholderKey(field.id)] = field.placeholder
+    }
+    if (field.description) {
+      contentToTranslate[descriptionKey(field.id)] = field.description
     }
     if (Array.isArray(field.options)) {
       field.options.forEach((opt: any, idx: number) => {
@@ -54,8 +62,10 @@ export function applyTranslationsToField(field: any, translations?: Translations
   const cloned = { ...field }
   const label = translations[labelKey(field.id)]
   const placeholder = translations[placeholderKey(field.id)]
+  const description = translations[descriptionKey(field.id)]
   if (label) cloned.label = label
   if (placeholder) cloned.placeholder = placeholder
+  if (description) cloned.description = description
   if (Array.isArray(field.options)) {
     cloned.options = field.options.map((opt: any, idx: number) => {
       const translation = translations[optionKey(field.id, idx)]
@@ -97,6 +107,7 @@ export function applyTranslationsToConfig(config: any, lang?: string): any {
     settings: {
       ...config.settings,
       name: translations[portalNameKey] || config.settings.name,
+      description: translations[portalDescKey] || config.settings.description,
       signupFields: (config.settings.signupFields || []).map((f: any) => applyTranslationsToField(f, translations)),
       loginFields: (config.settings.loginFields || []).map((f: any) => applyTranslationsToField(f, translations)),
     },
@@ -116,6 +127,7 @@ export function updateTranslationsForField(
 
   if (typeof updates.label === 'string') existing[labelKey(fieldId)] = updates.label
   if (typeof updates.placeholder === 'string') existing[placeholderKey(fieldId)] = updates.placeholder
+  if (typeof updates.description === 'string') existing[descriptionKey(fieldId)] = updates.description
   if (Array.isArray(updates.options)) {
     updates.options.forEach((opt: any, idx: number) => {
       const text = typeof opt === 'string' ? opt : opt.label

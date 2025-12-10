@@ -37,6 +37,7 @@ export type PortalConfig = {
   sections: Section[]
   settings: {
     name: string
+    description?: string
     themeColor: string
     logoUrl: string
     font?: 'inter' | 'roboto' | 'serif' | 'mono'
