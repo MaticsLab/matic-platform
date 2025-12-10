@@ -5,7 +5,7 @@ import {
   X, Bell, Link as LinkIcon, Settings, Lock, Languages, 
   GraduationCap, Code, BarChart3, Loader2, Plus, Trash2
 } from 'lucide-react'
-import { Dialog, DialogContent } from '@/ui-components/dialog'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/ui-components/dialog'
 import { Button } from '@/ui-components/button'
 import { Switch } from '@/ui-components/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
@@ -144,6 +144,8 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-5xl h-[750px] p-0 gap-0 overflow-hidden flex bg-white sm:rounded-2xl border-0 shadow-2xl">
+        <DialogTitle className="sr-only">Portal Settings</DialogTitle>
+        <DialogDescription className="sr-only">Configure portal settings, languages, and more.</DialogDescription>
         {/* Sidebar */}
         <div className="w-64 border-r border-gray-100 flex flex-col py-6 bg-white shrink-0">
           <div className="px-6 mb-6">
@@ -338,9 +340,9 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
                                       key={l.code}
                                       checked={checked}
                                       disabled={isDefault || (isTranslating && !checked)}
-                                      onCheckedChange={(val) => {
-                                        // val can be boolean or 'indeterminate'
-                                        const next = val === true
+                                      onSelect={(e) => {
+                                        e.preventDefault()
+                                        const next = !checked
                                         toggleLanguage(l.code, next)
                                       }}
                                     >

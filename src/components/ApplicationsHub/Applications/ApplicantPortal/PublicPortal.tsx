@@ -195,8 +195,11 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
           onBack={() => {}} // No-op for external
           onSave={() => setIsSubmitted(true)}
           isExternal={true}
-          formDefinition={form}
+          formDefinition={translatedForm}
           userEmail={email}
+          supportedLanguages={supportedLanguages}
+          activeLanguage={activeLanguage}
+          onLanguageChange={setActiveLanguage}
           initialData={initialData || {
             ...EMPTY_APPLICATION_STATE,
             personal: {

@@ -227,14 +227,20 @@ export function ApplicationForm({
   initialData, 
   isExternal = false,
   formDefinition,
-  userEmail
+  userEmail,
+  supportedLanguages,
+  activeLanguage,
+  onLanguageChange
 }: { 
   onBack: () => void, 
   onSave?: () => void,
   initialData?: any, 
   isExternal?: boolean,
   formDefinition?: Form | null,
-  userEmail?: string
+  userEmail?: string,
+  supportedLanguages?: string[],
+  activeLanguage?: string,
+  onLanguageChange?: (lang: string) => void
 }) {
   const rawSections = (formDefinition?.settings?.sections as any[]) || []
   const hasFields = (formDefinition?.fields?.length || 0) > 0
@@ -565,6 +571,9 @@ export function ApplicationForm({
           onRestoreVersion={restoreVersion}
           formName={formDefinition?.name}
           isExternal={isExternal}
+          supportedLanguages={supportedLanguages}
+          activeLanguage={activeLanguage}
+          onLanguageChange={onLanguageChange}
         />
 
         {/* Form Content */}

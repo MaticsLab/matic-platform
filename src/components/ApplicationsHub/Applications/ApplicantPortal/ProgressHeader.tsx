@@ -1,6 +1,6 @@
 'use client'
 
-import { Clock, History, Download } from 'lucide-react'
+import { Clock, History, Download, Languages, Check } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Progress } from '@/ui-components/progress'
 import {
@@ -28,6 +28,9 @@ interface ProgressHeaderProps {
   onRestoreVersion: (version: VersionEntry) => void
   formName?: string
   isExternal?: boolean
+  supportedLanguages?: string[]
+  activeLanguage?: string
+  onLanguageChange?: (lang: string) => void
 }
 
 export function ProgressHeader({
@@ -39,7 +42,10 @@ export function ProgressHeader({
   versionHistory,
   onRestoreVersion,
   formName = 'Application',
-  isExternal = false
+  isExternal = false,
+  supportedLanguages = [],
+  activeLanguage = 'en',
+  onLanguageChange
 }: ProgressHeaderProps) {
   if (process.env.NODE_ENV === 'development') {
     console.log('🎯 ProgressHeader rendered with progress:', progress)
@@ -149,6 +155,30 @@ export function ProgressHeader({
                       </DropdownMenuItem>
                     ))
                 )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Language Switcher */}
+          {supportedLanguages && supportedLanguages.length > 1 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Languages className="h-4 w-4" />
+                  <span className="hidden sm:inline uppercase">{activeLanguage}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {supportedLanguages.map((lang) => (
+                  <DropdownMenuItem 
+                    key={lang} 
+                    onClick={() => onLanguageChange?.(lang)}
+                    className="justify-between"
+                  >
+                    <span className="uppercase">{lang}</span>
+                    {activeLanguage === lang && <Check className="h-4 w-4 ml-2" />}
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
