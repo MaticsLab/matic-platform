@@ -1161,8 +1161,9 @@ type SectionInput struct {
 }
 
 type UpdateFormStructureInput struct {
-	Settings map[string]interface{} `json:"settings"`
-	Sections []SectionInput         `json:"sections"`
+	Settings     map[string]interface{} `json:"settings"`
+	Sections     []SectionInput         `json:"sections"`
+	Translations map[string]interface{} `json:"translations"`
 }
 
 func UpdateFormStructure(c *gin.Context) {
@@ -1200,6 +1201,11 @@ func UpdateFormStructure(c *gin.Context) {
 		})
 	}
 	settings["sections"] = sectionMeta
+
+	// Save translations if present
+	if input.Translations != nil {
+		settings["translations"] = input.Translations
+	}
 
 	table.Settings = mapToJSON(settings)
 	if name, ok := settings["name"].(string); ok {
