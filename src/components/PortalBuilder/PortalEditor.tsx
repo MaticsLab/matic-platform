@@ -305,7 +305,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                      loginFields: fullForm.settings?.loginFields || INITIAL_CONFIG.settings.loginFields,
                      signupFields: signupFieldsFallback
                   },
-                  translations: fullForm.translations || {}
+                  translations: fullForm.settings?.translations || (fullForm as any).translations || {}
               })
               setActiveSectionId('default')
           }
