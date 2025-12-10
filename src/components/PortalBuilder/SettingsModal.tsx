@@ -72,10 +72,18 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
 
       const targetLanguageName = getLanguageName(langCode)
 
-      // Call AI
-      toast.success(`Starting translation to ${targetLanguageName}`)
-      const translations = await translateContent(contentToTranslate, targetLanguageName)
-      console.log('✅ Translations received:', translations)
+      let translations = {}
+      
+      // Only translate if auto-translate is NOT disabled
+      if (!config.settings.language?.disableAutoTranslate) {
+        // Call AI
+        toast.success(`Starting translation to ${targetLanguageName}`)
+        translations = await translateContent(contentToTranslate, targetLanguageName)
+        console.log('✅ Translations received:', translations)
+      } else {
+        console.log('🚫 Auto-translate disabled, skipping AI translation')
+        toast.success(`Added ${targetLanguageName} (Auto-translate disabled)`)
+      }
       
       // Update config
       const currentTranslations = config.translations || {}
@@ -93,13 +101,16 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
             default: config.settings.language?.default || 'en',
             enabled: true,
             supported: [...new Set([...currentSupported, langCode])],
-            rightToLeft: config.settings.language?.rightToLeft || false
+            rightToLeft: config.settings.language?.rightToLeft || false,
+            disableAutoTranslate: config.settings.language?.disableAutoTranslate || false
           }
         },
         translations: newTranslations
       })
       
-      toast.success(`Added ${LANGUAGES.find(l => l.code === langCode)?.name || langCode} translation`)
+      if (!config.settings.language?.disableAutoTranslate) {
+        toast.success(`Added ${LANGUAGES.find(l => l.code === langCode)?.name || langCode} translation`)
+      }
     } catch (error) {
       console.error(error)
       toast.error('Failed to translate content')
@@ -122,7 +133,8 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
                   default: config.settings.language?.default || 'en',
                   enabled: config.settings.language?.enabled ?? false,
                   supported: newSupported,
-                  rightToLeft: config.settings.language?.rightToLeft || false
+                  rightToLeft: config.settings.language?.rightToLeft || false,
+                  disableAutoTranslate: config.settings.language?.disableAutoTranslate || false
               }
           },
           translations: currentTranslations
@@ -192,7 +204,8 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
                                         default: v,
                                         enabled: config.settings.language?.enabled ?? false,
                                         supported: config.settings.language?.supported || [],
-                                        rightToLeft: config.settings.language?.rightToLeft || false
+                                        rightToLeft: config.settings.language?.rightToLeft || false,
+                                        disableAutoTranslate: config.settings.language?.disableAutoTranslate || false
                                     }
                                 }
                             })}
@@ -211,7 +224,22 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
 
                       <div className="flex items-center justify-between">
                         <Label className="text-base font-medium text-gray-900">Disable auto-translate</Label>
-                        <Switch className="scale-110" />
+                        <Switch 
+                            className="scale-110"
+                            checked={config.settings.language?.disableAutoTranslate || false}
+                            onCheckedChange={(c) => onUpdate({
+                                settings: {
+                                    ...config.settings,
+                                    language: {
+                                        default: config.settings.language?.default || 'en',
+                                        enabled: config.settings.language?.enabled ?? false,
+                                        supported: config.settings.language?.supported || [],
+                                        rightToLeft: config.settings.language?.rightToLeft || false,
+                                        disableAutoTranslate: c
+                                    }
+                                }
+                            })}
+                        />
                       </div>
 
                       <div className="flex items-center justify-between">
@@ -226,7 +254,8 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
                                         default: config.settings.language?.default || 'en',
                                         enabled: config.settings.language?.enabled ?? false,
                                         supported: config.settings.language?.supported || [],
-                                        rightToLeft: c
+                                        rightToLeft: c,
+                                        disableAutoTranslate: config.settings.language?.disableAutoTranslate || false
                                     }
                                 }
                             })}
@@ -309,10 +338,10 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
                                       key={l.code}
                                       checked={checked}
                                       disabled={isDefault || (isTranslating && !checked)}
-                                      onCheckedChange={async (val) => {
+                                      onCheckedChange={(val) => {
                                         // val can be boolean or 'indeterminate'
                                         const next = val === true
-                                        await toggleLanguage(l.code, next)
+                                        toggleLanguage(l.code, next)
                                       }}
                                     >
                                       {l.name}{isDefault ? ' (default)' : ''}

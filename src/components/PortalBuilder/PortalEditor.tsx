@@ -497,9 +497,15 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     setIsTranslatingActiveLanguage(true)
     const targetLanguageName = getLanguageName(lang)
     try {
-      toast.success(`Translating to ${targetLanguageName}`)
-      const contentToTranslate = collectTranslatableContent(config)
-      const translations = await translateContent(contentToTranslate, targetLanguageName)
+      let translations = {}
+      
+      if (!config.settings.language?.disableAutoTranslate) {
+        toast.success(`Translating to ${targetLanguageName}`)
+        const contentToTranslate = collectTranslatableContent(config)
+        translations = await translateContent(contentToTranslate, targetLanguageName)
+      } else {
+        toast.success(`Switched to ${targetLanguageName} (Auto-translate disabled)`)
+      }
 
       setConfig(prev => ({
         ...prev,
@@ -514,13 +520,16 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             enabled: true,
             default: prev.settings.language?.default || 'en',
             supported: Array.from(new Set([...(prev.settings.language?.supported || []), lang])),
-            rightToLeft: prev.settings.language?.rightToLeft || false
+            rightToLeft: prev.settings.language?.rightToLeft || false,
+            disableAutoTranslate: prev.settings.language?.disableAutoTranslate || false
           }
         }
       }))
 
       setActiveLanguage(lang)
-      toast.success(`Switched to ${targetLanguageName}`)
+      if (!config.settings.language?.disableAutoTranslate) {
+        toast.success(`Switched to ${targetLanguageName}`)
+      }
     } catch (error) {
       console.error('Language switch translation failed', error)
       toast.error(`Failed to translate to ${targetLanguageName}`)

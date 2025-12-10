@@ -52,6 +52,7 @@ export type PortalConfig = {
       enabled: boolean
       supported: string[]
       rightToLeft?: boolean
+      disableAutoTranslate?: boolean
     }
   }
   translations?: Record<string, Record<string, string>> // langCode -> key -> text
