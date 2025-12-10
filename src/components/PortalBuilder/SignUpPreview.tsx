@@ -63,6 +63,9 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId }: SignUp
                   {field.label}
                   {field.required && <span className="text-red-500 ml-1">*</span>}
                 </Label>
+                {field.description && (
+                  <p className="text-sm text-gray-500 -mt-1">{field.description}</p>
+                )}
                 {field.placeholder && (
                   <p className="text-sm text-gray-500 -mt-1">{field.placeholder}</p>
                 )}

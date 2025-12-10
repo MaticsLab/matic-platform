@@ -738,6 +738,11 @@ function FieldEditor({
               </div>
             )}
 
+            {/* Description / Help Text */}
+            {field.description && (
+              <p className="text-sm text-gray-500 -mt-1">{field.description}</p>
+            )}
+
             {/* Field Preview */}
             <div className="pointer-events-none">
               {renderFieldPreview()}

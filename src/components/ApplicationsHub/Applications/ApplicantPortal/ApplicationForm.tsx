@@ -824,9 +824,14 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId, rootDa
         return (
           <div key={field.id} className={cn("space-y-3", getColSpanClass(layoutWidth))}>
             {!isLayoutField && (
-              <Label className="text-base font-medium">
-                {field.label} {isRequired && <span className="text-red-500">*</span>}
-              </Label>
+              <div className="space-y-1">
+                <Label className="text-base font-medium">
+                  {field.label} {isRequired && <span className="text-red-500">*</span>}
+                </Label>
+                {field.description && (
+                  <p className="text-sm text-gray-500">{field.description}</p>
+                )}
+              </div>
             )}
             
             {field.type === 'text' && (
