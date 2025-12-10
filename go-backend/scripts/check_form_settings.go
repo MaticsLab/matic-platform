@@ -37,7 +37,7 @@ func main() {
 	}
 
 	fmt.Printf("Form Name: %s\n", table.Name)
-	
+
 	translations, ok := settings["translations"]
 	if !ok {
 		fmt.Println("❌ 'translations' key NOT found in settings")
