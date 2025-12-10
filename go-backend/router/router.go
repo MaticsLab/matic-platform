@@ -686,6 +686,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				moduleSettings.GET("/:config_id/history-settings", handlers.GetModuleHistorySettings)
 				moduleSettings.PUT("/:config_id/history-settings", handlers.UpdateModuleHistorySettings)
 			}
+
+			// AI Services
+			ai := protected.Group("/ai")
+			{
+				ai.POST("/translate", handlers.TranslateContent)
+			}
 		}
 	}
 

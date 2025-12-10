@@ -14,6 +14,7 @@ type Config struct {
 	SupabaseURL            string
 	SupabaseKey            string
 	SupabaseServiceRoleKey string
+	CohereAPIKey           string
 }
 
 func LoadConfig() *Config {
@@ -38,6 +39,7 @@ func LoadConfig() *Config {
 		SupabaseURL:            os.Getenv("SUPABASE_URL"),
 		SupabaseKey:            os.Getenv("SUPABASE_ANON_KEY"),
 		SupabaseServiceRoleKey: os.Getenv("SUPABASE_SERVICE_ROLE_KEY"),
+		CohereAPIKey:           os.Getenv("COHERE_API_KEY"),
 	}
 }
 

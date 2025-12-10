@@ -74,27 +74,6 @@ type CohereGenerateResponse struct {
 	} `json:"meta"`
 }
 
-// CohereChatRequest for chat-based generation
-type CohereChatRequest struct {
-	Model       string        `json:"model"`
-	Message     string        `json:"message"`
-	Preamble    string        `json:"preamble,omitempty"`
-	ChatHistory []ChatMessage `json:"chat_history,omitempty"`
-	Temperature float64       `json:"temperature,omitempty"`
-}
-
-type ChatMessage struct {
-	Role    string `json:"role"` // USER or CHATBOT
-	Message string `json:"message"`
-}
-
-type CohereChatResponse struct {
-	Text         string        `json:"text"`
-	GenerationID string        `json:"generation_id"`
-	ResponseID   string        `json:"response_id"`
-	ChatHistory  []ChatMessage `json:"chat_history,omitempty"`
-}
-
 // NewAIReportService creates a new AI report service
 func NewAIReportService(cohereClient *CohereClient) *AIReportService {
 	return &AIReportService{
