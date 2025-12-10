@@ -61,7 +61,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     // 2. Translate Fields (Flat Array)
     // Since the utility expects nested fields in sections, we must manually translate the flat fields array
     // using the helper function from portal-translations
-    const translatedFields = (form.fields || []).map((field: Field) => 
+    const translatedFields = (form.fields || []).map((field) => 
       applyTranslationsToField(field, translations[activeLanguage])
     )
 

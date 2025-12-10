@@ -20,8 +20,9 @@ export function collectTranslatableContent(config: any): Record<string, string> 
       contentToTranslate[placeholderKey(field.id)] = field.placeholder
     }
     if (Array.isArray(field.options)) {
-      field.options.forEach((opt: string, idx: number) => {
-        contentToTranslate[optionKey(field.id, idx)] = opt
+      field.options.forEach((opt: any, idx: number) => {
+        const text = typeof opt === 'string' ? opt : opt.label
+        contentToTranslate[optionKey(field.id, idx)] = text
       })
     }
     if (Array.isArray(field.children)) {
@@ -56,7 +57,16 @@ export function applyTranslationsToField(field: any, translations?: Translations
   if (label) cloned.label = label
   if (placeholder) cloned.placeholder = placeholder
   if (Array.isArray(field.options)) {
-    cloned.options = field.options.map((opt: string, idx: number) => translations[optionKey(field.id, idx)] || opt)
+    cloned.options = field.options.map((opt: any, idx: number) => {
+      const translation = translations[optionKey(field.id, idx)]
+      if (!translation) return opt
+      
+      if (typeof opt === 'string') {
+        return translation
+      } else {
+        return { ...opt, label: translation }
+      }
+    })
   }
   if (Array.isArray(field.children)) {
     cloned.children = field.children.map((child: any) => applyTranslationsToField(child, translations))
@@ -107,8 +117,9 @@ export function updateTranslationsForField(
   if (typeof updates.label === 'string') existing[labelKey(fieldId)] = updates.label
   if (typeof updates.placeholder === 'string') existing[placeholderKey(fieldId)] = updates.placeholder
   if (Array.isArray(updates.options)) {
-    updates.options.forEach((opt: string, idx: number) => {
-      existing[optionKey(fieldId, idx)] = opt
+    updates.options.forEach((opt: any, idx: number) => {
+      const text = typeof opt === 'string' ? opt : opt.label
+      existing[optionKey(fieldId, idx)] = text
     })
     // ensure options length matches base
     if (Array.isArray(baseField?.options) && baseField.options.length > updates.options.length) {
