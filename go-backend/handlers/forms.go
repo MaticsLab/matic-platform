@@ -1181,6 +1181,13 @@ func UpdateFormStructure(c *gin.Context) {
 		return
 	}
 
+	// DEBUG: Log received translations
+	if input.Translations != nil {
+		fmt.Printf("📝 UpdateFormStructure: Received %d translation languages\n", len(input.Translations))
+	} else {
+		fmt.Println("⚠️ UpdateFormStructure: No translations received in input")
+	}
+
 	// Start transaction
 	tx := database.DB.Begin()
 
