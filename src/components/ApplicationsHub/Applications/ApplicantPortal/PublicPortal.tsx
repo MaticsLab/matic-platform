@@ -43,13 +43,28 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
 
   // Apply translations to form config
   const translatedForm = useMemo(() => {
-    if (!form || !form.settings?.language?.enabled || activeLanguage === defaultLanguage) {
+    if (!form) return null
+    
+    // Debug logging
+    console.log('🌐 Translating form:', {
+      activeLanguage,
+      defaultLanguage,
+      hasTranslations: !!(form.settings as any)?.translations || !!(form as any)?.translations,
+      translations: (form.settings as any)?.translations || (form as any)?.translations
+    })
+
+    if (!form.settings?.language?.enabled || activeLanguage === defaultLanguage) {
       return form
     }
     // Apply translations to the form's settings and fields
     // translations are stored in form.settings.translations or as a top-level property
     const translations = (form.settings as any).translations || (form as any).translations || {}
     
+    if (!translations[activeLanguage]) {
+      console.warn(`⚠️ No translations found for language: ${activeLanguage}`)
+      return form
+    }
+
     // 1. Translate Config (Settings & Sections)
     // We pass form.settings.sections so the utility can translate section titles
     const rawSections = (form.settings as any).sections || []
@@ -65,7 +80,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       applyTranslationsToField(field, translations[activeLanguage])
     )
 
-    return {
+    const result = {
       ...form,
       name: translatedConfig.settings.name || form.name,
       description: translatedConfig.settings.description || form.description,
@@ -78,6 +93,9 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       // Use the manually translated fields
       fields: translatedFields
     }
+    
+    console.log('✅ Form translated:', result)
+    return result
   }, [form, activeLanguage, defaultLanguage])
 
   useEffect(() => {
