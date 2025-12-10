@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useDrag, useDrop, DndProvider } from 'react-dnd'
+import { useDrag, useDrop, DndProvider, ConnectDragSource } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { 
   GripVertical, Trash2, Plus, Type, AlignLeft, Hash, Mail, Calendar, 
@@ -241,7 +241,8 @@ function DraggableFieldEditor({
     }),
   })
 
-  drag(drop(ref))
+  drop(ref)
+  preview(ref)
 
   return (
     <div 
@@ -257,6 +258,7 @@ function DraggableFieldEditor({
         onDelete={onDelete}
         onAddChild={onAddChild}
         previousFields={previousFields}
+        dragHandle={drag}
       />
     </div>
   )
@@ -269,7 +271,8 @@ function FieldEditor({
   onUpdate, 
   onDelete, 
   onAddChild,
-  previousFields = []
+  previousFields = [],
+  dragHandle
 }: { 
   field: Field, 
   selectedFieldId: string | null,
@@ -277,7 +280,8 @@ function FieldEditor({
   onUpdate: (u: Partial<Field>) => void, 
   onDelete: () => void, 
   onAddChild: () => void,
-  previousFields?: Field[]
+  previousFields?: Field[],
+  dragHandle?: ConnectDragSource
 }) {
   const [isEditingLabel, setIsEditingLabel] = useState(false)
   const [editedLabel, setEditedLabel] = useState(field.label)
@@ -420,6 +424,7 @@ function FieldEditor({
             className="cursor-text hover:bg-gray-50 rounded px-2 py-1 -mx-2 transition-colors min-h-[40px]"
             onClick={(e) => {
               e.stopPropagation()
+              onSelectField(field.id)
               setEditedDescription(content)
               setIsEditingDescription(true)
             }}
@@ -461,6 +466,7 @@ function FieldEditor({
                   className={cn("text-sm font-medium cursor-text hover:bg-white/50 rounded px-1 -mx-1 transition-colors", colors.title)}
                   onClick={(e) => {
                     e.stopPropagation()
+                    onSelectField(field.id)
                     setIsEditingLabel(true)
                   }}
                 >
@@ -483,6 +489,7 @@ function FieldEditor({
                   className={cn("text-sm mt-1 cursor-text hover:bg-white/50 rounded px-1 -mx-1 transition-colors min-h-[20px]", colors.text)}
                   onClick={(e) => {
                     e.stopPropagation()
+                    onSelectField(field.id)
                     setIsEditingDescription(true)
                   }}
                 >
@@ -647,7 +654,7 @@ function FieldEditor({
           </Button>
         </div>
         <div className="flex items-center gap-3">
-          <div className="cursor-grab text-gray-300 hover:text-gray-500">
+          <div ref={(node) => { if (dragHandle) dragHandle(node) }} className="cursor-grab text-gray-300 hover:text-gray-500">
             <GripVertical className="w-5 h-5" />
           </div>
           <div className="flex-1 border-t-2 border-gray-300" />
@@ -684,7 +691,7 @@ function FieldEditor({
           </div>
         )}
         <div className="flex items-start gap-4">
-          <div className="mt-1 cursor-grab text-gray-300 hover:text-gray-500">
+          <div ref={(node) => { if (dragHandle) dragHandle(node) }} className="mt-1 cursor-grab text-gray-300 hover:text-gray-500">
             <GripVertical className="w-5 h-5" />
           </div>
           <div className="flex-1 space-y-3">
@@ -719,10 +726,12 @@ function FieldEditor({
                     className="group/label flex items-center gap-2 cursor-text"
                     onClick={(e) => {
                       e.stopPropagation()
+                      onSelectField(field.id)
                       setIsEditingLabel(true)
                     }}
                     onDoubleClick={(e) => {
                       e.stopPropagation()
+                      onSelectField(field.id)
                       setIsEditingLabel(true)
                     }}
                   >

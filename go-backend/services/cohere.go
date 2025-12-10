@@ -243,4 +243,3 @@ func (c *CohereClient) TranslateJSON(content map[string]string, targetLanguage s
 
 	return translatedContent, nil
 }
-

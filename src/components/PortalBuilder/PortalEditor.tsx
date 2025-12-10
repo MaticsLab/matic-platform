@@ -327,13 +327,19 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         if (!workspace) throw new Error('Workspace not found')
 
         // Debug: Log what we're sending to the backend
-        console.log('📤 Saving portal config:', JSON.stringify(config, null, 2))
+        console.log('📤 Saving portal config:', {
+            hasTranslations: !!config.translations,
+            translationKeys: Object.keys(config.translations || {}),
+            config
+        })
+
+        const translationCount = Object.keys(config.translations || {}).length
 
         if (formId) {
             await formsClient.updateStructure(formId, config)
             // Also set is_published to true so submissions are accepted
             await formsClient.update(formId, { is_published: true })
-            toast.success('Portal published successfully!')
+            toast.success(`Portal published successfully! (${translationCount} languages)`)
         } else {
             const newForm = await formsClient.create({
                 workspace_id: workspace.id,
@@ -344,7 +350,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             await formsClient.updateStructure(newForm.id, config)
             // Also set is_published to true so submissions are accepted
             await formsClient.update(newForm.id, { is_published: true })
-            toast.success('Portal created and published!')
+            toast.success(`Portal created and published! (${translationCount} languages)`)
         }
         setIsPublished(true)
         setHasUnsavedChanges(false)
@@ -490,8 +496,10 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     const defaultLang = config.settings.language?.default || 'en'
     if (lang === activeLanguage) return
 
-    // If default language or translation already exists, just switch
-    if (lang === defaultLang || config.translations?.[lang]) {
+    // If default language or translation already exists AND has content, just switch
+    const hasTranslations = config.translations?.[lang] && Object.keys(config.translations[lang]).length > 0
+    
+    if (lang === defaultLang || hasTranslations) {
       setActiveLanguage(lang)
       return
     }

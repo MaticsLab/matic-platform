@@ -109,7 +109,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
           ? `${baseUrl}/forms/by-subdomain/${subdomain}/${slug}`
           : `${baseUrl}/forms/by-slug/${slug}`
         
-        const response = await fetch(endpoint)
+        const response = await fetch(endpoint, { cache: 'no-store' })
         if (response.ok) {
           const data = await response.json()
           setForm(data)
