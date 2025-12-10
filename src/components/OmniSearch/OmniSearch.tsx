@@ -344,34 +344,8 @@ export const OmniSearch: React.FC<OmniSearchProps> = ({
         },
         keywords: ['create', 'new', 'workflow', 'review', 'approval', 'stages']
       },
-      {
-        id: 'action-new-hub',
-        title: 'Create Hub',
-        subtitle: 'Create an activities or request hub',
-        icon: Inbox,
-        type: 'action',
-        category: 'CREATE',
-        action: () => {
-          router.push(`/workspace/${workspaceSlug}?action=create-hub`)
-          onClose()
-        },
-        keywords: ['create', 'new', 'hub', 'activities', 'request', 'module']
-      },
 
       // Navigation
-      {
-        id: 'nav-dashboard',
-        title: 'Dashboard',
-        subtitle: 'Go to workspace overview',
-        icon: Layout,
-        type: 'navigation',
-        category: 'NAVIGATION',
-        action: () => {
-          router.push(`/workspace/${workspaceSlug}`)
-          onClose()
-        },
-        keywords: ['dashboard', 'overview', 'home', 'main']
-      },
       {
         id: 'nav-tables',
         title: 'All Tables',

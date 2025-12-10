@@ -20,31 +20,10 @@ export function Sidebar({ workspaceId }: SidebarProps) {
   
   const navItems = [
     {
-      id: 'home',
-      label: 'Home',
-      icon: Home,
-      url: `/workspace/${workspaceId}`,
-      type: 'custom'
-    },
-    {
-      id: 'activities',
-      label: 'Activities',
-      icon: Activity,
-      url: `/workspace/${workspaceId}/activities-hubs`,
-      type: 'custom'
-    },
-    {
       id: 'applications',
       label: 'Applications',
       icon: GraduationCap,
       url: `/workspace/${workspaceId}/applications`,
-      type: 'custom'
-    },
-    {
-      id: 'requests',
-      label: 'Requests',
-      icon: Inbox,
-      url: `/workspace/${workspaceId}/request-hubs`,
       type: 'custom'
     },
     {
@@ -53,20 +32,6 @@ export function Sidebar({ workspaceId }: SidebarProps) {
       icon: BarChart3,
       url: `/workspace/${workspaceId}/tables`,
       type: 'table'
-    },
-    {
-      id: 'people',
-      label: 'People',
-      icon: Users,
-      url: `/workspace/${workspaceId}/people`,
-      type: 'custom'
-    },
-    {
-      id: 'settings',
-      label: 'Settings',
-      icon: Settings,
-      url: `/workspace/${workspaceId}/settings`,
-      type: 'custom'
     }
   ]
 

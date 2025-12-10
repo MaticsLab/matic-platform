@@ -927,22 +927,6 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
   // Hubs configuration
   const hubs = [
     { 
-      id: 'activities', 
-      name: 'Activities Hub', 
-      icon: ActivityIcon, 
-      description: 'Manage programs, events, and attendance tracking.', 
-      color: 'blue',
-      action: 'View Programs'
-    },
-    { 
-      id: 'requests', 
-      name: 'Request Hub', 
-      icon: Inbox, 
-      description: 'Centralize incoming requests and approvals.', 
-      color: 'orange',
-      action: 'Review Requests'
-    },
-    { 
       id: 'applications', 
       name: 'Applications Hub', 
       icon: GraduationCap, 
@@ -957,14 +941,6 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
       description: 'System tables, data management, and reporting.', 
       color: 'slate',
       action: 'Manage Data'
-    },
-    { 
-      id: 'people', 
-      name: 'People Hub', 
-      icon: Users, 
-      description: 'Directory, profiles, and user management.', 
-      color: 'purple',
-      action: 'View Directory'
     },
   ]
 
