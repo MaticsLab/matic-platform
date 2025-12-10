@@ -1194,9 +1194,22 @@ func UpdateFormStructure(c *gin.Context) {
 	// Update form settings
 	// We also want to store the section structure (without fields) in settings
 	// so we can reconstruct the sections on load.
-	settings := input.Settings
+
+	// MERGE: Load existing settings first to preserve keys not sent by frontend (e.g. reviewers)
+	var settings map[string]interface{}
+	if len(table.Settings) > 0 {
+		// Handle potential error or just ignore if malformed
+		_ = json.Unmarshal(table.Settings, &settings)
+	}
 	if settings == nil {
 		settings = make(map[string]interface{})
+	}
+
+	// Merge input settings into existing settings
+	if input.Settings != nil {
+		for k, v := range input.Settings {
+			settings[k] = v
+		}
 	}
 
 	var sectionMeta []map[string]interface{}

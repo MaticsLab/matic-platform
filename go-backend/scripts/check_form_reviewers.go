@@ -40,15 +40,20 @@ func main() {
 			continue
 		}
 
-		translations, hasTranslations := settings["translations"]
-
-		status := "❌ No translations"
-		if hasTranslations {
-			t, ok := translations.(map[string]interface{})
-			if ok && len(t) > 0 {
-				status = fmt.Sprintf("✅ Has translations (%d languages)", len(t))
+		reviewers, hasReviewers := settings["reviewers"]
+		
+		status := "❌ No reviewers"
+		if hasReviewers {
+			r, ok := reviewers.([]interface{})
+			if ok && len(r) > 0 {
+				status = fmt.Sprintf("✅ Has reviewers (%d reviewers)", len(r))
+				// Print first reviewer details for debugging
+				if len(r) > 0 {
+					jsonBytes, _ := json.MarshalIndent(r, "", "  ")
+					fmt.Println(string(jsonBytes))
+				}
 			} else {
-				status = "⚠️ Empty translations object"
+				status = "⚠️ Empty reviewers array"
 			}
 		}
 
