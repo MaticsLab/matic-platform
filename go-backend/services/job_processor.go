@@ -260,7 +260,7 @@ func handleSearchIndexJob(ctx context.Context, job Job) error {
 	searchableText := buildSearchableText(rowData)
 
 	// Upsert into search_index
-	_, err = database.DB.Exec(`
+	err = database.DB.Exec(`
 		INSERT INTO search_index (
 			id, entity_type, entity_id, workspace_id, table_id,
 			title, searchable_text, indexed_fields, updated_at
@@ -274,7 +274,7 @@ func handleSearchIndexJob(ctx context.Context, job Job) error {
 			indexed_fields = EXCLUDED.indexed_fields,
 			updated_at = NOW()
 	`, payload.RowID, payload.WorkspaceID, payload.TableID,
-		row.TableName, searchableText, row.Data)
+		row.TableName, searchableText, row.Data).Error
 
 	return err
 }
@@ -377,7 +377,7 @@ func handleNotificationJob(ctx context.Context, job Job) error {
 // buildSearchableText extracts searchable text from row data
 func buildSearchableText(data map[string]interface{}) string {
 	var text string
-	for key, value := range data {
+	for _, value := range data {
 		switch v := value.(type) {
 		case string:
 			text += " " + v
