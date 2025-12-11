@@ -33,10 +33,19 @@ function normalizeOptions(config: Record<string, any>, formContext?: Record<stri
   let rawOptions = config?.options || config?.items || [];
   
   // Handle dynamic options from source field
-  if (config?.sourceField && formContext) {
+  if (config?.sourceField && config?.dynamicOptions && formContext) {
     let sourceData = formContext._formData?.[config.sourceField];
     
-    // Try to find by field ID
+    // Try to find by field ID in portal fields (original fields)
+    if (!sourceData && formContext._portalFields) {
+      const portalField = formContext._portalFields.find((f: any) => f.id === config.sourceField);
+      if (portalField && formContext._formData) {
+        // Try field id first, then check if data is stored by id
+        sourceData = formContext._formData[portalField.id];
+      }
+    }
+    
+    // Fallback: try unified field definitions
     if (!sourceData && formContext._allFields) {
       const sourceFieldDef = formContext._allFields.find((f: any) => f.id === config.sourceField);
       if (sourceFieldDef && formContext._formData) {
@@ -49,8 +58,14 @@ function normalizeOptions(config: Record<string, any>, formContext?: Record<stri
       rawOptions = sourceData
         .map((item: any) => {
           if (typeof item === 'object' && item !== null) {
+            // Try the specified key first
             if (item[key]) return item[key];
-            const firstString = Object.values(item).find(v => typeof v === 'string');
+            // Try common field names
+            if (item.label) return item.label;
+            if (item.title) return item.title;
+            if (item.value) return item.value;
+            // Find first non-empty string value
+            const firstString = Object.values(item).find(v => typeof v === 'string' && v.trim());
             return firstString || JSON.stringify(item);
           }
           return String(item);

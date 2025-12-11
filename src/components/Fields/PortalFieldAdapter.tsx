@@ -151,6 +151,8 @@ export function PortalFieldAdapter({
     // Include form context for cross-field references
     _formData: formData,
     _allFields: allFields?.map(portalFieldToDefinition),
+    // Also pass original portal fields for dynamic options lookup
+    _portalFields: allFields,
   };
 
   // Handle group fields - render children in a grid layout
