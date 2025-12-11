@@ -1058,6 +1058,18 @@ func SubmitForm(c *gin.Context) {
 				return
 			}
 
+			// Update portal_applicants.submission_data if this is a portal submission
+			if email != "" {
+				if err := tx.Exec(`
+					UPDATE portal_applicants 
+					SET submission_data = $1, updated_at = NOW()
+					WHERE form_id = $2 AND email = $3
+				`, mapToJSON(data), formID, email).Error; err != nil {
+					// Log error but don't fail the transaction - this is optional
+					c.Error(err)
+				}
+			}
+
 			if err := tx.Commit().Error; err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
 				return
@@ -1119,6 +1131,18 @@ func SubmitForm(c *gin.Context) {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create version"})
 		return
+	}
+
+	// Update portal_applicants.submission_data if this is a portal submission
+	if email != "" {
+		if err := tx.Exec(`
+			UPDATE portal_applicants 
+			SET submission_data = $1, updated_at = NOW()
+			WHERE form_id = $2 AND email = $3
+		`, mapToJSON(data), formID, email).Error; err != nil {
+			// Log error but don't fail the transaction - this is optional
+			c.Error(err)
+		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
