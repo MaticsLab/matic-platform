@@ -40,11 +40,11 @@ export async function goFetch<T>(
   const { getSessionToken } = await import('@/lib/supabase')
   const token = await getSessionToken()
   
-  // Debug: log if token is missing
-  if (!token) {
+  // Debug: log if token is missing for non-public endpoints
+  // Public portal forms don't need auth tokens
+  const isPublicEndpoint = endpoint.includes('/forms/') && endpoint.includes('/submit')
+  if (!token && !isPublicEndpoint) {
     console.warn('⚠️ No auth token available for request:', endpoint)
-  } else {
-    console.log('✅ Auth token present for request:', endpoint)
   }
 
   // Make request
