@@ -217,11 +217,15 @@ export const FIELD_TYPES = {
   EMAIL: 'email',
   URL: 'url',
   PHONE: 'phone',
+  ADDRESS: 'address',
   DATE: 'date',
   DATETIME: 'datetime',
+  TIME: 'time',
   CHECKBOX: 'checkbox',
   SELECT: 'select',
   MULTISELECT: 'multiselect',
+  RADIO: 'radio',
+  RANK: 'rank',
   RATING: 'rating',
   CURRENCY: 'currency',
   PERCENT: 'percent',
@@ -243,6 +247,7 @@ export const FIELD_TYPES = {
   PARAGRAPH: 'paragraph',
   DIVIDER: 'divider',
   SPACER: 'spacer',
+  CALLOUT: 'callout',
   
   // Special types
   LINK: 'link',

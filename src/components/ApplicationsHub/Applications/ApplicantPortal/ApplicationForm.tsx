@@ -30,6 +30,8 @@ import { FileUploadField } from '@/components/ui/FileUploadField'
 import { ProgressHeader } from './ProgressHeader'
 import { ApplicationSidebar } from './ApplicationSidebar'
 import { toast } from 'sonner'
+import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
+import type { Field as PortalField } from '@/types/portal'
 
 // Callout color configurations
 const CALLOUT_COLORS: Record<string, { bg: string; border: string; icon: string; title: string; text: string }> = {
@@ -675,10 +677,29 @@ export function ApplicationForm({
 
 // Section Components
 
-function DynamicSection({ fields, allFields = [], data, onChange, formId, rootData }: { fields: any[], allFields?: any[], data: any, onChange: (field: string, value: any) => void, formId?: string, rootData?: any }) {
+/**
+ * DynamicSection - Renders form fields using the unified FieldRenderer system
+ * 
+ * Uses PortalFieldAdapter to bridge form fields to the unified field rendering.
+ * This eliminates duplicated field type switches and ensures consistent rendering.
+ */
+function DynamicSection({ 
+  fields, 
+  allFields = [], 
+  data, 
+  onChange, 
+  formId, 
+  rootData 
+}: { 
+  fields: any[]
+  allFields?: any[]
+  data: any
+  onChange: (field: string, value: any) => void
+  formId?: string
+  rootData?: any
+}) {
   // Helper to get column span class based on width
   const getColSpanClass = (width?: string) => {
-    // Normalize the width value
     const normalizedWidth = width?.toLowerCase?.()?.trim?.()
     
     switch (normalizedWidth) {
@@ -703,36 +724,23 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId, rootDa
     }
   }
 
-  // Normalize mixed option shapes into consistent value/label pairs
-  const normalizeOptions = (rawOptions?: any[]) => {
-    return (rawOptions || [])
-      .map((opt) => {
-        if (opt === undefined || opt === null) return null
-
-        if (typeof opt === 'string' || typeof opt === 'number' || typeof opt === 'boolean') {
-          const str = String(opt).trim()
-          if (!str) return null
-          return { value: str, label: str }
-        }
-
-        if (typeof opt === 'object') {
-          const value = opt.value ?? opt.id ?? opt.key ?? opt.name ?? opt.label ?? opt.title ?? opt.text
-          const label = opt.label ?? opt.name ?? opt.title ?? opt.text ?? value
-
-          const valueStr = value !== undefined && value !== null ? String(value) : ''
-          const labelStr = label !== undefined && label !== null ? String(label) : valueStr
-          const finalValue = valueStr || labelStr
-
-          if (!finalValue.trim()) return null
-          return { value: finalValue, label: labelStr || finalValue }
-        }
-
-        return null
-      })
-      .filter(Boolean) as { value: string; label: string }[]
-  }
-
   const effectiveRoot = rootData || data
+
+  // Convert form field to portal field format for the adapter
+  const convertToPortalField = (field: any): PortalField => {
+    return {
+      id: field.id || field.name,
+      type: field.type,
+      label: field.label || field.name,
+      placeholder: field.description || (field.config as any)?.placeholder,
+      description: field.description,
+      required: (field.config as any)?.is_required || field.required,
+      width: (field.config as any)?.width || 'full',
+      options: field.options || (field.config as any)?.items,
+      config: field.config,
+      children: field.children?.map(convertToPortalField) || (field.config as any)?.children?.map(convertToPortalField),
+    }
+  }
 
   return (
     <div className="grid grid-cols-12 gap-4 md:gap-6">
@@ -740,594 +748,102 @@ function DynamicSection({ fields, allFields = [], data, onChange, formId, rootDa
         // Ensure name exists (fallback to label for nested fields from config)
         const field = { ...rawField, name: rawField.name || rawField.label }
         const config = field.config || {}
-        const isRequired = config.is_required
-        
+        const layoutWidth = config?.width || 'full'
+
+        // Handle group and repeater types specially since they need recursive rendering
         if (field.type === 'group') {
-           // Children can be in field.children (from portal editor) or config.children (from backend)
-           const children = field.children || config.children || []
-           const groupWidth = config?.width || 'full'
-           return (
-             <div key={field.id} className={cn("border border-gray-200 p-6 rounded-xl space-y-4 bg-gray-50/30", getColSpanClass(groupWidth))}>
-               <h3 className="font-semibold text-lg text-gray-900">{field.label}</h3>
-               {config.description && <p className="text-sm text-gray-500">{config.description}</p>}
-                 <DynamicSection 
-                 fields={children} 
-                 allFields={allFields}
-                 data={data} 
-                 onChange={onChange}
-                 formId={formId}
-                 rootData={rootData || data}
-               />
-             </div>
-           )
+          const children = field.children || config.children || []
+          const groupWidth = config?.width || 'full'
+          return (
+            <div key={field.id} className={cn("border border-gray-200 p-6 rounded-xl space-y-4 bg-gray-50/30", getColSpanClass(groupWidth))}>
+              <h3 className="font-semibold text-lg text-gray-900">{field.label}</h3>
+              {config.description && <p className="text-sm text-gray-500">{config.description}</p>}
+              <DynamicSection 
+                fields={children} 
+                allFields={allFields}
+                data={data} 
+                onChange={onChange}
+                formId={formId}
+                rootData={rootData || data}
+              />
+            </div>
+          )
         }
 
         if (field.type === 'repeater') {
-           const items = (data[field.name] as any[]) || []
-           // Children can be in field.children (from portal editor) or config.children (from backend)
-           const children = field.children || config.children || []
-           const repeaterWidth = config?.width || 'full'
-           return (
-             <div key={field.id} className={cn("space-y-4", getColSpanClass(repeaterWidth))}>
-               <div className="flex justify-between items-center">
-                 <div>
-                   <Label className="text-base font-medium">{field.label}</Label>
-                   {config.description && <p className="text-sm text-gray-500">{config.description}</p>}
-                 </div>
-                 <Button size="sm" variant="outline" onClick={() => {
-                   const newItem = {} 
-                   onChange(field.name, [...items, newItem])
-                 }}>
-                   <Plus className="w-4 h-4 mr-2" /> Add Item
-                 </Button>
-               </div>
-               
-               {items.length === 0 && (
-                 <div className="text-center p-8 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 text-sm">
-                   No items added yet. Click "Add Item" to start.
-                 </div>
-               )}
+          const items = (data[field.name] as any[]) || []
+          const children = field.children || config.children || []
+          const repeaterWidth = config?.width || 'full'
+          return (
+            <div key={field.id} className={cn("space-y-4", getColSpanClass(repeaterWidth))}>
+              <div className="flex justify-between items-center">
+                <div>
+                  <Label className="text-base font-medium">{field.label}</Label>
+                  {config.description && <p className="text-sm text-gray-500">{config.description}</p>}
+                </div>
+                <Button size="sm" variant="outline" onClick={() => {
+                  const newItem = {} 
+                  onChange(field.name, [...items, newItem])
+                }}>
+                  <Plus className="w-4 h-4 mr-2" /> Add Item
+                </Button>
+              </div>
+              
+              {items.length === 0 && (
+                <div className="text-center p-8 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 text-sm">
+                  No items added yet. Click "Add Item" to start.
+                </div>
+              )}
 
-               {items.map((item, idx) => (
-                 <Card key={idx} className="relative overflow-hidden">
-                   <div className="absolute top-0 right-0 p-2 z-10">
-                     <Button 
-                       variant="ghost" 
-                       size="sm" 
-                       className="text-red-500 hover:bg-red-50 hover:text-red-600 h-8 w-8 p-0"
-                       onClick={() => {
-                         const newItems = [...items]
-                         newItems.splice(idx, 1)
-                         onChange(field.name, newItems)
-                       }}
-                     >
-                       <Trash2 className="w-4 h-4" />
-                     </Button>
-                   </div>
-                   <CardContent className="pt-6">
-                     <DynamicSection 
-                       fields={children}
-                       allFields={allFields}
-                       data={item}
-                       onChange={(childField, childValue) => {
-                         const newItems = [...items]
-                         newItems[idx] = { ...newItems[idx], [childField]: childValue }
-                         onChange(field.name, newItems)
-                       }}
-                       formId={formId}
-                       rootData={rootData || data}
-                     />
-                   </CardContent>
-                 </Card>
-               ))}
-             </div>
-           )
+              {items.map((item, idx) => (
+                <Card key={idx} className="relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-2 z-10">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-red-500 hover:bg-red-50 hover:text-red-600 h-8 w-8 p-0"
+                      onClick={() => {
+                        const newItems = [...items]
+                        newItems.splice(idx, 1)
+                        onChange(field.name, newItems)
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <CardContent className="pt-6">
+                    <DynamicSection 
+                      fields={children}
+                      allFields={allFields}
+                      data={item}
+                      onChange={(childField, childValue) => {
+                        const newItems = [...items]
+                        newItems[idx] = { ...newItems[idx], [childField]: childValue }
+                        onChange(field.name, newItems)
+                      }}
+                      formId={formId}
+                      rootData={rootData || data}
+                    />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )
         }
 
-        // Layout fields (heading, paragraph, callout, divider) don't need a label wrapper
-        const isLayoutField = ['heading', 'paragraph', 'callout', 'divider'].includes(field.type)
+        // For all other field types, use the unified PortalFieldAdapter
+        const portalField = convertToPortalField(field)
         
-        // Get layout width from config (not field.width which is pixel width)
-        const layoutWidth = config?.width || 'full'
-
         return (
           <div key={field.id} className={cn("space-y-3", getColSpanClass(layoutWidth))}>
-            {!isLayoutField && (
-              <div className="space-y-1">
-                <Label className="text-base font-medium">
-                  {field.label} {isRequired && <span className="text-red-500">*</span>}
-                </Label>
-                {field.description && (
-                  <p className="text-sm text-gray-500">{field.description}</p>
-                )}
-              </div>
-            )}
-            
-            {field.type === 'text' && (
-              <Input 
-                value={data[field.name] || ''} 
-                onChange={e => onChange(field.name, e.target.value)}
-                placeholder={config.placeholder}
-                className="h-11"
-              />
-            )}
-            
-            {field.type === 'textarea' && (
-              <Textarea 
-                value={data[field.name] || ''} 
-                onChange={e => onChange(field.name, e.target.value)}
-                placeholder={config.placeholder}
-                className="min-h-[120px]"
-              />
-            )}
-            
-            {field.type === 'email' && (
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input 
-                  type="email"
-                  value={data[field.name] || ''} 
-                  onChange={e => onChange(field.name, e.target.value)}
-                  placeholder={config.placeholder}
-                  className="pl-10 h-11"
-                />
-              </div>
-            )}
-            
-            {field.type === 'number' && (
-              <Input 
-                type="number"
-                value={data[field.name] || ''} 
-                onChange={e => onChange(field.name, e.target.value)}
-                placeholder={config.placeholder}
-                className="h-11"
-              />
-            )}
-            
-            {field.type === 'date' && (
-              <div className="relative">
-                <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input 
-                  type="date"
-                  value={data[field.name] || ''} 
-                  onChange={e => onChange(field.name, e.target.value)}
-                  className="pl-10 h-11"
-                />
-              </div>
-            )}
-            
-            {field.type === 'select' && (() => {
-              // Try config.items first (from backend), then field.options (from API)
-              let options = normalizeOptions(config.items)
-              if (options.length === 0 && field.options && field.options.length > 0) {
-                options = normalizeOptions(field.options)
-              }
-              
-              // Support fetching options from another field (e.g. repeater)
-              if (config.sourceField) {
-                let sourceData = data[config.sourceField]
-                if (!sourceData && effectiveRoot) {
-                  sourceData = effectiveRoot[config.sourceField]
-                }
-                
-                // If not found by key, try to find field by ID and use its name
-                if (!sourceData && allFields) {
-                   const sourceFieldDef = allFields.find((f: any) => f.id === config.sourceField)
-                   if (sourceFieldDef) {
-                       sourceData = data[sourceFieldDef.name || sourceFieldDef.label]
-                       if (!sourceData && effectiveRoot) {
-                         sourceData = effectiveRoot[sourceFieldDef.name || sourceFieldDef.label]
-                       }
-                   }
-                }
-
-                if (sourceData && Array.isArray(sourceData)) {
-                  const key = config.sourceKey || 'name'
-                  const dynamicOptions = sourceData
-                    .map((item: any) => {
-                      if (typeof item === 'object' && item !== null) {
-                        return item[key]
-                      }
-                      return String(item)
-                    })
-                    .filter((val: string) => val && val.trim() !== '')
-                  
-                  if (dynamicOptions.length > 0) {
-                    options = normalizeOptions(dynamicOptions)
-                  }
-                }
-              }
-
-              const currentValue = data[field.name] || ''
-              if (process.env.NODE_ENV === 'development') {
-                console.log(`📋 Select field [${field.name}]:`, {
-                  options,
-                  currentValue,
-                  hasConfigItems: (config.items || []).length,
-                  hasFieldOptions: (field.options || []).length,
-                  isSourceField: !!config.sourceField
-                })
-              }
-              
-              return (
-                <Select value={String(currentValue)} onValueChange={v => onChange(field.name, v)}>
-                  <SelectTrigger className="h-11">
-                    <SelectValue placeholder={config.placeholder || "Select..."} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {options && options.length > 0 ? (
-                      options.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value} className={SELECT_ITEM_HOVER}>{opt.label}</SelectItem>
-                      ))
-                    ) : (
-                      <div className="px-2 py-1.5 text-sm text-gray-500">No options available</div>
-                    )}
-                  </SelectContent>
-                </Select>
-              )
-            })()}
-
-            {field.type === 'url' && (
-              <Input 
-                type="url"
-                value={data[field.name] || ''} 
-                onChange={e => onChange(field.name, e.target.value)}
-                placeholder={config.placeholder || "https://..."}
-                className="h-11"
-              />
-            )}
-
-            {field.type === 'phone' && (
-              <Input 
-                type="tel"
-                value={data[field.name] || ''} 
-                onChange={e => onChange(field.name, e.target.value)}
-                placeholder={config.placeholder || "(555) 555-5555"}
-                className="h-11"
-              />
-            )}
-
-            {field.type === 'address' && (
-              <AddressField
-                value={data[field.name] as AddressValue | null}
-                onChange={(addressValue) => onChange(field.name, addressValue)}
-                placeholder={config.placeholder || 'Start typing an address...'}
-                isTableCell={false}
-              />
-            )}
-
-            {field.type === 'checkbox' && (
-               <div className="flex items-center space-x-2 p-2 border rounded-md">
-                 <Checkbox 
-                   id={field.id} 
-                   checked={!!data[field.name]}
-                   onCheckedChange={(checked) => onChange(field.name, checked)}
-                 />
-                 <label htmlFor={field.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
-                   {config.label || field.label}
-                 </label>
-               </div>
-            )}
-
-            {field.type === 'radio' && (() => {
-               // Try config.items first (from backend), then field.options (from API)
-               let options = normalizeOptions(config.items)
-               if (options.length === 0 && field.options && field.options.length > 0) {
-                 options = normalizeOptions(field.options)
-               }
-               
-               if (config.sourceField) {
-                 let sourceData = data[config.sourceField]
-                 if (!sourceData && effectiveRoot) {
-                   sourceData = effectiveRoot[config.sourceField]
-                 }
-                 
-                 // If not found by key, try to find field by ID and use its name
-                 if (!sourceData && allFields) {
-                    const sourceFieldDef = allFields.find((f: any) => f.id === config.sourceField)
-                    if (sourceFieldDef) {
-                        sourceData = data[sourceFieldDef.name || sourceFieldDef.label]
-                        if (!sourceData && effectiveRoot) {
-                          sourceData = effectiveRoot[sourceFieldDef.name || sourceFieldDef.label]
-                        }
-                    }
-                 }
-
-                 if (sourceData && Array.isArray(sourceData)) {
-                   const key = config.sourceKey || 'name'
-                   const dynamicOptions = sourceData
-                     .map((item: any) => {
-                       if (typeof item === 'object' && item !== null) {
-                         return item[key]
-                       }
-                       return String(item)
-                     })
-                     .filter((val: string) => val && val.trim() !== '')
-                   
-                   if (dynamicOptions.length > 0) {
-                     options = normalizeOptions(dynamicOptions)
-                   }
-                 }
-               }
-
-               return (
-                 <RadioGroup value={data[field.name]} onValueChange={(val) => onChange(field.name, val)} className="space-y-2">
-                   {options.map((item) => (
-                     <div key={item.value} className="flex items-center space-x-2">
-                       <RadioGroupItem value={item.value} id={`${field.id}-${item.value}`} />
-                       <Label htmlFor={`${field.id}-${item.value}`} className="cursor-pointer">{item.label}</Label>
-                     </div>
-                   ))}
-                 </RadioGroup>
-               )
-            })()}
-
-            {field.type === 'rank' && (() => {
-              // Start with items from config, then fallback to explicit field.options
-              let options = normalizeOptions(config.items)
-              if (options.length === 0 && field.options && field.options.length > 0) {
-                options = normalizeOptions(field.options)
-              }
-               
-               if (config.sourceField) {
-                 let sourceData = data[config.sourceField]
-                 if (!sourceData && effectiveRoot) {
-                   sourceData = effectiveRoot[config.sourceField]
-                 }
-                 
-                 // If not found by key, try to find field by ID and use its name
-                 if (!sourceData && allFields) {
-                    const sourceFieldDef = allFields.find((f: any) => f.id === config.sourceField)
-                    if (sourceFieldDef) {
-                        sourceData = data[sourceFieldDef.name || sourceFieldDef.label]
-                        if (!sourceData && effectiveRoot) {
-                          sourceData = effectiveRoot[sourceFieldDef.name || sourceFieldDef.label]
-                        }
-                    }
-                 }
-
-                 if (sourceData && Array.isArray(sourceData)) {
-                   const key = config.sourceKey || 'name'
-                   const dynamicOptions = sourceData
-                     .map((item: any) => {
-                       if (typeof item === 'object' && item !== null) {
-                         // Try to find the value using the key, or fallback to first string property
-                         if (item[key]) return item[key]
-                         const firstString = Object.values(item).find(v => typeof v === 'string')
-                         return firstString || JSON.stringify(item)
-                       }
-                       return String(item)
-                     })
-                     .filter((val: string) => val && val.trim() !== '')
-                   
-                   if (dynamicOptions.length > 0) {
-                     options = normalizeOptions(dynamicOptions)
-                   }
-                 }
-               }
-
-               const maxSelections = config.maxSelections || 3
-               const currentValues = (Array.isArray(data[field.name]) ? data[field.name].map((v: any) => String(v)) : []) as string[]
-
-               return (
-                 <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {Array.from({ length: maxSelections }).map((_, index) => (
-                        <div key={index} className="space-y-3 relative group">
-                          <div className="absolute -left-3 -top-3 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold text-sm z-10 shadow-sm border-2 border-white">
-                            {index + 1}
-                          </div>
-                          <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 pt-6 group-hover:border-gray-300 transition-colors">
-                            <div className="flex items-center justify-between mb-2">
-                              <Label className="text-xs text-gray-500 uppercase font-semibold block">Choice #{index + 1}</Label>
-                              {currentValues[index] && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2 text-xs text-gray-500 hover:text-gray-900"
-                                  onClick={() => {
-                                    const newValues = [...currentValues]
-                                    newValues[index] = ''
-                                    onChange(field.name, newValues)
-                                  }}
-                                >
-                                  Clear
-                                </Button>
-                              )}
-                            </div>
-                            <Select 
-                              value={String(currentValues[index] || '')} 
-                              onValueChange={v => {
-                                const newValues = [...currentValues]
-                                // Fill empty slots if needed
-                                while (newValues.length < maxSelections) newValues.push('')
-                                newValues[index] = v
-                                onChange(field.name, newValues)
-                              }}
-                            >
-                              <SelectTrigger className="bg-white border-gray-200">
-                                <SelectValue placeholder="Select option" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {options && options.length > 0 ? (
-                                  options.map((opt) => (
-                                    <SelectItem 
-                                      key={opt.value} 
-                                      value={opt.value} 
-                                      disabled={currentValues.includes(opt.value) && currentValues[index] !== opt.value}
-                                      className={SELECT_ITEM_HOVER}
-                                    >
-                                      {opt.label}
-                                    </SelectItem>
-                                  ))
-                                ) : (
-                                  <div className="px-2 py-1.5 text-sm text-gray-500">No options available</div>
-                                )}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                 </div>
-               )
-            })()}
-
-            {/* Multiselect - Multiple options can be selected */}
-            {field.type === 'multiselect' && (() => {
-               // Try config.items first (from backend), then field.options (from API)
-               let options = normalizeOptions(config.items)
-               if (options.length === 0 && field.options && field.options.length > 0) {
-                 options = normalizeOptions(field.options)
-               }
-               const currentValues = (Array.isArray(data[field.name]) ? data[field.name] : []).map((v: any) => String(v)) as string[]
-
-               return (
-                 <div className="space-y-2">
-                   {options.map((opt) => (
-                     <div key={opt.value} className="flex items-center space-x-2 p-2 border rounded-md hover:bg-gray-50">
-                       <Checkbox 
-                         id={`${field.id}-${opt.value}`}
-                         checked={currentValues.includes(opt.value)}
-                         onCheckedChange={(checked) => {
-                           if (checked) {
-                             onChange(field.name, [...currentValues, opt.value])
-                           } else {
-                             onChange(field.name, currentValues.filter(v => v !== opt.value))
-                           }
-                         }}
-                       />
-                       <label htmlFor={`${field.id}-${opt.value}`} className="text-sm font-medium leading-none cursor-pointer flex-1">
-                         {opt.label}
-                       </label>
-                     </div>
-                   ))}
-                 </div>
-               )
-            })()}
-
-            {/* Datetime - Combined date and time picker */}
-            {field.type === 'datetime' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="relative">
-                  <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input 
-                    type="date"
-                    value={data[field.name]?.split('T')[0] || ''} 
-                    onChange={e => {
-                      const time = data[field.name]?.split('T')[1] || '00:00'
-                      onChange(field.name, `${e.target.value}T${time}`)
-                    }}
-                    className="pl-10 h-11"
-                  />
-                </div>
-                <div className="relative">
-                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input 
-                    type="time"
-                    value={data[field.name]?.split('T')[1] || ''} 
-                    onChange={e => {
-                      const date = data[field.name]?.split('T')[0] || new Date().toISOString().split('T')[0]
-                      onChange(field.name, `${date}T${e.target.value}`)
-                    }}
-                    className="pl-10 h-11"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Time - Time only picker */}
-            {field.type === 'time' && (
-              <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input 
-                  type="time"
-                  value={data[field.name] || ''} 
-                  onChange={e => onChange(field.name, e.target.value)}
-                  className="pl-10 h-11"
-                />
-              </div>
-            )}
-
-            {/* File Upload */}
-            {(field.type === 'file' || field.type === 'image') && (
-              <FileUploadField
-                value={data[field.name]}
-                onChange={(files) => onChange(field.name, files)}
-                imageOnly={field.type === 'image'}
-                multiple={config.multiple}
-                maxFiles={config.maxFiles || 5}
-                storagePath={`submissions/${formId || 'unknown'}/`}
-              />
-            )}
-
-            {/* Callout / Spotlight Box */}
-            {field.type === 'callout' && (() => {
-              const colorKey = (config.color as string) || 'blue'
-              const colors = CALLOUT_COLORS[colorKey] || CALLOUT_COLORS.blue
-              const iconKey = (config.icon as string) || 'lightbulb'
-              const CalloutIcon = CALLOUT_ICONS[iconKey] || Lightbulb
-              
-              return (
-                <div className={cn("flex items-start gap-3 p-4 border rounded-lg", colors.bg, colors.border)}>
-                  <CalloutIcon className={cn("w-5 h-5 mt-0.5 shrink-0", colors.icon)} />
-                  <div>
-                    <p className={cn("text-sm font-medium", colors.title)}>{field.label}</p>
-                    {config.description && (
-                      <p className={cn("text-sm mt-1", colors.text)}>{config.description}</p>
-                    )}
-                  </div>
-                </div>
-              )
-            })()}
-
-            {/* Rating - Star rating */}
-            {field.type === 'rating' && (() => {
-               const maxRating = config.maxRating || 5
-               const currentValue = data[field.name] || 0
-
-               return (
-                 <div className="flex items-center gap-1">
-                   {Array.from({ length: maxRating }).map((_, idx) => (
-                     <button
-                       key={idx}
-                       type="button"
-                       onClick={() => onChange(field.name, idx + 1)}
-                       className="p-1 transition-colors"
-                     >
-                       <Star 
-                         className={`w-8 h-8 ${idx < currentValue ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} 
-                       />
-                     </button>
-                   ))}
-                   <span className="ml-2 text-sm text-gray-500">{currentValue} / {maxRating}</span>
-                 </div>
-               )
-            })()}
-
-            {/* Heading - Display only */}
-            {field.type === 'heading' && (
-              <h3 className="text-xl font-semibold text-gray-900">{field.label}</h3>
-            )}
-
-            {/* Paragraph - Display only (supports rich text) */}
-            {field.type === 'paragraph' && (() => {
-              const content = config.content || field.label
-              const isRichText = /<[a-z][\s\S]*>/i.test(content)
-              return isRichText ? (
-                <div 
-                  className="prose prose-sm max-w-none text-gray-600 [&_a]:text-blue-600 [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
-                  dangerouslySetInnerHTML={{ __html: content }}
-                />
-              ) : (
-                <p className="text-gray-600">{content}</p>
-              )
-            })()}
-
-            {/* Divider - Visual separator */}
-            {field.type === 'divider' && (
-              <hr className="border-gray-200 my-4" />
-            )}
+            <PortalFieldAdapter
+              field={portalField}
+              value={data[field.name]}
+              onChange={(value) => onChange(field.name, value)}
+              formId={formId}
+              allFields={allFields.map(convertToPortalField)}
+              formData={effectiveRoot}
+            />
           </div>
         )
       })}

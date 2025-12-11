@@ -471,6 +471,66 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                 </div>
               )}
 
+              {/* Group Field Settings */}
+              {selectedField.type === 'group' && (
+                <div className="space-y-2 pt-2">
+                  <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Columns</Label>
+                  <Select 
+                    value={String(selectedField.config?.columns || 2)} 
+                    onValueChange={(v) => handleConfigUpdate('columns', parseInt(v))}
+                  >
+                    <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 Column</SelectItem>
+                      <SelectItem value="2">2 Columns</SelectItem>
+                      <SelectItem value="3">3 Columns</SelectItem>
+                      <SelectItem value="4">4 Columns</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">Number of columns for child fields</p>
+                </div>
+              )}
+
+              {/* Repeater Field Settings */}
+              {selectedField.type === 'repeater' && (
+                <>
+                  <div className="space-y-2 pt-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Item Label</Label>
+                    <Input 
+                      value={selectedField.config?.itemLabel || 'Item'} 
+                      onChange={(e) => handleConfigUpdate('itemLabel', e.target.value)} 
+                      className="bg-gray-50/50 border-gray-200"
+                      placeholder="Item"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Min Items</Label>
+                      <Input 
+                        type="number"
+                        min={0}
+                        value={selectedField.config?.minItems ?? 0} 
+                        onChange={(e) => handleConfigUpdate('minItems', parseInt(e.target.value) || 0)} 
+                        className="bg-gray-50/50 border-gray-200"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Max Items</Label>
+                      <Input 
+                        type="number"
+                        min={1}
+                        value={selectedField.config?.maxItems ?? 10} 
+                        onChange={(e) => handleConfigUpdate('maxItems', parseInt(e.target.value) || 10)} 
+                        className="bg-gray-50/50 border-gray-200"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 pt-1">Control how many items users can add</p>
+                </>
+              )}
+
               {/* Paragraph Rich Text Settings */}
               {selectedField.type === 'paragraph' && (
                 <div className="space-y-2 pt-2">

@@ -18,6 +18,7 @@ export type Field = {
   sectionId?: string
   children?: Field[] // For groups and repeaters
   validation?: Record<string, any>
+  translationKey?: string // Stable key for translations (survives field recreation)
   config?: {
     sourceField?: string
     sourceKey?: string
@@ -31,6 +32,7 @@ export type Section = {
   description?: string
   sectionType?: 'form' | 'cover' | 'ending' | 'review'
   fields: Field[]
+  translationKey?: string // Stable key for translations
 }
 
 export type PortalConfig = {
@@ -57,5 +59,10 @@ export type PortalConfig = {
       disableAutoTranslate?: boolean
     }
   }
-  translations?: Record<string, Record<string, string>> // langCode -> key -> text
+  /** 
+   * Translations in new i18next format
+   * Structure: { langCode: { portal: {...}, sections: {...}, fields: {...} } }
+   * Also supports legacy format for backward compatibility: { langCode: { key: value } }
+   */
+  translations?: Record<string, Record<string, any>>
 }

@@ -242,6 +242,17 @@ func (Row) TableName() string {
 	return "table_rows"
 }
 
+// ViewType constants for table_views.type
+const (
+	ViewTypeGrid     = "grid"
+	ViewTypeKanban   = "kanban"
+	ViewTypeCalendar = "calendar"
+	ViewTypeGallery  = "gallery"
+	ViewTypeTimeline = "timeline"
+	ViewTypeForm     = "form"
+	ViewTypePortal   = "portal" // Public-facing application portal
+)
+
 // View (Consolidated TableView/Form)
 // Maps to table_views in database
 type View struct {
@@ -249,12 +260,12 @@ type View struct {
 	TableID     uuid.UUID      `gorm:"type:uuid;not null;index" json:"table_id"`
 	Name        string         `gorm:"not null" json:"name"`
 	Description string         `json:"description,omitempty"`
-	Type        string         `gorm:"not null" json:"type"` // grid, form, kanban, gallery, calendar, timeline
+	Type        string         `gorm:"not null" json:"type"` // grid, form, kanban, gallery, calendar, timeline, portal
 	Settings    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
 	Filters     datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"filters"`
 	Sorts       datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"sorts"`
 	Grouping    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"grouping"`
-	Config      datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"config"`
+	Config      datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"config"` // For portal: sections, translations, theme
 	IsShared    bool           `gorm:"default:false" json:"is_shared"`
 	IsLocked    bool           `gorm:"default:false" json:"is_locked"`
 	CreatedBy   uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`

@@ -1,0 +1,1339 @@
+/**
+ * Block Editor - Tiptap-Inspired Section Editor
+ * 
+ * A rich block-based editor for portal sections inspired by Tiptap/Notion:
+ * - Slash commands (/) with keyboard navigation
+ * - Drag-and-drop block reordering via @dnd-kit
+ * - Floating menu on empty lines
+ * - Drag handles on hover
+ * - Placeholders on empty blocks
+ * - Inline editing for text content
+ * - Clean, minimal design with smooth animations
+ * 
+ * Phase 1 Implementation Status:
+ * ✅ Slash commands with keyboard navigation
+ * ✅ Block-based field rendering
+ * ✅ Inline editing for layout fields
+ * ✅ Drag handles (visual)
+ * ✅ Drag-and-drop reordering
+ * ⏳ Tiptap integration (future - using custom implementation instead)
+ */
+
+'use client';
+
+import React, { useState, useCallback, useRef, useEffect, useMemo, KeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { 
+  GripVertical, Plus, Trash2, MoreHorizontal,
+  Type, AlignLeft, Hash, Mail, Phone, Calendar,
+  CheckSquare, List, Upload, Heading, ToggleLeft,
+  FileText, Star, MapPin, Layers, Repeat, Image,
+  Link, Clock, Minus, AlertCircle, ChevronUp, ChevronDown,
+  Sparkles, Command
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Section, Field, FieldType } from '@/types/portal';
+import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter';
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+interface BlockEditorProps {
+  section: Section;
+  onUpdate: (updates: Partial<Section>) => void;
+  selectedBlockId: string | null;
+  onSelectBlock: (id: string | null) => void;
+  themeColor?: string;
+}
+
+interface BlockCommand {
+  id: string;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  fieldType: FieldType;
+  category: string;
+  keywords?: string[];
+  defaultConfig?: Record<string, unknown>;
+}
+
+// ============================================================================
+// BLOCK COMMANDS - Organized by Category
+// ============================================================================
+
+const BLOCK_COMMANDS: BlockCommand[] = [
+  // Basic
+  { id: 'text', label: 'Text', description: 'Plain text input', icon: <Type className="w-4 h-4" />, fieldType: 'text', category: 'Basic', keywords: ['short', 'input', 'field'] },
+  { id: 'textarea', label: 'Long Text', description: 'Multi-line text area', icon: <AlignLeft className="w-4 h-4" />, fieldType: 'textarea', category: 'Basic', keywords: ['paragraph', 'multiline'] },
+  { id: 'number', label: 'Number', description: 'Numeric input', icon: <Hash className="w-4 h-4" />, fieldType: 'number', category: 'Basic', keywords: ['integer', 'decimal'] },
+  { id: 'email', label: 'Email', description: 'Email address', icon: <Mail className="w-4 h-4" />, fieldType: 'email', category: 'Basic' },
+  { id: 'phone', label: 'Phone', description: 'Phone number', icon: <Phone className="w-4 h-4" />, fieldType: 'phone', category: 'Basic', keywords: ['telephone', 'mobile'] },
+  { id: 'url', label: 'URL', description: 'Website link', icon: <Link className="w-4 h-4" />, fieldType: 'url', category: 'Basic', keywords: ['link', 'website'] },
+  
+  // Selection
+  { id: 'select', label: 'Dropdown', description: 'Single choice dropdown', icon: <List className="w-4 h-4" />, fieldType: 'select', category: 'Selection', defaultConfig: { options: ['Option 1', 'Option 2', 'Option 3'] } },
+  { id: 'multiselect', label: 'Multi-Select', description: 'Multiple choices', icon: <CheckSquare className="w-4 h-4" />, fieldType: 'multiselect', category: 'Selection', defaultConfig: { options: ['Option 1', 'Option 2', 'Option 3'] } },
+  { id: 'radio', label: 'Radio', description: 'Radio buttons', icon: <ToggleLeft className="w-4 h-4" />, fieldType: 'radio', category: 'Selection', defaultConfig: { options: ['Option 1', 'Option 2'] } },
+  { id: 'checkbox', label: 'Checkbox', description: 'Yes/No checkbox', icon: <CheckSquare className="w-4 h-4" />, fieldType: 'checkbox', category: 'Selection' },
+  
+  // Date & Time
+  { id: 'date', label: 'Date', description: 'Date picker', icon: <Calendar className="w-4 h-4" />, fieldType: 'date', category: 'Date & Time' },
+  { id: 'time', label: 'Time', description: 'Time picker', icon: <Clock className="w-4 h-4" />, fieldType: 'time', category: 'Date & Time' },
+  { id: 'datetime', label: 'Date & Time', description: 'Date and time', icon: <Calendar className="w-4 h-4" />, fieldType: 'datetime', category: 'Date & Time' },
+  
+  // Media
+  { id: 'file', label: 'File Upload', description: 'Upload files', icon: <Upload className="w-4 h-4" />, fieldType: 'file', category: 'Media', keywords: ['attachment', 'document'] },
+  { id: 'image', label: 'Image', description: 'Upload image', icon: <Image className="w-4 h-4" />, fieldType: 'image', category: 'Media', keywords: ['photo', 'picture'] },
+  
+  // Layout
+  { id: 'heading', label: 'Heading', description: 'Section title', icon: <Heading className="w-4 h-4" />, fieldType: 'heading', category: 'Layout', keywords: ['title', 'h1', 'h2', 'h3'] },
+  { id: 'paragraph', label: 'Paragraph', description: 'Text content', icon: <FileText className="w-4 h-4" />, fieldType: 'paragraph', category: 'Layout', keywords: ['text', 'description'] },
+  { id: 'divider', label: 'Divider', description: 'Horizontal line', icon: <Minus className="w-4 h-4" />, fieldType: 'divider', category: 'Layout', keywords: ['separator', 'hr'] },
+  { id: 'callout', label: 'Callout', description: 'Highlighted info', icon: <AlertCircle className="w-4 h-4" />, fieldType: 'callout', category: 'Layout', keywords: ['info', 'warning', 'note'] },
+  
+  // Advanced
+  { id: 'address', label: 'Address', description: 'Full address', icon: <MapPin className="w-4 h-4" />, fieldType: 'address', category: 'Advanced', keywords: ['location'] },
+  { id: 'rating', label: 'Rating', description: 'Star rating', icon: <Star className="w-4 h-4" />, fieldType: 'rating', category: 'Advanced', keywords: ['stars', 'score'] },
+  { id: 'group', label: 'Field Group', description: 'Group fields together', icon: <Layers className="w-4 h-4" />, fieldType: 'group', category: 'Advanced', defaultConfig: { columns: 2 } },
+  { id: 'repeater', label: 'Repeater', description: 'Repeating fields', icon: <Repeat className="w-4 h-4" />, fieldType: 'repeater', category: 'Advanced', defaultConfig: { minItems: 0, maxItems: 10 } },
+];
+
+const CATEGORIES = ['Basic', 'Selection', 'Date & Time', 'Media', 'Layout', 'Advanced'];
+
+// ============================================================================
+// SLASH COMMAND MENU - Tiptap Style
+// ============================================================================
+
+interface SlashMenuProps {
+  query: string;
+  position: { top: number; left: number };
+  onSelect: (command: BlockCommand) => void;
+  onClose: () => void;
+  onQueryChange: (query: string) => void;
+  containerRef?: React.RefObject<HTMLDivElement>;
+}
+
+function SlashMenu({ query, position, onSelect, onClose, onQueryChange, containerRef }: SlashMenuProps) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const selectedRef = useRef<HTMLButtonElement>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [menuPosition, setMenuPosition] = useState(position);
+
+  // Calculate position relative to viewport and adjust if menu would be cut off
+  useEffect(() => {
+    const menuHeight = 420; // max-h-[420px]
+    const menuWidth = 320; // w-80
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const padding = 16;
+
+    let top = position.top;
+    let left = position.left;
+
+    // If menu would extend below viewport, show it above the trigger
+    if (top + menuHeight > viewportHeight - padding) {
+      top = Math.max(padding, position.top - menuHeight - 8);
+    }
+
+    // If menu would extend beyond right edge, shift left
+    if (left + menuWidth > viewportWidth - padding) {
+      left = Math.max(padding, viewportWidth - menuWidth - padding);
+    }
+
+    // Ensure top is not negative
+    top = Math.max(padding, top);
+
+    setMenuPosition({ top, left });
+  }, [position]);
+
+  // Filter commands based on query
+  const filtered = useMemo(() => {
+    if (!query) return BLOCK_COMMANDS;
+    const lower = query.toLowerCase();
+    return BLOCK_COMMANDS.filter(cmd => 
+      cmd.label.toLowerCase().includes(lower) || 
+      cmd.description.toLowerCase().includes(lower) ||
+      cmd.category.toLowerCase().includes(lower) ||
+      cmd.keywords?.some(k => k.includes(lower))
+    );
+  }, [query]);
+
+  // Group by category
+  const grouped = useMemo(() => {
+    const groups: Record<string, BlockCommand[]> = {};
+    filtered.forEach(cmd => {
+      if (!groups[cmd.category]) groups[cmd.category] = [];
+      groups[cmd.category].push(cmd);
+    });
+    return groups;
+  }, [filtered]);
+
+  // Flat list for keyboard navigation
+  const flatList = useMemo(() => {
+    return CATEGORIES.flatMap(cat => grouped[cat] || []);
+  }, [grouped]);
+
+  // Reset selection when filter changes
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [query]);
+
+  // Scroll selected into view
+  useEffect(() => {
+    selectedRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [selectedIndex]);
+
+  // Handle keyboard
+  useEffect(() => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex(i => Math.min(i + 1, flatList.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex(i => Math.max(i - 1, 0));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (flatList[selectedIndex]) {
+          onSelect(flatList[selectedIndex]);
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [flatList, selectedIndex, onSelect, onClose]);
+
+  // Click outside to close
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  // Detect scrolling to prevent mouse hover from changing selection during scroll
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      setIsScrolling(true);
+      
+      // Clear existing timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+      
+      // Reset isScrolling after scroll stops
+      scrollTimeoutRef.current = setTimeout(() => {
+        setIsScrolling(false);
+      }, 150);
+    };
+
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll);
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Handle mouse move to update selection (only when not scrolling)
+  const handleMouseEnterItem = useCallback((index: number) => {
+    if (!isScrolling) {
+      setSelectedIndex(index);
+    }
+  }, [isScrolling]);
+
+  if (flatList.length === 0) {
+    return createPortal(
+      <motion.div
+        ref={menuRef}
+        initial={{ opacity: 0, y: -8, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -8, scale: 0.96 }}
+        transition={{ duration: 0.15, ease: 'easeOut' }}
+        className="fixed bg-white rounded-xl shadow-2xl border border-gray-100 p-6 w-72 z-[9999]"
+        style={{ top: position.top, left: position.left }}
+      >
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-gray-300" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-medium text-gray-600">No blocks found</p>
+            <p className="text-xs text-gray-400 mt-1">Try a different search term</p>
+          </div>
+        </div>
+      </motion.div>,
+      document.body
+    );
+  }
+
+  let itemIndex = 0;
+
+  return createPortal(
+    <motion.div
+      ref={menuRef}
+      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -8, scale: 0.96 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
+      className="fixed bg-white rounded-xl shadow-2xl border border-gray-100 w-80 max-h-[420px] overflow-hidden z-[9999]"
+      style={{ top: menuPosition.top, left: menuPosition.left }}
+    >
+      {/* Header with search indicator */}
+      <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-b from-gray-50 to-white">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-blue-50 flex items-center justify-center">
+            <Command className="w-3.5 h-3.5 text-blue-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            {query ? (
+              <p className="text-sm text-gray-700">Searching &ldquo;<span className="font-medium text-gray-900">{query}</span>&rdquo;</p>
+            ) : (
+              <p className="text-sm text-gray-500">Add a new block</p>
+            )}
+          </div>
+          <span className="text-xs text-gray-400 font-medium">{flatList.length} results</span>
+        </div>
+      </div>
+      
+      {/* Commands */}
+      <div ref={scrollContainerRef} className="overflow-y-auto max-h-[300px] py-2">
+        {CATEGORIES.map(category => {
+          const commands = grouped[category];
+          if (!commands?.length) return null;
+          
+          return (
+            <div key={category} className="mb-1">
+              <div className="px-4 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider sticky top-0 bg-white/95 backdrop-blur-sm">
+                {category}
+              </div>
+              {commands.map(cmd => {
+                const currentIndex = itemIndex++;
+                const isSelected = currentIndex === selectedIndex;
+                
+                return (
+                  <motion.button
+                    key={cmd.id}
+                    ref={isSelected ? selectedRef : null}
+                    onClick={() => onSelect(cmd)}
+                    onMouseMove={() => handleMouseEnterItem(currentIndex)}
+                    whileHover={{ x: 2 }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150",
+                      isSelected 
+                        ? "bg-blue-50 border-l-2 border-blue-500" 
+                        : "hover:bg-gray-50 border-l-2 border-transparent"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-150",
+                      isSelected 
+                        ? "bg-blue-100 text-blue-600 shadow-sm" 
+                        : "bg-gray-100 text-gray-500 group-hover:bg-gray-200"
+                    )}>
+                      {cmd.icon}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className={cn(
+                        "text-sm font-medium truncate transition-colors",
+                        isSelected ? "text-blue-900" : "text-gray-800"
+                      )}>
+                        {cmd.label}
+                      </div>
+                      <div className={cn(
+                        "text-xs truncate transition-colors",
+                        isSelected ? "text-blue-600/70" : "text-gray-400"
+                      )}>
+                        {cmd.description}
+                      </div>
+                    </div>
+                    {isSelected && (
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="text-xs text-blue-500 font-medium"
+                      >
+                        ↵
+                      </motion.div>
+                    )}
+                  </motion.button>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+      
+      {/* Footer hint */}
+      <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50/80 flex items-center justify-between text-xs text-gray-400">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1">
+            <kbd className="px-1.5 py-0.5 bg-white rounded border border-gray-200 text-[10px] font-medium">↑</kbd>
+            <kbd className="px-1.5 py-0.5 bg-white rounded border border-gray-200 text-[10px] font-medium">↓</kbd>
+            <span className="ml-1">navigate</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <kbd className="px-1.5 py-0.5 bg-white rounded border border-gray-200 text-[10px] font-medium">↵</kbd>
+            <span className="ml-1">select</span>
+          </span>
+        </div>
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 bg-white rounded border border-gray-200 text-[10px] font-medium">esc</kbd>
+          <span className="ml-1">close</span>
+        </span>
+      </div>
+    </motion.div>,
+    document.body
+  );
+}
+
+// ============================================================================
+// NEW LINE INPUT - Doc-like typing experience
+// ============================================================================
+
+interface NewLineInputProps {
+  onOpenSlashMenu: (position: { top: number; left: number }) => void;
+  onQueryChange?: (query: string) => void;
+  isMenuOpen?: boolean;
+  placeholder?: string;
+  autoFocus?: boolean;
+}
+
+function NewLineInput({ onOpenSlashMenu, onQueryChange, isMenuOpen, placeholder = "Type '/' for commands...", autoFocus }: NewLineInputProps) {
+  const [value, setValue] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Clear value when menu closes
+  useEffect(() => {
+    if (!isMenuOpen && value.startsWith('/')) {
+      setValue('');
+    }
+  }, [isMenuOpen, value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setValue(newValue);
+
+    // If value starts with '/', handle slash commands
+    if (newValue.startsWith('/')) {
+      if (!isMenuOpen) {
+        // Open menu at input position
+        const rect = inputRef.current?.getBoundingClientRect();
+        if (rect) {
+          onOpenSlashMenu({ top: rect.bottom + 4, left: rect.left });
+        }
+      }
+      // Update query (everything after the /)
+      onQueryChange?.(newValue.slice(1));
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      setValue('');
+      inputRef.current?.blur();
+    }
+  };
+
+  return (
+    <div 
+      className={cn(
+        "py-2 px-1 rounded-lg transition-all cursor-text",
+        isFocused ? "bg-gray-50" : "hover:bg-gray-50/50"
+      )}
+      onClick={() => inputRef.current?.focus()}
+    >
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => {
+          setIsFocused(false);
+          // Delay clearing to allow menu interactions
+          setTimeout(() => setValue(''), 200);
+        }}
+        placeholder={isFocused ? "Type '/' for commands" : placeholder}
+        className="w-full bg-transparent border-none outline-none text-gray-600 placeholder:text-gray-400 text-sm"
+        autoFocus={autoFocus}
+      />
+    </div>
+  );
+}
+
+// ============================================================================
+// FLOATING ADD BUTTON - Shows on hover between blocks
+// ============================================================================
+
+interface FloatingAddButtonProps {
+  position: { top: number; left: number };
+  onClick: () => void;
+}
+
+function FloatingAddButton({ position, onClick }: FloatingAddButtonProps) {
+  return createPortal(
+    <motion.button
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.8 }}
+      onClick={onClick}
+      className="fixed z-50 w-7 h-7 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
+      style={{ top: position.top - 14, left: position.left }}
+      whileHover={{ scale: 1.1 }}
+      whileTap={{ scale: 0.95 }}
+    >
+      <Plus className="w-4 h-4" />
+    </motion.button>,
+    document.body
+  );
+}
+
+// ============================================================================
+// SORTABLE BLOCK WRAPPER - Enables drag-and-drop reordering
+// ============================================================================
+
+interface SortableBlockProps {
+  id: string;
+  children: React.ReactNode;
+  isDragging?: boolean;
+}
+
+function SortableBlock({ id, children, isDragging }: SortableBlockProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging: isSortableDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isSortableDragging ? 0.5 : 1,
+    zIndex: isSortableDragging ? 50 : 'auto',
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      {React.cloneElement(children as React.ReactElement, {
+        dragListeners: listeners,
+        isDragging: isSortableDragging || isDragging,
+      })}
+    </div>
+  );
+}
+
+// ============================================================================
+// SORTABLE CHILD FIELD - For fields inside group/repeater containers
+// ============================================================================
+
+interface SortableChildFieldProps {
+  field: Field;
+  onDelete: () => void;
+  onUpdate: (updates: Partial<Field>) => void;
+  themeColor?: string;
+  allFields: Field[];
+}
+
+function SortableChildField({ field, onDelete, onUpdate, themeColor, allFields }: SortableChildFieldProps) {
+  const [isHovered, setIsHovered] = useState(false);
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: field.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : 'auto',
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      {...attributes}
+      className={cn(
+        "relative p-3 bg-white rounded-lg border shadow-sm transition-all",
+        isDragging ? "border-blue-300 shadow-md" : "border-gray-100",
+        isHovered && !isDragging && "border-gray-200"
+      )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Drag handle and actions */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isHovered ? 1 : 0 }}
+        className="absolute -left-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10"
+      >
+        <button
+          {...listeners}
+          className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="w-3 h-3" />
+        </button>
+      </motion.div>
+
+      {/* Delete button */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isHovered ? 1 : 0 }}
+        className="absolute -right-2 top-1 z-10"
+      >
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </motion.div>
+
+      {/* Editable label and field preview */}
+      <div className="space-y-1.5">
+        <input
+          type="text"
+          value={field.label}
+          onChange={(e) => onUpdate({ label: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
+          className="w-full text-xs font-medium text-gray-700 bg-transparent border-none outline-none placeholder:text-gray-400"
+          placeholder="Field label..."
+        />
+        <PortalFieldAdapter
+          field={{ ...field, label: '', description: '' }}
+          value={undefined}
+          onChange={() => {}}
+          themeColor={themeColor}
+          allFields={allFields}
+          disabled={true}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// BLOCK COMPONENT - Individual editable block
+// ============================================================================
+
+interface BlockProps {
+  field: Field;
+  isSelected: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
+  onUpdate: (updates: Partial<Field>) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onOpenSlashMenu: (position: { top: number; left: number }) => void;
+  themeColor?: string;
+  allFields: Field[];
+  isFirst: boolean;
+  isLast: boolean;
+  /** Drag listeners from @dnd-kit */
+  dragListeners?: Record<string, unknown>;
+  /** Whether this block is being dragged */
+  isDragging?: boolean;
+}
+
+function Block({
+  field,
+  isSelected,
+  onSelect,
+  onDelete,
+  onUpdate,
+  onMoveUp,
+  onMoveDown,
+  onOpenSlashMenu,
+  themeColor,
+  allFields,
+  isFirst,
+  isLast,
+  dragListeners,
+  isDragging,
+}: BlockProps) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const blockRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  const isLayoutField = ['heading', 'paragraph', 'divider', 'callout'].includes(field.type);
+  const isContainerField = ['group', 'repeater'].includes(field.type);
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      if ('select' in inputRef.current) {
+        inputRef.current.select();
+      }
+    }
+  }, [isEditing]);
+
+  // Handle keyboard in inline editing
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && field.type !== 'paragraph') {
+      e.preventDefault();
+      setIsEditing(false);
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+    }
+  };
+
+  // Render inline editable content for layout fields
+  const renderInlineContent = () => {
+    if (field.type === 'heading') {
+      const content = field.label || '';
+      if (isEditing) {
+        return (
+          <input
+            ref={inputRef as React.RefObject<HTMLInputElement>}
+            type="text"
+            value={content}
+            onChange={(e) => onUpdate({ label: e.target.value })}
+            onBlur={() => setIsEditing(false)}
+            onKeyDown={handleKeyDown}
+            className="w-full text-2xl font-bold text-gray-900 bg-transparent border-none outline-none placeholder:text-gray-300 focus:ring-0"
+            placeholder="Enter a heading..."
+          />
+        );
+      }
+      return (
+        <h2 
+          className="text-2xl font-bold text-gray-900 cursor-text min-h-[36px] hover:text-gray-700 transition-colors"
+          onClick={() => setIsEditing(true)}
+        >
+          {content || <span className="text-gray-300 italic font-normal">Click to add heading...</span>}
+        </h2>
+      );
+    }
+
+    if (field.type === 'paragraph') {
+      const content = field.description || field.label || '';
+      if (isEditing) {
+        return (
+          <textarea
+            ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+            value={content}
+            onChange={(e) => onUpdate({ description: e.target.value, label: e.target.value })}
+            onBlur={() => setIsEditing(false)}
+            onKeyDown={handleKeyDown}
+            className="w-full text-gray-600 bg-transparent border-none outline-none resize-none placeholder:text-gray-400 min-h-[80px] focus:ring-0"
+            placeholder="Write your content here..."
+            rows={4}
+          />
+        );
+      }
+      return (
+        <p 
+          className="text-gray-600 cursor-text min-h-[24px] whitespace-pre-wrap leading-relaxed hover:text-gray-500 transition-colors"
+          onClick={() => setIsEditing(true)}
+        >
+          {content || <span className="text-gray-400 italic">Click to add content...</span>}
+        </p>
+      );
+    }
+
+    if (field.type === 'divider') {
+      return (
+        <div className="py-2">
+          <hr className="border-gray-200 hover:border-gray-300 transition-colors" />
+        </div>
+      );
+    }
+
+    if (field.type === 'callout') {
+      const colorConfig: Record<string, { bg: string; border: string; icon: string; text: string; placeholder: string }> = {
+        blue: { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'text-blue-500', text: 'text-blue-900', placeholder: 'text-blue-400' },
+        green: { bg: 'bg-emerald-50', border: 'border-emerald-200', icon: 'text-emerald-500', text: 'text-emerald-900', placeholder: 'text-emerald-400' },
+        yellow: { bg: 'bg-amber-50', border: 'border-amber-200', icon: 'text-amber-500', text: 'text-amber-900', placeholder: 'text-amber-400' },
+        red: { bg: 'bg-red-50', border: 'border-red-200', icon: 'text-red-500', text: 'text-red-900', placeholder: 'text-red-400' },
+        purple: { bg: 'bg-purple-50', border: 'border-purple-200', icon: 'text-purple-500', text: 'text-purple-900', placeholder: 'text-purple-400' },
+        gray: { bg: 'bg-gray-50', border: 'border-gray-200', icon: 'text-gray-500', text: 'text-gray-900', placeholder: 'text-gray-400' },
+      };
+      const color = (field.config?.color as string) || 'blue';
+      const colors = colorConfig[color] || colorConfig.blue;
+
+      return (
+        <div className={cn("flex gap-3 p-4 rounded-xl border", colors.bg, colors.border)}>
+          <AlertCircle className={cn("w-5 h-5 flex-shrink-0 mt-0.5", colors.icon)} />
+          <div className="flex-1 min-w-0">
+            {isEditing ? (
+              <textarea
+                ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+                value={field.label || ''}
+                onChange={(e) => onUpdate({ label: e.target.value })}
+                onBlur={() => setIsEditing(false)}
+                onKeyDown={handleKeyDown}
+                className={cn("w-full bg-transparent border-none outline-none resize-none focus:ring-0", colors.text)}
+                placeholder="Add your callout message..."
+                rows={2}
+              />
+            ) : (
+              <p 
+                className={cn("cursor-text leading-relaxed", colors.text)}
+                onClick={() => setIsEditing(true)}
+              >
+                {field.label || <span className={cn("italic", colors.placeholder)}>Click to add callout message...</span>}
+              </p>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  // Render container field (group/repeater)
+  if (isContainerField) {
+    const children = field.children || [];
+
+    // Handler to reorder children within the container
+    const handleChildDragEnd = (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (over && active.id !== over.id) {
+        const oldIndex = children.findIndex((c) => c.id === active.id);
+        const newIndex = children.findIndex((c) => c.id === over.id);
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const newChildren = arrayMove(children, oldIndex, newIndex);
+          onUpdate({ children: newChildren });
+        }
+      }
+    };
+
+    // Handler to delete a child
+    const handleDeleteChild = (childId: string) => {
+      const newChildren = children.filter(c => c.id !== childId);
+      onUpdate({ children: newChildren });
+    };
+
+    // Handler to update a child
+    const handleUpdateChild = (childId: string, updates: Partial<Field>) => {
+      const newChildren = children.map(c => 
+        c.id === childId ? { ...c, ...updates } : c
+      );
+      onUpdate({ children: newChildren });
+    };
+    
+    return (
+      <motion.div
+        ref={blockRef}
+        layout
+        className={cn(
+          "relative group rounded-xl border-2 border-dashed transition-all duration-200",
+          isSelected 
+            ? "border-blue-400 bg-blue-50/50 shadow-sm shadow-blue-100" 
+            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50/50",
+        )}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onClick={(e) => { e.stopPropagation(); onSelect(); }}
+      >
+        {/* Drag handle */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: (isHovered || isSelected) ? 1 : 0 }}
+          className="absolute -left-14 top-4 flex flex-col gap-0.5 z-10"
+        >
+          <button 
+            {...dragListeners}
+            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing transition-colors"
+          >
+            <GripVertical className="w-4 h-4" />
+          </button>
+        </motion.div>
+
+        {/* Content */}
+        <div className="p-5">
+          {/* Header */}
+          <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-gray-200">
+            <div className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center",
+              field.type === 'group' ? "bg-blue-50" : "bg-purple-50"
+            )}>
+              {field.type === 'group' ? (
+                <Layers className="w-4 h-4 text-blue-500" />
+              ) : (
+                <Repeat className="w-4 h-4 text-purple-500" />
+              )}
+            </div>
+            <input
+              type="text"
+              value={field.label}
+              onChange={(e) => onUpdate({ label: e.target.value })}
+              onClick={(e) => e.stopPropagation()}
+              className="font-semibold text-gray-900 bg-transparent border-none outline-none flex-1 placeholder:text-gray-400"
+              placeholder={field.type === 'group' ? 'Field Group' : 'Repeater'}
+            />
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="p-1.5 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Children with drag-and-drop */}
+          {children.length === 0 ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = (e.target as HTMLElement).getBoundingClientRect();
+                onOpenSlashMenu({ top: rect.bottom + 8, left: rect.left });
+              }}
+              className="w-full py-10 text-sm text-gray-400 hover:text-gray-600 border-2 border-dashed border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all group/add"
+            >
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center group-hover/add:bg-gray-200 transition-colors">
+                  <Plus className="w-5 h-5 text-gray-400 group-hover/add:text-gray-600" />
+                </div>
+                <span>Click to add fields inside</span>
+              </div>
+            </button>
+          ) : (
+            <DndContext
+              collisionDetection={closestCenter}
+              onDragEnd={handleChildDragEnd}
+            >
+              <SortableContext 
+                items={children.map(c => c.id)} 
+                strategy={verticalListSortingStrategy}
+              >
+                <div className={cn(
+                  "space-y-2",
+                  field.type === 'group' && "grid gap-3",
+                  field.type === 'group' && (field.config?.columns === 2 ? "grid-cols-2" : field.config?.columns === 3 ? "grid-cols-3" : "")
+                )}>
+                  {children.map(child => (
+                    <SortableChildField
+                      key={child.id}
+                      field={child}
+                      onDelete={() => handleDeleteChild(child.id)}
+                      onUpdate={(updates) => handleUpdateChild(child.id, updates)}
+                      themeColor={themeColor}
+                      allFields={allFields}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
+
+          {/* Add more button when there are children */}
+          {children.length > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = (e.target as HTMLElement).getBoundingClientRect();
+                onOpenSlashMenu({ top: rect.bottom + 8, left: rect.left });
+              }}
+              className="mt-3 w-full py-2 text-xs text-gray-400 hover:text-gray-600 border border-dashed border-gray-200 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-all flex items-center justify-center gap-1"
+            >
+              <Plus className="w-3 h-3" />
+              Add field
+            </button>
+          )}
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      ref={blockRef}
+      layout
+      className={cn(
+        "relative group transition-all duration-200 rounded-lg",
+        isSelected && "bg-blue-50/50 ring-2 ring-blue-500 ring-offset-1",
+        !isSelected && isHovered && "bg-gray-50/70",
+      )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onClick={(e) => { e.stopPropagation(); onSelect(); }}
+    >
+      {/* Drag handle + Plus button - Left side */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: (isHovered || isSelected) ? 1 : 0 }}
+        className="absolute -left-14 top-2 flex items-center gap-0.5 z-10"
+      >
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            const rect = (e.target as HTMLElement).getBoundingClientRect();
+            onOpenSlashMenu({ top: rect.bottom + 4, left: rect.left });
+          }}
+          className="p-1.5 rounded-md hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+        <button 
+          {...dragListeners}
+          className={cn(
+            "p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing transition-colors",
+            isDragging && "cursor-grabbing bg-gray-100"
+          )}
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
+      </motion.div>
+
+      {/* Actions - Right side */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: (isHovered || isSelected) ? 1 : 0 }}
+        className="absolute -right-12 top-2 flex flex-col gap-0.5 z-10"
+      >
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="p-1.5 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </motion.div>
+
+      {/* Content */}
+      <div className="py-3 px-2">
+        {isLayoutField ? (
+          renderInlineContent()
+        ) : (
+          <div className="space-y-2">
+            {/* Editable Label & Description */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={field.label}
+                  onChange={(e) => onUpdate({ label: e.target.value })}
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex-1 text-sm font-medium text-gray-900 bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0"
+                  placeholder="Field label..."
+                />
+                {field.required && (
+                  <span className="text-red-500 text-xs">*</span>
+                )}
+              </div>
+              {/* Description - show when selected, has value, or user clicks to add */}
+              {(isSelected || field.description) ? (
+                <input
+                  type="text"
+                  value={field.description || ''}
+                  onChange={(e) => onUpdate({ description: e.target.value })}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full text-xs text-gray-500 bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0"
+                  placeholder="Add a description (help text shown below field)..."
+                />
+              ) : null}
+            </div>
+            {/* Field Preview - pass empty label to avoid duplication */}
+            <PortalFieldAdapter
+              field={{ ...field, label: '', description: '' }}
+              value={undefined}
+              onChange={() => {}}
+              themeColor={themeColor}
+              allFields={allFields}
+              disabled={true}
+            />
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+// ============================================================================
+// MAIN BLOCK EDITOR
+// ============================================================================
+
+export function BlockEditor({
+  section,
+  onUpdate,
+  selectedBlockId,
+  onSelectBlock,
+  themeColor = '#3B82F6',
+}: BlockEditorProps) {
+  const [slashMenu, setSlashMenu] = useState<{ position: { top: number; left: number }; insertIndex: number } | null>(null);
+  const [slashQuery, setSlashQuery] = useState('');
+  const [isTypingSlash, setIsTypingSlash] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px of movement required before starting drag
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle drag end - reorder blocks
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+
+    if (over && active.id !== over.id) {
+      const oldIndex = section.fields.findIndex((f) => f.id === active.id);
+      const newIndex = section.fields.findIndex((f) => f.id === over.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newFields = arrayMove(section.fields, oldIndex, newIndex);
+        onUpdate({ fields: newFields });
+      }
+    }
+  }, [section.fields, onUpdate]);
+
+  // Handle drag start
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  }, []);
+
+  // Add new block
+  const handleAddBlock = useCallback((command: BlockCommand, insertIndex: number) => {
+    const newField: Field = {
+      id: `field-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type: command.fieldType,
+      label: ['heading', 'paragraph', 'divider', 'callout'].includes(command.fieldType) ? '' : `New ${command.label}`,
+      required: false,
+      width: 'full',
+      options: command.defaultConfig?.options as string[] | undefined,
+      config: command.defaultConfig,
+    };
+
+    const newFields = [...section.fields];
+    newFields.splice(insertIndex, 0, newField);
+    onUpdate({ fields: newFields });
+    onSelectBlock(newField.id);
+    setSlashMenu(null);
+    setSlashQuery('');
+    setIsTypingSlash(false);
+  }, [section.fields, onUpdate, onSelectBlock]);
+
+  // Delete block
+  const handleDeleteBlock = useCallback((fieldId: string) => {
+    const newFields = section.fields.filter(f => f.id !== fieldId);
+    onUpdate({ fields: newFields });
+    if (selectedBlockId === fieldId) {
+      onSelectBlock(null);
+    }
+  }, [section.fields, onUpdate, selectedBlockId, onSelectBlock]);
+
+  // Update block
+  const handleUpdateBlock = useCallback((fieldId: string, updates: Partial<Field>) => {
+    const newFields = section.fields.map(f =>
+      f.id === fieldId ? { ...f, ...updates } : f
+    );
+    onUpdate({ fields: newFields });
+  }, [section.fields, onUpdate]);
+
+  // Move block
+  const handleMoveBlock = useCallback((fieldId: string, direction: 'up' | 'down') => {
+    const index = section.fields.findIndex(f => f.id === fieldId);
+    if (index === -1) return;
+    
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= section.fields.length) return;
+    
+    const newFields = [...section.fields];
+    [newFields[index], newFields[newIndex]] = [newFields[newIndex], newFields[index]];
+    onUpdate({ fields: newFields });
+  }, [section.fields, onUpdate]);
+
+  // Handle typing / for slash commands
+  const handleSlashInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value.startsWith('/')) {
+      setSlashQuery(value.slice(1));
+    } else {
+      setSlashQuery('');
+      setIsTypingSlash(false);
+    }
+  }, []);
+
+  // Open slash menu
+  const openSlashMenu = useCallback((position: { top: number; left: number }, insertIndex: number) => {
+    setSlashMenu({ position, insertIndex });
+    setSlashQuery('');
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      className="flex flex-col min-h-full bg-white"
+      onClick={() => onSelectBlock(null)}
+    >
+      {/* Section Header */}
+      <div className="px-20 pt-10 pb-6 border-b border-gray-100">
+        <input
+          type="text"
+          value={section.title}
+          onChange={(e) => onUpdate({ title: e.target.value })}
+          className="w-full text-3xl font-bold text-gray-900 bg-transparent border-none outline-none placeholder:text-gray-300 focus:placeholder:text-gray-400 transition-colors"
+          placeholder="Untitled Section"
+        />
+        <input
+          type="text"
+          value={section.description || ''}
+          onChange={(e) => onUpdate({ description: e.target.value })}
+          className="w-full text-gray-500 bg-transparent border-none outline-none mt-3 placeholder:text-gray-300 focus:placeholder:text-gray-400 transition-colors"
+          placeholder="Add a description to help applicants..."
+        />
+      </div>
+
+      {/* Blocks */}
+      <div className="flex-1 px-20 py-8 overflow-visible">
+        <AnimatePresence mode="wait">
+          {section.fields.length === 0 ? (
+            <motion.div
+              key="empty"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="relative"
+            >
+              {/* Empty state with doc-like input */}
+              <div className="py-8 rounded-xl border-2 border-dashed border-gray-200 hover:border-gray-300 transition-colors">
+                <div className="flex flex-col items-center justify-center text-center mb-6">
+                  <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center mb-4">
+                    <Plus className="w-6 h-6 text-gray-400" />
+                  </div>
+                  <p className="text-gray-500 font-medium mb-1">Start building your form</p>
+                  <p className="text-gray-400 text-sm">
+                    Type <kbd className="px-2 py-1 bg-gray-100 rounded-md text-xs font-mono font-medium text-gray-600 mx-1">/</kbd> for commands
+                  </p>
+                </div>
+                <div className="px-6">
+                  <NewLineInput
+                    onOpenSlashMenu={(pos) => openSlashMenu(pos, 0)}
+                    onQueryChange={setSlashQuery}
+                    isMenuOpen={slashMenu !== null}
+                    placeholder="Type '/' to add your first field..."
+                    autoFocus
+                  />
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="fields"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-2"
+            >
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext 
+                  items={section.fields.map(f => f.id)} 
+                  strategy={verticalListSortingStrategy}
+                >
+                  {section.fields.map((field, index) => (
+                    <SortableBlock key={field.id} id={field.id}>
+                      <Block
+                        field={field}
+                        isSelected={selectedBlockId === field.id}
+                        onSelect={() => onSelectBlock(field.id)}
+                        onDelete={() => handleDeleteBlock(field.id)}
+                        onUpdate={(updates) => handleUpdateBlock(field.id, updates)}
+                        onMoveUp={() => handleMoveBlock(field.id, 'up')}
+                        onMoveDown={() => handleMoveBlock(field.id, 'down')}
+                        onOpenSlashMenu={(pos) => openSlashMenu(pos, index + 1)}
+                        themeColor={themeColor}
+                        allFields={section.fields}
+                        isFirst={index === 0}
+                        isLast={index === section.fields.length - 1}
+                      />
+                    </SortableBlock>
+                  ))}
+                </SortableContext>
+              </DndContext>
+
+              {/* Add block at end - Doc-like new line */}
+              <div className="pt-4">
+                <NewLineInput
+                  onOpenSlashMenu={(pos) => openSlashMenu(pos, section.fields.length)}
+                  onQueryChange={setSlashQuery}
+                  isMenuOpen={slashMenu !== null}
+                  placeholder="Click here and type '/' to add a block..."
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Slash Menu */}
+      <AnimatePresence>
+        {slashMenu && (
+          <SlashMenu
+            query={slashQuery}
+            position={slashMenu.position}
+            onSelect={(cmd) => handleAddBlock(cmd, slashMenu.insertIndex)}
+            onClose={() => {
+              setSlashMenu(null);
+              setSlashQuery('');
+              setIsTypingSlash(false);
+            }}
+            onQueryChange={setSlashQuery}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+export default BlockEditor;

@@ -335,6 +335,21 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				tables.GET("/:id/suggestions", handlers.GetTableSuggestions)
 				tables.POST("/:id/suggestions/:suggestion_id/apply", handlers.ApplySuggestion)
 				tables.POST("/:id/suggestions/:suggestion_id/dismiss", handlers.DismissSuggestion)
+
+				// Table Views (grid, kanban, calendar, gallery, timeline, form, portal)
+				tables.GET("/:id/views", handlers.ListViews)
+				tables.POST("/:id/views", handlers.CreateView)
+				tables.GET("/:id/views/portal", handlers.GetPortalViews)
+			}
+
+			// Views (global endpoints)
+			views := protected.Group("/views")
+			{
+				views.GET("/:id", handlers.GetView)
+				views.PATCH("/:id", handlers.UpdateView)
+				views.DELETE("/:id", handlers.DeleteView)
+				views.PATCH("/:id/config", handlers.UpdateViewConfig)
+				views.POST("/:id/duplicate", handlers.DuplicateView)
 			}
 
 			// Version management (global)

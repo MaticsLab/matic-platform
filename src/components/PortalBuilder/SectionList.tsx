@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { GripVertical, Trash2, ChevronUp, ChevronDown, BookOpen, CheckCircle, Eye, ScrollText, MoreVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -24,10 +25,10 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
 
   const variants = {
-    form: { label: 'Form', description: 'Page to collect user input', icon: ScrollText, bg: 'bg-amber-50', fg: 'text-amber-700', border: 'border-amber-100' },
-    cover: { label: 'Cover', description: 'Welcome users to your form', icon: BookOpen, bg: 'bg-blue-50', fg: 'text-blue-700', border: 'border-blue-100' },
-    ending: { label: 'Ending', description: 'Show a thank you page or redirect users', icon: CheckCircle, bg: 'bg-rose-50', fg: 'text-rose-700', border: 'border-rose-100' },
-    review: { label: 'Review', description: 'Let users review their submission', icon: Eye, bg: 'bg-purple-50', fg: 'text-purple-700', border: 'border-purple-100' },
+    form: { label: 'Form', description: 'Page to collect user input', icon: ScrollText, bg: 'bg-amber-50', fg: 'text-amber-600', border: 'border-amber-200', activeBg: 'bg-amber-100' },
+    cover: { label: 'Cover', description: 'Welcome users to your form', icon: BookOpen, bg: 'bg-blue-50', fg: 'text-blue-600', border: 'border-blue-200', activeBg: 'bg-blue-100' },
+    ending: { label: 'Ending', description: 'Show a thank you page or redirect users', icon: CheckCircle, bg: 'bg-emerald-50', fg: 'text-emerald-600', border: 'border-emerald-200', activeBg: 'bg-emerald-100' },
+    review: { label: 'Review', description: 'Let users review their submission', icon: Eye, bg: 'bg-purple-50', fg: 'text-purple-600', border: 'border-purple-200', activeBg: 'bg-purple-100' },
   } as const
   type VariantKey = keyof typeof variants
 
@@ -77,87 +78,121 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
 
   return (
     <div className="w-full max-w-full">
-      <div className="space-y-1.5 px-3 py-3 w-full">
-        {sections.map((section, index) => {
-          const key: VariantKey = (section.sectionType ?? 'form') as VariantKey
-          const variant = variants[key]
-          const Icon = variant.icon
+      <div className="space-y-1 px-2 py-2 w-full">
+        <AnimatePresence mode="popLayout">
+          {sections.map((section, index) => {
+            const key: VariantKey = (section.sectionType ?? 'form') as VariantKey
+            const variant = variants[key]
+            const Icon = variant.icon
+            const isActive = activeId === section.id
 
-          return (
-            <div
-              key={section.id}
-              draggable
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDragEnd={handleDragEnd}
-              onClick={() => onSelect(section.id)}
-              className={cn(
-                "group w-full max-w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg cursor-pointer transition-all border",
-                activeId === section.id 
-                  ? "bg-blue-50 border-blue-200 shadow-sm" 
-                  : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm",
-                draggedIndex === index && "opacity-50"
-              )}
-            >
-              <GripVertical className="w-3 h-3 text-gray-400 cursor-grab flex-shrink-0" />
-              <div className={cn("w-5 h-5 rounded flex items-center justify-center flex-shrink-0", variant.bg)}>
-                <Icon className={cn("w-3 h-3", variant.fg)} />
-              </div>
-              <div className="flex-1 min-w-0 overflow-hidden pr-1">
-                <div className="text-xs font-medium text-gray-900 truncate">
-                  {(section.title || variant.label).length > 17 
-                    ? (section.title || variant.label).substring(0, 17) + '...'
-                    : (section.title || variant.label)
-                  }
+            return (
+              <motion.div
+                key={section.id}
+                layout
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ 
+                  opacity: draggedIndex === index ? 0.5 : 1, 
+                  y: 0,
+                  scale: draggedIndex === index ? 1.02 : 1
+                }}
+                exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                draggable
+                onDragStart={(e) => handleDragStart(e as any, index)}
+                onDragOver={(e) => handleDragOver(e as any, index)}
+                onDragEnd={handleDragEnd}
+                onClick={() => onSelect(section.id)}
+                className={cn(
+                  "group w-full max-w-full flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-150",
+                  isActive 
+                    ? cn("shadow-sm", variant.activeBg, variant.border, "border")
+                    : "bg-white border border-transparent hover:border-gray-200 hover:shadow-sm"
+                )}
+              >
+                {/* Drag Handle */}
+                <div className={cn(
+                  "opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing",
+                  isActive && "opacity-60"
+                )}>
+                  <GripVertical className="w-3.5 h-3.5 text-gray-400" />
                 </div>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                  >
-                    <MoreVertical className="w-3 h-3 text-gray-500" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem
-                    disabled={index === 0}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      moveSection(index, 'up')
-                    }}
-                  >
-                    <ChevronUp className="w-4 h-4 mr-2" />
-                    Move Up
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={index === sections.length - 1}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      moveSection(index, 'down')
-                    }}
-                  >
-                    <ChevronDown className="w-4 h-4 mr-2" />
-                    Move Down
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={sections.length <= 1}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDelete(section.id)
-                    }}
-                    className="text-red-600 focus:text-red-600"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )
-        })}
+
+                {/* Icon */}
+                <div className={cn(
+                  "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors",
+                  isActive ? variant.activeBg : variant.bg
+                )}>
+                  <Icon className={cn("w-3.5 h-3.5", variant.fg)} />
+                </div>
+
+                {/* Title */}
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <div className={cn(
+                    "text-sm font-medium truncate transition-colors",
+                    isActive ? "text-gray-900" : "text-gray-700"
+                  )}>
+                    {(section.title || variant.label).length > 20 
+                      ? (section.title || variant.label).substring(0, 20) + '...'
+                      : (section.title || variant.label)
+                    }
+                  </div>
+                </div>
+
+                {/* Actions Menu */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-6 w-6 p-0 transition-opacity flex-shrink-0",
+                        isActive ? "opacity-70 hover:opacity-100" : "opacity-0 group-hover:opacity-100"
+                      )}
+                    >
+                      <MoreVertical className="w-3.5 h-3.5 text-gray-500" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem
+                      disabled={index === 0}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        moveSection(index, 'up')
+                      }}
+                      className="gap-2"
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                      Move Up
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={index === sections.length - 1}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        moveSection(index, 'down')
+                      }}
+                      className="gap-2"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                      Move Down
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={sections.length <= 1}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDelete(section.id)
+                      }}
+                      className="gap-2 text-red-600 focus:text-red-600 focus:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete Section
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
       </div>
     </div>
   )

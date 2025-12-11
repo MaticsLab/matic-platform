@@ -2,19 +2,22 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Mail, Lock, Sparkles, CheckCircle2, Languages } from 'lucide-react'
+import { ArrowRight, Mail, Lock, Sparkles, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Textarea } from '@/ui-components/textarea'
 import { Label } from '@/ui-components/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
 import { ApplicationForm, EMPTY_APPLICATION_STATE } from './ApplicationForm'
 import { Form } from '@/types/forms'
 import { Field } from '@/types/portal'
 import { cn } from '@/lib/utils'
-import { applyTranslationsToConfig, applyTranslationsToField } from '@/lib/portal-translations'
+import { applyTranslationsToConfig, applyTranslationsToField, normalizeTranslations } from '@/lib/portal-translations'
 import { portalAuthClient } from '@/lib/api/portal-auth-client'
 import { toast } from 'sonner'
+import type { TranslationResource } from '@/lib/i18n/types'
+import { TranslationProvider, useTranslationContext } from '@/lib/i18n/TranslationProvider'
+import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector'
+import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
 
 interface PublicPortalProps {
   slug: string
@@ -56,11 +59,12 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     if (!form.settings?.language?.enabled || activeLanguage === defaultLanguage) {
       return form
     }
-    // Apply translations to the form's settings and fields
-    // translations are stored in form.settings.translations or as a top-level property
-    const translations = (form.settings as any).translations || (form as any).translations || {}
     
-    if (!translations[activeLanguage]) {
+    // Get raw translations and normalize to new format (handles both legacy and new)
+    const rawTranslations = (form.settings as any).translations || (form as any).translations || {}
+    const normalizedTranslations = normalizeTranslations(rawTranslations)
+    
+    if (!normalizedTranslations[activeLanguage]) {
       console.warn(`⚠️ No translations found for language: ${activeLanguage}`)
       return form
     }
@@ -69,15 +73,15 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     // We pass form.settings.sections so the utility can translate section titles
     const rawSections = (form.settings as any).sections || []
     const translatedConfig = applyTranslationsToConfig(
-      { sections: rawSections, settings: form.settings, translations },
+      { sections: rawSections, settings: form.settings, translations: normalizedTranslations },
       activeLanguage
     )
 
     // 2. Translate Fields (Flat Array)
-    // Since the utility expects nested fields in sections, we must manually translate the flat fields array
-    // using the helper function from portal-translations
+    // Get the translation resource for active language
+    const langResource = normalizedTranslations[activeLanguage]
     const translatedFields = (form.fields || []).map((field) => 
-      applyTranslationsToField(field, translations[activeLanguage])
+      applyTranslationsToField(field, langResource)
     )
 
     const result = {
@@ -234,19 +238,12 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     <div className="min-h-screen bg-[#F7F7F5] flex flex-col items-center justify-center p-4 font-sans text-gray-900">
       {/* Language Selector - Top Right */}
       {form?.settings?.language?.enabled && supportedLanguages.length > 1 && (
-        <div className="fixed top-4 right-4 z-50">
-          <Select value={activeLanguage} onValueChange={setActiveLanguage}>
-            <SelectTrigger className="w-32 h-9 text-sm bg-white/90 backdrop-blur-sm">
-              <Languages className="w-4 h-4 mr-2" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {supportedLanguages.map(lang => (
-                <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <StandaloneLanguageSelector
+          activeLanguage={activeLanguage}
+          supportedLanguages={supportedLanguages}
+          onLanguageChange={setActiveLanguage}
+          className="fixed top-4 right-4 z-50"
+        />
       )}
 
       <motion.div 
@@ -315,88 +312,31 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
                 </div>
               </>
             ) : (
-              /* Render signup fields from portal config */
-              (translatedForm?.settings?.signupFields || []).map((field: Field) => (
-                <div key={field.id} className="space-y-2">
-                  <Label className="text-base font-medium text-gray-700">
-                    {field.label}
-                    {field.required && <span className="text-red-500 ml-1">*</span>}
-                  </Label>
-                  {field.description && (
-                    <p className="text-sm text-gray-500 -mt-1">{field.description}</p>
-                  )}
-                  {field.placeholder && (
-                    <p className="text-sm text-gray-500 -mt-1">{field.placeholder}</p>
-                  )}
-                  
-                  {/* Email field */}
-                  {field.type === 'email' && (
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <Input 
-                        type="email" 
-                        className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors h-11"
-                        value={signupData[field.id] || ''}
-                        onChange={e => {
-                          setSignupData(prev => ({ ...prev, [field.id]: e.target.value }))
-                          setEmail(e.target.value)
-                        }}
-                        required={field.required}
-                      />
-                    </div>
-                  )}
-                  
-                  {/* Password field (shown as text type with "password" in label) */}
-                  {field.type === 'text' && field.label.toLowerCase().includes('password') && (
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <Input 
-                        type="password" 
-                        className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors h-11"
-                        value={signupData[field.id] || ''}
-                        onChange={e => {
-                          const value = e.target.value
-                          setSignupData(prev => ({ ...prev, [field.id]: value }))
-                          setPassword(value) // Also set password state for signup
-                        }}
-                        required={field.required}
-                      />
-                    </div>
-                  )}
-                  
-                  {/* Regular text fields */}
-                  {field.type === 'text' && !field.label.toLowerCase().includes('password') && (
-                    <Input 
-                      type="text" 
-                      className="bg-gray-50/50 border-gray-200 focus:bg-white transition-colors h-11"
-                      value={signupData[field.id] || ''}
-                      onChange={e => setSignupData(prev => ({ ...prev, [field.id]: e.target.value }))}
-                      required={field.required}
+              /* Render signup fields from portal config using unified field system */
+              (translatedForm?.settings?.signupFields || []).map((field: Field) => {
+                // Special handling for email field to capture it for auth
+                const handleChange = (value: unknown) => {
+                  setSignupData(prev => ({ ...prev, [field.id]: value }))
+                  // Capture email and password for auth
+                  if (field.type === 'email') {
+                    setEmail(value as string)
+                  }
+                  if (field.type === 'text' && field.label.toLowerCase().includes('password')) {
+                    setPassword(value as string)
+                  }
+                }
+
+                return (
+                  <div key={field.id}>
+                    <PortalFieldAdapter
+                      field={field}
+                      value={signupData[field.id]}
+                      onChange={handleChange}
+                      formData={signupData}
                     />
-                  )}
-                  
-                  {/* Phone field */}
-                  {field.type === 'phone' && (
-                    <Input 
-                      type="tel" 
-                      className="bg-gray-50/50 border-gray-200 focus:bg-white transition-colors h-11"
-                      value={signupData[field.id] || ''}
-                      onChange={e => setSignupData(prev => ({ ...prev, [field.id]: e.target.value }))}
-                      required={field.required}
-                    />
-                  )}
-                  
-                  {/* Textarea */}
-                  {field.type === 'textarea' && (
-                    <Textarea 
-                      className="bg-gray-50/50 border-gray-200 focus:bg-white transition-colors min-h-[100px]"
-                      value={signupData[field.id] || ''}
-                      onChange={e => setSignupData(prev => ({ ...prev, [field.id]: e.target.value }))}
-                      required={field.required}
-                    />
-                  )}
-                </div>
-              ))
+                  </div>
+                )
+              })
             )}
 
             <Button 

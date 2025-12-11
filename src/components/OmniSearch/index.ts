@@ -1,1 +1,0 @@
-export { OmniSearch } from './OmniSearch'

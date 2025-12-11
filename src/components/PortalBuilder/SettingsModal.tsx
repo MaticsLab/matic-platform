@@ -12,12 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { PortalConfig } from '@/types/portal'
-import { translateContent } from '@/lib/ai/translation'
-import { collectTranslatableContent } from '@/lib/portal-translations'
+import { translateResource } from '@/lib/ai/translation'
+import { collectTranslatableContentNew, normalizeTranslations } from '@/lib/portal-translations'
 import { LANGUAGES, getLanguageName } from '@/lib/languages'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/ui-components/dropdown-menu'
+import type { TranslationResource } from '@/lib/i18n/types'
 
 interface SettingsModalProps {
   open: boolean
@@ -67,29 +68,34 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
     setIsTranslating(true)
     setLastLanguage(langCode)
     try {
-      const contentToTranslate = collectTranslatableContent(config)
-      console.log('📝 Content to translate:', contentToTranslate)
+      // Use new i18next format for content collection
+      const contentToTranslate = collectTranslatableContentNew(config)
+      console.log('📝 Content to translate (new format):', contentToTranslate)
 
       const targetLanguageName = getLanguageName(langCode)
 
-      let translations = {}
+      let translatedResource: TranslationResource = {
+        portal: { name: '' },
+        sections: {},
+        fields: {}
+      }
       
       // Only translate if auto-translate is NOT disabled
       if (!config.settings.language?.disableAutoTranslate) {
-        // Call AI
+        // Call AI with new format
         toast.success(`Starting translation to ${targetLanguageName}`)
-        translations = await translateContent(contentToTranslate, targetLanguageName)
-        console.log('✅ Translations received:', translations)
+        translatedResource = await translateResource(contentToTranslate, targetLanguageName)
+        console.log('✅ Translations received (new format):', translatedResource)
       } else {
         console.log('🚫 Auto-translate disabled, skipping AI translation')
         toast.success(`Added ${targetLanguageName} (Auto-translate disabled)`)
       }
       
-      // Update config
-      const currentTranslations = config.translations || {}
+      // Normalize existing translations and add new one
+      const currentTranslations = normalizeTranslations(config.translations || {})
       const newTranslations = {
         ...currentTranslations,
-        [langCode]: translations
+        [langCode]: translatedResource
       }
       
       const currentSupported = supportedLanguages

@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui-components/tabs'
 import { ScrollArea } from '@/ui-components/scroll-area'
 import { Separator } from '@/ui-components/separator'
 import { FormBuilder } from './FormBuilder'
+import { BlockEditor } from './BlockEditor'
 import { PortalSettings } from './PortalSettings'
 import { SectionList } from './SectionList'
 import { FieldToolbox } from './FieldToolbox'
@@ -35,9 +36,16 @@ import {
   DropdownMenuTrigger,
 } from '@/ui-components/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
-import { applyTranslationsToConfig, collectTranslatableContent, updateTranslationsForField, updateTranslationsForSection } from '@/lib/portal-translations'
-import { translateContent } from '@/lib/ai/translation'
+import { 
+  applyTranslationsToConfig, 
+  collectTranslatableContentNew,
+  updateFieldTranslationNew,
+  updateSectionTranslationNew,
+  normalizeTranslations
+} from '@/lib/portal-translations'
+import { translateContent, translateResource } from '@/lib/ai/translation'
 import { LANGUAGES, getLanguageName } from '@/lib/languages'
+import type { TranslationResource, PortalTranslations } from '@/lib/i18n/types'
 
 const INITIAL_CONFIG: PortalConfig = {
   sections: [
@@ -94,6 +102,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [isTranslatingActiveLanguage, setIsTranslatingActiveLanguage] = useState(false)
   
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
+  const [useBlockEditor, setUseBlockEditor] = useState(true) // Toggle for block editor vs FormBuilder
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
   const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
   const [shareTabKey, setShareTabKey] = useState(0)
@@ -368,11 +378,13 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     const languageEnabled = config.settings.language?.enabled
 
     if (languageEnabled && activeLanguage !== defaultLang) {
-      const translations = updateTranslationsForSection(
-        config.translations || {},
+      // Use new format: updateSectionTranslationNew expects PortalTranslations
+      const normalizedTranslations = normalizeTranslations(config.translations || {})
+      const translations = updateSectionTranslationNew(
+        normalizedTranslations,
         activeLanguage,
         sectionId,
-        updates
+        { title: updates.title, description: updates.description }
       )
 
       const nonTextUpdates: Partial<Section> = { ...updates }
@@ -401,15 +413,29 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     if (!activeSection) return
     const defaultLang = config.settings.language?.default || 'en'
     const languageEnabled = config.settings.language?.enabled
-    const baseField = findFieldRecursive(activeSection.fields, fieldId)
 
     if (languageEnabled && activeLanguage !== defaultLang) {
-      const translations = updateTranslationsForField(
-        config.translations || {},
+      // Use new format: updateFieldTranslationNew
+      const normalizedTranslations = normalizeTranslations(config.translations || {})
+      
+      // Convert options array to string array if present
+      let options: string[] | undefined
+      if (Array.isArray(updates.options)) {
+        options = updates.options.map((opt: any) => 
+          typeof opt === 'string' ? opt : opt.label || ''
+        )
+      }
+      
+      const translations = updateFieldTranslationNew(
+        normalizedTranslations,
         activeLanguage,
         fieldId,
-        updates,
-        baseField
+        {
+          label: updates.label,
+          placeholder: updates.placeholder,
+          description: updates.description,
+          options
+        }
       )
 
       const nonTextUpdates: Partial<Field> = { ...updates }
@@ -496,8 +522,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     const defaultLang = config.settings.language?.default || 'en'
     if (lang === activeLanguage) return
 
-    // If default language or translation already exists AND has content, just switch
-    const hasTranslations = config.translations?.[lang] && Object.keys(config.translations[lang]).length > 0
+    // Normalize translations to check if we have content for this language
+    const normalizedTranslations = normalizeTranslations(config.translations || {})
+    const hasTranslations = normalizedTranslations[lang] && (
+      Object.keys(normalizedTranslations[lang].fields || {}).length > 0 ||
+      Object.keys(normalizedTranslations[lang].sections || {}).length > 0
+    )
     
     if (lang === defaultLang || hasTranslations) {
       setActiveLanguage(lang)
@@ -507,12 +537,17 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     setIsTranslatingActiveLanguage(true)
     const targetLanguageName = getLanguageName(lang)
     try {
-      let translations = {}
+      let translatedResource: TranslationResource = {
+        portal: { name: '' },
+        sections: {},
+        fields: {}
+      }
       
       if (!config.settings.language?.disableAutoTranslate) {
         toast.success(`Translating to ${targetLanguageName}`)
-        const contentToTranslate = collectTranslatableContent(config)
-        translations = await translateContent(contentToTranslate, targetLanguageName)
+        // Use new format for translation
+        const contentToTranslate = collectTranslatableContentNew(config)
+        translatedResource = await translateResource(contentToTranslate, targetLanguageName)
       } else {
         toast.success(`Switched to ${targetLanguageName} (Auto-translate disabled)`)
       }
@@ -520,8 +555,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
       setConfig(prev => ({
         ...prev,
         translations: {
-          ...(prev.translations || {}),
-          [lang]: translations
+          ...(normalizeTranslations(prev.translations || {})),
+          [lang]: translatedResource
         },
         settings: {
           ...prev.settings,
@@ -972,9 +1007,15 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             </div>
 
             {/* Canvas */}
-            <div className="flex-1 overflow-y-auto p-4 bg-gray-100 flex justify-center relative">
+            <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative">
+                {/* Background Pattern (subtle grid) */}
+                <div className="absolute inset-0 opacity-[0.015]" style={{
+                  backgroundImage: `radial-gradient(circle, #000 1px, transparent 1px)`,
+                  backgroundSize: '24px 24px'
+                }} />
+                
                 <div className={cn(
-                  "bg-white shadow-lg border border-gray-200 rounded-xl transition-all duration-300 min-h-[800px] overflow-hidden",
+                  "bg-white shadow-xl border border-gray-200/80 rounded-2xl transition-all duration-300 min-h-[800px] relative z-10",
                   viewMode === 'mobile' ? "w-[375px]" : "w-full max-w-3xl"
                 )}>
                   {isPreview ? (
@@ -992,15 +1033,29 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   ) : activeSpecialPage === 'ending' ? (
                     <ConfirmationPreview config={displayConfig} />
                   ) : displaySection ? (
-                    <FormBuilder 
-                      section={displaySection} 
-                      onUpdate={(updates: Partial<Section>) => handleUpdateSection(displaySection.id, updates)} 
-                      selectedFieldId={selectedFieldId}
-                      onSelectField={setSelectedFieldId}
-                    />
+                    useBlockEditor ? (
+                      <BlockEditor 
+                        section={displaySection} 
+                        onUpdate={(updates: Partial<Section>) => handleUpdateSection(displaySection.id, updates)} 
+                        selectedBlockId={selectedBlockId}
+                        onSelectBlock={setSelectedBlockId}
+                        themeColor={config.settings.themeColor}
+                      />
+                    ) : (
+                      <FormBuilder 
+                        section={displaySection} 
+                        onUpdate={(updates: Partial<Section>) => handleUpdateSection(displaySection.id, updates)} 
+                        selectedFieldId={selectedFieldId}
+                        onSelectField={setSelectedFieldId}
+                      />
+                    )
                   ) : (
-                    <div className="flex items-center justify-center h-full text-gray-400">
-                      Select a section to edit
+                    <div className="flex flex-col items-center justify-center h-full text-gray-400 py-20">
+                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                        <FileText className="w-7 h-7 text-gray-300" />
+                      </div>
+                      <p className="font-medium text-gray-600">No section selected</p>
+                      <p className="text-sm text-gray-400 mt-1">Choose a section from the sidebar to start editing</p>
                     </div>
                   )}
                 </div>
@@ -1009,16 +1064,31 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             {/* Right Sidebar - Settings */}
             <div className={cn(
                "bg-white border-l border-gray-200 flex flex-col shadow-sm z-10 transition-all duration-300 ease-in-out",
-               selectedFieldId ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
+               (selectedFieldId || selectedBlockId) ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
             )}>
                <div className="flex items-center justify-between p-4 border-b border-gray-100">
                   <span className="font-semibold text-sm">Field Settings</span>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setSelectedFieldId(null)}>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => {
+                    setSelectedFieldId(null)
+                    setSelectedBlockId(null)
+                  }}>
                     <X className="w-4 h-4" />
                   </Button>
                </div>
                <div className="flex-1 overflow-hidden">
-                   {selectedFieldId && (
+                   {/* Field Settings for Block Editor mode - uses selectedBlockId but works with fields directly */}
+                   {useBlockEditor && selectedBlockId && displaySection && (
+                      <FieldSettingsPanel 
+                        selectedField={findFieldRecursive(displaySection.fields, selectedBlockId) || null}
+                        onUpdate={(fieldId: string, updates: Partial<Field>) => {
+                          handleUpdateField(fieldId, updates)
+                        }}
+                        onClose={() => setSelectedBlockId(null)}
+                        allFields={getAllFields()}
+                      />
+                   )}
+                   {/* Field Settings (legacy FormBuilder mode) */}
+                   {!useBlockEditor && selectedFieldId && (
                       <FieldSettingsPanel 
                         selectedField={
                           activeSpecialPage === 'signup' 
