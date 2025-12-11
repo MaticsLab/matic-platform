@@ -122,7 +122,7 @@ const BLOCK_COMMANDS: BlockCommand[] = [
 const CATEGORIES = ['Basic', 'Selection', 'Date & Time', 'Media', 'Layout', 'Advanced'];
 
 // ============================================================================
-// SLASH COMMAND MENU - Tiptap Style
+// SLASH COMMAND MENU - Clean dropdown style
 // ============================================================================
 
 interface SlashMenuProps {
@@ -131,22 +131,18 @@ interface SlashMenuProps {
   onSelect: (command: BlockCommand) => void;
   onClose: () => void;
   onQueryChange: (query: string) => void;
-  containerRef?: React.RefObject<HTMLDivElement>;
 }
 
-function SlashMenu({ query, position, onSelect, onClose, onQueryChange, containerRef }: SlashMenuProps) {
+function SlashMenu({ query, position, onSelect, onClose }: SlashMenuProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [isScrolling, setIsScrolling] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [menuPosition, setMenuPosition] = useState(position);
 
   // Calculate position relative to viewport and adjust if menu would be cut off
   useEffect(() => {
-    const menuHeight = 420; // max-h-[420px]
-    const menuWidth = 320; // w-80
+    const menuHeight = 400;
+    const menuWidth = 280;
     const viewportHeight = window.innerHeight;
     const viewportWidth = window.innerWidth;
     const padding = 16;
@@ -202,7 +198,7 @@ function SlashMenu({ query, position, onSelect, onClose, onQueryChange, containe
     setSelectedIndex(0);
   }, [query]);
 
-  // Scroll selected into view
+  // Scroll selected into view (only for keyboard nav)
   useEffect(() => {
     selectedRef.current?.scrollIntoView({ block: 'nearest' });
   }, [selectedIndex]);
@@ -242,41 +238,6 @@ function SlashMenu({ query, position, onSelect, onClose, onQueryChange, containe
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onClose]);
 
-  // Detect scrolling to prevent mouse hover from changing selection during scroll
-  useEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
-    if (!scrollContainer) return;
-
-    const handleScroll = () => {
-      setIsScrolling(true);
-      
-      // Clear existing timeout
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-      
-      // Reset isScrolling after scroll stops
-      scrollTimeoutRef.current = setTimeout(() => {
-        setIsScrolling(false);
-      }, 150);
-    };
-
-    scrollContainer.addEventListener('scroll', handleScroll);
-    return () => {
-      scrollContainer.removeEventListener('scroll', handleScroll);
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Handle mouse move to update selection (only when not scrolling)
-  const handleMouseEnterItem = useCallback((index: number) => {
-    if (!isScrolling) {
-      setSelectedIndex(index);
-    }
-  }, [isScrolling]);
-
   if (flatList.length === 0) {
     return createPortal(
       <motion.div
@@ -311,35 +272,34 @@ function SlashMenu({ query, position, onSelect, onClose, onQueryChange, containe
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -8, scale: 0.96 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className="fixed bg-white rounded-xl shadow-2xl border border-gray-100 w-80 max-h-[420px] overflow-hidden z-[9999]"
+      className="fixed bg-white rounded-xl shadow-2xl border border-gray-100 w-72 overflow-hidden z-[9999]"
       style={{ top: menuPosition.top, left: menuPosition.left }}
     >
       {/* Header with search indicator */}
-      <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-b from-gray-50 to-white">
+      <div className="px-3 py-2.5 border-b border-gray-100 bg-gradient-to-b from-gray-50 to-white">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-blue-50 flex items-center justify-center">
-            <Command className="w-3.5 h-3.5 text-blue-500" />
+          <div className="w-5 h-5 rounded flex items-center justify-center bg-blue-50">
+            <Command className="w-3 h-3 text-blue-500" />
           </div>
           <div className="flex-1 min-w-0">
             {query ? (
-              <p className="text-sm text-gray-700">Searching &ldquo;<span className="font-medium text-gray-900">{query}</span>&rdquo;</p>
+              <p className="text-xs text-gray-700">Searching &ldquo;<span className="font-medium text-gray-900">{query}</span>&rdquo;</p>
             ) : (
-              <p className="text-sm text-gray-500">Add a new block</p>
+              <p className="text-xs text-gray-500">Add a new block</p>
             )}
           </div>
-          <span className="text-xs text-gray-400 font-medium">{flatList.length} results</span>
         </div>
       </div>
       
-      {/* Commands */}
-      <div ref={scrollContainerRef} className="overflow-y-auto max-h-[300px] py-2">
+      {/* Commands - simple scrollable list */}
+      <div className="overflow-y-auto max-h-80 py-1">
         {CATEGORIES.map(category => {
           const commands = grouped[category];
           if (!commands?.length) return null;
           
           return (
-            <div key={category} className="mb-1">
-              <div className="px-4 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider sticky top-0 bg-white/95 backdrop-blur-sm">
+            <div key={category}>
+              <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                 {category}
               </div>
               {commands.map(cmd => {
@@ -347,51 +307,40 @@ function SlashMenu({ query, position, onSelect, onClose, onQueryChange, containe
                 const isSelected = currentIndex === selectedIndex;
                 
                 return (
-                  <motion.button
+                  <button
                     key={cmd.id}
                     ref={isSelected ? selectedRef : null}
                     onClick={() => onSelect(cmd)}
-                    onMouseMove={() => handleMouseEnterItem(currentIndex)}
-                    whileHover={{ x: 2 }}
                     className={cn(
-                      "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150",
+                      "w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors",
                       isSelected 
-                        ? "bg-blue-50 border-l-2 border-blue-500" 
-                        : "hover:bg-gray-50 border-l-2 border-transparent"
+                        ? "bg-blue-50" 
+                        : "hover:bg-gray-50"
                     )}
                   >
                     <div className={cn(
-                      "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-150",
+                      "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
                       isSelected 
-                        ? "bg-blue-100 text-blue-600 shadow-sm" 
-                        : "bg-gray-100 text-gray-500 group-hover:bg-gray-200"
+                        ? "bg-blue-100 text-blue-600" 
+                        : "bg-gray-100 text-gray-500"
                     )}>
                       {cmd.icon}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className={cn(
-                        "text-sm font-medium truncate transition-colors",
+                        "text-sm font-medium truncate",
                         isSelected ? "text-blue-900" : "text-gray-800"
                       )}>
                         {cmd.label}
                       </div>
                       <div className={cn(
-                        "text-xs truncate transition-colors",
+                        "text-xs truncate",
                         isSelected ? "text-blue-600/70" : "text-gray-400"
                       )}>
                         {cmd.description}
                       </div>
                     </div>
-                    {isSelected && (
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="text-xs text-blue-500 font-medium"
-                      >
-                        ↵
-                      </motion.div>
-                    )}
-                  </motion.button>
+                  </button>
                 );
               })}
             </div>
@@ -399,22 +348,19 @@ function SlashMenu({ query, position, onSelect, onClose, onQueryChange, containe
         })}
       </div>
       
-      {/* Footer hint */}
-      <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50/80 flex items-center justify-between text-xs text-gray-400">
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 bg-white rounded border border-gray-200 text-[10px] font-medium">↑</kbd>
-            <kbd className="px-1.5 py-0.5 bg-white rounded border border-gray-200 text-[10px] font-medium">↓</kbd>
-            <span className="ml-1">navigate</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 bg-white rounded border border-gray-200 text-[10px] font-medium">↵</kbd>
-            <span className="ml-1">select</span>
-          </span>
-        </div>
+      {/* Compact footer hint */}
+      <div className="px-3 py-2 border-t border-gray-100 bg-gray-50/80 flex items-center gap-4 text-[10px] text-gray-400">
         <span className="flex items-center gap-1">
-          <kbd className="px-1.5 py-0.5 bg-white rounded border border-gray-200 text-[10px] font-medium">esc</kbd>
-          <span className="ml-1">close</span>
+          <kbd className="px-1 py-0.5 bg-white rounded border border-gray-200 font-medium">↑↓</kbd>
+          navigate
+        </span>
+        <span className="flex items-center gap-1">
+          <kbd className="px-1 py-0.5 bg-white rounded border border-gray-200 font-medium">↵</kbd>
+          select
+        </span>
+        <span className="flex items-center gap-1">
+          <kbd className="px-1 py-0.5 bg-white rounded border border-gray-200 font-medium">esc</kbd>
+          close
         </span>
       </div>
     </motion.div>,
