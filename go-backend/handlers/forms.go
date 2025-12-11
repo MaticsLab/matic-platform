@@ -1178,10 +1178,12 @@ type FieldInput struct {
 }
 
 type SectionInput struct {
-	ID          string       `json:"id"`
-	Title       string       `json:"title"`
-	Description string       `json:"description"`
-	Fields      []FieldInput `json:"fields"`
+	ID          string                   `json:"id"`
+	Title       string                   `json:"title"`
+	Description string                   `json:"description"`
+	SectionType string                   `json:"sectionType"`
+	Fields      []FieldInput             `json:"fields"`
+	Conditions  []map[string]interface{} `json:"conditions"`
 }
 
 type UpdateFormStructureInput struct {
@@ -1242,6 +1244,8 @@ func UpdateFormStructure(c *gin.Context) {
 			"id":          s.ID,
 			"title":       s.Title,
 			"description": s.Description,
+			"sectionType": s.SectionType,
+			"conditions":  s.Conditions,
 		})
 	}
 	settings["sections"] = sectionMeta

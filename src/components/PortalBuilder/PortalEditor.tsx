@@ -20,6 +20,7 @@ import { PortalSettings } from './PortalSettings'
 import { SectionList } from './SectionList'
 import { FieldToolbox } from './FieldToolbox'
 import { FieldSettingsPanel } from './FieldSettingsPanel'
+import { ConditionBuilder } from './ConditionBuilder'
 import { ShareTab } from './ShareTab'
 import { SignUpPreview } from './SignUpPreview'
 import { ConfirmationPreview } from './ConfirmationPreview'
@@ -89,7 +90,8 @@ const INITIAL_CONFIG: PortalConfig = {
 export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: string, initialFormId?: string | null }) {
   const [config, setConfig] = useState<PortalConfig>(INITIAL_CONFIG)
   const [activeSectionId, setActiveSectionId] = useState<string>(INITIAL_CONFIG.sections[0].id)
-  const [activeSpecialPage, setActiveSpecialPage] = useState<'signup' | 'ending' | 'review' | null>(null)
+  const [activeSpecialPage, setActiveSpecialPage] = useState<'signup' | 'review' | null>(null)
+  const [selectedEndingId, setSelectedEndingId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop')
   const [isPreview, setIsPreview] = useState(false)
   const [formId, setFormId] = useState<string | null>(initialFormId || null)
@@ -228,6 +230,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
                  return {
                      ...section,
+                     sectionType: section.sectionType || 'form',
                      fields: sectionFields
                  };
              });
@@ -940,25 +943,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   <EyeIcon className="w-4 h-4 flex-shrink-0 text-purple-600" />
                   <span className="flex-1 truncate font-medium">Review & Submit</span>
                 </button>
-
-                {/* Ending Page */}
-                <button
-                  onClick={() => {
-                    setActiveSpecialPage('ending')
-                    setActiveSectionId('')
-                    setSelectedFieldId(null)
-                  }}
-                  title="Ending Page"
-                  className={cn(
-                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left",
-                    activeSpecialPage === 'ending'
-                      ? "bg-blue-50 text-blue-900" 
-                      : "text-gray-700 hover:bg-gray-50"
-                  )}
-                >
-                  <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-600" />
-                  <span className="flex-1 truncate font-medium">Ending</span>
-                </button>
               </div>
 
               {/* Divider */}
@@ -979,6 +963,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       setActiveSectionId(id)
                       setActiveSpecialPage(null)
                       setSelectedFieldId(null)
+                      setSelectedEndingId(null)
                     }}
                     onReorder={(sections: Section[]) => {
                       setConfig(prev => ({ ...prev, sections }))
@@ -1034,8 +1019,13 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   viewMode === 'mobile' ? "w-[375px]" : "w-full max-w-3xl"
                 )}>
                   {isPreview ? (
-                    <div className="p-4">
-                      <DynamicApplicationForm config={displayConfig} isExternal={true} formId={formId || undefined} />
+                    <div className="h-full">
+                      <DynamicApplicationForm 
+                        config={displayConfig} 
+                        isExternal={false} 
+                        formId={formId || undefined}
+                        initialSectionId={activeSectionId}
+                      />
                     </div>
                   ) : activeSpecialPage === 'signup' ? (
                     <SignUpPreview 
@@ -1057,7 +1047,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         setIsPublished(false)
                       }}
                     />
-                  ) : activeSpecialPage === 'ending' ? (
+                  ) : displaySection?.sectionType === 'ending' ? (
                     <ConfirmationPreview 
                       config={displayConfig}
                       onUpdateSettings={(updates) => {
@@ -1114,10 +1104,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             {/* Right Sidebar - Settings */}
             <div className={cn(
                "bg-white border-l border-gray-200 flex flex-col shadow-sm z-10 transition-all duration-300 ease-in-out",
-               (selectedFieldId || selectedBlockId) ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
+               (selectedFieldId || selectedBlockId || (displaySection?.sectionType === 'ending' && activeSectionId)) ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
             )}>
                <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                  <span className="font-semibold text-sm">Field Settings</span>
+                  <span className="font-semibold text-sm">
+                    {displaySection?.sectionType === 'ending' ? 'Ending Settings' : 'Field Settings'}
+                  </span>
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => {
                     setSelectedFieldId(null)
                     setSelectedBlockId(null)
@@ -1125,7 +1117,19 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     <X className="w-4 h-4" />
                   </Button>
                </div>
-               <div className="flex-1 overflow-hidden">
+               <div className="flex-1 overflow-y-auto">
+                   {/* Ending Settings - Conditions */}
+                   {displaySection?.sectionType === 'ending' && activeSectionId && (
+                      <div className="p-4">
+                        <ConditionBuilder
+                          conditions={displaySection.conditions || []}
+                          onConditionsChange={(newConditions) => {
+                            handleUpdateSection(displaySection.id, { conditions: newConditions })
+                          }}
+                          availableFields={getAllFields()}
+                        />
+                      </div>
+                   )}
                    {/* Field Settings for Block Editor mode - uses selectedBlockId but works with fields directly */}
                    {useBlockEditor && selectedBlockId && displaySection && (
                       <FieldSettingsPanel 

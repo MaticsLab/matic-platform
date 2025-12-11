@@ -7,7 +7,7 @@ import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Textarea } from '@/ui-components/textarea'
 import { Label } from '@/ui-components/label'
-import { ApplicationForm, EMPTY_APPLICATION_STATE } from './ApplicationForm'
+import { DynamicApplicationForm } from './DynamicApplicationForm'
 import { Form } from '@/types/forms'
 import { Field } from '@/types/portal'
 import { cn } from '@/lib/utils'
@@ -207,28 +207,23 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   }
 
   if (isAuthenticated) {
+    // Convert Form to PortalConfig format expected by DynamicApplicationForm
+    const portalConfig: any = {
+      sections: translatedForm?.settings?.sections || [],
+      settings: translatedForm?.settings || {},
+      translations: (translatedForm?.settings as any)?.translations || {}
+    }
+
     return (
       <motion.div 
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
         className="min-h-screen bg-white"
       >
-        <ApplicationForm 
-          onBack={() => {}} // No-op for external
-          onSave={() => setIsSubmitted(true)}
+        <DynamicApplicationForm 
+          config={portalConfig}
           isExternal={true}
-          formDefinition={translatedForm}
-          userEmail={email}
-          supportedLanguages={supportedLanguages}
-          activeLanguage={activeLanguage}
-          onLanguageChange={setActiveLanguage}
-          initialData={initialData || {
-            ...EMPTY_APPLICATION_STATE,
-            personal: {
-              ...EMPTY_APPLICATION_STATE.personal,
-              personalEmail: email
-            }
-          }}
+          formId={form?.id}
         />
       </motion.div>
     )

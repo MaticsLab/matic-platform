@@ -523,6 +523,8 @@ interface SortableChildFieldProps {
 
 function SortableChildField({ field, onDelete, onUpdate, themeColor, allFields }: SortableChildFieldProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const labelInputRef = useRef<HTMLInputElement | null>(null);
   const {
     attributes,
     listeners,
@@ -541,7 +543,7 @@ function SortableChildField({ field, onDelete, onUpdate, themeColor, allFields }
 
   return (
     <div 
-      ref={setNodeRef} 
+      ref={(el) => { setNodeRef(el); containerRef.current = el; }} 
       style={style} 
       {...attributes}
       className={cn(
@@ -551,6 +553,19 @@ function SortableChildField({ field, onDelete, onUpdate, themeColor, allFields }
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={(e) => {
+        // Treat clicks inside the card as intent to edit this field
+        e.stopPropagation();
+        // Focus the label input for immediate editing
+        if (labelInputRef.current) {
+          labelInputRef.current.focus();
+          labelInputRef.current.select();
+        } else {
+          // Fallback: focus the first interactive element inside
+          const firstEditable = containerRef.current?.querySelector('input, textarea, select') as HTMLElement | null;
+          firstEditable?.focus();
+        }
+      }}
     >
       {/* Drag handle and actions */}
       <motion.div
@@ -584,6 +599,7 @@ function SortableChildField({ field, onDelete, onUpdate, themeColor, allFields }
       {/* Editable label and field preview */}
       <div className="space-y-1.5">
         <input
+          ref={labelInputRef}
           type="text"
           value={field.label}
           onChange={(e) => onUpdate({ label: e.target.value })}
@@ -1249,7 +1265,7 @@ export function BlockEditor({
               </DndContext>
 
               {/* Add block at end - Doc-like new line */}
-              <div className="pt-4">
+              <div className="pt-4 pb-6">
                 <NewLineInput
                   onOpenSlashMenu={(pos) => openSlashMenu(pos, section.fields.length)}
                   onQueryChange={setSlashQuery}

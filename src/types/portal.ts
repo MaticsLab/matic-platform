@@ -33,6 +33,11 @@ export type Section = {
   sectionType?: 'form' | 'cover' | 'ending' | 'review'
   fields: Field[]
   translationKey?: string // Stable key for translations
+  conditions?: Array<{
+    fieldId: string
+    operator: 'equals' | 'notEquals' | 'contains' | 'notContains' | 'in' | 'notIn' | 'gt' | 'gte' | 'lt' | 'lte' | 'isEmpty' | 'isNotEmpty' | 'startsWith' | 'endsWith'
+    value?: any
+  }>
 }
 
 export type PortalConfig = {
