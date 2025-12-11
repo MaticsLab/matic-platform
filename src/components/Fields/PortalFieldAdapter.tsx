@@ -115,6 +115,8 @@ function portalFieldToDefinition(portalField: PortalField): Field {
       width: portalField.width,
       // Pass placeholder separately for input fields
       placeholder: portalField.placeholder,
+      // Preserve required attribute
+      required: portalField.required,
     },
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),

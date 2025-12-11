@@ -229,11 +229,18 @@ func DeleteDataTable(c *gin.Context) {
 
 // Table Row Handlers
 
+// ListTableRows retrieves all rows for a table with preloaded relationships
+// Optimized to prevent N+1 queries by preloading related data
 func ListTableRows(c *gin.Context) {
 	tableID := c.Param("id")
 
 	var rows []models.Row
-	if err := database.DB.Where("table_id = ?", tableID).Order("position ASC").Find(&rows).Error; err != nil {
+	// Preload relationships to avoid N+1 queries
+	if err := database.DB.Where("table_id = ?", tableID).
+		Preload("StageGroup").       // Workflow stage if applicable
+		Preload("StageGroup.Stage"). // Stage details
+		Order("position ASC").
+		Find(&rows).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

@@ -27,26 +27,39 @@ func (b *BaseModel) BeforeCreate(tx *gorm.DB) error {
 }
 
 // Organization model
+// Represents a top-level tenant container for workspaces
 type Organization struct {
 	BaseModel
-	Name             string               `gorm:"not null" json:"name"`
-	Slug             string               `gorm:"uniqueIndex;not null" json:"slug"`
-	Description      string               `json:"description"`
-	LogoURL          string               `json:"logo_url,omitempty"`
-	Settings         datatypes.JSON       `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	Name        string `gorm:"not null" json:"name"`
+	Slug        string `gorm:"uniqueIndex;not null" json:"slug"`
+	Description string `json:"description"`
+	LogoURL     string `json:"logo_url,omitempty"`
+	// Settings JSONB structure:
+	// {
+	//   "brand_color": "#10B981",
+	//   "default_timezone": "America/Chicago",
+	//   "features": {"sso_enabled": true, "audit_logs_retention_days": 365}
+	// }
+	Settings         datatypes.JSON       `gorm:"type:jsonb;default:'{}" json:"settings"`
 	SubscriptionTier string               `gorm:"default:'free'" json:"subscription_tier"`
 	Members          []OrganizationMember `gorm:"foreignKey:OrganizationID" json:"members,omitempty"`
 	Workspaces       []Workspace          `gorm:"foreignKey:OrganizationID" json:"workspaces,omitempty"`
 }
 
 type OrganizationMember struct {
-	ID             uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
-	OrganizationID uuid.UUID      `gorm:"type:uuid;not null;index" json:"organization_id"`
-	UserID         uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"`
-	Role           string         `gorm:"type:varchar(50);default:'member'" json:"role"`
-	Permissions    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"permissions"`
-	JoinedAt       time.Time      `gorm:"autoCreateTime" json:"joined_at"`
-	UpdatedAt      time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	ID             uuid.UUID `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
+	OrganizationID uuid.UUID `gorm:"type:uuid;not null;index" json:"organization_id"`
+	UserID         uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
+	Role           string    `gorm:"type:varchar(50);default:'member'" json:"role"` // owner, admin, member
+	// Permissions JSONB structure:
+	// {
+	//   "can_create_workspaces": true,
+	//   "can_manage_billing": false,
+	//   "can_invite_members": true
+	// }
+	Permissions datatypes.JSON `gorm:"type:jsonb;default:'{}" json:"permissions"`
+	JoinedAt    time.Time      `gorm:"autoCreateTime" json:"joined_at"`
+	UpdatedAt   time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 // BeforeCreate hook for OrganizationMember
@@ -81,10 +94,17 @@ type Workspace struct {
 type WorkspaceMember struct {
 	ID          uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
 	WorkspaceID uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
-	UserID      *uuid.UUID     `gorm:"type:uuid;index" json:"user_id,omitempty"` // Nullable for pending invites
-	Role        string         `gorm:"type:varchar(50);default:'viewer'" json:"role"`
-	HubAccess   pq.StringArray `gorm:"type:text[]" json:"hub_access,omitempty"` // List of hub IDs user can access, empty = all
-	Permissions datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"permissions"`
+	UserID      *uuid.UUID     `gorm:"type:uuid;index" json:"user_id,omitempty"`      // Nullable for pending invites
+	Role        string         `gorm:"type:varchar(50);default:'viewer'" json:"role"` // owner, editor, viewer
+	HubAccess   pq.StringArray `gorm:"type:text[]" json:"hub_access,omitempty"`       // List of hub IDs user can access, empty = all
+	// Permissions JSONB structure:
+	// {
+	//   "can_create_tables": true,
+	//   "can_delete_rows": false,
+	//   "can_manage_members": false,
+	//   "can_export_data": true
+	// }
+	Permissions datatypes.JSON `gorm:"type:jsonb;default:'{}" json:"permissions"`
 
 	// Invitation fields
 	Status          string     `gorm:"type:varchar(20);default:'active'" json:"status"` // pending, active, declined, expired
