@@ -187,7 +187,7 @@ func (c *CohereClient) TranslateJSON(content map[string]string, targetLanguage s
 
 	reqBody := CohereChatRequest{
 		Message: prompt,
-		Model:   "command-r", // Good balance of speed and quality
+		Model:   "command-r-plus", // Updated from command-r which was deprecated
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
