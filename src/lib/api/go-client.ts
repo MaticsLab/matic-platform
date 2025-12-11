@@ -41,8 +41,11 @@ export async function goFetch<T>(
   const token = await getSessionToken()
   
   // Debug: log if token is missing for non-public endpoints
-  // Public portal forms don't need auth tokens
-  const isPublicEndpoint = endpoint.includes('/forms/') && endpoint.includes('/submit')
+  // Public portal forms and field-types endpoint don't require auth tokens
+  const isPublicEndpoint = 
+    (endpoint.includes('/forms/') && endpoint.includes('/submit')) ||
+    endpoint.includes('/field-types')
+  
   if (!token && !isPublicEndpoint) {
     console.warn('⚠️ No auth token available for request:', endpoint)
   }
