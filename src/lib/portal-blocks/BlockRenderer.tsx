@@ -81,7 +81,6 @@ export interface BlockComponentProps<TBlock extends Block = Block> {
 // BLOCK COMPONENT REGISTRY
 // ============================================================================
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyBlockComponent = React.ComponentType<any>;
 
 // Lazy-loaded block components
