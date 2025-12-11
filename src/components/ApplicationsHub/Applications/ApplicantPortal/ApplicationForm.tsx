@@ -748,7 +748,7 @@ function DynamicSection({
       id: field.id || field.name,
       type: field.type,
       label: field.label || field.name,
-      placeholder: field.description || (field.config as any)?.placeholder,
+      placeholder: (field.config as any)?.placeholder,
       description: field.description,
       required: (field.config as any)?.is_required || field.required,
       width: (field.config as any)?.width || 'full',

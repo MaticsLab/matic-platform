@@ -1064,7 +1064,7 @@ func SubmitForm(c *gin.Context) {
 					UPDATE portal_applicants 
 					SET submission_data = $1, updated_at = NOW()
 					WHERE form_id = $2 AND email = $3
-				`, mapToJSON(data), formID, email).Error; err != nil {
+				`, mapToJSON(data), view.ID, email).Error; err != nil {
 					// Log error but don't fail the transaction - this is optional
 					c.Error(err)
 				}
@@ -1139,7 +1139,7 @@ func SubmitForm(c *gin.Context) {
 			UPDATE portal_applicants 
 			SET submission_data = $1, updated_at = NOW()
 			WHERE form_id = $2 AND email = $3
-		`, mapToJSON(data), formID, email).Error; err != nil {
+		`, mapToJSON(data), view.ID, email).Error; err != nil {
 			// Log error but don't fail the transaction - this is optional
 			c.Error(err)
 		}
