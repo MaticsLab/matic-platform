@@ -88,6 +88,9 @@ const PORTAL_TO_UNIFIED_TYPE: Record<string, string> = {
 function portalFieldToDefinition(portalField: PortalField): Field {
   const fieldTypeId = PORTAL_TO_UNIFIED_TYPE[portalField.type] || 'text';
   
+  // Get description from either top-level or config (field settings stores in config.description)
+  const description = portalField.description || portalField.config?.description;
+  
   return {
     id: portalField.id,
     table_id: '',  // Not applicable for portal fields
@@ -95,7 +98,7 @@ function portalFieldToDefinition(portalField: PortalField): Field {
     type: portalField.type,  // Keep original for legacy compat
     name: portalField.id,
     label: portalField.label,
-    description: portalField.description || portalField.placeholder,
+    description: description,  // Only use actual description, not placeholder
     position: 0,
     width: 200,
     is_visible: true,
@@ -110,6 +113,8 @@ function portalFieldToDefinition(portalField: PortalField): Field {
       portal_type: portalField.type,
       // Width mapping
       width: portalField.width,
+      // Pass placeholder separately for input fields
+      placeholder: portalField.placeholder,
     },
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),

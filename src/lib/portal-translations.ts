@@ -87,7 +87,38 @@ export function collectTranslatableContentNew(config: any): TranslationResource 
       description: config.settings?.description
     },
     sections: {},
-    fields: {}
+    fields: {},
+    ui: {
+      // Navigation
+      previous: 'Previous',
+      next: 'Next',
+      nextSection: 'Next Section',
+      reviewApplication: 'Review Application',
+      saveAndExit: 'Save & Exit',
+      submit: 'Submit',
+      submitApplication: 'Submit Application',
+      
+      // Section titles
+      reviewAndSubmit: 'Review & Submit',
+      
+      // Help section
+      needHelp: 'Need Help?',
+      contactUsDescription: 'Contact us for assistance with your application.',
+      sendEmail: 'Send Email',
+      
+      // Form
+      selectAnOption: 'Select an option',
+      startTypingAddress: 'Start typing an address...',
+      required: 'Required',
+      optional: 'Optional',
+      pleaseComplete: 'Please fill out all required fields to continue.',
+      overallProgress: 'Overall Progress',
+      complete: 'Complete',
+      
+      // Messages
+      applicationSubmitted: 'Application Submitted!',
+      thankYou: 'Thank you for your submission.',
+    }
   }
   
   const collectField = (field: any) => {
@@ -124,6 +155,40 @@ export function collectTranslatableContentNew(config: any): TranslationResource 
   }
   if (config.settings?.loginFields) {
     config.settings.loginFields.forEach(collectField)
+  }
+  
+  // Collect special page content
+  if (config.settings?.signupPage) {
+    resource.pages = resource.pages || {}
+    resource.pages.signup = {
+      title: config.settings.signupPage.title,
+      description: config.settings.signupPage.description,
+      buttonText: config.settings.signupPage.buttonText,
+      loginLinkText: config.settings.signupPage.loginLinkText
+    }
+  }
+  
+  if (config.settings?.reviewPage) {
+    resource.pages = resource.pages || {}
+    resource.pages.review = {
+      title: config.settings.reviewPage.title,
+      description: config.settings.reviewPage.description,
+      incompleteTitle: config.settings.reviewPage.incompleteTitle,
+      incompleteMessage: config.settings.reviewPage.incompleteMessage,
+      submitButtonText: config.settings.reviewPage.submitButtonText,
+      editButtonText: config.settings.reviewPage.editButtonText
+    }
+  }
+  
+  if (config.settings?.endingPage) {
+    resource.pages = resource.pages || {}
+    resource.pages.ending = {
+      title: config.settings.endingPage.title,
+      description: config.settings.endingPage.description,
+      dashboardButtonText: config.settings.endingPage.dashboardButtonText,
+      submitAnotherButtonText: config.settings.endingPage.submitAnotherButtonText,
+      footerMessage: config.settings.endingPage.footerMessage
+    }
   }
   
   return resource
@@ -200,6 +265,132 @@ export function applyTranslationsToConfigNew(config: any, lang?: string): any {
       loginFields: (config.settings?.loginFields || []).map((f: any) => applyTranslationsToFieldNew(f, resource))
     },
     sections: (config.sections || []).map((s: any) => applyTranslationsToSectionNew(s, resource))
+  }
+}
+
+/**
+ * Default English UI strings
+ */
+const DEFAULT_UI_STRINGS = {
+  // Navigation
+  previous: 'Previous',
+  next: 'Next',
+  nextSection: 'Next Section',
+  reviewApplication: 'Review Application',
+  saveAndExit: 'Save & Exit',
+  submit: 'Submit',
+  submitApplication: 'Submit Application',
+  
+  // Section titles
+  reviewAndSubmit: 'Review & Submit',
+  
+  // Help section
+  needHelp: 'Need Help?',
+  contactUsDescription: 'Contact us for assistance with your application.',
+  sendEmail: 'Send Email',
+  
+  // Form
+  selectAnOption: 'Select an option',
+  startTypingAddress: 'Start typing an address...',
+  required: 'Required',
+  optional: 'Optional',
+  pleaseComplete: 'Please fill out all required fields to continue.',
+  overallProgress: 'Overall Progress',
+  complete: 'Complete',
+  
+  // Messages
+  applicationSubmitted: 'Application Submitted!',
+  thankYou: 'Thank you for your submission.',
+}
+
+/**
+ * Get UI translations for the current language
+ */
+export function getUITranslations(config: any, lang?: string): typeof DEFAULT_UI_STRINGS {
+  if (!lang) return DEFAULT_UI_STRINGS
+  
+  const translations = normalizeTranslations(config.translations || {})
+  const resource = translations[lang]
+  
+  if (!resource?.ui) return DEFAULT_UI_STRINGS
+  
+  return {
+    ...DEFAULT_UI_STRINGS,
+    ...resource.ui
+  }
+}
+
+/**
+ * Default page strings for special pages
+ */
+const DEFAULT_PAGE_STRINGS = {
+  signup: {
+    title: 'Application Portal',
+    description: 'Please sign up to continue your application.',
+    buttonText: 'Create Account',
+    loginLinkText: 'Already have an account?'
+  },
+  review: {
+    title: 'Review & Submit',
+    description: 'Review your application and submit when ready.',
+    incompleteTitle: 'Application Incomplete',
+    incompleteMessage: 'Please complete all required fields before submitting.',
+    submitButtonText: 'Submit Application',
+    editButtonText: 'Edit'
+  },
+  ending: {
+    title: 'Thank You for Your Submission!',
+    description: "We've received your application and will review it carefully. You'll hear from us soon via email.",
+    dashboardButtonText: 'View Dashboard',
+    submitAnotherButtonText: 'Submit Another',
+    footerMessage: 'A confirmation email has been sent to your inbox.'
+  }
+}
+
+/**
+ * Get page translations for special pages (signup, review, ending)
+ */
+export function getPageTranslations(config: any, lang?: string): typeof DEFAULT_PAGE_STRINGS {
+  // First, get values from config settings (if set by user)
+  const settings = config.settings || {}
+  const basePages = {
+    signup: {
+      ...DEFAULT_PAGE_STRINGS.signup,
+      ...(settings.signupPage?.title && { title: settings.signupPage.title }),
+      ...(settings.signupPage?.description && { description: settings.signupPage.description }),
+      ...(settings.signupPage?.buttonText && { buttonText: settings.signupPage.buttonText }),
+      ...(settings.signupPage?.loginLinkText && { loginLinkText: settings.signupPage.loginLinkText })
+    },
+    review: {
+      ...DEFAULT_PAGE_STRINGS.review,
+      ...(settings.reviewPage?.title && { title: settings.reviewPage.title }),
+      ...(settings.reviewPage?.description && { description: settings.reviewPage.description }),
+      ...(settings.reviewPage?.incompleteTitle && { incompleteTitle: settings.reviewPage.incompleteTitle }),
+      ...(settings.reviewPage?.incompleteMessage && { incompleteMessage: settings.reviewPage.incompleteMessage }),
+      ...(settings.reviewPage?.submitButtonText && { submitButtonText: settings.reviewPage.submitButtonText }),
+      ...(settings.reviewPage?.editButtonText && { editButtonText: settings.reviewPage.editButtonText })
+    },
+    ending: {
+      ...DEFAULT_PAGE_STRINGS.ending,
+      ...(settings.endingPage?.title && { title: settings.endingPage.title }),
+      ...(settings.endingPage?.description && { description: settings.endingPage.description }),
+      ...(settings.endingPage?.dashboardButtonText && { dashboardButtonText: settings.endingPage.dashboardButtonText }),
+      ...(settings.endingPage?.submitAnotherButtonText && { submitAnotherButtonText: settings.endingPage.submitAnotherButtonText }),
+      ...(settings.endingPage?.footerMessage && { footerMessage: settings.endingPage.footerMessage })
+    }
+  }
+  
+  if (!lang) return basePages
+  
+  const translations = normalizeTranslations(config.translations || {})
+  const resource = translations[lang]
+  
+  if (!resource?.pages) return basePages
+  
+  return {
+    signup: { ...basePages.signup, ...resource.pages.signup },
+    review: { ...basePages.review, ...resource.pages.review },
+    ending: { ...basePages.ending, ...resource.pages.ending }
   }
 }
 

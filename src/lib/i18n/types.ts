@@ -32,6 +32,71 @@ export interface PortalTranslation {
 }
 
 /**
+ * UI strings that are common across the portal
+ */
+export interface UITranslations {
+  // Navigation
+  previous?: string
+  next?: string
+  nextSection?: string
+  reviewApplication?: string
+  saveAndExit?: string
+  submit?: string
+  submitApplication?: string
+  
+  // Section titles
+  reviewAndSubmit?: string
+  
+  // Help section
+  needHelp?: string
+  contactUsDescription?: string
+  sendEmail?: string
+  
+  // Form
+  selectAnOption?: string
+  startTypingAddress?: string
+  required?: string
+  optional?: string
+  pleaseComplete?: string
+  overallProgress?: string
+  complete?: string
+  
+  // Messages
+  applicationSubmitted?: string
+  thankYou?: string
+  
+  // Allow additional custom keys
+  [key: string]: string | undefined
+}
+
+/**
+ * Page-specific translations (signup, review, ending pages)
+ */
+export interface PageTranslations {
+  signup?: {
+    title?: string
+    description?: string
+    buttonText?: string
+    loginLinkText?: string
+  }
+  review?: {
+    title?: string
+    description?: string
+    incompleteTitle?: string
+    incompleteMessage?: string
+    submitButtonText?: string
+    editButtonText?: string
+  }
+  ending?: {
+    title?: string
+    description?: string
+    dashboardButtonText?: string
+    submitAnotherButtonText?: string
+    footerMessage?: string
+  }
+}
+
+/**
  * Complete translation resource for a single language
  * Following i18next namespace convention
  */
@@ -39,6 +104,8 @@ export interface TranslationResource {
   portal: PortalTranslation
   sections: Record<string, SectionTranslation>
   fields: Record<string, FieldTranslation>
+  ui?: UITranslations
+  pages?: PageTranslations
 }
 
 /**

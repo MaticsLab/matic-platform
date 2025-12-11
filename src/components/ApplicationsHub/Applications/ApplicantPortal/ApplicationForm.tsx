@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   User, GraduationCap, DollarSign, FileText, Trophy, Upload, 
@@ -32,6 +32,7 @@ import { ApplicationSidebar } from './ApplicationSidebar'
 import { toast } from 'sonner'
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
 import type { Field as PortalField } from '@/types/portal'
+import { getUITranslations } from '@/lib/portal-translations'
 
 // Callout color configurations
 const CALLOUT_COLORS: Record<string, { bg: string; border: string; icon: string; title: string; text: string }> = {
@@ -275,6 +276,20 @@ export function ApplicationForm({
       ]
   
   const TABS = [...baseTabs, { id: 'review', title: 'Review & Submit', icon: ClipboardCheck }]
+
+  // Get translated UI strings
+  const ui = useMemo(() => {
+    // Build a minimal config structure for getUITranslations
+    const configForTranslations = formDefinition?.settings ? { translations: formDefinition.settings.translations } : {}
+    return getUITranslations(configForTranslations, activeLanguage)
+  }, [formDefinition?.settings, activeLanguage])
+
+  // Update Review & Submit tab title with translation
+  const localizedTabs = useMemo(() => {
+    return TABS.map(tab => 
+      tab.id === 'review' ? { ...tab, title: ui.reviewAndSubmit || 'Review & Submit' } : tab
+    )
+  }, [TABS, ui.reviewAndSubmit])
 
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0)
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -558,6 +573,7 @@ export function ApplicationForm({
         formDescription={formDefinition?.description || undefined}
         helpEmail="support@example.com"
         isExternal={isExternal}
+        ui={ui}
       />
 
       {/* Main Content */}
@@ -656,13 +672,13 @@ export function ApplicationForm({
                   disabled={currentSectionIndex === 0}
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
-                  Previous
+                  {ui.previous}
                 </Button>
                 <Button 
                   onClick={nextSection}
                   className={cn(isExternal && "bg-gray-900 hover:bg-gray-800")}
                 >
-                  {currentSectionIndex === TABS.length - 2 ? 'Review Application' : 'Next Section'}
+                  {currentSectionIndex === localizedTabs.length - 2 ? ui.reviewApplication : ui.nextSection}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>

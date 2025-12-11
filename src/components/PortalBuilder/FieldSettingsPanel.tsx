@@ -361,20 +361,15 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                 />
               </div>
 
-              {/* Description */}
+              {/* Description / Help Text */}
               <div className="space-y-2">
                 <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Description / Help Text</Label>
                 <Textarea 
                   className="h-20 resize-none bg-gray-50/50 border-gray-200"
-                  value={selectedField.config?.description || ''} 
-                  onChange={(e) => handleConfigUpdate('description', e.target.value)}
-                  placeholder="Helper text shown below the field. Type @ to reference other fields."
+                  value={selectedField.description || ''} 
+                  onChange={(e) => handleUpdate({ description: e.target.value })}
+                  placeholder="Helper text shown below the field"
                 />
-                {selectedField.config?.description?.includes('{') && (
-                  <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                    💡 Mentions will be replaced with field values when the form is submitted
-                  </div>
-                )}
               </div>
 
               {/* Placeholder - not for layout fields */}
@@ -385,7 +380,7 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                     value={selectedField.placeholder || ''} 
                     onChange={(e) => handleUpdate({ placeholder: e.target.value })} 
                     className="bg-gray-50/50 border-gray-200"
-                    placeholder="Placeholder text..."
+                    placeholder="Text shown inside the empty field..."
                   />
                 </div>
               )}
@@ -542,6 +537,335 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                     minHeight="120px"
                   />
                   <p className="text-xs text-gray-500">Use the toolbar to add bold, italic, lists, links and more.</p>
+                </div>
+              )}
+
+              {/* Address Field Settings */}
+              {selectedField.type === 'address' && (
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Address Format</Label>
+                    <Select 
+                      value={selectedField.config?.addressFormat || 'full'} 
+                      onValueChange={(v) => handleConfigUpdate('addressFormat', v)}
+                    >
+                      <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="full">Full Address (Street, City, State, Zip, Country)</SelectItem>
+                        <SelectItem value="street_city">Street & City Only</SelectItem>
+                        <SelectItem value="city_state">City & State Only</SelectItem>
+                        <SelectItem value="single_line">Single Line</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Enable Autocomplete</Label>
+                      <p className="text-xs text-gray-500">Use Google Places API for suggestions</p>
+                    </div>
+                    <Switch 
+                      checked={selectedField.config?.enableAutocomplete !== false} 
+                      onCheckedChange={(c) => handleConfigUpdate('enableAutocomplete', c)} 
+                    />
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Allow Manual Entry</Label>
+                      <p className="text-xs text-gray-500">Let users type address manually</p>
+                    </div>
+                    <Switch 
+                      checked={selectedField.config?.allowManualEntry !== false} 
+                      onCheckedChange={(c) => handleConfigUpdate('allowManualEntry', c)} 
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Signature Field Settings */}
+              {selectedField.type === 'signature' && (
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Signature Type</Label>
+                    <Select 
+                      value={selectedField.config?.signatureType || 'draw'} 
+                      onValueChange={(v) => handleConfigUpdate('signatureType', v)}
+                    >
+                      <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draw">Draw Signature</SelectItem>
+                        <SelectItem value="type">Type Name</SelectItem>
+                        <SelectItem value="both">Draw or Type</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Pen Color</Label>
+                    <div className="flex gap-2">
+                      {['#000000', '#1e40af', '#166534'].map(color => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => handleConfigUpdate('penColor', color)}
+                          className={cn(
+                            "w-8 h-8 rounded-full transition-all border-2",
+                            selectedField.config?.penColor === color 
+                              ? "ring-2 ring-offset-2 ring-blue-500" 
+                              : "border-gray-200 hover:scale-110"
+                          )}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Show Date</Label>
+                      <p className="text-xs text-gray-500">Display signature date below</p>
+                    </div>
+                    <Switch 
+                      checked={selectedField.config?.showDate !== false} 
+                      onCheckedChange={(c) => handleConfigUpdate('showDate', c)} 
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Phone Field Settings */}
+              {selectedField.type === 'phone' && (
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Phone Format</Label>
+                    <Select 
+                      value={selectedField.config?.phoneFormat || 'us'} 
+                      onValueChange={(v) => handleConfigUpdate('phoneFormat', v)}
+                    >
+                      <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="us">US Format (XXX) XXX-XXXX</SelectItem>
+                        <SelectItem value="international">International (+X XXX XXX XXXX)</SelectItem>
+                        <SelectItem value="free">Free Format (any)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Show Country Code</Label>
+                      <p className="text-xs text-gray-500">Display country selector</p>
+                    </div>
+                    <Switch 
+                      checked={selectedField.config?.showCountryCode || false} 
+                      onCheckedChange={(c) => handleConfigUpdate('showCountryCode', c)} 
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* URL Field Settings */}
+              {selectedField.type === 'url' && (
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">URL Type</Label>
+                    <Select 
+                      value={selectedField.config?.urlType || 'any'} 
+                      onValueChange={(v) => handleConfigUpdate('urlType', v)}
+                    >
+                      <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="any">Any Website URL</SelectItem>
+                        <SelectItem value="linkedin">LinkedIn Profile</SelectItem>
+                        <SelectItem value="twitter">Twitter/X Profile</SelectItem>
+                        <SelectItem value="github">GitHub Profile</SelectItem>
+                        <SelectItem value="portfolio">Portfolio Website</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Validate URL</Label>
+                      <p className="text-xs text-gray-500">Check if URL is accessible</p>
+                    </div>
+                    <Switch 
+                      checked={selectedField.config?.validateUrl || false} 
+                      onCheckedChange={(c) => handleConfigUpdate('validateUrl', c)} 
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Time Field Settings */}
+              {selectedField.type === 'time' && (
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Time Format</Label>
+                    <Select 
+                      value={selectedField.config?.timeFormat || '12h'} 
+                      onValueChange={(v) => handleConfigUpdate('timeFormat', v)}
+                    >
+                      <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="12h">12-Hour (AM/PM)</SelectItem>
+                        <SelectItem value="24h">24-Hour</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Min Time</Label>
+                      <Input 
+                        type="time"
+                        value={selectedField.config?.minTime || ''}
+                        onChange={(e) => handleConfigUpdate('minTime', e.target.value)}
+                        className="bg-gray-50/50 border-gray-200"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Max Time</Label>
+                      <Input 
+                        type="time"
+                        value={selectedField.config?.maxTime || ''}
+                        onChange={(e) => handleConfigUpdate('maxTime', e.target.value)}
+                        className="bg-gray-50/50 border-gray-200"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Time Interval</Label>
+                    <Select 
+                      value={String(selectedField.config?.timeInterval || 15)} 
+                      onValueChange={(v) => handleConfigUpdate('timeInterval', parseInt(v))}
+                    >
+                      <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5 minutes</SelectItem>
+                        <SelectItem value="10">10 minutes</SelectItem>
+                        <SelectItem value="15">15 minutes</SelectItem>
+                        <SelectItem value="30">30 minutes</SelectItem>
+                        <SelectItem value="60">1 hour</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              {/* Rank Field Settings */}
+              {selectedField.type === 'rank' && (
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Allow Ties</Label>
+                      <p className="text-xs text-gray-500">Let users rank items at same position</p>
+                    </div>
+                    <Switch 
+                      checked={selectedField.config?.allowTies || false} 
+                      onCheckedChange={(c) => handleConfigUpdate('allowTies', c)} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Display Style</Label>
+                    <Select 
+                      value={selectedField.config?.displayStyle || 'drag'} 
+                      onValueChange={(v) => handleConfigUpdate('displayStyle', v)}
+                    >
+                      <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="drag">Drag & Drop</SelectItem>
+                        <SelectItem value="number">Number Input</SelectItem>
+                        <SelectItem value="arrows">Up/Down Arrows</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              {/* Heading Field Settings */}
+              {selectedField.type === 'heading' && (
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Heading Level</Label>
+                    <Select 
+                      value={String(selectedField.config?.level || 2)} 
+                      onValueChange={(v) => handleConfigUpdate('level', parseInt(v))}
+                    >
+                      <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">H1 - Extra Large</SelectItem>
+                        <SelectItem value="2">H2 - Large</SelectItem>
+                        <SelectItem value="3">H3 - Medium</SelectItem>
+                        <SelectItem value="4">H4 - Small</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Alignment</Label>
+                    <Select 
+                      value={selectedField.config?.align || 'left'} 
+                      onValueChange={(v) => handleConfigUpdate('align', v)}
+                    >
+                      <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">Left</SelectItem>
+                        <SelectItem value="center">Center</SelectItem>
+                        <SelectItem value="right">Right</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              {/* Divider Field Settings */}
+              {selectedField.type === 'divider' && (
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Divider Style</Label>
+                    <Select 
+                      value={selectedField.config?.dividerStyle || 'solid'} 
+                      onValueChange={(v) => handleConfigUpdate('dividerStyle', v)}
+                    >
+                      <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="solid">Solid Line</SelectItem>
+                        <SelectItem value="dashed">Dashed Line</SelectItem>
+                        <SelectItem value="dotted">Dotted Line</SelectItem>
+                        <SelectItem value="space">Blank Space</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Spacing</Label>
+                    <Select 
+                      value={selectedField.config?.spacing || 'medium'} 
+                      onValueChange={(v) => handleConfigUpdate('spacing', v)}
+                    >
+                      <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="small">Small (8px)</SelectItem>
+                        <SelectItem value="medium">Medium (16px)</SelectItem>
+                        <SelectItem value="large">Large (32px)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               )}
             </AccordionContent>

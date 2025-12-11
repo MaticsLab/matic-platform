@@ -1,6 +1,7 @@
 'use client'
 
-import { ArrowRight, Mail, Lock, Phone } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowRight, Mail, Lock, Phone, Edit2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
@@ -12,11 +13,29 @@ interface SignUpPreviewProps {
   config: PortalConfig
   onSelectField?: (fieldId: string) => void
   selectedFieldId?: string | null
+  onUpdateSettings?: (updates: Partial<PortalConfig['settings']>) => void
 }
 
-export function SignUpPreview({ config, onSelectField, selectedFieldId }: SignUpPreviewProps) {
+export function SignUpPreview({ config, onSelectField, selectedFieldId, onUpdateSettings }: SignUpPreviewProps) {
   const { settings } = config
   const themeColor = settings.themeColor || '#3B82F6'
+  const [editingField, setEditingField] = useState<string | null>(null)
+
+  const signupPage = settings.signupPage || {}
+  const title = signupPage.title || settings.name || 'Application Portal'
+  const description = signupPage.description || 'Please sign up to continue your application.'
+  const buttonText = signupPage.buttonText || 'Create Account'
+  const loginLinkText = signupPage.loginLinkText || 'Already have an account?'
+
+  const handleUpdateSignupPage = (key: string, value: string) => {
+    if (!onUpdateSettings) return
+    onUpdateSettings({
+      signupPage: {
+        ...signupPage,
+        [key]: value
+      }
+    })
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F7F5] flex flex-col items-center justify-center p-4 font-sans text-gray-900">
@@ -34,15 +53,52 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId }: SignUp
             </div>
           )}
           
-          {/* Portal Name */}
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-            {settings.name || 'Application Portal'}
-          </h1>
+          {/* Portal Name - Editable */}
+          {editingField === 'title' ? (
+            <Input
+              value={title}
+              onChange={(e) => handleUpdateSignupPage('title', e.target.value)}
+              onBlur={() => setEditingField(null)}
+              onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+              autoFocus
+              className="text-3xl font-bold text-center border-blue-500"
+            />
+          ) : (
+            <h1 
+              className={cn(
+                "text-3xl font-bold tracking-tight text-gray-900",
+                onUpdateSettings && "cursor-pointer hover:bg-blue-50 rounded px-2 py-1 transition-colors group relative"
+              )}
+              onClick={() => onUpdateSettings && setEditingField('title')}
+            >
+              {title}
+              {onUpdateSettings && (
+                <Edit2 className="w-4 h-4 absolute -right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 text-gray-400" />
+              )}
+            </h1>
+          )}
           
-          {/* Description */}
-          <p className="text-gray-500 text-lg">
-            Please sign up to continue your application.
-          </p>
+          {/* Description - Editable */}
+          {editingField === 'description' ? (
+            <Input
+              value={description}
+              onChange={(e) => handleUpdateSignupPage('description', e.target.value)}
+              onBlur={() => setEditingField(null)}
+              onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+              autoFocus
+              className="text-lg text-center border-blue-500"
+            />
+          ) : (
+            <p 
+              className={cn(
+                "text-gray-500 text-lg",
+                onUpdateSettings && "cursor-pointer hover:bg-blue-50 rounded px-2 py-1 transition-colors"
+              )}
+              onClick={() => onUpdateSettings && setEditingField('description')}
+            >
+              {description}
+            </p>
+          )}
         </div>
 
         {/* Auth Card */}
@@ -66,9 +122,6 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId }: SignUp
                 {field.description && (
                   <p className="text-sm text-gray-500 -mt-1">{field.description}</p>
                 )}
-                {field.placeholder && (
-                  <p className="text-sm text-gray-500 -mt-1">{field.placeholder}</p>
-                )}
                 
                 {/* Email field with icon */}
                 {field.type === 'email' && (
@@ -76,6 +129,7 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId }: SignUp
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input 
                       type="email" 
+                      placeholder={field.placeholder}
                       className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors h-11"
                       disabled
                     />
@@ -87,7 +141,8 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId }: SignUp
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input 
-                      type="password" 
+                      type="password"
+                      placeholder={field.placeholder}
                       className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors h-11"
                       disabled
                     />
@@ -97,7 +152,8 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId }: SignUp
                 {/* Regular text fields */}
                 {field.type === 'text' && !field.label.toLowerCase().includes('password') && (
                   <Input 
-                    type="text" 
+                    type="text"
+                    placeholder={field.placeholder}
                     className="bg-gray-50/50 border-gray-200 focus:bg-white transition-colors h-11"
                     disabled
                   />
@@ -108,7 +164,8 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId }: SignUp
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input 
-                      type="tel" 
+                      type="tel"
+                      placeholder={field.placeholder}
                       className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors h-11"
                       disabled
                     />
@@ -118,6 +175,7 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId }: SignUp
                 {/* Textarea fields */}
                 {field.type === 'textarea' && (
                   <Textarea 
+                    placeholder={field.placeholder}
                     className="bg-gray-50/50 border-gray-200 focus:bg-white transition-colors min-h-[80px]"
                     disabled
                   />
@@ -126,24 +184,55 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId }: SignUp
             ))}
           </div>
 
-          {/* Sign Up Button */}
-          <Button
-            className="w-full h-12 text-base font-medium text-white group"
-            style={{ backgroundColor: themeColor }}
-            disabled
-          >
-            Create Account
-            <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </Button>
+          {/* Sign Up Button - Editable */}
+          {editingField === 'buttonText' ? (
+            <Input
+              value={buttonText}
+              onChange={(e) => handleUpdateSignupPage('buttonText', e.target.value)}
+              onBlur={() => setEditingField(null)}
+              onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+              autoFocus
+              className="text-center border-blue-500"
+            />
+          ) : (
+            <Button
+              className={cn(
+                "w-full h-12 text-base font-medium text-white group",
+                onUpdateSettings && "hover:ring-2 hover:ring-blue-300"
+              )}
+              style={{ backgroundColor: themeColor }}
+              onClick={() => onUpdateSettings && setEditingField('buttonText')}
+            >
+              {buttonText}
+              <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </Button>
+          )}
 
-          {/* Login Link */}
+          {/* Login Link - Editable */}
           <div className="text-center pt-2">
-            <p className="text-gray-500">
-              Already have an account?{' '}
-              <button className="font-medium hover:underline" style={{ color: themeColor }}>
-                Log in
-              </button>
-            </p>
+            {editingField === 'loginLinkText' ? (
+              <Input
+                value={loginLinkText}
+                onChange={(e) => handleUpdateSignupPage('loginLinkText', e.target.value)}
+                onBlur={() => setEditingField(null)}
+                onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+                autoFocus
+                className="text-center border-blue-500 text-sm"
+              />
+            ) : (
+              <p 
+                className={cn(
+                  "text-gray-500",
+                  onUpdateSettings && "cursor-pointer hover:bg-blue-50 rounded px-2 py-1 transition-colors inline-block"
+                )}
+                onClick={() => onUpdateSettings && setEditingField('loginLinkText')}
+              >
+                {loginLinkText}{' '}
+                <span className="font-medium hover:underline" style={{ color: themeColor }}>
+                  Log in
+                </span>
+              </p>
+            )}
           </div>
         </div>
 

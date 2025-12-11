@@ -286,7 +286,7 @@ function FieldEditor({
   const [isEditingLabel, setIsEditingLabel] = useState(false)
   const [editedLabel, setEditedLabel] = useState(field.label)
   const [isEditingDescription, setIsEditingDescription] = useState(false)
-  const [editedDescription, setEditedDescription] = useState(field.placeholder || '')
+  const [editedDescription, setEditedDescription] = useState(field.description || '')
   const labelInputRef = useRef<HTMLInputElement>(null)
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -324,8 +324,8 @@ function FieldEditor({
   }, [field.label])
 
   useEffect(() => {
-    setEditedDescription(field.placeholder || '')
-  }, [field.placeholder])
+    setEditedDescription(field.description || '')
+  }, [field.description])
 
   const handleLabelSave = useCallback(() => {
     if (editedLabel.trim()) {
@@ -337,7 +337,7 @@ function FieldEditor({
   }, [editedLabel, field.label, onUpdate])
 
   const handleDescriptionSave = () => {
-    onUpdate({ placeholder: editedDescription.trim() })
+    onUpdate({ description: editedDescription.trim() })
     setIsEditingDescription(false)
   }
 
@@ -372,7 +372,7 @@ function FieldEditor({
       e.preventDefault()
       handleDescriptionSave()
     } else if (e.key === 'Escape') {
-      setEditedDescription(field.placeholder || '')
+      setEditedDescription(field.description || '')
       setIsEditingDescription(false)
     }
   }
@@ -493,7 +493,7 @@ function FieldEditor({
                     setIsEditingDescription(true)
                   }}
                 >
-                  {field.placeholder || 'Click to add description...'}
+                  {field.description || 'Click to add description...'}
                 </p>
               )}
             </div>
@@ -510,7 +510,7 @@ function FieldEditor({
         return (
           <Input 
             disabled
-            placeholder={field.placeholder || `Enter ${field.type}...`}
+            placeholder={field.placeholder || `Enter ${field.label?.toLowerCase() || field.type}...`}
             className="h-11 bg-gray-50 cursor-not-allowed"
           />
         )

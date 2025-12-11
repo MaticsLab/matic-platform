@@ -142,11 +142,19 @@ Available data in the workspace:
 
 	message := fmt.Sprintf("User query: %s\n\nPlease analyze and respond with a JSON report.", req.Query)
 
+	// Use V2 API format with messages array
 	chatReq := CohereChatRequest{
-		Model:       "command",
-		Message:     message,
-		Preamble:    preamble,
-		Temperature: 0.3,
+		Model: "command-a-03-2025",
+		Messages: []CohereChatMessage{
+			{
+				Role:    "system",
+				Content: preamble,
+			},
+			{
+				Role:    "user",
+				Content: message,
+			},
+		},
 	}
 
 	jsonBody, err := json.Marshal(chatReq)
@@ -154,7 +162,7 @@ Available data in the workspace:
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequest("POST", s.CohereClient.BaseURL+"/chat", bytes.NewBuffer(jsonBody))
+	httpReq, err := http.NewRequest("POST", s.CohereClient.BaseURL+"/v2/chat", bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -182,8 +190,14 @@ Available data in the workspace:
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
+	// Extract text from V2 response format
+	var responseText string
+	if len(chatResp.Message.Content) > 0 {
+		responseText = chatResp.Message.Content[0].Text
+	}
+
 	// Parse the AI response into our report structure
-	report := s.parseReportResponse(chatResp.Text, queryType, req)
+	report := s.parseReportResponse(responseText, queryType, req)
 
 	return report, nil
 }

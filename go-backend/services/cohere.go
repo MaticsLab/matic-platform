@@ -47,9 +47,9 @@ type CohereErrorResponse struct {
 func NewCohereClient(apiKey string) *CohereClient {
 	return &CohereClient{
 		APIKey:  apiKey,
-		BaseURL: "https://api.cohere.ai/v1",
+		BaseURL: "https://api.cohere.com", // Updated to new API domain
 		HTTPClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: 120 * time.Second, // Increased timeout for V2 API calls
 		},
 	}
 }
@@ -93,7 +93,7 @@ func (c *CohereClient) embed(texts []string, inputType string) ([][]float32, err
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", c.BaseURL+"/embed", bytes.NewBuffer(jsonBody))
+	req, err := http.NewRequest("POST", c.BaseURL+"/v1/embed", bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -154,28 +154,36 @@ func (c *CohereClient) embedBatch(texts []string, inputType string) ([][]float32
 	return allEmbeddings, nil
 }
 
-// CohereChatRequest for chat-based generation
+// CohereChatRequest for chat-based generation (V2 API format)
 type CohereChatRequest struct {
-	Model       string        `json:"model"`
-	Message     string        `json:"message"`
-	Preamble    string        `json:"preamble,omitempty"`
-	ChatHistory []ChatMessage `json:"chat_history,omitempty"`
-	Temperature float64       `json:"temperature,omitempty"`
+	Model    string              `json:"model"`
+	Messages []CohereChatMessage `json:"messages"`
 }
 
+type CohereChatMessage struct {
+	Role    string `json:"role"` // "user", "assistant", or "system"
+	Content string `json:"content"`
+}
+
+// Legacy chat message format for compatibility
 type ChatMessage struct {
 	Role    string `json:"role"` // USER or CHATBOT
 	Message string `json:"message"`
 }
 
 type CohereChatResponse struct {
-	Text         string        `json:"text"`
-	GenerationID string        `json:"generation_id"`
-	ResponseID   string        `json:"response_id"`
-	ChatHistory  []ChatMessage `json:"chat_history,omitempty"`
+	ID      string `json:"id"`
+	Message struct {
+		Role    string `json:"role"`
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+	} `json:"message"`
+	FinishReason string `json:"finish_reason"`
 }
 
-// TranslateJSON translates a map of strings using Cohere Chat API
+// TranslateJSON translates a map of strings using Cohere Chat API V2
 func (c *CohereClient) TranslateJSON(content map[string]string, targetLanguage string) (map[string]string, error) {
 	// Convert content to JSON string for the prompt
 	jsonBytes, err := json.Marshal(content)
@@ -185,9 +193,15 @@ func (c *CohereClient) TranslateJSON(content map[string]string, targetLanguage s
 
 	prompt := fmt.Sprintf("You are a precise translator. Translate ONLY the JSON values into %s. Keep keys identical. Return valid JSON with the same keys. Do not include markdown formatting or code blocks.\nInput:\n%s", targetLanguage, string(jsonBytes))
 
+	// V2 API uses messages array format
 	reqBody := CohereChatRequest{
-		Message: prompt,
-		Model:   "command-r-plus", // Updated from command-r which was deprecated
+		Model: "command-a-03-2025", // Latest Cohere model
+		Messages: []CohereChatMessage{
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
@@ -195,14 +209,13 @@ func (c *CohereClient) TranslateJSON(content map[string]string, targetLanguage s
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", c.BaseURL+"/chat", bytes.NewBuffer(jsonBody))
+	req, err := http.NewRequest("POST", c.BaseURL+"/v2/chat", bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.APIKey)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Client-Name", "matic-platform-backend")
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
@@ -220,8 +233,13 @@ func (c *CohereClient) TranslateJSON(content map[string]string, targetLanguage s
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
+	// Extract text from V2 response format
+	var cleanText string
+	if len(result.Message.Content) > 0 {
+		cleanText = result.Message.Content[0].Text
+	}
+
 	// Clean up response if it contains markdown code blocks
-	cleanText := result.Text
 	if len(cleanText) > 3 && cleanText[:3] == "```" {
 		// Find start of JSON
 		start := 0
@@ -238,7 +256,7 @@ func (c *CohereClient) TranslateJSON(content map[string]string, targetLanguage s
 
 	var translatedContent map[string]string
 	if err := json.Unmarshal([]byte(cleanText), &translatedContent); err != nil {
-		return nil, fmt.Errorf("failed to parse translation response: %w. Response was: %s", err, result.Text)
+		return nil, fmt.Errorf("failed to parse translation response: %w. Response was: %s", err, cleanText)
 	}
 
 	return translatedContent, nil

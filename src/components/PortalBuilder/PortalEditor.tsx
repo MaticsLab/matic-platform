@@ -15,6 +15,7 @@ import { ScrollArea } from '@/ui-components/scroll-area'
 import { Separator } from '@/ui-components/separator'
 import { FormBuilder } from './FormBuilder'
 import { BlockEditor } from './BlockEditor'
+import { TiptapBlockEditor } from './tiptap'
 import { PortalSettings } from './PortalSettings'
 import { SectionList } from './SectionList'
 import { FieldToolbox } from './FieldToolbox'
@@ -104,6 +105,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
   const [useBlockEditor, setUseBlockEditor] = useState(true) // Toggle for block editor vs FormBuilder
+  const [useCollaborativeEditor, setUseCollaborativeEditor] = useState(false) // Toggle for Tiptap collaborative editor
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
   const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
   const [shareTabKey, setShareTabKey] = useState(0)
@@ -710,6 +712,19 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     <Smartphone className="w-4 h-4" />
                   </Button>
                 </div>
+                {/* Collaborative editor toggle */}
+                {useBlockEditor && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant={useCollaborativeEditor ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setUseCollaborativeEditor(!useCollaborativeEditor)}
+                    >
+                      {useCollaborativeEditor ? '🔴 Live' : '⚪ Collaborate'}
+                    </Button>
+                  </div>
+                )}
                 {config.settings.language?.enabled && (
                   <div className="flex items-center gap-2">
                     <Select value={activeLanguage} onValueChange={handleLanguageChange} disabled={isTranslatingActiveLanguage}>
@@ -1027,20 +1042,51 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       config={displayConfig} 
                       onSelectField={setSelectedFieldId}
                       selectedFieldId={selectedFieldId}
+                      onUpdateSettings={(updates) => {
+                        setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))
+                        setHasUnsavedChanges(true)
+                        setIsPublished(false)
+                      }}
                     />
                   ) : activeSpecialPage === 'review' ? (
-                    <ReviewPreview config={displayConfig} />
+                    <ReviewPreview 
+                      config={displayConfig}
+                      onUpdateSettings={(updates) => {
+                        setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))
+                        setHasUnsavedChanges(true)
+                        setIsPublished(false)
+                      }}
+                    />
                   ) : activeSpecialPage === 'ending' ? (
-                    <ConfirmationPreview config={displayConfig} />
+                    <ConfirmationPreview 
+                      config={displayConfig}
+                      onUpdateSettings={(updates) => {
+                        setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))
+                        setHasUnsavedChanges(true)
+                        setIsPublished(false)
+                      }}
+                    />
                   ) : displaySection ? (
                     useBlockEditor ? (
-                      <BlockEditor 
-                        section={displaySection} 
-                        onUpdate={(updates: Partial<Section>) => handleUpdateSection(displaySection.id, updates)} 
-                        selectedBlockId={selectedBlockId}
-                        onSelectBlock={setSelectedBlockId}
-                        themeColor={config.settings.themeColor}
-                      />
+                      useCollaborativeEditor ? (
+                        <TiptapBlockEditor
+                          section={displaySection}
+                          onUpdate={(updates: Partial<Section>) => handleUpdateSection(displaySection.id, updates)}
+                          selectedBlockId={selectedBlockId}
+                          onSelectBlock={setSelectedBlockId}
+                          themeColor={config.settings.themeColor}
+                          documentId={formId || displaySection.id}
+                          userId={workspaceId || 'anonymous'}
+                        />
+                      ) : (
+                        <BlockEditor 
+                          section={displaySection} 
+                          onUpdate={(updates: Partial<Section>) => handleUpdateSection(displaySection.id, updates)} 
+                          selectedBlockId={selectedBlockId}
+                          onSelectBlock={setSelectedBlockId}
+                          themeColor={config.settings.themeColor}
+                        />
+                      )
                     ) : (
                       <FormBuilder 
                         section={displaySection} 

@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/ui-
 import { Progress } from '@/ui-components/progress'
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
-import { applyTranslationsToConfig, normalizeTranslations } from '@/lib/portal-translations'
+import { applyTranslationsToConfig, normalizeTranslations, getUITranslations } from '@/lib/portal-translations'
 import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector'
 
 interface DynamicApplicationFormProps {
@@ -36,6 +36,11 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
     }
     return applyTranslationsToConfig(normalizedConfig, activeLanguage)
   }, [activeLanguage, defaultLanguage, config])
+
+  // Get translated UI strings
+  const ui = useMemo(() => {
+    return getUITranslations(config, activeLanguage)
+  }, [config, activeLanguage])
 
   const [activeSectionId, setActiveSectionId] = useState<string>(translatedConfig.sections[0]?.id || '')
   const [formData, setFormData] = useState<Record<string, any>>({})
@@ -127,7 +132,7 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
               className={cn(isExternal && "hover:opacity-90")}
               style={{ backgroundColor: config.settings.themeColor || '#000' }}
             >
-              Save & Exit
+              {ui.saveAndExit}
             </Button>
           </div>
         </div>
@@ -185,7 +190,7 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
             className="text-gray-500"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Previous Step
+            {ui.previous}
           </Button>
           <Button 
             onClick={handleNext}
@@ -193,7 +198,7 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
             style={{ backgroundColor: config.settings.themeColor || '#000' }}
             className="text-white"
           >
-            Next Step
+            {ui.nextSection}
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </div>

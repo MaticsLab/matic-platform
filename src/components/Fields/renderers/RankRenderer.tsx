@@ -54,23 +54,38 @@ function normalizeOptions(config: Record<string, any>, formContext?: Record<stri
     }
     
     if (sourceData && Array.isArray(sourceData)) {
-      const key = config.sourceKey || 'name';
+      const key = config.sourceKey || '';
       rawOptions = sourceData
         .map((item: any) => {
           if (typeof item === 'object' && item !== null) {
-            // Try the specified key first
-            if (item[key]) return item[key];
-            // Try common field names
+            // If a specific key is configured, try it first
+            if (key && item[key]) return item[key];
+            
+            // Skip internal keys like 'id' that are auto-generated
+            const skipKeys = ['id', '_id', 'key', 'index'];
+            
+            // Find the first non-empty string value that's not an internal key
+            const entries = Object.entries(item);
+            for (const [entryKey, entryValue] of entries) {
+              if (skipKeys.includes(entryKey)) continue;
+              if (typeof entryValue === 'string' && entryValue.trim()) {
+                return entryValue;
+              }
+            }
+            
+            // Fallback: try common field names
+            if (item.name) return item.name;
             if (item.label) return item.label;
             if (item.title) return item.title;
             if (item.value) return item.value;
-            // Find first non-empty string value
+            
+            // Last resort: find any non-empty string
             const firstString = Object.values(item).find(v => typeof v === 'string' && v.trim());
-            return firstString || JSON.stringify(item);
+            return firstString || null;
           }
           return String(item);
         })
-        .filter((val: string) => val && val.trim() !== '');
+        .filter((val: string | null) => val && val.trim() !== '');
     }
   }
   

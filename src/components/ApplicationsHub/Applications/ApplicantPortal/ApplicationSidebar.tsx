@@ -22,6 +22,12 @@ interface ApplicationSidebarProps {
   formDescription?: string
   helpEmail?: string
   isExternal?: boolean
+  // UI translations
+  ui?: {
+    needHelp?: string
+    contactUsDescription?: string
+    sendEmail?: string
+  }
 }
 
 export function ApplicationSidebar({
@@ -35,7 +41,8 @@ export function ApplicationSidebar({
   formName = 'Application',
   formDescription,
   helpEmail = 'support@example.com',
-  isExternal = false
+  isExternal = false,
+  ui = {}
 }: ApplicationSidebarProps) {
   return (
     <>
@@ -172,10 +179,10 @@ export function ApplicationSidebar({
         <div className="p-4 border-t bg-gray-50">
           <div className="flex items-center gap-2 text-gray-900 font-medium mb-1">
             <HelpCircle className="h-4 w-4" />
-            <span>Need Help?</span>
+            <span>{ui.needHelp || 'Need Help?'}</span>
           </div>
           <p className="text-sm text-gray-600 mb-3">
-            Contact us for assistance with your application.
+            {ui.contactUsDescription || 'Contact us for assistance with your application.'}
           </p>
           <Button 
             variant="outline" 
@@ -185,7 +192,7 @@ export function ApplicationSidebar({
           >
             <a href={`mailto:${helpEmail}`}>
               <Mail className="h-4 w-4 mr-2" />
-              Send Email
+              {ui.sendEmail || 'Send Email'}
             </a>
           </Button>
         </div>

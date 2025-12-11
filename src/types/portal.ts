@@ -58,6 +58,32 @@ export type PortalConfig = {
       rightToLeft?: boolean
       disableAutoTranslate?: boolean
     }
+    // Special page settings
+    signupPage?: {
+      title?: string
+      description?: string
+      buttonText?: string
+      loginLinkText?: string
+    }
+    reviewPage?: {
+      title?: string
+      description?: string
+      incompleteTitle?: string
+      incompleteMessage?: string
+      submitButtonText?: string
+      editButtonText?: string
+    }
+    endingPage?: {
+      title?: string
+      description?: string
+      showDashboardButton?: boolean
+      dashboardButtonText?: string
+      showSubmitAnotherButton?: boolean
+      submitAnotherButtonText?: string
+      footerMessage?: string
+      redirectUrl?: string
+      redirectDelay?: number // seconds
+    }
   }
   /** 
    * Translations in new i18next format

@@ -140,13 +140,47 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
   }
 
   const fetchReviewers = async () => {
+    if (!formId) {
+      console.log('[ReviewerManagement] No formId provided, skipping fetch')
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
     try {
+      console.log('[ReviewerManagement] Fetching reviewers for form:', formId)
       const form = await goClient.get<Form>(`/forms/${formId}`)
-      const settings = form.settings || {}
-      setReviewers(settings.reviewers ? (settings.reviewers as Reviewer[]) : [])
+      console.log('[ReviewerManagement] Full form response:', form)
+      console.log('[ReviewerManagement] Form settings:', form.settings)
+      console.log('[ReviewerManagement] Form settings type:', typeof form.settings)
+      
+      let settings = form.settings || {}
+      // Handle case where settings might be a JSON string
+      if (typeof settings === 'string') {
+        try {
+          settings = JSON.parse(settings)
+          console.log('[ReviewerManagement] Parsed settings from string:', settings)
+        } catch (e) {
+          console.error('[ReviewerManagement] Failed to parse settings string:', e)
+          settings = {}
+        }
+      }
+      
+      let reviewersData = settings.reviewers || []
+      // Handle case where reviewers might be a JSON string
+      if (typeof reviewersData === 'string') {
+        try {
+          reviewersData = JSON.parse(reviewersData)
+          console.log('[ReviewerManagement] Parsed reviewers from string:', reviewersData)
+        } catch (e) {
+          console.error('[ReviewerManagement] Failed to parse reviewers string:', e)
+          reviewersData = []
+        }
+      }
+      
+      console.log('[ReviewerManagement] Reviewers loaded:', reviewersData.length, reviewersData)
+      setReviewers(Array.isArray(reviewersData) ? reviewersData : [])
     } catch (error) {
-      console.error('Failed to fetch reviewers:', error)
+      console.error('[ReviewerManagement] Failed to fetch reviewers:', error)
     } finally {
       setIsLoading(false)
     }
@@ -537,6 +571,17 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
   }
   const completionRate = stats.totalAssigned > 0 ? Math.round((stats.totalCompleted / stats.totalAssigned) * 100) : 0
 
+  // Show message if no form is selected
+  if (!formId) {
+    return (
+      <div className="h-full flex flex-col bg-gray-50 items-center justify-center p-6">
+        <Users className="w-12 h-12 text-gray-300 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-1">No form selected</h3>
+        <p className="text-sm text-gray-500">Select a form to manage its review team</p>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full flex flex-col bg-gray-50">
       <div className="bg-white border-b border-gray-200 px-6 py-5 flex-shrink-0">
@@ -557,7 +602,12 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {activeView === 'team' ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <RefreshCw className="w-6 h-6 text-gray-400 animate-spin" />
+            <span className="ml-2 text-gray-500">Loading team...</span>
+          </div>
+        ) : activeView === 'team' ? (
           <div className="p-6 space-y-6">
             <div className="grid grid-cols-4 gap-4">
               {[
