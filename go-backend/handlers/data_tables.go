@@ -612,6 +612,7 @@ func CreateTableColumn(c *gin.Context) {
 type UpdateTableColumnInput struct {
 	Name          *string                 `json:"name"`
 	Label         *string                 `json:"label"`
+	Description   *string                 `json:"description"`
 	Type          *string                 `json:"type"`
 	Position      *int                    `json:"position"`
 	Width         *int                    `json:"width"`
@@ -620,6 +621,7 @@ type UpdateTableColumnInput struct {
 	LinkedTableID *uuid.UUID              `json:"linked_table_id"`
 	Options       *map[string]interface{} `json:"options"`
 	Validation    *map[string]interface{} `json:"validation"`
+	Placeholder   *string                 `json:"placeholder"`
 }
 
 func UpdateTableColumn(c *gin.Context) {
@@ -645,6 +647,9 @@ func UpdateTableColumn(c *gin.Context) {
 	if input.Label != nil {
 		field.Label = *input.Label
 	}
+	if input.Description != nil {
+		field.Description = *input.Description
+	}
 	if input.Type != nil {
 		field.Type = *input.Type
 	}
@@ -669,6 +674,9 @@ func UpdateTableColumn(c *gin.Context) {
 	}
 	if input.LinkedTableID != nil {
 		config["linked_table_id"] = input.LinkedTableID
+	}
+	if input.Placeholder != nil {
+		config["placeholder"] = *input.Placeholder
 	}
 	if input.Options != nil {
 		for k, v := range *input.Options {
