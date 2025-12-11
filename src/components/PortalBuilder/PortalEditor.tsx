@@ -1075,8 +1075,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                           selectedBlockId={selectedBlockId}
                           onSelectBlock={setSelectedBlockId}
                           themeColor={config.settings.themeColor}
-                          documentId={formId || displaySection.id}
-                          userId={workspaceId || 'anonymous'}
+                          collaborative={true}
+                          roomId={formId || displaySection.id}
+                          currentUser={{
+                            id: workspaceId || 'anonymous',
+                            name: workspaceId || 'Anonymous User'
+                          }}
                         />
                       ) : (
                         <BlockEditor 
