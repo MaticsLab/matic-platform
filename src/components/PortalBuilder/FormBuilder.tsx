@@ -510,7 +510,7 @@ function FieldEditor({
         return (
           <Input 
             disabled
-            placeholder={field.placeholder || `Enter ${field.label?.toLowerCase() || field.type}...`}
+            placeholder={field.placeholder !== undefined ? field.placeholder : `Enter ${field.label?.toLowerCase() || field.type}...`}
             className="h-11 bg-gray-50 cursor-not-allowed"
           />
         )
@@ -519,7 +519,7 @@ function FieldEditor({
         return (
           <Textarea 
             disabled
-            placeholder={field.placeholder || 'Enter text...'}
+            placeholder={field.placeholder !== undefined ? field.placeholder : 'Enter text...'}
             className="min-h-[80px] bg-gray-50 cursor-not-allowed resize-none"
           />
         )
@@ -543,7 +543,7 @@ function FieldEditor({
         return (
           <Select disabled>
             <SelectTrigger className="h-11 bg-gray-50">
-              <SelectValue placeholder={field.placeholder || "Select an option"} />
+              <SelectValue placeholder={field.placeholder !== undefined ? field.placeholder : "Select an option"} />
             </SelectTrigger>
           </Select>
         )
