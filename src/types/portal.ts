@@ -1,6 +1,6 @@
 export type FieldType = 
   | 'text' | 'textarea' | 'email' | 'phone' | 'number' | 'url' | 'address'
-  | 'select' | 'multiselect' | 'radio' | 'checkbox' | 
+  | 'select' | 'multiselect' | 'radio' | 'checkbox'
   | 'date' | 'datetime' | 'time' 
   | 'file' | 'image' | 'signature' | 'rating' | 'rank'
   | 'divider' | 'heading' | 'paragraph' | 'callout'
