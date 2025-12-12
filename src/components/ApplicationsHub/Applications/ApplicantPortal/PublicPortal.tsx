@@ -192,6 +192,23 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
 
   const handleFormSubmit = async (formData: Record<string, any>) => {
     try {
+      // Submit form to backend first
+      if (!form?.id) {
+        throw new Error('Form ID not found')
+      }
+      
+      console.log('📤 Submitting form data:', { formId: form.id, data: formData, email })
+      
+      // Call the backend API to save the submission
+      await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${form.id}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: formData, email })
+      }).then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json()
+      })
+      
       setSubmissionData(formData)
       
       // If we have a form ID, fetch the matching ending page
@@ -207,10 +224,11 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         }
       }
       
+      toast.success('Application submitted successfully!')
       setIsSubmitted(true)
     } catch (error) {
       console.error('Form submission error:', error)
-      toast.error('Failed to submit form')
+      toast.error(error instanceof Error ? error.message : 'Failed to submit form')
     }
   }
 
