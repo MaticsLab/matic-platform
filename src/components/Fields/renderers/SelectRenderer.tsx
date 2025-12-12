@@ -199,8 +199,9 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
                   <div
                     key={opt.value}
                     className={cn(
-                      'px-3 py-2 cursor-pointer flex items-center gap-2 hover:bg-gray-50',
-                      isSelected && 'bg-gray-50'
+                      'px-3 py-2 cursor-pointer flex items-center gap-2',
+                      'transition-colors duration-150',
+                      isSelected ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-gray-100',
                     )}
                     onClick={() => {
                       const newValue = isSelected

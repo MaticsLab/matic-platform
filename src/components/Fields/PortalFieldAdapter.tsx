@@ -91,6 +91,12 @@ function portalFieldToDefinition(portalField: PortalField): Field {
   // Get description from either top-level or config (field settings stores in config.description)
   const description = portalField.description || portalField.config?.description;
   
+  // Collect options from multiple sources: top-level, config.options, or config.items
+  const optionsArray = portalField.options || 
+                       portalField.config?.options || 
+                       portalField.config?.items || 
+                       [];
+  
   return {
     id: portalField.id,
     table_id: '',  // Not applicable for portal fields
@@ -107,8 +113,12 @@ function portalFieldToDefinition(portalField: PortalField): Field {
     config: {
       // Preserve portal-specific config
       ...portalField.config,
-      // Map options if present
-      options: portalField.options?.map(opt => ({ value: opt, label: opt })),
+      // Map options if present - convert to objects with value/label
+      options: optionsArray.map((opt: any) => 
+        typeof opt === 'string' 
+          ? { value: opt, label: opt } 
+          : opt
+      ),
       // Preserve original portal type for special handling
       portal_type: portalField.type,
       // Width mapping
