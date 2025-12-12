@@ -247,26 +247,42 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
 
   if (isAuthenticated) {
     // Convert Form to PortalConfig format expected by DynamicApplicationForm
-    // Map fields from the flat array to their respective sections
+    // Map fields from the flat array to their respective sections, preserving section order
     const flatFields = translatedForm?.fields || []
-    const sections = (translatedForm?.settings?.sections || []).map((section: any) => {
-      const sectionFields = flatFields.filter((field: any) => {
-        // Match by section_id (backend) or sectionId (frontend)
-        return field.section_id === section.id || field.sectionId === section.id
-      })
+    const rawSections = translatedForm?.settings?.sections || []
 
+    // Build a lookup of fields by section_id/sectionId
+    const fieldsBySection: Record<string, any[]> = {}
+    flatFields.forEach((field: any) => {
+      const sid = field.section_id || field.sectionId || 'default'
+      if (!fieldsBySection[sid]) fieldsBySection[sid] = []
+      fieldsBySection[sid].push(field)
+    })
+
+    // Attach fields to sections based on section id
+    let sections = rawSections.map((section: any) => {
+      const sectionFields = fieldsBySection[section.id] || []
       return {
         ...section,
-        fields: section.fields && section.fields.length > 0
-          ? section.fields // Use existing fields if they exist in the section
-          : sectionFields   // Otherwise map from flat fields array
+        sectionType: section.sectionType || 'form',
+        fields: section.fields && section.fields.length > 0 ? section.fields : sectionFields
       }
     })
 
-    // Fallback: if no fields attached to any section, attach all fields to the first section
-    const totalAttachedFields = sections.reduce((sum: number, s: any) => sum + (s.fields?.length || 0), 0)
-    if (totalAttachedFields === 0 && flatFields.length > 0 && sections.length > 0) {
-      sections[0] = { ...sections[0], fields: flatFields }
+    // Handle fields whose section_id does not match any declared section
+    const attachedFieldIds = new Set(sections.flatMap((s: any) => (s.fields || []).map((f: any) => f.id)))
+    const unattachedFields = flatFields.filter((f: any) => !attachedFieldIds.has(f.id))
+    if (unattachedFields.length > 0) {
+      if (sections.length === 0) {
+        sections = [{ id: 'default', title: 'Form', sectionType: 'form', fields: unattachedFields }]
+      } else {
+        sections[0] = { ...sections[0], fields: [...(sections[0].fields || []), ...unattachedFields] }
+      }
+    }
+
+    // Ensure we have at least one section
+    if (sections.length === 0) {
+      sections = [{ id: 'default', title: translatedForm?.name || 'Form', sectionType: 'form', fields: flatFields }]
     }
 
     const portalConfig: any = {
