@@ -98,6 +98,9 @@ func AutoMigrate() error {
 		&models.SentEmail{},
 		&models.EmailTemplate{},
 		&models.EmailSignature{},
+
+		// Ending Pages
+		&models.EndingPage{},
 	)
 
 	if err != nil {

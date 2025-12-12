@@ -1,10 +1,13 @@
 export type FieldType = 
   | 'text' | 'textarea' | 'email' | 'phone' | 'number' | 'url' | 'address'
-  | 'select' | 'multiselect' | 'radio' | 'checkbox' 
+  | 'select' | 'multiselect' | 'radio' | 'checkbox' | 
   | 'date' | 'datetime' | 'time' 
   | 'file' | 'image' | 'signature' | 'rating' | 'rank'
   | 'divider' | 'heading' | 'paragraph' | 'callout'
   | 'group' | 'repeater'
+
+// Import ending block type
+import type { EndingBlock } from './ending-blocks'
 
 export type Field = {
   id: string
@@ -32,6 +35,8 @@ export type Section = {
   description?: string
   sectionType?: 'form' | 'cover' | 'ending' | 'review'
   fields: Field[]
+  // NEW: Ending blocks for ending section type
+  blocks?: EndingBlock[]
   translationKey?: string // Stable key for translations
   conditions?: Array<{
     fieldId: string

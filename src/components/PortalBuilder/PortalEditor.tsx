@@ -25,6 +25,14 @@ import { ShareTab } from './ShareTab'
 import { SignUpPreview } from './SignUpPreview'
 import { ConfirmationPreview } from './ConfirmationPreview'
 import { ReviewPreview } from './ReviewPreview'
+import { EndingPagesBuilder } from '@/components/EndingPages/EndingPagesBuilder'
+import { EndingBlocksToolbox } from './EndingBlocksToolbox'
+import { EndingBlockEditor } from './EndingBlockEditor'
+import { DEFAULT_ENDING_TEMPLATE } from '@/lib/ending-templates'
+import { BlockRenderer } from '@/components/EndingPages/BlockRenderer'
+import { PropertyInput } from '@/components/EndingPages/PropertyInput'
+import { getBlockDefinition } from '@/lib/ending-block-registry'
+import type { EndingBlock } from '@/types/ending-blocks'
 import { DynamicApplicationForm } from '@/components/ApplicationsHub/Applications/ApplicantPortal/DynamicApplicationForm'
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { formsClient } from '@/lib/api/forms-client'
@@ -110,6 +118,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [useCollaborativeEditor, setUseCollaborativeEditor] = useState(false) // Toggle for Tiptap collaborative editor
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
   const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
+  const [leftSidebarTab, setLeftSidebarTab] = useState<'structure' | 'elements' | 'theme'>('structure')
   const [shareTabKey, setShareTabKey] = useState(0)
   
   // Track previous selected field for autosave on deselect
@@ -152,6 +161,26 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     }
     previousSelectedFieldId.current = selectedFieldId
   }, [selectedFieldId, formId, hasUnsavedChanges, isSaving])
+
+  // Auto-save debounced on config changes
+  useEffect(() => {
+    if (!hasUnsavedChanges || !formId || isSaving) return
+    
+    const timer = setTimeout(async () => {
+      setIsSaving(true)
+      try {
+        await formsClient.updateStructure(formId, configRef.current)
+        setHasUnsavedChanges(false)
+        toast.success('Auto-saved', { duration: 1500 })
+      } catch (error) {
+        console.error('Autosave failed:', error)
+      } finally {
+        setIsSaving(false)
+      }
+    }, 2000) // 2 second debounce
+    
+    return () => clearTimeout(timer)
+  }, [config, formId, hasUnsavedChanges, isSaving])
 
   useEffect(() => {
     const loadForm = async () => {
@@ -484,13 +513,11 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     if (type === 'ending') {
       return {
         id: Date.now().toString(),
-        title: 'Ending',
+        title: 'Thank You Page',
         sectionType: 'ending',
-        description: 'Show a thank you page or redirect users',
-        fields: [
-          { id: `${Date.now()}-h`, type: 'heading', label: 'Thank you!', required: false, width: 'full' },
-          { id: `${Date.now()}-p`, type: 'paragraph', label: 'We received your submission. You can add next steps or a redirect.', required: false, width: 'full', config: { content: '' } }
-        ]
+        description: 'Customizable ending page shown after form submission',
+        fields: [],
+        blocks: DEFAULT_ENDING_TEMPLATE
       }
     }
     if (type === 'review') {
@@ -519,6 +546,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     const newSection = createSectionTemplate(type)
     setConfig(prev => ({ ...prev, sections: [...prev.sections, newSection] }))
     setActiveSectionId(newSection.id)
+    setLeftSidebarTab('elements')
     setHasUnsavedChanges(true)
     setIsPublished(false)
   }
@@ -627,9 +655,65 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
     // Otherwise add to active section
     if (!activeSection) return
-    handleUpdateSection(activeSection.id, { fields: [...activeSection.fields, newField] })
+
+    // If a container field (group/repeater) is selected, add inside its children
+    const selectedContainer = selectedFieldId 
+      ? findFieldRecursive(activeSection.fields, selectedFieldId) 
+      : null
+
+    const isContainer = selectedContainer && (selectedContainer.type === 'group' || selectedContainer.type === 'repeater')
+
+    if (isContainer) {
+      const updated = updateFieldRecursive(activeSection.fields, selectedContainer!.id, {
+        children: [...(selectedContainer!.children || []), newField]
+      })
+      handleUpdateSection(activeSection.id, { fields: updated })
+    } else {
+      handleUpdateSection(activeSection.id, { fields: [...activeSection.fields, newField] })
+    }
     setHasUnsavedChanges(true)
     setIsPublished(false)
+  }
+
+  const handleAddBlock = (blockType: string) => {
+    if (!activeSection || activeSection.sectionType !== 'ending') return
+    
+    const blockDef = getBlockDefinition(blockType)
+    const defaultProps = blockDef?.defaultProps || {}
+    
+    const newBlock: EndingBlock = {
+      id: `block-${Date.now()}`,
+      blockType,
+      props: defaultProps,
+      metadata: {
+        order: (activeSection.blocks?.length || 0)
+      }
+    }
+
+    const updatedBlocks = [...(activeSection.blocks || []), newBlock]
+    handleUpdateSection(activeSection.id, { blocks: updatedBlocks })
+    setHasUnsavedChanges(true)
+    setIsPublished(false)
+    // Auto-select the new block
+    setSelectedBlockId(newBlock.id)
+  }
+
+  const handleUpdateBlock = (blockId: string, updates: Partial<EndingBlock>) => {
+    if (!activeSection || activeSection.sectionType !== 'ending') return
+    
+    const updatedBlocks = (activeSection.blocks || []).map(block =>
+      block.id === blockId ? { ...block, ...updates } : block
+    )
+    handleUpdateSection(activeSection.id, { blocks: updatedBlocks })
+    setHasUnsavedChanges(true)
+  }
+
+  const handleDeleteBlock = (blockId: string) => {
+    if (!activeSection || activeSection.sectionType !== 'ending') return
+    
+    const updatedBlocks = (activeSection.blocks || []).filter(block => block.id !== blockId)
+    handleUpdateSection(activeSection.id, { blocks: updatedBlocks })
+    setHasUnsavedChanges(true)
   }
 
   // Helper functions for recursive updates
@@ -672,7 +756,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   }
 
   const defaultLanguage = config.settings.language?.default || 'en'
-  const supportedLanguages = Array.from(new Set([defaultLanguage, ...(config.settings.language?.supported || [])]))
+  const supportedLanguages = Array.from(new Set([defaultLanguage, ...(config.settings.language?.supported || [])])).filter(lang => lang && lang.trim() !== '')
   const displayConfig = activeLanguage === defaultLanguage
     ? config
     : applyTranslationsToConfig(config, activeLanguage)
@@ -778,8 +862,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                </button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button 
+            <div className="flex items-center gap-2">\n              <Button 
                 variant="ghost" 
                 size="sm"
                 onClick={() => setIsSettingsOpen(true)}
@@ -838,12 +921,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             </div>
           </div>
         )}
-        
+
         {activeTopTab === 'edit' && (
         <div className="flex-1 flex overflow-hidden">
             {/* Left Sidebar - Navigation */}
             <div className="w-80 bg-white border-r border-gray-200 flex flex-col shadow-sm z-10">
-          <Tabs defaultValue="structure" className="flex-1 flex flex-col gap-0 min-h-0">
+          <Tabs value={leftSidebarTab} onValueChange={(value) => setLeftSidebarTab(value as any)} className="flex-1 flex flex-col gap-0 min-h-0">
             <div className="px-4 py-3 border-b border-gray-100">
               <TabsList className="w-full grid grid-cols-3 bg-gray-100 p-1 rounded-full h-auto">
                 <TabsTrigger value="structure" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Sections</TabsTrigger>
@@ -990,7 +1073,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             </TabsContent>
 
             <TabsContent value="elements" className="flex-1 mt-0 overflow-hidden data-[state=active]:flex flex-col min-h-0">
-               <FieldToolbox onAddField={handleAddField} />
+               {/* Show ending blocks if ending section is selected, otherwise show fields */}
+               {activeSection?.sectionType === 'ending' ? (
+                 <EndingBlocksToolbox onAddBlock={handleAddBlock} />
+               ) : (
+                 <FieldToolbox onAddField={handleAddField} />
+               )}
             </TabsContent>
 
             <TabsContent value="theme" className="flex-1 overflow-y-auto min-h-0">
@@ -1057,7 +1145,16 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       }}
                     />
                   ) : displaySection ? (
-                    useBlockEditor ? (
+                    displaySection.sectionType === 'ending' ? (
+                      // Ending Section - Show ending blocks with drag-and-drop
+                      <EndingBlockEditor
+                        blocks={displaySection.blocks || []}
+                        onUpdate={(blocks) => handleUpdateSection(displaySection.id, { blocks })}
+                        selectedBlockId={selectedBlockId}
+                        onSelectBlock={setSelectedBlockId}
+                        onDeleteBlock={handleDeleteBlock}
+                      />
+                    ) : useBlockEditor ? (
                       useCollaborativeEditor ? (
                         <TiptapBlockEditor
                           section={displaySection}
@@ -1118,8 +1215,76 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   </Button>
                </div>
                <div className="flex-1 overflow-y-auto">
+                   {/* Block Settings - When ending block is selected */}
+                   {selectedBlockId && displaySection?.sectionType === 'ending' && (() => {
+                     const selectedBlock = displaySection.blocks?.find((b: EndingBlock) => b.id === selectedBlockId)
+                     if (!selectedBlock) return null
+                     
+                     const blockDef = getBlockDefinition(selectedBlock.blockType)
+                     if (!blockDef) return null
+                     
+                     return (
+                       <div className="p-4 space-y-4">
+                         <div>
+                           <h4 className="text-sm font-semibold text-gray-900 mb-2">Block Properties</h4>
+                           <p className="text-xs text-gray-500 mb-4">{blockDef.label}</p>
+                         </div>
+                         {/* Schema-driven property editor */}
+                         {blockDef.schema?.properties && Object.entries(blockDef.schema.properties).map(([propKey, propSchema]: any) => (
+                           <PropertyInput
+                             key={propKey}
+                             propertyKey={propKey}
+                             schema={propSchema}
+                             value={selectedBlock.props[propKey]}
+                             onChange={(value) => {
+                               handleUpdateBlock(selectedBlock.id, {
+                                 props: { ...selectedBlock.props, [propKey]: value }
+                               })
+                             }}
+                           />
+                         ))}
+                         
+                         {/* Button Visibility Controls for button-group blocks */}
+                         {selectedBlock.blockType === 'button-group' && selectedBlock.props.buttons && (() => {
+                           try {
+                             const buttons = JSON.parse(selectedBlock.props.buttons)
+                             return (
+                               <div className="mt-6 pt-4 border-t border-gray-200">
+                                 <h5 className="text-sm font-semibold text-gray-900 mb-3">Button Visibility</h5>
+                                 <div className="space-y-2">
+                                   {buttons.map((btn: any, idx: number) => (
+                                     <div key={idx} className="flex items-center justify-between py-2">
+                                       <span className="text-sm text-gray-700">{btn.text || `Button ${idx + 1}`}</span>
+                                       <label className="relative inline-flex items-center cursor-pointer">
+                                         <input
+                                           type="checkbox"
+                                           checked={btn.visible !== false}
+                                           onChange={(e) => {
+                                             const updatedButtons = [...buttons]
+                                             updatedButtons[idx] = { ...updatedButtons[idx], visible: e.target.checked }
+                                             handleUpdateBlock(selectedBlock.id, {
+                                               props: { ...selectedBlock.props, buttons: JSON.stringify(updatedButtons) }
+                                             })
+                                           }}
+                                           className="sr-only peer"
+                                         />
+                                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                                       </label>
+                                     </div>
+                                   ))}
+                                 </div>
+                               </div>
+                             )
+                           } catch (e) {
+                             return null
+                           }
+                         })()}
+                       </div>
+                     )
+                   })()}
+                   
                    {/* Ending Settings - Conditions */}
-                   {displaySection?.sectionType === 'ending' && activeSectionId && (
+                   {displaySection?.sectionType === 'ending' && activeSectionId && !selectedBlockId && (
                       <div className="p-4">
                         <ConditionBuilder
                           conditions={displaySection.conditions || []}

@@ -18,6 +18,9 @@ import type { TranslationResource } from '@/lib/i18n/types'
 import { TranslationProvider, useTranslationContext } from '@/lib/i18n/TranslationProvider'
 import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector'
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
+import { endingPagesClient } from '@/lib/api/ending-pages-client'
+import { EndingPageRenderer } from '@/components/EndingPages/BlockRenderer'
+import type { EndingPageConfig } from '@/types/ending-blocks'
 
 interface PublicPortalProps {
   slug: string
@@ -35,12 +38,14 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   const [form, setForm] = useState<Form | null>(null)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [initialData, setInitialData] = useState<any>(null)
+  const [submissionData, setSubmissionData] = useState<Record<string, any> | null>(null)
+  const [endingPage, setEndingPage] = useState<EndingPageConfig | null>(null)
 
   // Language support
   const defaultLanguage = form?.settings?.language?.default || 'en'
   const supportedLanguages = useMemo(() => {
     if (!form?.settings?.language?.enabled) return []
-    return Array.from(new Set([defaultLanguage, ...(form.settings.language?.supported || [])]))
+    return Array.from(new Set([defaultLanguage, ...(form.settings.language?.supported || [])])).filter(lang => lang && lang.trim() !== '')
   }, [form, defaultLanguage])
   const [activeLanguage, setActiveLanguage] = useState<string>(defaultLanguage)
 
@@ -185,7 +190,41 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     }
   }
 
+  const handleFormSubmit = async (formData: Record<string, any>) => {
+    try {
+      setSubmissionData(formData)
+      
+      // If we have a form ID, fetch the matching ending page
+      if (form?.id) {
+        try {
+          const matching = await endingPagesClient.findMatching(form.id, formData)
+          if (matching) {
+            setEndingPage(matching)
+          }
+        } catch (error) {
+          console.warn('Failed to fetch ending page:', error)
+          // Continue anyway - will show default success message
+        }
+      }
+      
+      setIsSubmitted(true)
+    } catch (error) {
+      console.error('Form submission error:', error)
+      toast.error('Failed to submit form')
+    }
+  }
+
   if (isSubmitted) {
+    // Show custom ending page if available
+    if (endingPage) {
+      return (
+        <div className="min-h-screen bg-white">
+          <EndingPageRenderer config={endingPage} submissionData={submissionData || {}} />
+        </div>
+      )
+    }
+
+    // Fall back to default success message
     return (
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }} 
@@ -208,11 +247,23 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
 
   if (isAuthenticated) {
     // Convert Form to PortalConfig format expected by DynamicApplicationForm
+    // Ensure sections have fields property from the form's flat fields array
+    const sections = (translatedForm?.settings?.sections || []).map((section: any) => ({
+      ...section,
+      fields: section.fields || [] // Ensure fields array exists
+    }))
+
     const portalConfig: any = {
-      sections: translatedForm?.settings?.sections || [],
+      sections,
       settings: translatedForm?.settings || {},
       translations: (translatedForm?.settings as any)?.translations || {}
     }
+
+    console.log('🚀 Portal config being passed to DynamicApplicationForm:', {
+      sectionsCount: sections.length,
+      firstSectionFields: sections[0]?.fields?.length,
+      portalConfig
+    })
 
     return (
       <motion.div 
@@ -222,6 +273,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       >
         <DynamicApplicationForm 
           config={portalConfig}
+          onSubmit={handleFormSubmit}
           isExternal={true}
           formId={form?.id}
         />

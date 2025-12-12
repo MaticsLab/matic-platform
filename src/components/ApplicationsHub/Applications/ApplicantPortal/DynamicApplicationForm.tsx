@@ -15,14 +15,15 @@ import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector
 interface DynamicApplicationFormProps {
   config: PortalConfig
   onBack?: () => void
+  onSubmit?: (formData: Record<string, any>) => Promise<void>
   isExternal?: boolean
   formId?: string
   initialSectionId?: string
 }
 
-export function DynamicApplicationForm({ config, onBack, isExternal = false, formId, initialSectionId }: DynamicApplicationFormProps) {
+export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = false, formId, initialSectionId }: DynamicApplicationFormProps) {
   const defaultLanguage = config.settings.language?.default || 'en'
-  const supportedLanguages = Array.from(new Set([defaultLanguage, ...(config.settings.language?.supported || [])]))
+  const supportedLanguages = Array.from(new Set([defaultLanguage, ...(config.settings.language?.supported || [])])).filter(lang => lang && lang.trim() !== '')
   const [activeLanguage, setActiveLanguage] = useState<string>(defaultLanguage)
   
   // Normalize translations to new format and apply
@@ -43,7 +44,7 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
     return getUITranslations(config, activeLanguage)
   }, [config, activeLanguage])
 
-  const [activeSectionId, setActiveSectionId] = useState<string>(initialSectionId || translatedConfig.sections[0]?.id || '')
+  const [activeSectionId, setActiveSectionId] = useState<string>(initialSectionId || translatedConfig.sections?.[0]?.id || '')
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [isSaving, setIsSaving] = useState(false)
 
@@ -56,36 +57,44 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
 
   const activeSectionIndex = Math.max(
     0,
-    translatedConfig.sections.findIndex((s: Section) => s.id === activeSectionId)
+    (translatedConfig.sections || []).findIndex((s: Section) => s.id === activeSectionId)
   )
-  const activeSection = translatedConfig.sections[activeSectionIndex]
+  const activeSection = translatedConfig.sections?.[activeSectionIndex]
 
   const handleFieldChange = (fieldId: string, value: any) => {
     setFormData(prev => ({ ...prev, [fieldId]: value }))
   }
 
   const handleNext = () => {
-    if (activeSectionIndex < translatedConfig.sections.length - 1) {
-      setActiveSectionId(translatedConfig.sections[activeSectionIndex + 1].id)
+    const sectionsLength = translatedConfig.sections?.length || 0
+    if (activeSectionIndex < sectionsLength - 1) {
+      setActiveSectionId(translatedConfig.sections?.[activeSectionIndex + 1]?.id || '')
       window.scrollTo({ top: 0, behavior: 'smooth' })
+    } else if (activeSectionIndex === sectionsLength - 1) {
+      // Last section - submit the form
+      if (onSubmit) {
+        setIsSaving(true)
+        onSubmit(formData).finally(() => setIsSaving(false))
+      }
     }
   }
 
   const handlePrevious = () => {
     if (activeSectionIndex > 0) {
-      setActiveSectionId(translatedConfig.sections[activeSectionIndex - 1].id)
+      setActiveSectionId(translatedConfig.sections?.[activeSectionIndex - 1]?.id || '')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
 
   const calculateProgress = () => {
-    if (translatedConfig.sections.length === 0) return 0
-    return ((activeSectionIndex + 1) / translatedConfig.sections.length) * 100
+    const sectionsLength = translatedConfig.sections?.length || 0
+    if (sectionsLength === 0) return 0
+    return ((activeSectionIndex + 1) / sectionsLength) * 100
   }
 
   // Collect all fields for cross-field references (e.g., rank source)
   const allFields = useMemo(() => {
-    return translatedConfig.sections.flatMap((s: Section) => s.fields)
+    return (translatedConfig.sections || []).flatMap((s: Section) => s.fields || [])
   }, [translatedConfig.sections])
 
   return (
@@ -127,13 +136,13 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
                 supportedLanguages={supportedLanguages}
                 onLanguageChange={(v) => {
                   setActiveLanguage(v)
-                  setActiveSectionId((applyTranslationsToConfig(config, v).sections[0]?.id) || translatedConfig.sections[0]?.id || '')
+                  setActiveSectionId((applyTranslationsToConfig(config, v).sections?.[0]?.id) || translatedConfig.sections?.[0]?.id || '')
                 }}
               />
             )}
             <div className="text-right hidden sm:block">
               <div className="text-xs text-gray-500 mb-1">
-                Step {activeSectionIndex + 1} of {translatedConfig.sections.length}
+                Step {activeSectionIndex + 1} of {translatedConfig.sections?.length || 0}
               </div>
               <Progress value={calculateProgress()} className="w-32 h-2" />
             </div>
@@ -207,7 +216,7 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
                   </CardHeader>
                   <CardContent className={cn("space-y-6", isExternal ? "px-0" : "")}>
                     <div className="grid grid-cols-12 gap-6">
-                      {activeSection.fields.map((field: Field) => (
+                      {(activeSection.fields || []).map((field: Field) => (
                         <div key={field.id} className={cn(
                           field.width === 'half' ? 'col-span-12 sm:col-span-6' : 
                           field.width === 'third' ? 'col-span-12 sm:col-span-4' :
@@ -245,12 +254,20 @@ export function DynamicApplicationForm({ config, onBack, isExternal = false, for
           </Button>
           <Button 
             onClick={handleNext}
-            disabled={activeSectionIndex === translatedConfig.sections.length - 1}
+            disabled={isSaving}
             style={{ backgroundColor: config.settings.themeColor || '#000' }}
             className="text-white"
           >
-            {ui.nextSection}
-            <ArrowRight className="w-4 h-4 ml-2" />
+            {activeSectionIndex === (translatedConfig.sections?.length || 0) - 1 ? (
+              <>
+                {isSaving ? 'Submitting...' : 'Submit'}
+              </>
+            ) : (
+              <>
+                {ui.nextSection}
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </>
+            )}
           </Button>
         </div>
       </div>

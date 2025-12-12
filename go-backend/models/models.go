@@ -457,3 +457,23 @@ type PortalApplicant struct {
 func (PortalApplicant) TableName() string {
 	return "portal_applicants"
 }
+
+// EndingPage model - customizable pages shown after form submission
+type EndingPage struct {
+	BaseModel
+	FormID      uuid.UUID      `gorm:"type:uuid;index;not null" json:"form_id"`
+	Name        string         `gorm:"type:text;not null" json:"name"`
+	Description *string        `gorm:"type:text" json:"description,omitempty"`
+	Blocks      datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"blocks"`
+	Settings    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	Theme       datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"theme"`
+	Conditions  datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"conditions"`
+	IsDefault   bool           `gorm:"default:false" json:"is_default"`
+	Version     int            `gorm:"default:1" json:"version"`
+	Status      string         `gorm:"type:varchar(20);default:'draft'" json:"status"` // draft, published
+	PublishedAt *time.Time     `json:"published_at,omitempty"`
+}
+
+func (EndingPage) TableName() string {
+	return "ending_pages"
+}

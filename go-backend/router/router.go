@@ -448,6 +448,17 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				forms.POST("/:id/submissions/bulk-assign-workflow", handlers.BulkAssignWorkflow)
 			}
 
+			// Ending Pages
+			endingPages := protected.Group("/ending-pages")
+			{
+				endingPages.GET("", handlers.ListEndingPages) // ?form_id=xxx
+				endingPages.POST("", handlers.CreateEndingPage)
+				endingPages.GET("/:id", handlers.GetEndingPage)
+				endingPages.PUT("/:id", handlers.UpdateEndingPage)
+				endingPages.DELETE("/:id", handlers.DeleteEndingPage)
+				endingPages.POST("/match", handlers.FindMatchingEnding) // POST to avoid ID collision
+			}
+
 			// Search
 			search := protected.Group("/search")
 			{
