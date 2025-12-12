@@ -155,8 +155,10 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
             const baseUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
             const res = await fetch(`${baseUrl}/forms/${form.id}/submission?email=${encodeURIComponent(email)}`)
             if (res.ok) {
-              const data = await res.json()
-              setInitialData(data)
+              const rowData = await res.json()
+              // The endpoint returns a Row object with data field
+              console.log('📥 Loaded submission data:', rowData)
+              setInitialData(rowData.data || rowData)
             }
           } catch (err) {
             console.error("Failed to fetch submission", err)
@@ -272,8 +274,17 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     // Build a lookup of fields by section_id
     // section_id can be either at top level or in config
     const fieldsBySection: Record<string, any[]> = {}
+    console.log('🔍 Raw fields from API:', flatFields.slice(0, 2).map(f => ({
+      id: f.id,
+      label: f.label,
+      section_id: f.section_id,
+      config: f.config,
+      fullField: f
+    })))
+    
     flatFields.forEach((field: any) => {
       const sid = field.section_id || (field.config && field.config.section_id)
+      console.log(`📍 Field "${field.label}": section_id=${field.section_id}, config.section_id=${field.config?.section_id}, resolved=${sid}`)
       if (sid) {
         if (!fieldsBySection[sid]) fieldsBySection[sid] = []
         fieldsBySection[sid].push(field)
@@ -293,8 +304,8 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       })
 
     // Handle fields without section_id (unassigned) - put in first section
-    const assignedFieldIds = new Set(flatFields.filter((f: any) => f.section_id).map((f: any) => f.id))
-    const unassignedFields = flatFields.filter((f: any) => !f.section_id)
+    const assignedFieldIds = new Set(flatFields.filter((f: any) => f.section_id || (f.config && f.config.section_id)).map((f: any) => f.id))
+    const unassignedFields = flatFields.filter((f: any) => !f.section_id && !(f.config && f.config.section_id))
     
     if (unassignedFields.length > 0) {
       if (sections.length === 0) {
@@ -359,6 +370,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
           onSubmit={handleFormSubmit}
           isExternal={true}
           formId={form?.id}
+          initialData={initialData}
         />
       </motion.div>
     )

@@ -19,9 +19,10 @@ interface DynamicApplicationFormProps {
   isExternal?: boolean
   formId?: string
   initialSectionId?: string
+  initialData?: Record<string, any>
 }
 
-export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = false, formId, initialSectionId }: DynamicApplicationFormProps) {
+export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = false, formId, initialSectionId, initialData }: DynamicApplicationFormProps) {
   const defaultLanguage = config.settings.language?.default || 'en'
   const supportedLanguages = Array.from(new Set([defaultLanguage, ...(config.settings.language?.supported || [])])).filter(lang => lang && lang.trim() !== '')
   const [activeLanguage, setActiveLanguage] = useState<string>(defaultLanguage)
@@ -45,7 +46,7 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = 
   }, [config, activeLanguage])
 
   const [activeSectionId, setActiveSectionId] = useState<string>(initialSectionId || translatedConfig.sections?.[0]?.id || '')
-  const [formData, setFormData] = useState<Record<string, any>>({})
+  const [formData, setFormData] = useState<Record<string, any>>(initialData || {})
   const [isSaving, setIsSaving] = useState(false)
 
   // Update active section when initialSectionId changes (for preview mode navigation)
@@ -54,6 +55,13 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = 
       setActiveSectionId(initialSectionId)
     }
   }, [initialSectionId])
+
+  // Load initial data when provided
+  useEffect(() => {
+    if (initialData) {
+      setFormData(initialData)
+    }
+  }, [initialData])
 
   const activeSectionIndex = Math.max(
     0,
