@@ -156,38 +156,46 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = 
         </div>
       </div>
 
-      {/* Section Tabs */}
-      {isExternal && (
-        <div className="bg-white border-b border-gray-200">
-          <div className="max-w-5xl mx-auto px-4">
-            <div className="flex gap-2 overflow-x-auto py-3">
-              {translatedConfig.sections?.map((section: Section, idx: number) => {
-                const isActive = section.id === activeSectionId
-                const isCompleted = idx < activeSectionIndex
-                return (
-                  <button
-                    key={section.id}
-                    onClick={() => setActiveSectionId(section.id)}
-                    className={cn(
-                      "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap",
-                      isActive 
-                        ? "bg-gray-900 text-white" 
-                        : isCompleted
-                        ? "bg-green-50 text-green-700 hover:bg-green-100"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    )}
-                  >
-                    {isCompleted && <Check className="w-4 h-4" />}
-                    <span>{section.title}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
+      {/* Main content area with optional left sidebar for tabs */}
+      <div className={cn(
+        "flex-1 w-full p-4 lg:p-8 pb-20",
+        isExternal ? "max-w-6xl mx-auto" : "max-w-3xl mx-auto"
       )}
+      >
+        <div className={cn(
+          "w-full flex gap-8",
+          isExternal ? "min-h-[600px]" : ""
+        )}>
+          {isExternal && (
+            <aside className="hidden lg:block w-64 shrink-0">
+              <div className="sticky top-4 space-y-2">
+                {translatedConfig.sections?.map((section: Section, idx: number) => {
+                  const isActive = section.id === activeSectionId
+                  const isCompleted = idx < activeSectionIndex
+                  return (
+                    <button
+                      key={section.id}
+                      onClick={() => setActiveSectionId(section.id)}
+                      className={cn(
+                        "w-full flex items-center justify-between rounded-md px-3 py-2 text-sm",
+                        "transition-colors",
+                        isActive
+                          ? "bg-gray-900 text-white"
+                          : isCompleted
+                          ? "bg-green-50 text-green-700 hover:bg-green-100"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      )}
+                    >
+                      <span className="truncate text-left">{section.title}</span>
+                      {isCompleted && <Check className="w-4 h-4" />}
+                    </button>
+                  )
+                })}
+              </div>
+            </aside>
+          )}
 
-      <div className="flex-1 max-w-3xl mx-auto w-full p-4 lg:p-8 pb-20">
+          <div className="flex-1 min-w-0">
         <AnimatePresence mode="wait">
           {activeSection && (
             <motion.div
@@ -346,6 +354,8 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = 
               </>
             )}
           </Button>
+        </div>
+          </div>
         </div>
       </div>
     </div>
