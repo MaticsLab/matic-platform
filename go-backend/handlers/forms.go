@@ -102,6 +102,18 @@ func GetForm(c *gin.Context) {
 	var fields []models.Field
 	database.DB.Where("table_id = ?", id).Order("position ASC").Find(&fields)
 
+	// Enrich fields with section_id from config
+	for i := range fields {
+		if fields[i].SectionID == nil || *fields[i].SectionID == "" {
+			// Try to get section_id from Config
+			var config map[string]interface{}
+			json.Unmarshal(fields[i].Config, &config)
+			if sid, ok := config["section_id"].(string); ok && sid != "" {
+				fields[i].SectionID = &sid
+			}
+		}
+	}
+
 	var view models.View
 	isPublished := false
 	if err := database.DB.Where("table_id = ? AND type = ?", table.ID, "form").First(&view).Error; err == nil {
@@ -161,6 +173,18 @@ func GetFormBySlug(c *gin.Context) {
 found:
 	var fields []models.Field
 	database.DB.Where("table_id = ?", table.ID).Order("position ASC").Find(&fields)
+
+	// Enrich fields with section_id from config
+	for i := range fields {
+		if fields[i].SectionID == nil || *fields[i].SectionID == "" {
+			// Try to get section_id from Config
+			var config map[string]interface{}
+			json.Unmarshal(fields[i].Config, &config)
+			if sid, ok := config["section_id"].(string); ok && sid != "" {
+				fields[i].SectionID = &sid
+			}
+		}
+	}
 
 	var view models.View
 	isPublished := false
