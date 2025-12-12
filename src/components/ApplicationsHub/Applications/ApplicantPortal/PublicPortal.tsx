@@ -247,11 +247,20 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
 
   if (isAuthenticated) {
     // Convert Form to PortalConfig format expected by DynamicApplicationForm
-    // Ensure sections have fields property from the form's flat fields array
-    const sections = (translatedForm?.settings?.sections || []).map((section: any) => ({
-      ...section,
-      fields: section.fields || [] // Ensure fields array exists
-    }))
+    // Map fields from the flat array to their respective sections
+    const sections = (translatedForm?.settings?.sections || []).map((section: any) => {
+      // Find all fields that belong to this section
+      const sectionFields = (translatedForm?.fields || []).filter(
+        (field: any) => field.section_id === section.id || field.sectionId === section.id
+      )
+      
+      return {
+        ...section,
+        fields: section.fields && section.fields.length > 0 
+          ? section.fields // Use existing fields if they exist in the section
+          : sectionFields   // Otherwise map from flat fields array
+      }
+    })
 
     const portalConfig: any = {
       sections,
@@ -262,6 +271,12 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     console.log('🚀 Portal config being passed to DynamicApplicationForm:', {
       sectionsCount: sections.length,
       firstSectionFields: sections[0]?.fields?.length,
+      sections: sections.map((s: any) => ({ 
+        id: s.id, 
+        title: s.title, 
+        fieldCount: s.fields?.length,
+        fields: s.fields?.map((f: any) => ({ id: f.id, label: f.label, type: f.type }))
+      })),
       portalConfig
     })
 
