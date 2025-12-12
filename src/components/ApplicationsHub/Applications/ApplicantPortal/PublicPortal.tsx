@@ -301,7 +301,20 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         fields: s.fields?.map((f: any) => ({ id: f.id, label: f.label, type: f.type, section_id: f.section_id || f.sectionId }))
       })),
       totalFlatFields: flatFields.length,
+      allSectionsData: sections,
+      fieldsBySection,
       portalConfig
+    })
+    
+    // Debug: Log field breakdown
+    console.log('📊 Field breakdown:')
+    sections.forEach((s: any, idx: number) => {
+      console.log(`  Section ${idx} (${s.id}): ${s.title} - ${s.fields?.length || 0} fields`)
+      if (s.fields && s.fields.length > 0) {
+        s.fields.forEach((f: any) => {
+          console.log(`    - ${f.label} (${f.id}, section_id: ${f.section_id || f.sectionId})`)
+        })
+      }
     })
 
     return (
