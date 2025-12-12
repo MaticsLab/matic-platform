@@ -248,19 +248,26 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   if (isAuthenticated) {
     // Convert Form to PortalConfig format expected by DynamicApplicationForm
     // Map fields from the flat array to their respective sections
+    const flatFields = translatedForm?.fields || []
     const sections = (translatedForm?.settings?.sections || []).map((section: any) => {
-      // Find all fields that belong to this section
-      const sectionFields = (translatedForm?.fields || []).filter(
-        (field: any) => field.section_id === section.id || field.sectionId === section.id
-      )
-      
+      const sectionFields = flatFields.filter((field: any) => {
+        // Match by section_id (backend) or sectionId (frontend)
+        return field.section_id === section.id || field.sectionId === section.id
+      })
+
       return {
         ...section,
-        fields: section.fields && section.fields.length > 0 
+        fields: section.fields && section.fields.length > 0
           ? section.fields // Use existing fields if they exist in the section
           : sectionFields   // Otherwise map from flat fields array
       }
     })
+
+    // Fallback: if no fields attached to any section, attach all fields to the first section
+    const totalAttachedFields = sections.reduce((sum: number, s: any) => sum + (s.fields?.length || 0), 0)
+    if (totalAttachedFields === 0 && flatFields.length > 0 && sections.length > 0) {
+      sections[0] = { ...sections[0], fields: flatFields }
+    }
 
     const portalConfig: any = {
       sections,
@@ -271,12 +278,13 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     console.log('🚀 Portal config being passed to DynamicApplicationForm:', {
       sectionsCount: sections.length,
       firstSectionFields: sections[0]?.fields?.length,
-      sections: sections.map((s: any) => ({ 
-        id: s.id, 
-        title: s.title, 
+      sections: sections.map((s: any) => ({
+        id: s.id,
+        title: s.title,
         fieldCount: s.fields?.length,
-        fields: s.fields?.map((f: any) => ({ id: f.id, label: f.label, type: f.type }))
+        fields: s.fields?.map((f: any) => ({ id: f.id, label: f.label, type: f.type, section_id: f.section_id || f.sectionId }))
       })),
+      totalFlatFields: flatFields.length,
       portalConfig
     })
 
