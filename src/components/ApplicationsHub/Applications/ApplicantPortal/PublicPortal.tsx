@@ -247,16 +247,18 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
 
   if (isAuthenticated) {
     // Convert Form to PortalConfig format expected by DynamicApplicationForm
-    // Map fields from the flat array to their respective sections, preserving section order
+    // Map fields from the flat array to their respective sections
     const flatFields = translatedForm?.fields || []
     const rawSections = translatedForm?.settings?.sections || []
 
-    // Build a lookup of fields by section_id/sectionId
+    // Build a lookup of fields by section_id
     const fieldsBySection: Record<string, any[]> = {}
     flatFields.forEach((field: any) => {
-      const sid = field.section_id || field.sectionId || 'default'
-      if (!fieldsBySection[sid]) fieldsBySection[sid] = []
-      fieldsBySection[sid].push(field)
+      const sid = field.section_id
+      if (sid) {
+        if (!fieldsBySection[sid]) fieldsBySection[sid] = []
+        fieldsBySection[sid].push(field)
+      }
     })
 
     // Attach fields to sections based on section id
@@ -265,18 +267,19 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       return {
         ...section,
         sectionType: section.sectionType || 'form',
-        fields: section.fields && section.fields.length > 0 ? section.fields : sectionFields
+        fields: sectionFields
       }
     })
 
-    // Handle fields whose section_id does not match any declared section
-    const attachedFieldIds = new Set(sections.flatMap((s: any) => (s.fields || []).map((f: any) => f.id)))
-    const unattachedFields = flatFields.filter((f: any) => !attachedFieldIds.has(f.id))
-    if (unattachedFields.length > 0) {
+    // Handle fields without section_id (unassigned) - put in first section
+    const assignedFieldIds = new Set(flatFields.filter((f: any) => f.section_id).map((f: any) => f.id))
+    const unassignedFields = flatFields.filter((f: any) => !f.section_id)
+    
+    if (unassignedFields.length > 0) {
       if (sections.length === 0) {
-        sections = [{ id: 'default', title: 'Form', sectionType: 'form', fields: unattachedFields }]
+        sections = [{ id: 'default', title: 'Form', sectionType: 'form', fields: unassignedFields }]
       } else {
-        sections[0] = { ...sections[0], fields: [...(sections[0].fields || []), ...unattachedFields] }
+        sections[0] = { ...sections[0], fields: [...(sections[0].fields || []), ...unassignedFields] }
       }
     }
 
@@ -298,12 +301,10 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         id: s.id,
         title: s.title,
         fieldCount: s.fields?.length,
-        fields: s.fields?.map((f: any) => ({ id: f.id, label: f.label, type: f.type, section_id: f.section_id || f.sectionId }))
+        fields: s.fields?.map((f: any) => ({ id: f.id, label: f.label, type: f.type, section_id: f.section_id }))
       })),
       totalFlatFields: flatFields.length,
-      allSectionsData: sections,
-      fieldsBySection,
-      portalConfig
+      unassignedFieldsCount: unassignedFields.length,
     })
     
     // Debug: Log field breakdown
@@ -312,7 +313,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       console.log(`  Section ${idx} (${s.id}): ${s.title} - ${s.fields?.length || 0} fields`)
       if (s.fields && s.fields.length > 0) {
         s.fields.forEach((f: any) => {
-          console.log(`    - ${f.label} (${f.id}, section_id: ${f.section_id || f.sectionId})`)
+          console.log(`    - ${f.label} (section_id: ${f.section_id || 'unassigned'})`)
         })
       }
     })

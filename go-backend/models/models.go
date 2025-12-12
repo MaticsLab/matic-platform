@@ -229,6 +229,7 @@ type Field struct {
 	IsVisible           bool           `gorm:"default:true" json:"is_visible"`                    // Show in table view
 	IsPrimary           bool           `gorm:"default:false" json:"is_primary"`                   // Primary display field
 	ParentFieldID       *uuid.UUID     `gorm:"type:uuid" json:"parent_field_id,omitempty"`        // For nested fields (group/repeater children)
+	SectionID           *uuid.UUID     `gorm:"type:uuid;index" json:"section_id,omitempty"`       // Form section this field belongs to
 	SemanticType        string         `json:"semantic_type,omitempty"`                           // name, email, phone, status, date, etc.
 	IsSearchable        bool           `gorm:"default:true" json:"is_searchable"`                 // Include in search
 	IsDisplayField      bool           `gorm:"default:false" json:"is_display_field"`             // Use as display in links
