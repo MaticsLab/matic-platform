@@ -86,6 +86,26 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = 
     }
   }
 
+  const handleSaveAndExit = async () => {
+    try {
+      setIsSaving(true)
+      // Save as a draft by submitting the current form data
+      if (onSubmit) {
+        await onSubmit(formData)
+        // onSubmit will handle showing success and redirecting
+      } else {
+        // Fallback: just redirect if no submit handler
+        window.location.href = '/'
+      }
+    } catch (error) {
+      console.error('Error saving form:', error)
+      // Even on error, allow user to exit
+      window.location.href = '/'
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const calculateProgress = () => {
     const sectionsLength = translatedConfig.sections?.length || 0
     if (sectionsLength === 0) return 0
@@ -149,8 +169,10 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = 
             <Button 
               className={cn(isExternal && "hover:opacity-90")}
               style={{ backgroundColor: config.settings.themeColor || '#000' }}
+              onClick={handleSaveAndExit}
+              disabled={isSaving}
             >
-              {ui.saveAndExit}
+              {isSaving ? 'Saving...' : ui.saveAndExit}
             </Button>
           </div>
         </div>
