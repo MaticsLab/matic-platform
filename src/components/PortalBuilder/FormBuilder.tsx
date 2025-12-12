@@ -91,8 +91,26 @@ export function FormBuilder({ section, onUpdate, selectedFieldId, onSelectField 
     onUpdate({ fields: newFields })
   }, [section.fields, onUpdate])
 
+  // Handle clicks outside the builder area to deselect fields
+  const containerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      // Only deselect if clicking outside the builder container and settings panel
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        // Check if click is on settings panel (right sidebar)
+        const settingsPanel = document.querySelector('[class*="translate-x-full"]')
+        if (!settingsPanel || !settingsPanel.contains(e.target as Node)) {
+          onSelectField(null)
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [onSelectField])
+
   return (
-    <div className="flex h-full">
+    <div className="flex h-full" ref={containerRef}>
       {/* Main Builder Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Section Header */}
@@ -672,6 +690,14 @@ function FieldEditor({
       onClick={(e) => {
         e.stopPropagation()
         onSelectField(field.id)
+      }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelectField(field.id)
+        }
       }}
     >
       <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 flex items-center gap-1 z-10">
