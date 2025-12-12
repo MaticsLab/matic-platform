@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/ui-components/card'
@@ -156,6 +156,37 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = 
         </div>
       </div>
 
+      {/* Section Tabs */}
+      {isExternal && (
+        <div className="bg-white border-b border-gray-200">
+          <div className="max-w-5xl mx-auto px-4">
+            <div className="flex gap-2 overflow-x-auto py-3">
+              {translatedConfig.sections?.map((section: Section, idx: number) => {
+                const isActive = section.id === activeSectionId
+                const isCompleted = idx < activeSectionIndex
+                return (
+                  <button
+                    key={section.id}
+                    onClick={() => setActiveSectionId(section.id)}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap",
+                      isActive 
+                        ? "bg-gray-900 text-white" 
+                        : isCompleted
+                        ? "bg-green-50 text-green-700 hover:bg-green-100"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    )}
+                  >
+                    {isCompleted && <Check className="w-4 h-4" />}
+                    <span>{section.title}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 max-w-3xl mx-auto w-full p-4 lg:p-8 pb-20">
         <AnimatePresence mode="wait">
           {activeSection && (
@@ -166,7 +197,53 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = 
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              {activeSection.sectionType === 'ending' ? (
+              {activeSection.sectionType === 'review' ? (
+                // Render review section
+                <Card className={cn(isExternal ? "border-none shadow-none" : "")}>
+                  <CardHeader className={cn(isExternal ? "px-0" : "")}>
+                    <CardTitle className="text-2xl">{activeSection.title}</CardTitle>
+                    {activeSection.description && (
+                      <CardDescription>{activeSection.description}</CardDescription>
+                    )}
+                  </CardHeader>
+                  <CardContent className={cn("space-y-6", isExternal ? "px-0" : "")}>
+                    {translatedConfig.sections?.filter((s: Section) => s.sectionType === 'form').map((section: Section, idx: number) => (
+                      <div key={section.id} className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold text-gray-900">{section.title}</h3>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setActiveSectionId(section.id)}
+                          >
+                            Edit
+                          </Button>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                          {(section.fields || []).map((field: Field) => {
+                            const value = formData[field.id]
+                            if (!value || (Array.isArray(value) && value.length === 0)) return null
+                            return (
+                              <div key={field.id} className="flex justify-between text-sm">
+                                <span className="text-gray-600">{field.label}:</span>
+                                <span className="text-gray-900 font-medium">
+                                  {Array.isArray(value) ? value.join(', ') : String(value)}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                    
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-900">
+                        By submitting this application, I certify that all information provided is accurate and complete to the best of my knowledge.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : activeSection.sectionType === 'ending' ? (
                 // Render ending page preview
                 <div className="flex items-center justify-center min-h-[600px]">
                   <Card className="max-w-2xl w-full">

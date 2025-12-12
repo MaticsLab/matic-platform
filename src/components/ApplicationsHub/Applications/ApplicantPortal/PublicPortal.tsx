@@ -261,15 +261,17 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       }
     })
 
-    // Attach fields to sections based on section id
-    let sections = rawSections.map((section: any) => {
-      const sectionFields = fieldsBySection[section.id] || []
-      return {
-        ...section,
-        sectionType: section.sectionType || 'form',
-        fields: sectionFields
-      }
-    })
+    // Attach fields to sections based on section id, excluding ending sections
+    let sections = rawSections
+      .filter((section: any) => section.sectionType !== 'ending')
+      .map((section: any) => {
+        const sectionFields = fieldsBySection[section.id] || []
+        return {
+          ...section,
+          sectionType: section.sectionType || 'form',
+          fields: sectionFields
+        }
+      })
 
     // Handle fields without section_id (unassigned) - put in first section
     const assignedFieldIds = new Set(flatFields.filter((f: any) => f.section_id).map((f: any) => f.id))
@@ -287,6 +289,15 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     if (sections.length === 0) {
       sections = [{ id: 'default', title: translatedForm?.name || 'Form', sectionType: 'form', fields: flatFields }]
     }
+
+    // Add review section at the end
+    sections.push({
+      id: 'review',
+      title: 'Review & Submit',
+      description: 'Please review your information before submitting',
+      sectionType: 'review',
+      fields: []
+    })
 
     const portalConfig: any = {
       sections,
