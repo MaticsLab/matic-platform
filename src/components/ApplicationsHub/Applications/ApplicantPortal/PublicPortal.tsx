@@ -270,9 +270,10 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     const rawSections = translatedForm?.settings?.sections || []
 
     // Build a lookup of fields by section_id
+    // section_id can be either at top level or in config
     const fieldsBySection: Record<string, any[]> = {}
     flatFields.forEach((field: any) => {
-      const sid = field.section_id
+      const sid = field.section_id || (field.config && field.config.section_id)
       if (sid) {
         if (!fieldsBySection[sid]) fieldsBySection[sid] = []
         fieldsBySection[sid].push(field)
