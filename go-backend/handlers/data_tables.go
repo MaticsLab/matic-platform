@@ -235,10 +235,8 @@ func ListTableRows(c *gin.Context) {
 	tableID := c.Param("id")
 
 	var rows []models.Row
-	// Preload relationships to avoid N+1 queries
+	// Fetch rows without invalid preloads (StageGroup relationship not defined in schema)
 	if err := database.DB.Where("table_id = ?", tableID).
-		Preload("StageGroup").       // Workflow stage if applicable
-		Preload("StageGroup.Stage"). // Stage details
 		Order("position ASC").
 		Find(&rows).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
