@@ -949,6 +949,7 @@ type SubmitFormInput struct {
 
 func SubmitForm(c *gin.Context) {
 	formID := c.Param("id")
+	fmt.Printf("📝 SubmitForm: incoming submission for form/table %s\n", formID)
 
 	// Verify form exists and is published
 	var view models.View
@@ -960,12 +961,14 @@ func SubmitForm(c *gin.Context) {
 	var config map[string]interface{}
 	json.Unmarshal(view.Config, &config)
 	if val, ok := config["is_published"].(bool); !ok || !val {
+		fmt.Printf("🛑 SubmitForm: form %s not published, rejecting submission\n", formID)
 		c.JSON(http.StatusForbidden, gin.H{"error": "Form is not published"})
 		return
 	}
 
 	var input SubmitFormInput
 	if err := c.ShouldBindJSON(&input); err != nil {
+		fmt.Printf("❌ SubmitForm: bad request payload for %s: %v\n", formID, err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -985,12 +988,14 @@ func SubmitForm(c *gin.Context) {
 		Data:    data,
 	})
 	if err != nil {
+		fmt.Printf("❌ SubmitForm: normalization failed for %s: %v\n", formID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to normalize data: " + err.Error()})
 		return
 	}
 
 	// Check for validation errors
 	if len(normalizeResult.Errors) > 0 {
+		fmt.Printf("⚠️ SubmitForm: validation errors for %s: %+v\n", formID, normalizeResult.Errors)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Validation errors",
 			"details": normalizeResult.Errors,
@@ -1052,6 +1057,7 @@ func SubmitForm(c *gin.Context) {
 		}
 
 		if found {
+			fmt.Printf("🔄 SubmitForm: existing submission found for %s (email=%s), updating row %s\n", formID, email, existingRow.ID)
 			// Update existing row with transaction - create version in same transaction
 			tx := database.DB.Begin()
 			defer func() {
@@ -1109,6 +1115,7 @@ func SubmitForm(c *gin.Context) {
 				`, existingRow.ID)
 			}()
 
+			fmt.Printf("✅ SubmitForm: updated submission row %s for form %s\n", existingRow.ID, formID)
 			c.JSON(http.StatusOK, existingRow)
 			return
 		}
@@ -1137,6 +1144,7 @@ func SubmitForm(c *gin.Context) {
 	}
 
 	if err := tx.Create(&row).Error; err != nil {
+		fmt.Printf("❌ SubmitForm: failed to create row for %s: %v\n", formID, err)
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -1184,6 +1192,7 @@ func SubmitForm(c *gin.Context) {
 		`, row.ID)
 	}()
 
+	fmt.Printf("✅ SubmitForm: created new submission row %s for form %s\n", row.ID, formID)
 	c.JSON(http.StatusCreated, row)
 }
 
