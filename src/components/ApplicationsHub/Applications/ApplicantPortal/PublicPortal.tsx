@@ -192,14 +192,14 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     }
   }
 
-  const handleFormSubmit = async (formData: Record<string, any>) => {
+  const handleFormSubmit = async (formData: Record<string, any>, options?: { saveAndExit?: boolean }) => {
     try {
       // Submit form to backend first
       if (!form?.id) {
         throw new Error('Form ID not found')
       }
       
-      console.log('📤 Submitting form data:', { formId: form.id, data: formData, email })
+      console.log('📤 Submitting form data:', { formId: form.id, data: formData, email, saveAndExit: options?.saveAndExit })
       
       // Call the backend API to save the submission
       await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${form.id}/submit`, {
@@ -212,6 +212,13 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       })
       
       setSubmissionData(formData)
+      
+      // If Save & Exit, skip ending page and go back to login
+      if (options?.saveAndExit) {
+        toast.success('Application saved successfully!')
+        setIsLogin(true)
+        return
+      }
       
       // If we have a form ID, fetch the matching ending page
       if (form?.id) {

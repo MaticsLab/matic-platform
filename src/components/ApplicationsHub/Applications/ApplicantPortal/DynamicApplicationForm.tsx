@@ -15,7 +15,7 @@ import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector
 interface DynamicApplicationFormProps {
   config: PortalConfig
   onBack?: () => void
-  onSubmit?: (formData: Record<string, any>) => Promise<void>
+  onSubmit?: (formData: Record<string, any>, options?: { saveAndExit?: boolean }) => Promise<void>
   isExternal?: boolean
   formId?: string
   initialSectionId?: string
@@ -97,9 +97,9 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = 
   const handleSaveAndExit = async () => {
     try {
       setIsSaving(true)
-      // Save as a draft by submitting the current form data
+      // Save as a draft by submitting the current form data with saveAndExit flag
       if (onSubmit) {
-        await onSubmit(formData)
+        await onSubmit(formData, { saveAndExit: true })
         // onSubmit will handle showing success and redirecting
       } else {
         // Fallback: just redirect if no submit handler
