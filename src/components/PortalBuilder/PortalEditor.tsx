@@ -26,6 +26,7 @@ import { SignUpPreview } from './SignUpPreview'
 import { ConfirmationPreview } from './ConfirmationPreview'
 import { ReviewPreview } from './ReviewPreview'
 import { EndingPagesBuilder } from '@/components/EndingPages/EndingPagesBuilder'
+import { DashboardBuilder } from '@/components/ApplicantDashboard/DashboardBuilder'
 import { EndingBlocksToolbox } from './EndingBlocksToolbox'
 import { EndingBlockEditor } from './EndingBlockEditor'
 import { DEFAULT_ENDING_TEMPLATE } from '@/lib/ending-templates'
@@ -117,7 +118,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [useBlockEditor, setUseBlockEditor] = useState(true) // Toggle for block editor vs FormBuilder
   const [useCollaborativeEditor, setUseCollaborativeEditor] = useState(false) // Toggle for Tiptap collaborative editor
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
-  const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
+  const [activeTopTab, setActiveTopTab] = useState<'edit' | 'endings' | 'dashboard' | 'integrate' | 'share'>('edit')
   const [leftSidebarTab, setLeftSidebarTab] = useState<'structure' | 'elements' | 'theme'>('structure')
   const [shareTabKey, setShareTabKey] = useState(0)
   
@@ -776,10 +777,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         {/* Top Bar - Full Width */}
         <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm z-20 shrink-0">
             <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 font-semibold text-gray-900 mr-4">
-                  <Layout className="w-5 h-5 text-blue-600" />
-                  Portal Builder
-                </div>
+               
                 <div className="h-6 w-px bg-gray-200" />
                 <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
                   <Button 
@@ -840,6 +838,24 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                  Edit
                </button>
                <button 
+                 onClick={() => setActiveTopTab('endings')}
+                 className={cn(
+                   "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
+                   activeTopTab === 'endings' ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
+                 )}
+               >
+                 Endings
+               </button>
+               <button 
+                 onClick={() => setActiveTopTab('dashboard')}
+                 className={cn(
+                   "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
+                   activeTopTab === 'dashboard' ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
+                 )}
+               >
+                 Dashboard
+               </button>
+               <button 
                  onClick={() => setActiveTopTab('integrate')}
                  className={cn(
                    "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
@@ -862,7 +878,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                </button>
             </div>
 
-            <div className="flex items-center gap-2">\n              <Button 
+            <div className="flex items-center gap-2">           <Button 
                 variant="ghost" 
                 size="sm"
                 onClick={() => setIsSettingsOpen(true)}
@@ -908,6 +924,24 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
           </div>
         )}
         
+        {activeTopTab === 'endings' && formId && (
+          <div className="flex-1 overflow-hidden">
+            <EndingPagesBuilder 
+              formId={formId}
+              onSave={async (endingPage) => {
+                // The EndingPagesBuilder handles its own saving
+                toast.success('Ending page saved')
+              }}
+            />
+          </div>
+        )}
+
+        {activeTopTab === 'dashboard' && formId && (
+          <div className="flex-1 overflow-hidden">
+            <DashboardBuilder formId={formId} />
+          </div>
+        )}
+
         {activeTopTab === 'integrate' && (
           <div className="flex-1 overflow-auto bg-gray-50 p-8">
             <div className="max-w-2xl mx-auto text-center py-16">

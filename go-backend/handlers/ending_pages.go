@@ -79,7 +79,8 @@ type EndingPageDTO struct {
 	Settings    EndingPageSettings       `json:"settings"`
 	Theme       EndingPageTheme          `json:"theme"`
 	Conditions  []map[string]interface{} `json:"conditions,omitempty"`
-	IsDefault   bool                     `json:"is_default,omitempty"`
+	IsDefault   bool                     `json:"is_default"`
+	Priority    int                      `json:"priority"`
 	Version     int                      `json:"version"`
 	Status      string                   `json:"status"` // draft or published
 	CreatedAt   time.Time                `json:"created_at"`
@@ -98,7 +99,8 @@ func ListEndingPages(c *gin.Context) {
 		query = query.Where("form_id = ?", formID)
 	}
 
-	if err := query.Order("version DESC").Find(&endingPages).Error; err != nil {
+	// Order by priority (lower = higher priority), then by created_at for tiebreaking
+	if err := query.Order("priority ASC, created_at ASC").Find(&endingPages).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch ending pages"})
 		return
 	}
@@ -249,6 +251,7 @@ func DeleteEndingPage(c *gin.Context) {
 }
 
 // FindMatchingEnding - POST /api/v1/ending-pages/match
+// Rule-based ending selection: evaluates conditions by priority, falls back to is_default
 func FindMatchingEnding(c *gin.Context) {
 	var req struct {
 		FormID         uuid.UUID              `json:"form_id"`
@@ -263,30 +266,53 @@ func FindMatchingEnding(c *gin.Context) {
 	var endingPages []models.EndingPage
 	if err := database.DB.
 		Where("form_id = ? AND status = ?", req.FormID, "published").
-		Order("created_at DESC").
+		Order("priority ASC, created_at ASC").
 		Find(&endingPages).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch ending pages"})
 		return
 	}
 
-	// Find first matching ending (based on conditions)
+	// Find first matching ending based on priority order
 	var matchingEnding *models.EndingPage
+	var defaultEnding *models.EndingPage
+	var noConditionEnding *models.EndingPage
 
-	for _, ep := range endingPages {
+	for i := range endingPages {
+		ep := &endingPages[i]
+
+		// Track the default ending
+		if ep.IsDefault {
+			defaultEnding = ep
+		}
+
 		// Parse conditions from JSON
 		var conditions []map[string]interface{}
-		if err := json.Unmarshal(ep.Conditions, &conditions); err == nil && len(conditions) > 0 {
-			// Check if all conditions match
-			if evaluateConditions(conditions, req.SubmissionData) {
-				matchingEnding = &ep
-				break
+		json.Unmarshal(ep.Conditions, &conditions)
+
+		// If no conditions, this is a catch-all (track for fallback)
+		if len(conditions) == 0 {
+			if noConditionEnding == nil {
+				noConditionEnding = ep
 			}
+			continue
+		}
+
+		// Check if all conditions match
+		if evaluateConditions(conditions, req.SubmissionData) {
+			matchingEnding = ep
+			break
 		}
 	}
 
-	// If no matching ending found, return first published ending (default)
-	if matchingEnding == nil && len(endingPages) > 0 {
-		matchingEnding = &endingPages[0]
+	// Fallback chain: matched -> default -> no-condition -> first
+	if matchingEnding == nil {
+		if defaultEnding != nil {
+			matchingEnding = defaultEnding
+		} else if noConditionEnding != nil {
+			matchingEnding = noConditionEnding
+		} else if len(endingPages) > 0 {
+			matchingEnding = &endingPages[0]
+		}
 	}
 
 	if matchingEnding == nil {
@@ -295,6 +321,78 @@ func FindMatchingEnding(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, endingPageToDTO(*matchingEnding))
+}
+
+// SetDefaultEnding - PUT /api/v1/ending-pages/:id/default
+// Sets an ending as the primary default for its form
+func SetDefaultEnding(c *gin.Context) {
+	id := c.Param("id")
+
+	var endingPage models.EndingPage
+	if err := database.DB.First(&endingPage, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Ending page not found"})
+		return
+	}
+
+	// Unset all other defaults for this form
+	database.DB.Model(&models.EndingPage{}).
+		Where("form_id = ? AND id != ?", endingPage.FormID, id).
+		Update("is_default", false)
+
+	// Set this one as default
+	endingPage.IsDefault = true
+	endingPage.UpdatedAt = time.Now()
+
+	if err := database.DB.Save(&endingPage).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set default ending"})
+		return
+	}
+
+	c.JSON(http.StatusOK, endingPageToDTO(endingPage))
+}
+
+// ReorderEndings - PUT /api/v1/ending-pages/reorder
+// Updates the priority order of endings for a form
+func ReorderEndings(c *gin.Context) {
+	var req struct {
+		FormID uuid.UUID `json:"form_id"`
+		Order  []struct {
+			EndingID string `json:"ending_id"`
+			Priority int    `json:"priority"`
+		} `json:"order"`
+	}
+
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Update priorities in a transaction
+	tx := database.DB.Begin()
+	for _, item := range req.Order {
+		if err := tx.Model(&models.EndingPage{}).
+			Where("id = ? AND form_id = ?", item.EndingID, req.FormID).
+			Updates(map[string]interface{}{
+				"priority":   item.Priority,
+				"updated_at": time.Now(),
+			}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update priorities"})
+			return
+		}
+	}
+	tx.Commit()
+
+	// Return updated list
+	var endingPages []models.EndingPage
+	database.DB.Where("form_id = ?", req.FormID).Order("priority ASC").Find(&endingPages)
+
+	result := make([]EndingPageDTO, len(endingPages))
+	for i, ep := range endingPages {
+		result[i] = endingPageToDTO(ep)
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // Helper functions
@@ -322,6 +420,7 @@ func endingPageToDTO(ep models.EndingPage) EndingPageDTO {
 		Theme:       theme,
 		Conditions:  conditions,
 		IsDefault:   ep.IsDefault,
+		Priority:    ep.Priority,
 		Version:     ep.Version,
 		Status:      ep.Status,
 		CreatedAt:   ep.CreatedAt,

@@ -196,6 +196,9 @@ type Table struct {
 	PreviewDescription *string `json:"preview_description,omitempty"`
 	PreviewImageURL    *string `json:"preview_image_url,omitempty"`
 
+	// Applicant dashboard configuration (builder-defined layout for portal users)
+	DashboardLayout datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"dashboard_layout,omitempty"`
+
 	// Relationships
 	Fields []Field `gorm:"foreignKey:TableID;constraint:OnDelete:CASCADE" json:"columns"`
 	Rows   []Row   `gorm:"foreignKey:TableID;constraint:OnDelete:CASCADE" json:"rows"`
@@ -470,6 +473,7 @@ type EndingPage struct {
 	Theme       datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"theme"`
 	Conditions  datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"conditions"`
 	IsDefault   bool           `gorm:"default:false" json:"is_default"`
+	Priority    int            `gorm:"default:0" json:"priority"` // Lower = higher priority for rule matching
 	Version     int            `gorm:"default:1" json:"version"`
 	Status      string         `gorm:"type:varchar(20);default:'draft'" json:"status"` // draft, published
 	PublishedAt *time.Time     `json:"published_at,omitempty"`
@@ -477,4 +481,23 @@ type EndingPage struct {
 
 func (EndingPage) TableName() string {
 	return "ending_pages"
+}
+
+// PortalActivity - Chat messages and activity between applicants and staff
+type PortalActivity struct {
+	BaseModel
+	FormID          uuid.UUID      `gorm:"type:uuid;not null;index" json:"form_id"`
+	RowID           uuid.UUID      `gorm:"type:uuid;not null;index" json:"row_id"`
+	ApplicantID     *uuid.UUID     `gorm:"type:uuid;index" json:"applicant_id,omitempty"`
+	UserID          *uuid.UUID     `gorm:"type:uuid;index" json:"user_id,omitempty"`
+	ActivityType    string         `gorm:"type:varchar(50);default:'message'" json:"activity_type"` // message, status_update, file_request, note
+	Content         string         `gorm:"type:text" json:"content"`
+	Metadata        datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"metadata"`
+	Visibility      string         `gorm:"type:varchar(20);default:'both'" json:"visibility"` // applicant, internal, both
+	ReadByApplicant bool           `gorm:"default:false" json:"read_by_applicant"`
+	ReadByStaff     bool           `gorm:"default:false" json:"read_by_staff"`
+}
+
+func (PortalActivity) TableName() string {
+	return "portal_activities"
 }

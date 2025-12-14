@@ -108,6 +108,7 @@ export interface EndingPageConfig {
   
   // Metadata
   isDefault?: boolean
+  priority?: number // Lower = higher priority for rule matching
   version: number
   status: 'draft' | 'published'
   createdAt: string

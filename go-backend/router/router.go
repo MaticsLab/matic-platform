@@ -215,6 +215,17 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.POST("/portal/request-reset", handlers.PortalRequestReset)
 		api.POST("/portal/reset-password", handlers.PortalResetPassword)
 
+		// Portal Dashboard Routes (Public with Portal Token)
+		// Note: These routes use portal auth (applicant token) not main auth
+		portalDashboard := api.Group("/portal")
+		// TODO: Add portal auth middleware for proper security
+		{
+			portalDashboard.GET("/applications/:id", handlers.GetApplicantDashboard)
+			portalDashboard.GET("/applications/:id/activities", handlers.ListPortalActivities)
+			portalDashboard.POST("/applications/:id/activities", handlers.CreatePortalActivity)
+			portalDashboard.POST("/applications/:id/activities/read", handlers.MarkActivitiesRead)
+		}
+
 		// Public Email Tracking (must be public for tracking pixel to work)
 		api.GET("/email/track/:tracking_id", handlers.TrackEmailOpen)
 		api.GET("/email/oauth/callback", handlers.HandleGmailCallback)
@@ -428,6 +439,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				forms.PATCH("/:id", handlers.UpdateForm)
 				forms.PUT("/:id/structure", handlers.UpdateFormStructure)    // Add this line
 				forms.PUT("/:id/custom-slug", handlers.UpdateFormCustomSlug) // Update custom URL slug
+				forms.GET("/:id/dashboard", handlers.GetDashboardLayout)     // Get applicant dashboard config
+				forms.PUT("/:id/dashboard", handlers.UpdateDashboardLayout)  // Update applicant dashboard config
 				forms.DELETE("/:id", handlers.DeleteForm)
 
 				// Form submissions
@@ -456,7 +469,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				endingPages.GET("/:id", handlers.GetEndingPage)
 				endingPages.PUT("/:id", handlers.UpdateEndingPage)
 				endingPages.DELETE("/:id", handlers.DeleteEndingPage)
-				endingPages.POST("/match", handlers.FindMatchingEnding) // POST to avoid ID collision
+				endingPages.POST("/match", handlers.FindMatchingEnding)    // POST to avoid ID collision
+				endingPages.PUT("/:id/default", handlers.SetDefaultEnding) // Set as primary ending
+				endingPages.PUT("/reorder", handlers.ReorderEndings)       // Reorder priorities
 			}
 
 			// Search

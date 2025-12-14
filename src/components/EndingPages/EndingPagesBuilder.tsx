@@ -11,10 +11,11 @@ import { BlockEditor } from './BlockEditor'
 import { BlockRenderer, EndingPageRenderer } from './BlockRenderer'
 import { endingPagesClient } from '@/lib/api/ending-pages-client'
 import { Button } from '@/ui-components/button'
-import { Plus, Save, X } from 'lucide-react'
+import { Plus, Save, Star, GripVertical, ChevronUp, ChevronDown } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui-components/tabs'
 import { v4 as uuid } from 'uuid'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 
 interface EndingPagesBuilderProps {
   formId: string
@@ -142,6 +143,46 @@ export function EndingPagesBuilder({
     }
   }
 
+  const handleSetDefault = async (endingId: string) => {
+    try {
+      const updated = await endingPagesClient.setDefault(endingId)
+      // Update local state
+      setEndings(prev => prev.map(e => ({
+        ...e,
+        isDefault: e.id === endingId
+      })))
+      if (ending.id === endingId) {
+        setEnding({ ...ending, isDefault: true })
+      }
+      toast.success('Default ending updated')
+    } catch (error) {
+      toast.error('Failed to set default ending')
+      console.error(error)
+    }
+  }
+
+  const handleMoveEnding = async (index: number, direction: 'up' | 'down') => {
+    const newEndings = [...endings]
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    
+    if (targetIndex < 0 || targetIndex >= newEndings.length) return
+    
+    // Swap
+    [newEndings[index], newEndings[targetIndex]] = [newEndings[targetIndex], newEndings[index]]
+    
+    // Update priorities based on new order
+    const order = newEndings.map((e, i) => ({ endingId: e.id, priority: i }))
+    
+    try {
+      const reordered = await endingPagesClient.reorder(formId, order)
+      setEndings(reordered)
+      toast.success('Order updated')
+    } catch (error) {
+      toast.error('Failed to reorder endings')
+      console.error(error)
+    }
+  }
+
   const createNewEnding = () => {
     const newEnding: EndingPageConfig = {
       id: uuid(),
@@ -209,27 +250,83 @@ export function EndingPagesBuilder({
                 <p className="text-xs mt-2">Click "New Ending" to create one</p>
               </div>
             ) : (
-              <div className="space-y-2 p-2">
-                {endings.map((e) => (
-                  <button
+              <div className="space-y-1 p-2">
+                {endings.map((e, index) => (
+                  <div
                     key={e.id}
-                    onClick={() => {
-                      setEnding(e)
-                      setSelectedBlockIndex(null)
-                      setEditorTab('blocks')
-                    }}
-                    className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                    className={cn(
+                      "group relative flex items-center gap-2 px-2 py-2 rounded text-sm transition-colors",
                       ending.id === e.id
                         ? 'bg-blue-100 text-blue-900'
                         : 'hover:bg-gray-100'
-                    }`}
+                    )}
                   >
-                    <div className="font-medium truncate">{e.name}</div>
-                    <div className="text-xs text-gray-500 truncate">{e.blocks.length} blocks</div>
-                  </button>
+                    {/* Reorder controls */}
+                    <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(ev) => { ev.stopPropagation(); handleMoveEnding(index, 'up') }}
+                        disabled={index === 0}
+                        className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
+                        title="Move up"
+                      >
+                        <ChevronUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(ev) => { ev.stopPropagation(); handleMoveEnding(index, 'down') }}
+                        disabled={index === endings.length - 1}
+                        className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
+                        title="Move down"
+                      >
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+                    </div>
+                    
+                    {/* Main content */}
+                    <button
+                      onClick={() => {
+                        setEnding(e)
+                        setSelectedBlockIndex(null)
+                        setEditorTab('blocks')
+                      }}
+                      className="flex-1 text-left min-w-0"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium truncate">{e.name}</span>
+                        {e.isDefault && (
+                          <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <span>{e.blocks.length} blocks</span>
+                        <span>•</span>
+                        <span className={e.status === 'published' ? 'text-green-600' : 'text-gray-400'}>
+                          {e.status}
+                        </span>
+                      </div>
+                    </button>
+                    
+                    {/* Set as default button */}
+                    {!e.isDefault && e.status === 'published' && (
+                      <button
+                        onClick={(ev) => { ev.stopPropagation(); handleSetDefault(e.id) }}
+                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 rounded transition-opacity"
+                        title="Set as primary ending"
+                      >
+                        <Star className="w-3.5 h-3.5 text-gray-400" />
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
+          </div>
+          
+          {/* Priority info */}
+          <div className="p-3 border-t border-gray-200 bg-gray-50">
+            <p className="text-xs text-gray-500">
+              <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 inline mr-1" />
+              Primary ending shows when no rules match
+            </p>
           </div>
         </div>
 
