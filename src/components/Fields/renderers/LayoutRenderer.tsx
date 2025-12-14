@@ -42,7 +42,11 @@ const CALLOUT_ICONS: Record<string, React.ComponentType<{ className?: string }>>
 };
 
 function DividerRenderer({ className }: { className?: string }) {
-  return <Separator className={cn('my-4', className)} />;
+  return (
+    <div className={cn('w-full py-4', className)}>
+      <hr className="border-t border-gray-200" />
+    </div>
+  );
 }
 
 function HeadingRenderer({ 
