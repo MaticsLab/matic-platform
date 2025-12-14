@@ -6,7 +6,7 @@ import { HTML5Backend } from 'react-dnd-html5-backend'
 import { 
   Layout, Settings, FileText, Plus, Save, Eye, 
   ChevronLeft, Monitor, Smartphone, Palette, Lock, Loader2, X, CheckCircle2,
-  BookOpen, CheckCircle, Eye as EyeIcon, ScrollText
+  BookOpen, CheckCircle, Eye as EyeIcon, ScrollText, LayoutDashboard
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -99,7 +99,7 @@ const INITIAL_CONFIG: PortalConfig = {
 export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: string, initialFormId?: string | null }) {
   const [config, setConfig] = useState<PortalConfig>(INITIAL_CONFIG)
   const [activeSectionId, setActiveSectionId] = useState<string>(INITIAL_CONFIG.sections[0].id)
-  const [activeSpecialPage, setActiveSpecialPage] = useState<'signup' | 'review' | null>(null)
+  const [activeSpecialPage, setActiveSpecialPage] = useState<'signup' | 'review' | 'dashboard' | null>(null)
   const [selectedEndingId, setSelectedEndingId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop')
   const [isPreview, setIsPreview] = useState(false)
@@ -118,7 +118,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [useBlockEditor, setUseBlockEditor] = useState(true) // Toggle for block editor vs FormBuilder
   const [useCollaborativeEditor, setUseCollaborativeEditor] = useState(false) // Toggle for Tiptap collaborative editor
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
-  const [activeTopTab, setActiveTopTab] = useState<'edit' | 'endings' | 'dashboard' | 'integrate' | 'share'>('edit')
+  const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
   const [leftSidebarTab, setLeftSidebarTab] = useState<'structure' | 'elements' | 'theme'>('structure')
   const [shareTabKey, setShareTabKey] = useState(0)
   
@@ -838,24 +838,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                  Edit
                </button>
                <button 
-                 onClick={() => setActiveTopTab('endings')}
-                 className={cn(
-                   "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
-                   activeTopTab === 'endings' ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
-                 )}
-               >
-                 Endings
-               </button>
-               <button 
-                 onClick={() => setActiveTopTab('dashboard')}
-                 className={cn(
-                   "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
-                   activeTopTab === 'dashboard' ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
-                 )}
-               >
-                 Dashboard
-               </button>
-               <button 
                  onClick={() => setActiveTopTab('integrate')}
                  className={cn(
                    "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
@@ -924,24 +906,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
           </div>
         )}
         
-        {activeTopTab === 'endings' && formId && (
-          <div className="flex-1 overflow-hidden">
-            <EndingPagesBuilder 
-              formId={formId}
-              onSave={async (endingPage) => {
-                // The EndingPagesBuilder handles its own saving
-                toast.success('Ending page saved')
-              }}
-            />
-          </div>
-        )}
-
-        {activeTopTab === 'dashboard' && formId && (
-          <div className="flex-1 overflow-hidden">
-            <DashboardBuilder formId={formId} />
-          </div>
-        )}
-
         {activeTopTab === 'integrate' && (
           <div className="flex-1 overflow-auto bg-gray-50 p-8">
             <div className="max-w-2xl mx-auto text-center py-16">
@@ -1060,6 +1024,25 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   <EyeIcon className="w-4 h-4 flex-shrink-0 text-purple-600" />
                   <span className="flex-1 truncate font-medium">Review & Submit</span>
                 </button>
+
+                {/* Dashboard Page */}
+                <button
+                  onClick={() => {
+                    setActiveSpecialPage('dashboard')
+                    setActiveSectionId('')
+                    setSelectedFieldId(null)
+                  }}
+                  title="Applicant Dashboard"
+                  className={cn(
+                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left",
+                    activeSpecialPage === 'dashboard'
+                      ? "bg-blue-50 text-blue-900" 
+                      : "text-gray-700 hover:bg-gray-50"
+                  )}
+                >
+                  <LayoutDashboard className="w-4 h-4 flex-shrink-0 text-orange-600" />
+                  <span className="flex-1 truncate font-medium">Dashboard</span>
+                </button>
               </div>
 
               {/* Divider */}
@@ -1169,6 +1152,10 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         setIsPublished(false)
                       }}
                     />
+                  ) : activeSpecialPage === 'dashboard' && formId ? (
+                    <div className="h-full overflow-hidden rounded-2xl">
+                      <DashboardBuilder formId={formId} />
+                    </div>
                   ) : displaySection?.sectionType === 'ending' ? (
                     <ConfirmationPreview 
                       config={displayConfig}
