@@ -142,7 +142,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       if (isLogin) {
         // Login with existing account
         const applicant = await portalAuthClient.login({
-          form_id: form.view_id || form.id,
+          form_id: form.id,
           email,
           password
         })
@@ -168,13 +168,9 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         setIsAuthenticated(true)
         toast.success('Logged in successfully')
       } else {
-        // Sign up new account
-        console.log('Form object:', { id: form.id, view_id: form.view_id })
-        const formIdToUse = form.view_id || form.id
-        console.log('Using form_id:', formIdToUse)
-        
+        // Sign up new account - always use form.id (table ID), not view_id
         const applicant = await portalAuthClient.signup({
-          form_id: formIdToUse,
+          form_id: form.id,
           email,
           password,
           full_name: signupData.name || '',

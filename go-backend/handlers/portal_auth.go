@@ -98,9 +98,21 @@ func PortalLogin(c *gin.Context) {
 		return
 	}
 
-	// Find applicant
+	// Find applicant - first try by direct form_id match
 	var applicant models.PortalApplicant
-	if err := database.DB.Where("form_id = ? AND email = ?", req.FormID, req.Email).First(&applicant).Error; err != nil {
+	err := database.DB.Where("form_id = ? AND email = ?", req.FormID, req.Email).First(&applicant).Error
+	
+	// If not found, check if form_id is actually a table_id and look for applicants 
+	// registered with the corresponding view_id (backwards compatibility)
+	if err != nil {
+		var view models.View
+		if viewErr := database.DB.Where("table_id = ? AND type = ?", req.FormID, "form").First(&view).Error; viewErr == nil {
+			// Try to find applicant registered with view_id
+			err = database.DB.Where("form_id = ? AND email = ?", view.ID, req.Email).First(&applicant).Error
+		}
+	}
+	
+	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
