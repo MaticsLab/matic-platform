@@ -173,7 +173,10 @@ export function PortalFieldAdapter({
   };
 
   // Handle group fields - render children in a grid layout
-  if (field.type === 'group' && field.children && field.children.length > 0) {
+  // Check both field.children and field.config.children for compatibility
+  const groupChildren: PortalField[] = field.children || (field.config?.children as PortalField[] | undefined) || [];
+  
+  if (field.type === 'group' && groupChildren.length > 0) {
     const columns = field.config?.columns || 2;
     const groupValue = (value as Record<string, unknown>) || {};
     
@@ -186,7 +189,7 @@ export function PortalFieldAdapter({
           <p className="text-sm text-gray-500 mb-4">{field.description}</p>
         )}
         <div className={`grid gap-4 grid-cols-${columns}`} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
-          {field.children.map((child) => (
+          {groupChildren.map((child) => (
             <PortalFieldAdapter
               key={child.id}
               field={child}
@@ -208,7 +211,10 @@ export function PortalFieldAdapter({
   }
 
   // Handle repeater fields - render an array of child field sets
-  if (field.type === 'repeater' && field.children && field.children.length > 0) {
+  // Check both field.children and field.config.children for compatibility
+  const repeaterChildren: PortalField[] = field.children || (field.config?.children as PortalField[] | undefined) || [];
+  
+  if (field.type === 'repeater' && repeaterChildren.length > 0) {
     const items = Array.isArray(value) ? value : [];
     const minItems = field.config?.minItems ?? 0;
     const maxItems = field.config?.maxItems ?? 10;
@@ -217,7 +223,7 @@ export function PortalFieldAdapter({
     const handleAddItem = () => {
       if (items.length >= maxItems) return;
       const newItem: Record<string, unknown> = { _id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` };
-      field.children?.forEach((child) => {
+      repeaterChildren.forEach((child) => {
         newItem[child.id] = undefined;
       });
       onChange([...items, newItem]);
@@ -262,7 +268,7 @@ export function PortalFieldAdapter({
               )}
             </div>
             <div className="space-y-4">
-              {field.children?.map((child) => (
+              {repeaterChildren.map((child) => (
                 <PortalFieldAdapter
                   key={child.id}
                   field={child}
@@ -294,6 +300,11 @@ export function PortalFieldAdapter({
     );
   }
 
+  // Convert children for repeater/group fields when falling through to FieldRenderer
+  // Check both field.children and field.config.children for compatibility
+  const allChildren: PortalField[] = field.children || (field.config?.children as PortalField[] | undefined) || [];
+  const childFieldDefinitions = allChildren.map(portalFieldToDefinition);
+
   return (
     <FieldRenderer
       field={fieldDefinition}
@@ -304,6 +315,7 @@ export function PortalFieldAdapter({
       context="portal"
       disabled={disabled}
       required={field.required}
+      childFields={childFieldDefinitions}
     />
   );
 }
