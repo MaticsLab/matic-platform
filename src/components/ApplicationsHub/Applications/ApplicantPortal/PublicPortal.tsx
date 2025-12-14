@@ -212,6 +212,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       // If Save & Exit, skip ending page and go back to login
       if (options?.saveAndExit) {
         toast.success('Application saved successfully!')
+        setIsAuthenticated(false)  // Reset authentication to show login page
         setIsLogin(true)
         return
       }
