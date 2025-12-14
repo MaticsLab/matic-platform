@@ -33,7 +33,9 @@ import {
   useSensors,
   DragEndEvent,
   DragStartEvent,
+  DragOverEvent,
   DragOverlay,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -632,7 +634,7 @@ interface BlockProps {
   onUpdate: (updates: Partial<Field>) => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
-  onOpenSlashMenu: (position: { top: number; left: number }) => void;
+  onOpenSlashMenu: (position: { top: number; left: number }, containerId?: string) => void;
   themeColor?: string;
   allFields: Field[];
   isFirst: boolean;
@@ -641,6 +643,10 @@ interface BlockProps {
   dragListeners?: Record<string, unknown>;
   /** Whether this block is being dragged */
   isDragging?: boolean;
+  /** Callback to add a field to this container (for groups/repeaters) */
+  onAddToContainer?: (field: Field) => void;
+  /** Whether a drag is currently over this container */
+  isDropTarget?: boolean;
 }
 
 function Block({
@@ -658,6 +664,8 @@ function Block({
   isLast,
   dragListeners,
   isDragging,
+  onAddToContainer,
+  isDropTarget,
 }: BlockProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -666,6 +674,13 @@ function Block({
 
   const isLayoutField = ['heading', 'paragraph', 'divider', 'callout'].includes(field.type);
   const isContainerField = ['group', 'repeater'].includes(field.type);
+  
+  // Make groups/repeaters droppable
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+    id: `container-${field.id}`,
+    disabled: !isContainerField,
+    data: { type: 'container', fieldId: field.id }
+  });
 
   // Focus input when editing starts
   useEffect(() => {
@@ -825,13 +840,19 @@ function Block({
     
     return (
       <motion.div
-        ref={blockRef}
+        ref={(node) => {
+          // Combine refs for both block and droppable
+          (blockRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+          setDroppableRef(node);
+        }}
         layout
         className={cn(
           "relative group rounded-xl border-2 border-dashed transition-all duration-200",
           isSelected 
             ? "border-blue-400 bg-blue-50/50 shadow-sm shadow-blue-100" 
             : "border-gray-200 hover:border-gray-300 hover:bg-gray-50/50",
+          // Highlight when a field is being dragged over this container
+          (isOver || isDropTarget) && "border-green-400 bg-green-50/50 ring-2 ring-green-200",
         )}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -887,7 +908,7 @@ function Block({
               onClick={(e) => {
                 e.stopPropagation();
                 const rect = (e.target as HTMLElement).getBoundingClientRect();
-                onOpenSlashMenu({ top: rect.bottom + 8, left: rect.left });
+                onOpenSlashMenu({ top: rect.bottom + 8, left: rect.left }, field.id);
               }}
               className="w-full py-10 text-sm text-gray-400 hover:text-gray-600 border-2 border-dashed border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all group/add"
             >
@@ -933,7 +954,7 @@ function Block({
               onClick={(e) => {
                 e.stopPropagation();
                 const rect = (e.target as HTMLElement).getBoundingClientRect();
-                onOpenSlashMenu({ top: rect.bottom + 8, left: rect.left });
+                onOpenSlashMenu({ top: rect.bottom + 8, left: rect.left }, field.id);
               }}
               className="mt-3 w-full py-2 text-xs text-gray-400 hover:text-gray-600 border border-dashed border-gray-200 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-all flex items-center justify-center gap-1"
             >
@@ -1060,7 +1081,7 @@ export function BlockEditor({
   onSelectBlock,
   themeColor = '#3B82F6',
 }: BlockEditorProps) {
-  const [slashMenu, setSlashMenu] = useState<{ position: { top: number; left: number }; insertIndex: number } | null>(null);
+  const [slashMenu, setSlashMenu] = useState<{ position: { top: number; left: number }; insertIndex: number; containerId?: string } | null>(null);
   const [slashQuery, setSlashQuery] = useState('');
   const [isTypingSlash, setIsTypingSlash] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1079,12 +1100,62 @@ export function BlockEditor({
     })
   );
 
-  // Handle drag end - reorder blocks
+  // Track which container is being dragged over
+  const [overContainerId, setOverContainerId] = useState<string | null>(null);
+
+  // Handle drag over - track when hovering over containers
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    const { over } = event;
+    if (over?.data?.current?.type === 'container') {
+      setOverContainerId(over.data.current.fieldId);
+    } else {
+      setOverContainerId(null);
+    }
+  }, []);
+
+  // Handle drag end - reorder blocks or move into containers
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
+    setOverContainerId(null);
 
-    if (over && active.id !== over.id) {
+    if (!over) return;
+
+    // Check if dropping into a container (group/repeater)
+    if (over.data?.current?.type === 'container') {
+      const containerId = over.data.current.fieldId;
+      const draggedFieldIndex = section.fields.findIndex((f) => f.id === active.id);
+      
+      if (draggedFieldIndex !== -1) {
+        const draggedField = section.fields[draggedFieldIndex];
+        
+        // Don't allow dropping a container into itself
+        if (draggedField.id === containerId) return;
+        
+        // Don't allow dropping groups/repeaters into other containers
+        if (['group', 'repeater'].includes(draggedField.type)) return;
+        
+        // Remove from top level
+        const newFields = section.fields.filter((f) => f.id !== active.id);
+        
+        // Add to container's children
+        const updatedFields = newFields.map((f) => {
+          if (f.id === containerId) {
+            return {
+              ...f,
+              children: [...(f.children || []), draggedField]
+            };
+          }
+          return f;
+        });
+        
+        onUpdate({ fields: updatedFields });
+        return;
+      }
+    }
+
+    // Normal reorder within the same level
+    if (active.id !== over.id) {
       const oldIndex = section.fields.findIndex((f) => f.id === active.id);
       const newIndex = section.fields.findIndex((f) => f.id === over.id);
 
@@ -1101,7 +1172,7 @@ export function BlockEditor({
   }, []);
 
   // Add new block
-  const handleAddBlock = useCallback((command: BlockCommand, insertIndex: number) => {
+  const handleAddBlock = useCallback((command: BlockCommand, insertIndex: number, containerId?: string) => {
     const newField: Field = {
       id: `field-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type: command.fieldType,
@@ -1112,9 +1183,29 @@ export function BlockEditor({
       config: command.defaultConfig,
     };
 
-    const newFields = [...section.fields];
-    newFields.splice(insertIndex, 0, newField);
-    onUpdate({ fields: newFields });
+    // If adding to a container (group/repeater), add to its children
+    if (containerId) {
+      const newFields = section.fields.map(f => {
+        if (f.id === containerId) {
+          const currentChildren = f.config?.children || [];
+          return {
+            ...f,
+            config: {
+              ...f.config,
+              children: [...currentChildren, newField],
+            },
+          };
+        }
+        return f;
+      });
+      onUpdate({ fields: newFields });
+    } else {
+      // Add to top level
+      const newFields = [...section.fields];
+      newFields.splice(insertIndex, 0, newField);
+      onUpdate({ fields: newFields });
+    }
+    
     onSelectBlock(newField.id);
     setSlashMenu(null);
     setSlashQuery('');
@@ -1163,8 +1254,8 @@ export function BlockEditor({
   }, []);
 
   // Open slash menu
-  const openSlashMenu = useCallback((position: { top: number; left: number }, insertIndex: number) => {
-    setSlashMenu({ position, insertIndex });
+  const openSlashMenu = useCallback((position: { top: number; left: number }, insertIndex: number, containerId?: string) => {
+    setSlashMenu({ position, insertIndex, containerId });
     setSlashQuery('');
   }, []);
 
@@ -1237,6 +1328,7 @@ export function BlockEditor({
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
+                onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext 
@@ -1247,13 +1339,14 @@ export function BlockEditor({
                     <SortableBlock key={field.id} id={field.id}>
                       <Block
                         field={field}
+                        isDropTarget={overContainerId === field.id}
                         isSelected={selectedBlockId === field.id}
                         onSelect={() => onSelectBlock(field.id)}
                         onDelete={() => handleDeleteBlock(field.id)}
                         onUpdate={(updates) => handleUpdateBlock(field.id, updates)}
                         onMoveUp={() => handleMoveBlock(field.id, 'up')}
                         onMoveDown={() => handleMoveBlock(field.id, 'down')}
-                        onOpenSlashMenu={(pos) => openSlashMenu(pos, index + 1)}
+                        onOpenSlashMenu={(pos, containerId) => openSlashMenu(pos, index + 1, containerId)}
                         themeColor={themeColor}
                         allFields={section.fields}
                         isFirst={index === 0}
@@ -1284,7 +1377,7 @@ export function BlockEditor({
           <SlashMenu
             query={slashQuery}
             position={slashMenu.position}
-            onSelect={(cmd) => handleAddBlock(cmd, slashMenu.insertIndex)}
+            onSelect={(cmd) => handleAddBlock(cmd, slashMenu.insertIndex, slashMenu.containerId)}
             onClose={() => {
               setSlashMenu(null);
               setSlashQuery('');
