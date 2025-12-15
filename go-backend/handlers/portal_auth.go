@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -101,8 +102,8 @@ func PortalLogin(c *gin.Context) {
 	// Find applicant - first try by direct form_id match
 	var applicant models.PortalApplicant
 	err := database.DB.Where("form_id = ? AND email = ?", req.FormID, req.Email).First(&applicant).Error
-	
-	// If not found, check if form_id is actually a table_id and look for applicants 
+
+	// If not found, check if form_id is actually a table_id and look for applicants
 	// registered with the corresponding view_id (backwards compatibility)
 	if err != nil {
 		var view models.View
@@ -111,7 +112,7 @@ func PortalLogin(c *gin.Context) {
 			err = database.DB.Where("form_id = ? AND email = ?", view.ID, req.Email).First(&applicant).Error
 		}
 	}
-	
+
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
@@ -128,12 +129,44 @@ func PortalLogin(c *gin.Context) {
 	applicant.LastLoginAt = &now
 	database.DB.Save(&applicant)
 
+	// Find the corresponding row to get row_id and status
+	var rowID *string
+	var status string = "pending"
+
+	// Try to find the submission row by email
+	var row models.Row
+	queries := []string{
+		"table_id = ? AND data->>'_applicant_email' = ?",
+		"table_id = ? AND data->'personal'->>'personalEmail' = ?",
+		"table_id = ? AND data->>'email' = ?",
+	}
+
+	for _, query := range queries {
+		if err := database.DB.Where(query, applicant.FormID, applicant.Email).First(&row).Error; err == nil {
+			rowIDStr := row.ID.String()
+			rowID = &rowIDStr
+
+			// Get status from metadata
+			if row.Metadata != nil {
+				var metadata map[string]interface{}
+				if err := json.Unmarshal(row.Metadata, &metadata); err == nil {
+					if s, ok := metadata["status"].(string); ok {
+						status = s
+					}
+				}
+			}
+			break
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"id":              applicant.ID,
 		"email":           applicant.Email,
 		"name":            applicant.FullName,
 		"submission_data": applicant.SubmissionData,
 		"last_login_at":   applicant.LastLoginAt,
+		"row_id":          rowID,
+		"status":          status,
 	})
 }
 

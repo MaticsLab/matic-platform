@@ -25,6 +25,8 @@ export interface PortalApplicant {
   name: string
   submission_data?: Record<string, any>
   last_login_at?: string
+  row_id?: string
+  status?: string
 }
 
 export const portalAuthClient = {

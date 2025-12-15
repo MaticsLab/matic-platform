@@ -122,9 +122,10 @@ export function ApplicantDashboard({
   }
   
   // Determine which sections to show based on dashboard layout settings
-  const showStatusCard = dashboardLayout?.settings?.show_status_badge !== false
-  const showTimeline = dashboardLayout?.settings?.show_timeline !== false  
-  const showMessages = dashboardLayout?.settings?.allow_messages !== false
+  // Check both snake_case (from backend) and camelCase (from types)
+  const showStatusCard = dashboardLayout?.settings?.show_status !== false && dashboardLayout?.settings?.showStatus !== false
+  const showTimeline = dashboardLayout?.settings?.show_timeline !== false && dashboardLayout?.settings?.showTimeline !== false
+  const showMessages = dashboardLayout?.settings?.show_chat !== false && dashboardLayout?.settings?.showChat !== false
 
   // Scroll to bottom of messages when new ones arrive
   useEffect(() => {

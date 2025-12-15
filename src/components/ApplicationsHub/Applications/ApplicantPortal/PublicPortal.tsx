@@ -168,6 +168,14 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
           password
         })
 
+        // Use row_id and status from login response
+        if (applicant.row_id) {
+          setApplicationRowId(applicant.row_id)
+        }
+        if (applicant.status) {
+          setApplicationStatus(applicant.status)
+        }
+
         // Fetch existing submission if available
         let existingData: any = null
         if (applicant.submission_data && Object.keys(applicant.submission_data).length > 0) {
@@ -180,12 +188,12 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
               const rowData = await res.json()
               console.log('📥 Loaded submission data:', rowData)
               existingData = rowData.data || rowData
-              // Store the row ID for activity feed
-              if (rowData.id) {
+              // Fallback: store the row ID for activity feed if not from login
+              if (rowData.id && !applicant.row_id) {
                 setApplicationRowId(rowData.id)
               }
-              // Extract status from metadata if available
-              if (rowData.metadata?.status) {
+              // Fallback: extract status from metadata if not from login
+              if (rowData.metadata?.status && !applicant.status) {
                 setApplicationStatus(rowData.metadata.status)
               }
             }

@@ -2598,8 +2598,18 @@ func UpdateSubmissionMetadata(c *gin.Context) {
 		return
 	}
 
-	// Update metadata - merge with existing
-	row.Metadata = mapToJSON(input.Metadata)
+	// Merge with existing metadata
+	existingMetadata := make(map[string]interface{})
+	if row.Metadata != nil {
+		json.Unmarshal(row.Metadata, &existingMetadata)
+	}
+
+	// Merge input metadata into existing
+	for k, v := range input.Metadata {
+		existingMetadata[k] = v
+	}
+
+	row.Metadata = mapToJSON(existingMetadata)
 
 	if err := database.DB.Save(&row).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
