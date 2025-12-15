@@ -220,7 +220,7 @@ export function PipelineActivityPanel({
                 <span className="text-gray-600 text-sm w-16">From</span>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button className="flex-1 flex items-center gap-2 hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors">
+                    <button className="flex-1 flex items-center gap-2 hover:bg-gray-100 rounded px-2 py-1 transition-colors">
                       <span className="text-gray-900 text-sm">
                         {selectedFromEmail || gmailConnection?.email || 'Select email...'}
                       </span>
@@ -275,6 +275,14 @@ export function PipelineActivityPanel({
                     </div>
                   </PopoverContent>
                 </Popover>
+                {/* Settings button - always visible */}
+                <button
+                  onClick={() => setShowEmailSettings(true)}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                  title="Email Settings"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
               </div>
               
               {/* To field with recipient suggestion */}
