@@ -79,7 +79,10 @@ export async function generateMetadata(
   }
 }
 
-// Redirect old /apply/{slug} URLs to new domain, but render portal when accessed via subdomain
+// Render portal for all access methods:
+// - Via subdomain (rewritten by middleware)
+// - Via forms.maticsapp.com (rewritten by middleware)
+// - Direct /apply/{slug} access (dev environment)
 export default function ApplicationPage({ 
   params, 
   searchParams 
@@ -87,11 +90,6 @@ export default function ApplicationPage({
   params: { slug: string }, 
   searchParams: { subdomain?: string } 
 }) {
-  // If accessed via subdomain (rewritten by middleware), render the portal
-  if (searchParams?.subdomain) {
-    return <PublicPortal slug={params.slug} subdomain={searchParams.subdomain} />
-  }
-  
-  // Otherwise redirect to forms.maticsapp.com
-  redirect(`https://forms.maticsapp.com/${params.slug}`)
+  // Render the public portal - subdomain is optional and passed from middleware
+  return <PublicPortal slug={params.slug} subdomain={searchParams?.subdomain} />
 }

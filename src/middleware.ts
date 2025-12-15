@@ -10,6 +10,9 @@ const MAIN_DOMAINS = [
   'localhost',
 ]
 
+// Check if hostname is a Vercel preview deployment
+const isVercelPreview = (hostname: string) => hostname.includes('vercel.app')
+
 export function middleware(request: NextRequest) {
   const url = request.nextUrl
   const hostname = request.headers.get('host') || ''
@@ -25,7 +28,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Check if this is a main domain (not a custom subdomain)
-  const isMainDomain = MAIN_DOMAINS.includes(hostname)
+  const isMainDomain = MAIN_DOMAINS.includes(hostname) || isVercelPreview(hostname)
   
   // Handle forms.maticsapp.com - rewrite to /apply/{slug}
   if (hostname === 'forms.maticsapp.com' && url.pathname !== '/' && !url.pathname.startsWith('/apply')) {
