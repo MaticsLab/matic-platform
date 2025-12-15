@@ -8,13 +8,15 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { emailClient, SendEmailRequest, GmailConnection, GmailAccount } from '@/lib/api/email-client';
+import { emailClient, SendEmailRequest, GmailAccount } from '@/lib/api/email-client';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/ui-components/popover";
 import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
+import { EmailConnectionStatus } from '@/components/Email/EmailConnectionStatus';
+import { useEmailConnection } from '@/hooks/useEmailConnection';
 
 export function PipelineActivityPanel({ 
   applications, 
@@ -36,41 +38,20 @@ export function PipelineActivityPanel({
   const [activeCommentTab, setActiveCommentTab] = useState<'comment' | 'email'>('email');
   const [comment, setComment] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [gmailConnection, setGmailConnection] = useState<GmailConnection | null>(null);
-  const [isCheckingConnection, setIsCheckingConnection] = useState(true);
   const [showEmailSettings, setShowEmailSettings] = useState(false);
-  const [emailAccounts, setEmailAccounts] = useState<GmailAccount[]>([]);
-  const [selectedFromEmail, setSelectedFromEmail] = useState<string>('');
-
-  // Check Gmail connection on mount
-  useEffect(() => {
-    const checkConnection = async () => {
-      if (!workspaceId) {
-        setIsCheckingConnection(false);
-        return;
-      }
-      try {
-        setIsCheckingConnection(true);
-        const connection = await emailClient.getConnection(workspaceId);
-        setGmailConnection(connection);
-        
-        // Also load email accounts
-        const accounts = await emailClient.listAccounts(workspaceId);
-        setEmailAccounts(accounts || []);
-        
-        // Set default from email
-        if (connection?.email && !selectedFromEmail) {
-          setSelectedFromEmail(connection.email);
-        }
-      } catch (error) {
-        console.error('Failed to check Gmail connection:', error);
-        setGmailConnection({ connected: false, email: '' });
-      } finally {
-        setIsCheckingConnection(false);
-      }
-    };
-    checkConnection();
-  }, [workspaceId]);
+  
+  // Gmail connection - use shared hook
+  const { 
+    connection: gmailConnection, 
+    accounts: emailAccounts,
+    isChecking: isCheckingConnection,
+    selectedFromEmail,
+    setSelectedFromEmail,
+    canSendEmail,
+    sendBlockedReason,
+    handleOAuthError,
+    refresh: refreshConnection
+  } = useEmailConnection(workspaceId);
 
   // Insert merge tag into email body
   const insertMergeTag = (fieldLabel: string) => {
@@ -99,8 +80,8 @@ export function PipelineActivityPanel({
       return;
     }
 
-    if (!gmailConnection?.connected) {
-      toast.error('Please connect your Gmail account in Communications settings');
+    if (!canSendEmail) {
+      toast.error(sendBlockedReason || 'Cannot send email');
       return;
     }
 
@@ -141,7 +122,9 @@ export function PipelineActivityPanel({
           { cc: emailCc, bcc: emailBcc, submissionIds, formId: formId || undefined }
         );
       } else {
-        toast.error(result.errors?.[0] || 'Failed to send some emails');
+        const errorMessage = result.errors?.[0] || 'Failed to send some emails';
+        handleOAuthError(errorMessage);
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error('Failed to send emails:', error);
@@ -224,23 +207,13 @@ export function PipelineActivityPanel({
         <div className="bg-gray-50 rounded-xl border border-gray-200 p-3">
           {activeCommentTab === 'email' ? (
             <>
-              {/* Gmail Connection Status */}
-              {isCheckingConnection ? (
-                <div className="flex items-center gap-2 py-2 text-sm text-gray-500">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Checking email connection...
-                </div>
-              ) : !gmailConnection?.connected && workspaceId ? (
-                <div className="py-2 mb-2 text-sm text-amber-600 bg-amber-50 rounded-lg px-3 flex items-center justify-between">
-                  <span>Gmail not connected.</span>
-                  <button 
-                    onClick={() => setShowEmailSettings(true)}
-                    className="text-amber-700 hover:text-amber-800 font-medium underline text-xs"
-                  >
-                    Connect Email
-                  </button>
-                </div>
-              ) : null}
+              {/* Gmail Connection Status - Shared Component */}
+              <EmailConnectionStatus 
+                connection={gmailConnection}
+                isChecking={isCheckingConnection}
+                variant="inline"
+                onConfigureClick={() => setShowEmailSettings(true)}
+              />
 
               {/* From field - now a dropdown */}
               <div className="flex items-center gap-3 py-2 border-b border-gray-200">
@@ -510,17 +483,7 @@ export function PipelineActivityPanel({
           workspaceId={workspaceId}
           open={showEmailSettings}
           onOpenChange={setShowEmailSettings}
-          onAccountsUpdated={async () => {
-            // Refresh accounts list
-            const accounts = await emailClient.listAccounts(workspaceId);
-            setEmailAccounts(accounts || []);
-            // Also refresh connection
-            const connection = await emailClient.getConnection(workspaceId);
-            setGmailConnection(connection);
-            if (connection?.email && !selectedFromEmail) {
-              setSelectedFromEmail(connection.email);
-            }
-          }}
+          onAccountsUpdated={refreshConnection}
         />
       )}
     </div>
