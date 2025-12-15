@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { CheckCircle2, Clock, AlertCircle, FileText, ChevronDown, ChevronUp, LogOut, Send, MessageSquare, Calendar, Loader2 } from 'lucide-react'
+import { CheckCircle2, Clock, AlertCircle, FileText, ChevronDown, ChevronUp, LogOut, Send, MessageSquare, Calendar, Loader2, FileEdit } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/ui-components/card'
 import { Badge } from '@/ui-components/badge'
@@ -21,6 +21,7 @@ interface ApplicantDashboardProps {
   formId: string
   rowId?: string // The application/row ID for fetching activities
   onLogout: () => void
+  onContinueApplication?: () => void // Called when user wants to continue editing their application
   themeColor?: string
 }
 
@@ -66,6 +67,7 @@ export function ApplicantDashboard({
   formId,
   rowId,
   onLogout,
+  onContinueApplication,
   themeColor = '#000'
 }: ApplicantDashboardProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
@@ -266,10 +268,23 @@ export function ApplicantDashboard({
               <p className="text-sm text-gray-500">{email}</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={onLogout}>
-            <LogOut className="w-4 h-4 mr-2" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            {onContinueApplication && applicationStatus !== 'submitted' && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={onContinueApplication}
+                style={{ borderColor: themeColor, color: themeColor }}
+              >
+                <FileEdit className="w-4 h-4 mr-2" />
+                Continue Application
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={onLogout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Mail, Lock, Sparkles, CheckCircle2 } from 'lucide-react'
+import { ArrowRight, Mail, Lock, Sparkles, CheckCircle2, LayoutDashboard, FileEdit } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Textarea } from '@/ui-components/textarea'
@@ -44,6 +44,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   const [applicationStatus, setApplicationStatus] = useState<string>('submitted')
   const [endingPage, setEndingPage] = useState<EndingPageConfig | null>(null)
   const [applicationRowId, setApplicationRowId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'dashboard' | 'form'>('form') // Track if viewing dashboard or filling form
 
   // Language support
   const defaultLanguage = form?.settings?.language?.default || 'en'
@@ -198,6 +199,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
           setInitialData(existingData)
           setSubmissionData(existingData)
           setHasExistingSubmission(true)
+          setViewMode('dashboard') // Show dashboard by default for returning users
         }
 
         setIsAuthenticated(true)
@@ -439,18 +441,40 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       }
     })
 
-    // If user has already submitted, show the dashboard instead of the form
-    if (hasExistingSubmission && submissionData) {
-      const handleLogout = () => {
-        setIsAuthenticated(false)
-        setHasExistingSubmission(false)
-        setSubmissionData(null)
-        setInitialData(null)
-        setEmail('')
-        setPassword('')
-        setApplicationRowId(null)
-      }
+    // Logout handler shared by dashboard and form views
+    const handleLogout = () => {
+      setIsAuthenticated(false)
+      setHasExistingSubmission(false)
+      setSubmissionData(null)
+      setInitialData(null)
+      setEmail('')
+      setPassword('')
+      setApplicationRowId(null)
+      setViewMode('form')
+    }
 
+    // Handle save and go to dashboard
+    const handleSaveAndDashboard = async () => {
+      // Save current form data first if we have a formId
+      if (form?.id && initialData && Object.keys(initialData).length > 0) {
+        try {
+          await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${form.id}/submit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: initialData, email })
+          })
+          toast.success('Progress saved!')
+        } catch (error) {
+          console.warn('Failed to save progress:', error)
+        }
+      }
+      setViewMode('dashboard')
+      setHasExistingSubmission(true)
+      setSubmissionData(initialData || {})
+    }
+
+    // Show dashboard if user has existing submission AND viewMode is dashboard
+    if (hasExistingSubmission && submissionData && viewMode === 'dashboard') {
       return (
         <ApplicantDashboard
           config={portalConfig}
@@ -460,17 +484,33 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
           formId={form?.id || ''}
           rowId={applicationRowId || undefined}
           onLogout={handleLogout}
+          onContinueApplication={() => setViewMode('form')}
           themeColor={(translatedForm?.settings as any)?.themeColor}
         />
       )
     }
 
+    // Show form (either new application or continuing existing one)
     return (
       <motion.div 
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
         className="min-h-screen bg-white"
       >
+        {/* Dashboard Navigation Bar */}
+        <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-100">
+          <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-end gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={handleSaveAndDashboard}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              <LayoutDashboard className="w-4 h-4 mr-2" />
+              My Dashboard
+            </Button>
+          </div>
+        </div>
         <DynamicApplicationForm 
           config={portalConfig}
           onSubmit={handleFormSubmit}
