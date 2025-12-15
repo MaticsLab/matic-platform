@@ -533,6 +533,15 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         ]
       }
     }
+    if (type === 'dashboard') {
+      return {
+        id: Date.now().toString(),
+        title: 'Additional Information',
+        sectionType: 'dashboard',
+        description: 'Collect additional data after submission',
+        fields: []
+      }
+    }
 
     return {
       id: Date.now().toString(),
@@ -979,6 +988,15 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       <div>
                         <p className="text-sm font-semibold text-gray-900">Review</p>
                         <p className="text-xs text-gray-500">Let users review answers</p>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="flex items-start gap-3" onClick={() => handleAddSection('dashboard')}>
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
+                        <LayoutDashboard className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Dashboard</p>
+                        <p className="text-xs text-gray-500">Additional info after submit</p>
                       </div>
                     </DropdownMenuItem>
                   </DropdownMenuContent>

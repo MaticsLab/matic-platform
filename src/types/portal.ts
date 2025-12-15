@@ -33,7 +33,7 @@ export type Section = {
   id: string
   title: string
   description?: string
-  sectionType?: 'form' | 'cover' | 'ending' | 'review'
+  sectionType?: 'form' | 'cover' | 'ending' | 'review' | 'dashboard'
   fields: Field[]
   // NEW: Ending blocks for ending section type
   blocks?: EndingBlock[]

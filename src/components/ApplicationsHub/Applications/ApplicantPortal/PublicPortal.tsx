@@ -8,8 +8,9 @@ import { Input } from '@/ui-components/input'
 import { Textarea } from '@/ui-components/textarea'
 import { Label } from '@/ui-components/label'
 import { DynamicApplicationForm } from './DynamicApplicationForm'
+import { ApplicantDashboard } from './ApplicantDashboard'
 import { Form } from '@/types/forms'
-import { Field } from '@/types/portal'
+import { Field, PortalConfig } from '@/types/portal'
 import { cn } from '@/lib/utils'
 import { applyTranslationsToConfig, applyTranslationsToField, normalizeTranslations } from '@/lib/portal-translations'
 import { portalAuthClient } from '@/lib/api/portal-auth-client'
@@ -37,8 +38,10 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   const [isFormLoading, setIsFormLoading] = useState(true)
   const [form, setForm] = useState<Form | null>(null)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [hasExistingSubmission, setHasExistingSubmission] = useState(false)
   const [initialData, setInitialData] = useState<any>(null)
   const [submissionData, setSubmissionData] = useState<Record<string, any> | null>(null)
+  const [applicationStatus, setApplicationStatus] = useState<string>('submitted')
   const [endingPage, setEndingPage] = useState<EndingPageConfig | null>(null)
 
   // Language support
@@ -164,21 +167,32 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         })
 
         // Fetch existing submission if available
-        if (applicant.submission_data) {
-          setInitialData(applicant.submission_data)
+        let existingData: any = null
+        if (applicant.submission_data && Object.keys(applicant.submission_data).length > 0) {
+          existingData = applicant.submission_data
         } else {
           try {
             const baseUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
             const res = await fetch(`${baseUrl}/forms/${form.id}/submission?email=${encodeURIComponent(email)}`)
             if (res.ok) {
               const rowData = await res.json()
-              // The endpoint returns a Row object with data field
               console.log('📥 Loaded submission data:', rowData)
-              setInitialData(rowData.data || rowData)
+              existingData = rowData.data || rowData
+              // Extract status from metadata if available
+              if (rowData.metadata?.status) {
+                setApplicationStatus(rowData.metadata.status)
+              }
             }
           } catch (err) {
             console.error("Failed to fetch submission", err)
           }
+        }
+
+        // Check if user has already submitted (has meaningful data)
+        if (existingData && Object.keys(existingData).length > 0) {
+          setInitialData(existingData)
+          setSubmissionData(existingData)
+          setHasExistingSubmission(true)
         }
 
         setIsAuthenticated(true)
@@ -419,6 +433,30 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         })
       }
     })
+
+    // If user has already submitted, show the dashboard instead of the form
+    if (hasExistingSubmission && submissionData) {
+      const handleLogout = () => {
+        setIsAuthenticated(false)
+        setHasExistingSubmission(false)
+        setSubmissionData(null)
+        setInitialData(null)
+        setEmail('')
+        setPassword('')
+      }
+
+      return (
+        <ApplicantDashboard
+          config={portalConfig}
+          submissionData={submissionData}
+          applicationStatus={applicationStatus}
+          email={email}
+          formId={form?.id || ''}
+          onLogout={handleLogout}
+          themeColor={(translatedForm?.settings as any)?.themeColor}
+        />
+      )
+    }
 
     return (
       <motion.div 

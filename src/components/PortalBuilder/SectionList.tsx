@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
-import { GripVertical, Trash2, ChevronUp, ChevronDown, BookOpen, CheckCircle, Eye, ScrollText, MoreVertical } from 'lucide-react'
+import { GripVertical, Trash2, ChevronUp, ChevronDown, BookOpen, CheckCircle, Eye, ScrollText, MoreVertical, LayoutDashboard } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Section } from '@/types/portal'
@@ -29,6 +29,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
     cover: { label: 'Cover', description: 'Welcome users to your form', icon: BookOpen, bg: 'bg-blue-50', fg: 'text-blue-600', border: 'border-blue-200', activeBg: 'bg-blue-100' },
     ending: { label: 'Ending', description: 'Show a thank you page or redirect users', icon: CheckCircle, bg: 'bg-emerald-50', fg: 'text-emerald-600', border: 'border-emerald-200', activeBg: 'bg-emerald-100' },
     review: { label: 'Review', description: 'Let users review their submission', icon: Eye, bg: 'bg-purple-50', fg: 'text-purple-600', border: 'border-purple-200', activeBg: 'bg-purple-100' },
+    dashboard: { label: 'Dashboard', description: 'Additional info after submission', icon: LayoutDashboard, bg: 'bg-indigo-50', fg: 'text-indigo-600', border: 'border-indigo-200', activeBg: 'bg-indigo-100' },
   } as const
   type VariantKey = keyof typeof variants
 
