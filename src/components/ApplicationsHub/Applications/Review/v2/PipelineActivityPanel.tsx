@@ -4,16 +4,17 @@ import { useState, useEffect } from 'react';
 import { Application, ActivityItem, PipelineActivityPanelProps } from './types';
 import { 
   X, Mail, ChevronDown, Send, Plus, Sparkles, Paperclip, 
-  AtSign, ArrowRight, Star, MessageSquare, Users, Tag, Loader2
+  AtSign, ArrowRight, Star, MessageSquare, Users, Tag, Loader2, Settings
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { emailClient, SendEmailRequest, GmailConnection } from '@/lib/api/email-client';
+import { emailClient, SendEmailRequest, GmailConnection, GmailAccount } from '@/lib/api/email-client';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/ui-components/popover";
+import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
 
 export function PipelineActivityPanel({ 
   applications, 
@@ -37,6 +38,9 @@ export function PipelineActivityPanel({
   const [isSending, setIsSending] = useState(false);
   const [gmailConnection, setGmailConnection] = useState<GmailConnection | null>(null);
   const [isCheckingConnection, setIsCheckingConnection] = useState(true);
+  const [showEmailSettings, setShowEmailSettings] = useState(false);
+  const [emailAccounts, setEmailAccounts] = useState<GmailAccount[]>([]);
+  const [selectedFromEmail, setSelectedFromEmail] = useState<string>('');
 
   // Check Gmail connection on mount
   useEffect(() => {
@@ -49,6 +53,15 @@ export function PipelineActivityPanel({
         setIsCheckingConnection(true);
         const connection = await emailClient.getConnection(workspaceId);
         setGmailConnection(connection);
+        
+        // Also load email accounts
+        const accounts = await emailClient.listAccounts(workspaceId);
+        setEmailAccounts(accounts || []);
+        
+        // Set default from email
+        if (connection?.email && !selectedFromEmail) {
+          setSelectedFromEmail(connection.email);
+        }
       } catch (error) {
         console.error('Failed to check Gmail connection:', error);
         setGmailConnection({ connected: false, email: '' });
@@ -218,20 +231,77 @@ export function PipelineActivityPanel({
                   Checking email connection...
                 </div>
               ) : !gmailConnection?.connected && workspaceId ? (
-                <div className="py-2 mb-2 text-sm text-amber-600 bg-amber-50 rounded-lg px-3">
-                  Gmail not connected. Go to Communications to connect.
+                <div className="py-2 mb-2 text-sm text-amber-600 bg-amber-50 rounded-lg px-3 flex items-center justify-between">
+                  <span>Gmail not connected.</span>
+                  <button 
+                    onClick={() => setShowEmailSettings(true)}
+                    className="text-amber-700 hover:text-amber-800 font-medium underline text-xs"
+                  >
+                    Connect Email
+                  </button>
                 </div>
               ) : null}
 
-              {/* From field */}
+              {/* From field - now a dropdown */}
               <div className="flex items-center gap-3 py-2 border-b border-gray-200">
                 <span className="text-gray-600 text-sm w-16">From</span>
-                <div className="flex-1 flex items-center gap-2">
-                  <span className="text-gray-900 text-sm">
-                    {gmailConnection?.email || 'You'}
-                  </span>
-                  <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-auto" />
-                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="flex-1 flex items-center gap-2 hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors">
+                      <span className="text-gray-900 text-sm">
+                        {selectedFromEmail || gmailConnection?.email || 'Select email...'}
+                      </span>
+                      <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-auto" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-1" align="start">
+                    <div className="space-y-0.5">
+                      {emailAccounts.length > 0 ? (
+                        emailAccounts.map((account) => (
+                          <button
+                            key={account.id}
+                            onClick={() => setSelectedFromEmail(account.email)}
+                            className={cn(
+                              "w-full text-left px-3 py-2 rounded-md text-sm flex items-center gap-2 transition-colors",
+                              selectedFromEmail === account.email 
+                                ? "bg-blue-50 text-blue-700" 
+                                : "hover:bg-gray-100 text-gray-700"
+                            )}
+                          >
+                            <Mail className="w-4 h-4 text-gray-400" />
+                            <span className="truncate">{account.email}</span>
+                          </button>
+                        ))
+                      ) : gmailConnection?.email ? (
+                        <button
+                          onClick={() => setSelectedFromEmail(gmailConnection.email || '')}
+                          className={cn(
+                            "w-full text-left px-3 py-2 rounded-md text-sm flex items-center gap-2 transition-colors",
+                            selectedFromEmail === gmailConnection.email 
+                              ? "bg-blue-50 text-blue-700" 
+                              : "hover:bg-gray-100 text-gray-700"
+                          )}
+                        >
+                          <Mail className="w-4 h-4 text-gray-400" />
+                          <span className="truncate">{gmailConnection.email}</span>
+                        </button>
+                      ) : (
+                        <p className="px-3 py-2 text-sm text-gray-500">No email accounts connected</p>
+                      )}
+                      <div className="border-t border-gray-100 mt-1 pt-1">
+                        <button
+                          onClick={() => {
+                            setShowEmailSettings(true);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-md text-sm flex items-center gap-2 hover:bg-gray-100 text-gray-600 transition-colors"
+                        >
+                          <Settings className="w-4 h-4" />
+                          <span>Configure Email Settings</span>
+                        </button>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
               
               {/* To field with recipient suggestion */}
@@ -433,6 +503,26 @@ export function PipelineActivityPanel({
           </div>
         </div>
       </div>
+
+      {/* Email Settings Dialog */}
+      {workspaceId && (
+        <EmailSettingsDialog
+          workspaceId={workspaceId}
+          open={showEmailSettings}
+          onOpenChange={setShowEmailSettings}
+          onAccountsUpdated={async () => {
+            // Refresh accounts list
+            const accounts = await emailClient.listAccounts(workspaceId);
+            setEmailAccounts(accounts || []);
+            // Also refresh connection
+            const connection = await emailClient.getConnection(workspaceId);
+            setGmailConnection(connection);
+            if (connection?.email && !selectedFromEmail) {
+              setSelectedFromEmail(connection.email);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
