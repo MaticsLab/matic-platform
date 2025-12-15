@@ -2,14 +2,23 @@
  * Applicant Dashboard Types
  */
 
+import type { Field as PortalField } from './portal'
+
+// Dashboard-specific field that can include additional properties
+export interface DashboardField extends Omit<PortalField, 'sectionId'> {
+  dashboardOnly?: boolean // Fields added specifically for dashboard data collection
+}
+
 export interface DashboardSection {
   id: string
   title: string
   type: 'status' | 'timeline' | 'info' | 'fields' | 'chat' | 'documents'
   description?: string
-  fields?: string[] // Field IDs to display
+  fields?: DashboardField[] // Full field objects for custom data collection
+  fieldIds?: string[] // Field IDs to display from form (legacy)
   widgets?: Record<string, unknown>[]
   settings?: Record<string, unknown>
+  isEnabled?: boolean
 }
 
 export interface DashboardSettings {
@@ -19,6 +28,9 @@ export interface DashboardSettings {
   showDocuments: boolean
   welcomeTitle?: string
   welcomeText?: string
+  show_status_badge?: boolean // Alias for showStatus (snake_case for backend)
+  show_timeline?: boolean // Alias for showTimeline
+  allow_messages?: boolean // Alias for showChat
 }
 
 export interface DashboardLayout {

@@ -1068,6 +1068,19 @@ func SubmitForm(c *gin.Context) {
 
 			existingRow.Data = mapToJSON(data)
 			existingRow.UpdatedAt = time.Now()
+
+			// Reset status to "submitted" when applicant resubmits (e.g., after revision request)
+			var existingMetadata map[string]interface{}
+			if existingRow.Metadata != nil {
+				json.Unmarshal(existingRow.Metadata, &existingMetadata)
+			}
+			if existingMetadata == nil {
+				existingMetadata = make(map[string]interface{})
+			}
+			existingMetadata["status"] = "submitted"
+			existingMetadata["resubmitted_at"] = time.Now()
+			existingRow.Metadata = mapToJSON(existingMetadata)
+
 			if err := tx.Save(&existingRow).Error; err != nil {
 				tx.Rollback()
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update submission"})

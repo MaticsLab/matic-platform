@@ -57,6 +57,12 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; colo
     color: 'text-gray-600',
     bgColor: 'bg-gray-50'
   },
+  revision_requested: { 
+    label: 'Revision Requested', 
+    icon: <FileEdit className="w-5 h-5" />, 
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-50'
+  },
 }
 
 export function ApplicantDashboard({ 
@@ -81,8 +87,11 @@ export function ApplicantDashboard({
   const [newMessage, setNewMessage] = useState('')
   const [isSendingMessage, setIsSendingMessage] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  
+  // Dashboard layout from builder (fetched from backend)
+  const [dashboardLayout, setDashboardLayout] = useState<ApplicationDashboard['layout'] | null>(null)
 
-  // Fetch dashboard data including activities
+  // Fetch dashboard data including activities AND layout from builder
   useEffect(() => {
     if (rowId) {
       fetchDashboardData()
@@ -97,6 +106,10 @@ export function ApplicantDashboard({
       const dashboard = await portalDashboardClient.getDashboard(rowId)
       setActivities(dashboard.activities || [])
       setTimeline(dashboard.timeline || [])
+      // Store the layout from the dashboard builder
+      if (dashboard.layout) {
+        setDashboardLayout(dashboard.layout)
+      }
       
       // Mark activities as read
       await portalDashboardClient.markActivitiesRead(rowId, 'applicant')
@@ -107,6 +120,11 @@ export function ApplicantDashboard({
       setIsLoadingActivities(false)
     }
   }
+  
+  // Determine which sections to show based on dashboard layout settings
+  const showStatusCard = dashboardLayout?.settings?.show_status_badge !== false
+  const showTimeline = dashboardLayout?.settings?.show_timeline !== false  
+  const showMessages = dashboardLayout?.settings?.allow_messages !== false
 
   // Scroll to bottom of messages when new ones arrive
   useEffect(() => {
@@ -269,15 +287,16 @@ export function ApplicantDashboard({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {onContinueApplication && applicationStatus !== 'submitted' && (
+            {onContinueApplication && applicationStatus === 'revision_requested' && (
               <Button 
-                variant="outline" 
+                variant="default" 
                 size="sm" 
                 onClick={onContinueApplication}
-                style={{ borderColor: themeColor, color: themeColor }}
+                style={{ backgroundColor: themeColor }}
+                className="text-white"
               >
                 <FileEdit className="w-4 h-4 mr-2" />
-                Continue Application
+                Edit & Resubmit
               </Button>
             )}
             <Button variant="ghost" size="sm" onClick={onLogout}>
@@ -289,34 +308,36 @@ export function ApplicantDashboard({
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        {/* Status Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <Card className="mb-6">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={cn("p-3 rounded-full", statusInfo.bgColor, statusInfo.color)}>
-                    {statusInfo.icon}
+        {/* Status Card - controlled by dashboard builder settings */}
+        {showStatusCard && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card className="mb-6">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className={cn("p-3 rounded-full", statusInfo.bgColor, statusInfo.color)}>
+                      {statusInfo.icon}
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Application Status</p>
+                      <p className="text-lg font-semibold text-gray-900">{statusInfo.label}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Application Status</p>
-                    <p className="text-lg font-semibold text-gray-900">{statusInfo.label}</p>
-                  </div>
+                  <Badge 
+                    variant="outline" 
+                    className={cn("text-sm", statusInfo.color)}
+                  >
+                    {statusInfo.label}
+                  </Badge>
                 </div>
-                <Badge 
-                  variant="outline" 
-                  className={cn("text-sm", statusInfo.color)}
-                >
-                  {statusInfo.label}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Dashboard Sections (Additional Data Collection) */}
         {dashboardSections.length > 0 && (
@@ -403,8 +424,8 @@ export function ApplicantDashboard({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {/* Timeline */}
-                {timeline.length > 0 && (
+                {/* Timeline - controlled by dashboard builder settings */}
+                {showTimeline && timeline.length > 0 && (
                   <div className="mb-6 pb-4 border-b border-gray-100">
                     <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
@@ -440,85 +461,87 @@ export function ApplicantDashboard({
                   </div>
                 )}
 
-                {/* Messages */}
-                <div className="space-y-4">
-                  {isLoadingActivities ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                    </div>
-                  ) : activities.filter(a => a.activity_type === 'message').length > 0 ? (
-                    <div className="space-y-3 max-h-64 overflow-y-auto">
-                      {activities
-                        .filter(a => a.activity_type === 'message')
-                        .reverse()
-                        .map((activity) => (
-                          <div 
-                            key={activity.id}
-                            className={cn(
-                              "flex",
-                              activity.sender_type === 'applicant' ? 'justify-end' : 'justify-start'
-                            )}
-                          >
-                            <div className={cn(
-                              "max-w-[80%] rounded-lg px-4 py-2",
-                              activity.sender_type === 'applicant' 
-                                ? 'bg-blue-500 text-white' 
-                                : 'bg-gray-100 text-gray-900'
-                            )}>
-                              {activity.sender_type === 'staff' && (
-                                <p className="text-xs font-medium mb-1 opacity-70">
-                                  {activity.sender_name || 'Staff'}
-                                </p>
+                {/* Messages - controlled by dashboard builder settings */}
+                {showMessages && (
+                  <div className="space-y-4">
+                    {isLoadingActivities ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                      </div>
+                    ) : activities.filter(a => a.activity_type === 'message').length > 0 ? (
+                      <div className="space-y-3 max-h-64 overflow-y-auto">
+                        {activities
+                          .filter(a => a.activity_type === 'message')
+                          .reverse()
+                          .map((activity) => (
+                            <div 
+                              key={activity.id}
+                              className={cn(
+                                "flex",
+                                activity.sender_type === 'applicant' ? 'justify-end' : 'justify-start'
                               )}
-                              <p className="text-sm whitespace-pre-wrap">{activity.content}</p>
-                              <p className={cn(
-                                "text-xs mt-1",
+                            >
+                              <div className={cn(
+                                "max-w-[80%] rounded-lg px-4 py-2",
                                 activity.sender_type === 'applicant' 
-                                  ? 'text-blue-100' 
-                                  : 'text-gray-400'
+                                  ? 'bg-blue-500 text-white' 
+                                  : 'bg-gray-100 text-gray-900'
                               )}>
-                                {formatTimestamp(activity.created_at)}
-                              </p>
+                                {activity.sender_type === 'staff' && (
+                                  <p className="text-xs font-medium mb-1 opacity-70">
+                                    {activity.sender_name || 'Staff'}
+                                  </p>
+                                )}
+                                <p className="text-sm whitespace-pre-wrap">{activity.content}</p>
+                                <p className={cn(
+                                  "text-xs mt-1",
+                                  activity.sender_type === 'applicant' 
+                                    ? 'text-blue-100' 
+                                    : 'text-gray-400'
+                                )}>
+                                  {formatTimestamp(activity.created_at)}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        ))
-                      }
-                      <div ref={messagesEndRef} />
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 text-center py-4">
-                      No messages yet. Send a message to get started.
-                    </p>
-                  )}
-
-                  {/* Message Input */}
-                  <div className="flex gap-2 pt-4 border-t border-gray-100">
-                    <Textarea
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      placeholder="Type a message..."
-                      className="flex-1 min-h-[80px] resize-none"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault()
-                          handleSendMessage()
+                          ))
                         }
-                      }}
-                    />
-                    <Button
-                      onClick={handleSendMessage}
-                      disabled={!newMessage.trim() || isSendingMessage}
-                      style={{ backgroundColor: themeColor }}
-                      className="text-white self-end"
-                    >
-                      {isSendingMessage ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Send className="w-4 h-4" />
-                      )}
-                    </Button>
+                        <div ref={messagesEndRef} />
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-4">
+                        No messages yet. Send a message to get started.
+                      </p>
+                    )}
+
+                    {/* Message Input */}
+                    <div className="flex gap-2 pt-4 border-t border-gray-100">
+                      <Textarea
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        placeholder="Type a message..."
+                        className="flex-1 min-h-[80px] resize-none"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            handleSendMessage()
+                          }
+                        }}
+                      />
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={!newMessage.trim() || isSendingMessage}
+                        style={{ backgroundColor: themeColor }}
+                        className="text-white self-end"
+                      >
+                        {isSendingMessage ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>

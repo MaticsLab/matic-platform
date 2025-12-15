@@ -26,9 +26,7 @@ import { SignUpPreview } from './SignUpPreview'
 import { ConfirmationPreview } from './ConfirmationPreview'
 import { ReviewPreview } from './ReviewPreview'
 import { EndingPagesBuilder } from '@/components/EndingPages/EndingPagesBuilder'
-import { DashboardBuilder, DashboardSettingsPanel } from '@/components/ApplicantDashboard/DashboardBuilder'
-import type { DashboardLayout, DashboardSettings } from '@/types/dashboard'
-import { dashboardClient } from '@/lib/api/dashboard-client'
+import { VisualDashboardBuilder } from '@/components/ApplicantDashboard/VisualDashboardBuilder'
 import { EndingBlocksToolbox } from './EndingBlocksToolbox'
 import { EndingBlockEditor } from './EndingBlockEditor'
 import { DEFAULT_ENDING_TEMPLATE } from '@/lib/ending-templates'
@@ -123,9 +121,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
   const [leftSidebarTab, setLeftSidebarTab] = useState<'structure' | 'elements' | 'theme'>('structure')
   const [shareTabKey, setShareTabKey] = useState(0)
-  
-  // Dashboard layout state
-  const [dashboardLayout, setDashboardLayout] = useState<DashboardLayout | null>(null)
   
   // Track previous selected field for autosave on deselect
   const previousSelectedFieldId = useRef<string | null>(null)
@@ -1187,11 +1182,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     />
                   ) : activeSpecialPage === 'dashboard' && formId ? (
                     <div className="h-full overflow-hidden">
-                      <DashboardBuilder 
+                      <VisualDashboardBuilder 
                         formId={formId}
-                        renderSettingsExternally={true}
-                        onLayoutChange={setDashboardLayout}
-                        externalLayout={dashboardLayout}
+                        workspaceId={workspaceId || undefined}
+                        themeColor={config.settings.themeColor}
+                        logoUrl={config.settings.logoUrl}
+                        portalName={config.settings.name}
                       />
                     </div>
                   ) : displaySection?.sectionType === 'ending' ? (
@@ -1342,18 +1338,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                      )
                    })()}
                    
-                   {/* Dashboard Settings */}
-                   {activeSpecialPage === 'dashboard' && dashboardLayout && (
-                      <DashboardSettingsPanel
-                        layout={dashboardLayout}
-                        onUpdate={(updates) => {
-                          setDashboardLayout(prev => prev ? {
-                            ...prev,
-                            settings: { ...prev.settings, ...updates }
-                          } : null)
-                        }}
-                      />
-                   )}
+
                    
                    {/* Ending Settings - Conditions */}
                    {displaySection?.sectionType === 'ending' && activeSectionId && !selectedBlockId && (

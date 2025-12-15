@@ -6,7 +6,7 @@ import {
   X, Mail, Trash2, ChevronRight, ChevronDown, 
   User, FileText, Star, MessageSquare,
   CheckCircle2, ArrowRight, AlertCircle, Users, Send,
-  Paperclip, Sparkles, AtSign, Plus, Tag, Loader2
+  Paperclip, Sparkles, AtSign, Plus, Tag, Loader2, FileEdit
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -277,6 +277,7 @@ export function ApplicationDetail({
                         Move to: {stage}
                       </option>
                     ))}
+                    <option value="revision_requested">📝 Request Revision (Allow Applicant to Edit)</option>
                     <option value="Rejected">Reject Application</option>
                   </select>
                   <ChevronDown className="w-4 h-4 text-gray-600 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -467,6 +468,15 @@ export function ApplicationDetail({
                 >
                   <span>Start Review</span>
                   <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+
+                <button 
+                  onClick={() => handleStageChange('revision_requested')}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-orange-300 bg-orange-50 hover:bg-orange-100 transition-colors text-orange-700 text-sm font-medium"
+                  title="Request the applicant to edit and resubmit their application"
+                >
+                  <FileEdit className="w-3.5 h-3.5" />
+                  <span>Request Revision</span>
                 </button>
               </div>
             </div>
