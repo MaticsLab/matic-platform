@@ -28,9 +28,13 @@ export interface DashboardSettings {
   showDocuments: boolean
   welcomeTitle?: string
   welcomeText?: string
-  show_status_badge?: boolean // Alias for showStatus (snake_case for backend)
-  show_timeline?: boolean // Alias for showTimeline
-  allow_messages?: boolean // Alias for showChat
+  // Snake_case aliases for backend compatibility
+  show_status?: boolean
+  show_timeline?: boolean
+  show_chat?: boolean
+  show_documents?: boolean
+  show_status_badge?: boolean // Legacy alias
+  allow_messages?: boolean // Legacy alias
 }
 
 export interface DashboardLayout {

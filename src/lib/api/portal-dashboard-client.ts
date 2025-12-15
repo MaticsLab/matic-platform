@@ -30,9 +30,19 @@ export interface DashboardSection {
 export interface DashboardLayout {
   sections: DashboardSection[]
   settings?: {
+    // Snake_case from backend
+    show_status?: boolean
+    show_timeline?: boolean
+    show_chat?: boolean
+    show_documents?: boolean
+    // CamelCase alternatives
+    showStatus?: boolean
+    showTimeline?: boolean
+    showChat?: boolean
+    showDocuments?: boolean
+    // Legacy aliases
     show_status_badge?: boolean
     allow_messages?: boolean
-    show_timeline?: boolean
   }
 }
 
