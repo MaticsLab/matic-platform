@@ -43,8 +43,12 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // For local development, use window.location.origin
-  const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  // For dev/preview environments, use window.location.origin
+  // This includes localhost and Vercel preview deployments (*.vercel.app)
+  const isDev = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname.includes('vercel.app')
+  )
   const devBaseUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
   // Load data on mount and when formId/workspaceId changes
@@ -189,15 +193,23 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     return getDefaultUrl()
   }
 
-  // Default URL: forms.maticapp.com/{UUID}
+  // Default URL: forms.maticapp.com/{UUID} or dev URL when in dev environment
   const getDefaultUrl = () => {
     if (!formId) return ''
+    // In dev/preview, use /apply/[formId] route
+    if (isDev) {
+      return `${devBaseUrl}/apply/${formId}`
+    }
     return `https://${FORMS_DOMAIN}/${formId}`
   }
 
-  // Pretty URL: {subdomain}.maticapp.com/{custom_slug}
+  // Pretty URL: {subdomain}.maticapp.com/{custom_slug} or dev URL with custom_slug
   const getPrettyUrl = () => {
     if (!workspace?.custom_subdomain || !form?.custom_slug) return ''
+    // In dev/preview, use /apply/[custom_slug] route
+    if (isDev) {
+      return `${devBaseUrl}/apply/${form.custom_slug}`
+    }
     return `https://${workspace.custom_subdomain}.${APP_DOMAIN}/${form.custom_slug}`
   }
 
