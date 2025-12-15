@@ -1,15 +1,17 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { CheckCircle2, Clock, AlertCircle, FileText, ChevronDown, ChevronUp, LogOut, Send } from 'lucide-react'
+import { CheckCircle2, Clock, AlertCircle, FileText, ChevronDown, ChevronUp, LogOut, Send, MessageSquare, Calendar, Loader2 } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/ui-components/card'
 import { Badge } from '@/ui-components/badge'
+import { Textarea } from '@/ui-components/textarea'
 import { cn } from '@/lib/utils'
 import { Field, Section, PortalConfig } from '@/types/portal'
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
 import { toast } from 'sonner'
+import { portalDashboardClient, PortalActivity, TimelineEvent, ApplicationDashboard } from '@/lib/api/portal-dashboard-client'
 
 interface ApplicantDashboardProps {
   config: PortalConfig
@@ -17,6 +19,7 @@ interface ApplicantDashboardProps {
   applicationStatus?: string
   email: string
   formId: string
+  rowId?: string // The application/row ID for fetching activities
   onLogout: () => void
   themeColor?: string
 }
@@ -61,12 +64,52 @@ export function ApplicantDashboard({
   applicationStatus = 'submitted',
   email,
   formId,
+  rowId,
   onLogout,
   themeColor = '#000'
 }: ApplicantDashboardProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
   const [dashboardData, setDashboardData] = useState<Record<string, any>>({})
   const [isSaving, setIsSaving] = useState(false)
+  
+  // Activity feed state
+  const [activities, setActivities] = useState<PortalActivity[]>([])
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([])
+  const [isLoadingActivities, setIsLoadingActivities] = useState(false)
+  const [newMessage, setNewMessage] = useState('')
+  const [isSendingMessage, setIsSendingMessage] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Fetch dashboard data including activities
+  useEffect(() => {
+    if (rowId) {
+      fetchDashboardData()
+    }
+  }, [rowId])
+
+  const fetchDashboardData = async () => {
+    if (!rowId) return
+    
+    setIsLoadingActivities(true)
+    try {
+      const dashboard = await portalDashboardClient.getDashboard(rowId)
+      setActivities(dashboard.activities || [])
+      setTimeline(dashboard.timeline || [])
+      
+      // Mark activities as read
+      await portalDashboardClient.markActivitiesRead(rowId, 'applicant')
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error)
+      // Non-critical error, just show empty activities
+    } finally {
+      setIsLoadingActivities(false)
+    }
+  }
+
+  // Scroll to bottom of messages when new ones arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [activities])
 
   // Get status display info
   const statusInfo = STATUS_CONFIG[applicationStatus] || STATUS_CONFIG.submitted
@@ -158,6 +201,51 @@ export function ApplicantDashboard({
     } finally {
       setIsSaving(false)
     }
+  }
+
+  // Handle sending a message
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !rowId) return
+
+    setIsSendingMessage(true)
+    try {
+      const activity = await portalDashboardClient.createActivity(rowId, {
+        activity_type: 'message',
+        content: newMessage.trim(),
+        visibility: 'both',
+      })
+      
+      // Add to local state
+      setActivities(prev => [activity, ...prev])
+      setNewMessage('')
+      toast.success('Message sent!')
+    } catch (error) {
+      console.error('Failed to send message:', error)
+      toast.error('Failed to send message. Please try again.')
+    } finally {
+      setIsSendingMessage(false)
+    }
+  }
+
+  // Format timestamp for display
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+    })
   }
 
   return (
@@ -278,6 +366,146 @@ export function ApplicantDashboard({
                 </CardContent>
               </Card>
             ))}
+          </motion.div>
+        )}
+
+        {/* Activity Feed / Messages */}
+        {rowId && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.15 }}
+            className="mb-6"
+          >
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-gray-500" />
+                  <CardTitle className="text-lg">Messages & Updates</CardTitle>
+                </div>
+                <CardDescription>
+                  Communicate with the review team and see updates on your application
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* Timeline */}
+                {timeline.length > 0 && (
+                  <div className="mb-6 pb-4 border-b border-gray-100">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Timeline
+                    </h4>
+                    <div className="space-y-2">
+                      {timeline.map((event, index) => (
+                        <div key={event.id} className="flex items-start gap-3">
+                          <div className="flex flex-col items-center">
+                            <div className={cn(
+                              "w-2 h-2 rounded-full mt-1.5",
+                              event.type === 'submitted' ? 'bg-blue-500' :
+                              event.type === 'status_update' ? 'bg-yellow-500' :
+                              event.type === 'stage_change' ? 'bg-green-500' :
+                              'bg-gray-400'
+                            )} />
+                            {index < timeline.length - 1 && (
+                              <div className="w-0.5 h-6 bg-gray-200" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900">{event.title}</p>
+                            {event.content && (
+                              <p className="text-sm text-gray-500 mt-0.5">{event.content}</p>
+                            )}
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {formatTimestamp(event.timestamp)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Messages */}
+                <div className="space-y-4">
+                  {isLoadingActivities ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                    </div>
+                  ) : activities.filter(a => a.activity_type === 'message').length > 0 ? (
+                    <div className="space-y-3 max-h-64 overflow-y-auto">
+                      {activities
+                        .filter(a => a.activity_type === 'message')
+                        .reverse()
+                        .map((activity) => (
+                          <div 
+                            key={activity.id}
+                            className={cn(
+                              "flex",
+                              activity.sender_type === 'applicant' ? 'justify-end' : 'justify-start'
+                            )}
+                          >
+                            <div className={cn(
+                              "max-w-[80%] rounded-lg px-4 py-2",
+                              activity.sender_type === 'applicant' 
+                                ? 'bg-blue-500 text-white' 
+                                : 'bg-gray-100 text-gray-900'
+                            )}>
+                              {activity.sender_type === 'staff' && (
+                                <p className="text-xs font-medium mb-1 opacity-70">
+                                  {activity.sender_name || 'Staff'}
+                                </p>
+                              )}
+                              <p className="text-sm whitespace-pre-wrap">{activity.content}</p>
+                              <p className={cn(
+                                "text-xs mt-1",
+                                activity.sender_type === 'applicant' 
+                                  ? 'text-blue-100' 
+                                  : 'text-gray-400'
+                              )}>
+                                {formatTimestamp(activity.created_at)}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      }
+                      <div ref={messagesEndRef} />
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-4">
+                      No messages yet. Send a message to get started.
+                    </p>
+                  )}
+
+                  {/* Message Input */}
+                  <div className="flex gap-2 pt-4 border-t border-gray-100">
+                    <Textarea
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      placeholder="Type a message..."
+                      className="flex-1 min-h-[80px] resize-none"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          handleSendMessage()
+                        }
+                      }}
+                    />
+                    <Button
+                      onClick={handleSendMessage}
+                      disabled={!newMessage.trim() || isSendingMessage}
+                      style={{ backgroundColor: themeColor }}
+                      className="text-white self-end"
+                    >
+                      {isSendingMessage ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </motion.div>
         )}
 

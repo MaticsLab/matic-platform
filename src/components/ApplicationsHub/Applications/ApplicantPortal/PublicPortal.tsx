@@ -43,6 +43,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   const [submissionData, setSubmissionData] = useState<Record<string, any> | null>(null)
   const [applicationStatus, setApplicationStatus] = useState<string>('submitted')
   const [endingPage, setEndingPage] = useState<EndingPageConfig | null>(null)
+  const [applicationRowId, setApplicationRowId] = useState<string | null>(null)
 
   // Language support
   const defaultLanguage = form?.settings?.language?.default || 'en'
@@ -178,6 +179,10 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
               const rowData = await res.json()
               console.log('📥 Loaded submission data:', rowData)
               existingData = rowData.data || rowData
+              // Store the row ID for activity feed
+              if (rowData.id) {
+                setApplicationRowId(rowData.id)
+              }
               // Extract status from metadata if available
               if (rowData.metadata?.status) {
                 setApplicationStatus(rowData.metadata.status)
@@ -443,6 +448,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         setInitialData(null)
         setEmail('')
         setPassword('')
+        setApplicationRowId(null)
       }
 
       return (
@@ -452,6 +458,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
           applicationStatus={applicationStatus}
           email={email}
           formId={form?.id || ''}
+          rowId={applicationRowId || undefined}
           onLogout={handleLogout}
           themeColor={(translatedForm?.settings as any)?.themeColor}
         />

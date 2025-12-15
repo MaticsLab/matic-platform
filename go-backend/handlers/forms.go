@@ -1451,7 +1451,18 @@ func GetFormSubmission(c *gin.Context) {
 
 	var data map[string]interface{}
 	json.Unmarshal(row.Data, &data)
-	c.JSON(http.StatusOK, data)
+
+	var metadata map[string]interface{}
+	json.Unmarshal(row.Metadata, &metadata)
+
+	// Return full row info including ID for activity feed integration
+	c.JSON(http.StatusOK, gin.H{
+		"id":         row.ID,
+		"data":       data,
+		"metadata":   metadata,
+		"created_at": row.CreatedAt,
+		"updated_at": row.UpdatedAt,
+	})
 }
 
 // External Review Handlers
