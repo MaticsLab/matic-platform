@@ -64,6 +64,44 @@ const VIEW_OPTIONS = [
   { value: 'list', label: 'List', icon: List, description: 'Compact list view' },
 ]
 
+/**
+ * Get cell value from row data
+ * Looks up by column.id first (form submissions use field.id as key)
+ * Falls back to column.name (legacy data) and then column.label
+ */
+const getCellValue = (rowData: Record<string, any>, column: Column): any => {
+  // First try column.id (form submissions store data with field.id as key)
+  if (column.id && rowData[column.id] !== undefined) {
+    return rowData[column.id]
+  }
+  // Then try column.name
+  if (column.name && rowData[column.name] !== undefined) {
+    return rowData[column.name]
+  }
+  // Finally try column.label
+  if (column.label && rowData[column.label] !== undefined) {
+    return rowData[column.label]
+  }
+  return undefined
+}
+
+/**
+ * Get the key to use when updating cell data
+ * Uses the key that already exists in the data, or falls back to column.id
+ */
+const getCellKey = (rowData: Record<string, any>, column: Column): string => {
+  // First check if column.id exists in data (form submissions)
+  if (column.id && rowData[column.id] !== undefined) {
+    return column.id
+  }
+  // Then check if column.name exists in data
+  if (column.name && rowData[column.name] !== undefined) {
+    return column.name
+  }
+  // For new data, prefer column.id (consistent with form submissions)
+  return column.id || column.name
+}
+
 export function TableGridView({ tableId, workspaceId, onTableNameChange }: TableGridViewProps) {
   const [columns, setColumns] = useState<Column[]>([])
   const [rows, setRows] = useState<Row[]>([])
@@ -433,7 +471,7 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
         return columns.some(column => {
           if (!column.is_visible) return false
           
-          const value = row.data[column.name]
+          const value = getCellValue(row.data, column)
           if (value == null) return false
 
           // Convert value to searchable string
@@ -456,8 +494,8 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
       const column = columns.find(c => c.id === sortConfig.columnId)
       if (column) {
         result = [...result].sort((a, b) => {
-          const aValue = a.data[column.name]
-          const bValue = b.data[column.name]
+          const aValue = getCellValue(a.data, column)
+          const bValue = getCellValue(b.data, column)
 
           if (aValue === bValue) return 0
           if (aValue === null || aValue === undefined) return 1
@@ -749,13 +787,15 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
     const row = rows.find(r => r.id === rowId)
     if (!row) return
 
-    const column = columns.find(c => c.name === columnName)
+    const column = columns.find(c => c.name === columnName || c.id === columnName)
     if (!column || column.column_type !== 'link' || !column.linked_table_id) {
       throw new Error('Invalid link column')
     }
 
-    const previousLinkedIds = Array.isArray(row.data[columnName]) ? row.data[columnName] : []
-    const linkedRecordIds = Array.isArray(newLinkedIds) ? newLinkedIds : []
+    // Get value using getCellValue helper for proper ID/name fallback
+    const prevValue = getCellValue(row.data, column)
+    const previousLinkedIds: string[] = Array.isArray(prevValue) ? prevValue : []
+    const linkedRecordIds: string[] = Array.isArray(newLinkedIds) ? newLinkedIds : []
 
     // Find or create the table_link
     const { tableLinksGoClient, rowLinksGoClient } = await import('@/lib/api/participants-go-client')
@@ -1065,7 +1105,7 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
   }
 
   const renderCell = (row: Row, column: Column) => {
-    const value = row.data[column.name]
+    const value = getCellValue(row.data, column)
     const isEditing = editingCell?.rowId === row.id && editingCell?.columnId === column.id
     const isSelected = selectedCell?.rowId === row.id && selectedCell?.columnId === column.id
 
@@ -1084,9 +1124,10 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
           displayFields={column.settings?.displayFields || []}
           onChange={(newValue) => {
             // Update the local state immediately
+            const key = getCellKey(row.data, column)
             const updatedRows = rows.map(r => 
               r.id === row.id 
-                ? { ...r, data: { ...r.data, [column.name]: newValue } }
+                ? { ...r, data: { ...r.data, [key]: newValue } }
                 : r
             )
             setRows(updatedRows)
@@ -1106,9 +1147,10 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
           value={value as AddressValue | string | null}
           onChange={(newValue) => {
             // Update local state immediately
+            const key = getCellKey(row.data, column)
             const updatedRows = rows.map(r => 
               r.id === row.id 
-                ? { ...r, data: { ...r.data, [column.name]: newValue } }
+                ? { ...r, data: { ...r.data, [key]: newValue } }
                 : r
             )
             setRows(updatedRows)
