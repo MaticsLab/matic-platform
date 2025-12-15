@@ -174,8 +174,8 @@ func HandleGmailCallback(c *gin.Context) {
 		existingConnection.AccessToken = token.AccessToken
 		existingConnection.RefreshToken = token.RefreshToken
 		existingConnection.TokenExpiry = token.Expiry
-		existingConnection.NeedsReconnect = false  // Reset reconnection flag
-		existingConnection.ReconnectReason = ""    // Clear reason
+		existingConnection.NeedsReconnect = false // Reset reconnection flag
+		existingConnection.ReconnectReason = ""   // Clear reason
 		database.DB.Save(&existingConnection)
 	} else {
 		// Create new connection

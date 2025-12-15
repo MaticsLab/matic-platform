@@ -8,9 +8,11 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
-import { emailClient, SentEmail, ActivityItem, SendEmailRequest, GmailConnection } from '@/lib/api/email-client'
+import { emailClient, SentEmail, ActivityItem, SendEmailRequest } from '@/lib/api/email-client'
 import { RichTextEditor } from '@/components/PortalBuilder/RichTextEditor'
 import { Badge } from '@/ui-components/badge'
+import { EmailConnectionStatus } from '@/components/Email/EmailConnectionStatus'
+import { useEmailConnection } from '@/hooks/useEmailConnection'
 
 interface ApplicationData {
   id: string
@@ -84,9 +86,14 @@ export function ApplicationContactPanel({
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string } | null>(null)
   const [replyThread, setReplyThread] = useState<ReplyThread | null>(null) // Track thread for replies
   
-  // Gmail connection
-  const [gmailConnection, setGmailConnection] = useState<GmailConnection | null>(null)
-  const [isCheckingConnection, setIsCheckingConnection] = useState(true)
+  // Gmail connection - use shared hook
+  const { 
+    connection: gmailConnection, 
+    isChecking: isCheckingConnection,
+    canSendEmail,
+    sendBlockedReason,
+    handleOAuthError 
+  } = useEmailConnection(workspaceId)
   
   // Email history
   const [emailHistory, setEmailHistory] = useState<SentEmail[]>([])
@@ -96,26 +103,6 @@ export function ApplicationContactPanel({
   // Activity log
   const [activities, setActivities] = useState<ActivityItem[]>([])
   const [isLoadingActivity, setIsLoadingActivity] = useState(false)
-
-  // Check Gmail connection
-  useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        setIsCheckingConnection(true)
-        const connection = await emailClient.getConnection(workspaceId)
-        console.log('[ContactPanel] Gmail connection:', connection)
-        setGmailConnection(connection)
-      } catch (error: any) {
-        console.error('Failed to check Gmail connection:', error?.message || error)
-        // If it's an auth error, the connection check failed but Gmail might still be connected
-        // Set a default disconnected state
-        setGmailConnection({ connected: false, email: '' })
-      } finally {
-        setIsCheckingConnection(false)
-      }
-    }
-    checkConnection()
-  }, [workspaceId])
 
   // Load email history for this submission
   const loadEmailHistory = useCallback(async () => {
@@ -158,13 +145,8 @@ export function ApplicationContactPanel({
 
   // Handle sending email
   const handleSendEmail = async () => {
-    if (!gmailConnection?.connected) {
-      setSendResult({ success: false, message: 'Please connect your Gmail account first.' })
-      return
-    }
-
-    if (gmailConnection?.needs_reconnect) {
-      setSendResult({ success: false, message: 'Your Gmail authorization has expired. Please reconnect your account in Settings → Communications.' })
+    if (!canSendEmail) {
+      setSendResult({ success: false, message: sendBlockedReason || 'Cannot send email.' })
       return
     }
 
@@ -206,25 +188,20 @@ export function ApplicationContactPanel({
         const errorMessage = result.errors?.length ? result.errors[0] : 'Failed to send email.'
         
         // Check if this is an OAuth error and update connection state
-        if (errorMessage.includes('invalid_grant') || 
+        handleOAuthError(errorMessage)
+        
+        // Check if the error is OAuth-related for the message
+        const isOAuthError = errorMessage.includes('invalid_grant') || 
             errorMessage.includes('Token has been expired or revoked') ||
             errorMessage.includes('token expired') ||
-            errorMessage.includes('unauthorized')) {
-          setGmailConnection(prev => prev ? {
-            ...prev,
-            needs_reconnect: true,
-            reconnect_reason: 'Your Gmail authorization has expired or been revoked. Please reconnect your account.'
-          } : prev)
-          setSendResult({ 
-            success: false, 
-            message: 'Your Gmail authorization has expired. Please reconnect your account in Settings → Communications.'
-          })
-        } else {
-          setSendResult({ 
-            success: false, 
-            message: errorMessage
-          })
-        }
+            errorMessage.includes('unauthorized')
+        
+        setSendResult({ 
+          success: false, 
+          message: isOAuthError 
+            ? 'Your Gmail authorization has expired. Please reconnect your account in Settings → Communications.'
+            : errorMessage
+        })
       }
     } catch (error) {
       console.error('Failed to send email:', error)
@@ -386,41 +363,12 @@ export function ApplicationContactPanel({
           {/* Compose Tab */}
           {activeTab === 'compose' && (
             <div className="p-6 space-y-4">
-              {/* Gmail Connection Status */}
-              {isCheckingConnection ? (
-                <div className="flex items-center gap-2 text-gray-500 text-sm">
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Checking connection...
-                </div>
-              ) : !gmailConnection?.connected ? (
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                  <div className="flex items-center gap-2 text-amber-700">
-                    <AlertCircle className="w-5 h-5" />
-                    <span className="font-medium">Gmail not connected</span>
-                  </div>
-                  <p className="text-sm text-amber-600 mt-1">
-                    Connect your Gmail account in Communications settings to send emails.
-                  </p>
-                </div>
-              ) : gmailConnection?.needs_reconnect ? (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="flex items-center gap-2 text-red-700">
-                    <AlertCircle className="w-5 h-5" />
-                    <span className="font-medium">Gmail reconnection required</span>
-                  </div>
-                  <p className="text-sm text-red-600 mt-1">
-                    {gmailConnection.reconnect_reason || 'Your Gmail authorization has expired or been revoked. Please reconnect your account.'}
-                  </p>
-                  <p className="text-sm text-red-600 mt-2">
-                    Go to <strong>Settings → Communications</strong> to reconnect your Gmail account.
-                  </p>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-green-600 text-sm">
-                  <CheckCircle className="w-4 h-4" />
-                  Connected as {gmailConnection.email}
-                </div>
-              )}
+              {/* Gmail Connection Status - Shared Component */}
+              <EmailConnectionStatus 
+                connection={gmailConnection}
+                isChecking={isCheckingConnection}
+                variant="banner"
+              />
 
               {/* Reply indicator */}
               {replyThread && (
@@ -511,7 +459,7 @@ export function ApplicationContactPanel({
               {/* Send Button */}
               <Button
                 onClick={handleSendEmail}
-                disabled={isSending || !gmailConnection?.connected}
+                disabled={isSending || !canSendEmail}
                 className="w-full bg-blue-600 hover:bg-blue-700"
               >
                 {isSending ? (
