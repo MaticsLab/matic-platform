@@ -12,6 +12,7 @@ import { Field, Section, PortalConfig } from '@/types/portal'
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
 import { toast } from 'sonner'
 import { portalDashboardClient, PortalActivity, TimelineEvent, ApplicationDashboard } from '@/lib/api/portal-dashboard-client'
+import { dashboardClient } from '@/lib/api/dashboard-client'
 
 interface ApplicantDashboardProps {
   config: PortalConfig
@@ -27,6 +28,18 @@ interface ApplicantDashboardProps {
 
 // Status display configuration
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string; bgColor: string }> = {
+  draft: {
+    label: 'In Progress',
+    icon: <FileEdit className="w-5 h-5" />,
+    color: 'text-gray-600',
+    bgColor: 'bg-gray-50'
+  },
+  in_progress: {
+    label: 'In Progress',
+    icon: <FileEdit className="w-5 h-5" />,
+    color: 'text-gray-600',
+    bgColor: 'bg-gray-50'
+  },
   submitted: { 
     label: 'Submitted', 
     icon: <CheckCircle2 className="w-5 h-5" />, 
@@ -76,6 +89,10 @@ export function ApplicantDashboard({
   onContinueApplication,
   themeColor = '#000'
 }: ApplicantDashboardProps) {
+  // Debug log to check status
+  console.log('📊 ApplicantDashboard props:', { applicationStatus, hasOnContinue: !!onContinueApplication })
+  console.log('📊 Button should show:', onContinueApplication && ['draft', 'pending', 'in_progress', 'revision_requested'].includes(applicationStatus))
+  
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
   const [dashboardData, setDashboardData] = useState<Record<string, any>>({})
   const [isSaving, setIsSaving] = useState(false)
@@ -89,7 +106,31 @@ export function ApplicantDashboard({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
   // Dashboard layout from builder (fetched from backend)
+  // Using 'any' because layout can come from different sources with slightly different types
   const [dashboardLayout, setDashboardLayout] = useState<ApplicationDashboard['layout'] | null>(null)
+
+  // Fetch dashboard layout from form (works even without rowId for new applicants)
+  useEffect(() => {
+    const fetchDashboardLayout = async () => {
+      if (!formId) return
+      try {
+        const layout = await dashboardClient.getLayout(formId)
+        if (layout) {
+          // Cast to the expected type - both have the same runtime structure
+          setDashboardLayout(layout as ApplicationDashboard['layout'])
+        }
+      } catch (error) {
+        console.error('Failed to fetch dashboard layout:', error)
+        // Non-critical error, will use default layout
+      }
+    }
+    
+    // Fetch layout by formId if we don't have a rowId (new applicant)
+    // or if we do have rowId but layout not yet loaded
+    if (formId && !dashboardLayout) {
+      fetchDashboardLayout()
+    }
+  }, [formId, dashboardLayout])
 
   // Fetch dashboard data including activities AND layout from builder
   useEffect(() => {
@@ -288,7 +329,8 @@ export function ApplicantDashboard({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {onContinueApplication && applicationStatus === 'revision_requested' && (
+            {/* Show Continue/Edit button for draft, pending, in_progress, or revision_requested */}
+            {onContinueApplication && ['draft', 'pending', 'in_progress', 'revision_requested'].includes(applicationStatus) && (
               <Button 
                 variant="default" 
                 size="sm" 
@@ -297,7 +339,7 @@ export function ApplicantDashboard({
                 className="text-white"
               >
                 <FileEdit className="w-4 h-4 mr-2" />
-                Edit & Resubmit
+                {applicationStatus === 'revision_requested' ? 'Edit & Resubmit' : 'Continue Application'}
               </Button>
             )}
             <Button variant="ghost" size="sm" onClick={onLogout}>
@@ -309,6 +351,29 @@ export function ApplicantDashboard({
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
+        {/* Welcome Message - from dashboard builder settings */}
+        {/* Check both snake_case (from backend) and camelCase (from types) */}
+        {(dashboardLayout?.settings?.welcome_title || dashboardLayout?.settings?.welcomeTitle || 
+          dashboardLayout?.settings?.welcome_text || dashboardLayout?.settings?.welcomeText) && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="mb-6"
+          >
+            {(dashboardLayout?.settings?.welcome_title || dashboardLayout?.settings?.welcomeTitle) && (
+              <h2 className="text-xl font-semibold text-gray-900">
+                {dashboardLayout.settings.welcome_title || dashboardLayout.settings.welcomeTitle}
+              </h2>
+            )}
+            {(dashboardLayout?.settings?.welcome_text || dashboardLayout?.settings?.welcomeText) && (
+              <p className="text-gray-500 mt-1">
+                {dashboardLayout.settings.welcome_text || dashboardLayout.settings.welcomeText}
+              </p>
+            )}
+          </motion.div>
+        )}
+
         {/* Status Card - controlled by dashboard builder settings */}
         {showStatusCard && (
           <motion.div
@@ -418,11 +483,8 @@ export function ApplicantDashboard({
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <MessageSquare className="w-5 h-5 text-gray-500" />
-                  <CardTitle className="text-lg">Messages & Updates</CardTitle>
+                  <CardTitle className="text-lg">Activity & Messages</CardTitle>
                 </div>
-                <CardDescription>
-                  Communicate with the review team and see updates on your application
-                </CardDescription>
               </CardHeader>
               <CardContent>
                 {/* Timeline - controlled by dashboard builder settings */}

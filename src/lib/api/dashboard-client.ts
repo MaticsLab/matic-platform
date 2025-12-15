@@ -12,14 +12,54 @@ import type {
 
 const BASE_URL = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
 
+// Helper to convert camelCase settings to snake_case for backend
+const settingsToSnakeCase = (settings: DashboardLayout['settings']) => {
+  if (!settings) return settings
+  return {
+    show_status: settings.showStatus ?? settings.show_status ?? true,
+    show_timeline: settings.showTimeline ?? settings.show_timeline ?? true,
+    show_chat: settings.showChat ?? settings.show_chat ?? true,
+    show_documents: settings.showDocuments ?? settings.show_documents ?? false,
+    welcome_title: settings.welcomeTitle ?? settings.welcome_title ?? '',
+    welcome_text: settings.welcomeText ?? settings.welcome_text ?? '',
+  }
+}
+
+// Helper to normalize settings from backend (snake_case) to frontend-friendly format
+const normalizeSettings = (settings: any) => {
+  if (!settings) return settings
+  return {
+    // Keep both formats for compatibility
+    show_status: settings.show_status ?? settings.showStatus ?? true,
+    show_timeline: settings.show_timeline ?? settings.showTimeline ?? true,
+    show_chat: settings.show_chat ?? settings.showChat ?? true,
+    show_documents: settings.show_documents ?? settings.showDocuments ?? false,
+    welcome_title: settings.welcome_title ?? settings.welcomeTitle ?? '',
+    welcome_text: settings.welcome_text ?? settings.welcomeText ?? '',
+    // Also provide camelCase for convenience
+    showStatus: settings.show_status ?? settings.showStatus ?? true,
+    showTimeline: settings.show_timeline ?? settings.showTimeline ?? true,
+    showChat: settings.show_chat ?? settings.showChat ?? true,
+    showDocuments: settings.show_documents ?? settings.showDocuments ?? false,
+    welcomeTitle: settings.welcome_title ?? settings.welcomeTitle ?? '',
+    welcomeText: settings.welcome_text ?? settings.welcomeText ?? '',
+  }
+}
+
 export const dashboardClient = {
   // ========== Dashboard Layout (Admin) ==========
   
   /**
    * Get the dashboard layout configuration for a form
    */
-  getLayout: (formId: string) =>
-    goFetch<DashboardLayout>(`/forms/${formId}/dashboard`),
+  getLayout: async (formId: string): Promise<DashboardLayout> => {
+    const layout = await goFetch<DashboardLayout>(`/forms/${formId}/dashboard`)
+    // Normalize settings to include both snake_case and camelCase
+    return {
+      ...layout,
+      settings: normalizeSettings(layout.settings)
+    }
+  },
 
   /**
    * Update the dashboard layout configuration
@@ -27,7 +67,10 @@ export const dashboardClient = {
   updateLayout: (formId: string, layout: DashboardLayout) =>
     goFetch<DashboardLayout>(`/forms/${formId}/dashboard`, {
       method: 'PUT',
-      body: JSON.stringify(layout)
+      body: JSON.stringify({
+        ...layout,
+        settings: settingsToSnakeCase(layout.settings)
+      })
     }),
 
   // ========== Applicant Dashboard (Portal) ==========

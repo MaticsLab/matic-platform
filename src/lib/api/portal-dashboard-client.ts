@@ -35,11 +35,15 @@ export interface DashboardLayout {
     show_timeline?: boolean
     show_chat?: boolean
     show_documents?: boolean
+    welcome_title?: string
+    welcome_text?: string
     // CamelCase alternatives
     showStatus?: boolean
     showTimeline?: boolean
     showChat?: boolean
     showDocuments?: boolean
+    welcomeTitle?: string
+    welcomeText?: string
     // Legacy aliases
     show_status_badge?: boolean
     allow_messages?: boolean

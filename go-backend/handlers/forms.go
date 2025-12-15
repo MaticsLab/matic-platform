@@ -925,9 +925,19 @@ func DeleteFormSubmission(c *gin.Context) {
 
 	fmt.Printf("Deleting submission %s from form %s\n", submissionID, formID)
 
-	// Verify the submission exists and belongs to the form
+	// formID might be a view_id, so we need to resolve the actual table_id
+	tableID := formID
+
+	// Check if formID is a view_id - if so, get the table_id
+	var view models.View
+	if err := database.DB.Where("id = ?", formID).First(&view).Error; err == nil {
+		tableID = view.TableID.String()
+		fmt.Printf("Resolved view_id %s to table_id %s\n", formID, tableID)
+	}
+
+	// Verify the submission exists and belongs to the table
 	var row models.Row
-	if err := database.DB.Where("id = ? AND table_id = ?", submissionID, formID).First(&row).Error; err != nil {
+	if err := database.DB.Where("id = ? AND table_id = ?", submissionID, tableID).First(&row).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
 	}
@@ -943,8 +953,9 @@ func DeleteFormSubmission(c *gin.Context) {
 }
 
 type SubmitFormInput struct {
-	Data  map[string]interface{} `json:"data" binding:"required"`
-	Email string                 `json:"email"`
+	Data      map[string]interface{} `json:"data" binding:"required"`
+	Email     string                 `json:"email"`
+	SaveDraft bool                   `json:"save_draft"` // If true, don't mark as submitted
 }
 
 func SubmitForm(c *gin.Context) {
@@ -1069,7 +1080,7 @@ func SubmitForm(c *gin.Context) {
 			existingRow.Data = mapToJSON(data)
 			existingRow.UpdatedAt = time.Now()
 
-			// Reset status to "submitted" when applicant resubmits (e.g., after revision request)
+			// Update metadata - only change status if not a draft save
 			var existingMetadata map[string]interface{}
 			if existingRow.Metadata != nil {
 				json.Unmarshal(existingRow.Metadata, &existingMetadata)
@@ -1077,8 +1088,17 @@ func SubmitForm(c *gin.Context) {
 			if existingMetadata == nil {
 				existingMetadata = make(map[string]interface{})
 			}
-			existingMetadata["status"] = "submitted"
-			existingMetadata["resubmitted_at"] = time.Now()
+			if input.SaveDraft {
+				// Draft save - keep current status or set to draft if no status
+				if _, hasStatus := existingMetadata["status"]; !hasStatus {
+					existingMetadata["status"] = "draft"
+				}
+				existingMetadata["draft_saved_at"] = time.Now()
+			} else {
+				// Full submission - mark as submitted
+				existingMetadata["status"] = "submitted"
+				existingMetadata["resubmitted_at"] = time.Now()
+			}
 			existingRow.Metadata = mapToJSON(existingMetadata)
 
 			if err := tx.Save(&existingRow).Error; err != nil {
@@ -1142,9 +1162,22 @@ func SubmitForm(c *gin.Context) {
 		}
 	}()
 
+	// Set initial metadata with status based on save_draft flag
+	initialMetadata := map[string]interface{}{
+		"created_at": time.Now(),
+	}
+	if input.SaveDraft {
+		initialMetadata["status"] = "draft"
+		initialMetadata["draft_saved_at"] = time.Now()
+	} else {
+		initialMetadata["status"] = "submitted"
+		initialMetadata["submitted_at"] = time.Now()
+	}
+
 	row := models.Row{
-		TableID: parsedFormID,
-		Data:    mapToJSON(data),
+		TableID:  parsedFormID,
+		Data:     mapToJSON(data),
+		Metadata: mapToJSON(initialMetadata),
 	}
 
 	// Add user ID if authenticated (optional for forms)

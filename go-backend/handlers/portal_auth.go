@@ -99,18 +99,47 @@ func PortalLogin(c *gin.Context) {
 		return
 	}
 
-	// Find applicant - first try by direct form_id match
+	// Find applicant - we need to handle multiple scenarios:
+	// 1. form_id matches directly (portal_applicant.form_id = req.FormID)
+	// 2. req.FormID is a table_id, applicant registered with view_id
+	// 3. req.FormID is a view_id, applicant registered with table_id
+	// 4. req.FormID is a view_id, applicant registered with different view_id (same table)
+
 	var applicant models.PortalApplicant
 	err := database.DB.Where("form_id = ? AND email = ?", req.FormID, req.Email).First(&applicant).Error
 
-	// If not found, check if form_id is actually a table_id and look for applicants
-	// registered with the corresponding view_id (backwards compatibility)
+	// If not found, resolve the table_id and try all possible form_ids
 	if err != nil {
-		var view models.View
-		if viewErr := database.DB.Where("table_id = ? AND type = ?", req.FormID, "form").First(&view).Error; viewErr == nil {
-			// Try to find applicant registered with view_id
-			err = database.DB.Where("form_id = ? AND email = ?", view.ID, req.Email).First(&applicant).Error
+		var tableID uuid.UUID
+
+		// Parse req.FormID as UUID
+		formUUID, parseErr := uuid.Parse(req.FormID)
+		if parseErr != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			return
 		}
+
+		// Check if req.FormID is a view_id - if so, get its table_id
+		var view models.View
+		if viewErr := database.DB.Where("id = ?", formUUID).First(&view).Error; viewErr == nil {
+			tableID = view.TableID
+		} else {
+			// req.FormID might be a table_id directly
+			tableID = formUUID
+		}
+
+		// Get all form views for this table
+		var views []models.View
+		database.DB.Where("table_id = ? AND type = ?", tableID, "form").Find(&views)
+
+		// Build list of all possible form_ids (table_id + all view_ids)
+		formIDs := []uuid.UUID{tableID}
+		for _, v := range views {
+			formIDs = append(formIDs, v.ID)
+		}
+
+		// Try to find applicant with any of these form_ids
+		err = database.DB.Where("form_id IN ? AND email = ?", formIDs, req.Email).First(&applicant).Error
 	}
 
 	if err != nil {
@@ -131,7 +160,16 @@ func PortalLogin(c *gin.Context) {
 
 	// Find the corresponding row to get row_id and status
 	var rowID *string
-	var status string = "pending"
+	var status string = "draft" // Default to draft until we find a submitted row
+
+	// Resolve the actual table_id from the view
+	// applicant.FormID could be a view_id, so we need to look up the table_id
+	tableID := applicant.FormID
+	var view models.View
+	if err := database.DB.Where("id = ?", applicant.FormID).First(&view).Error; err == nil {
+		// Found a view, use its table_id
+		tableID = view.TableID
+	}
 
 	// Try to find the submission row by email
 	var row models.Row
@@ -142,15 +180,18 @@ func PortalLogin(c *gin.Context) {
 	}
 
 	for _, query := range queries {
-		if err := database.DB.Where(query, applicant.FormID, applicant.Email).First(&row).Error; err == nil {
+		if err := database.DB.Where(query, tableID, applicant.Email).First(&row).Error; err == nil {
 			rowIDStr := row.ID.String()
 			rowID = &rowIDStr
 
-			// Get status from metadata
+			// If we found a row, default to submitted (they've submitted at least once)
+			status = "submitted"
+
+			// Get status from metadata if available (could be under_review, approved, revision_requested, etc.)
 			if row.Metadata != nil {
 				var metadata map[string]interface{}
 				if err := json.Unmarshal(row.Metadata, &metadata); err == nil {
-					if s, ok := metadata["status"].(string); ok {
+					if s, ok := metadata["status"].(string); ok && s != "" {
 						status = s
 					}
 				}

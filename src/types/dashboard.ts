@@ -33,6 +33,8 @@ export interface DashboardSettings {
   show_timeline?: boolean
   show_chat?: boolean
   show_documents?: boolean
+  welcome_title?: string
+  welcome_text?: string
   show_status_badge?: boolean // Legacy alias
   allow_messages?: boolean // Legacy alias
 }

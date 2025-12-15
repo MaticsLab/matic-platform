@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, LayoutDashboard } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/ui-components/card'
@@ -16,13 +16,15 @@ interface DynamicApplicationFormProps {
   config: PortalConfig
   onBack?: () => void
   onSubmit?: (formData: Record<string, any>, options?: { saveAndExit?: boolean }) => Promise<void>
+  onFormDataChange?: (formData: Record<string, any>) => void // Callback when form data changes
+  onDashboard?: () => void // Callback to go to dashboard
   isExternal?: boolean
   formId?: string
   initialSectionId?: string
   initialData?: Record<string, any>
 }
 
-export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = false, formId, initialSectionId, initialData }: DynamicApplicationFormProps) {
+export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataChange, onDashboard, isExternal = false, formId, initialSectionId, initialData }: DynamicApplicationFormProps) {
   const defaultLanguage = config.settings.language?.default || 'en'
   const supportedLanguages = Array.from(new Set([defaultLanguage, ...(config.settings.language?.supported || [])])).filter(lang => lang && lang.trim() !== '')
   const [activeLanguage, setActiveLanguage] = useState<string>(defaultLanguage)
@@ -62,6 +64,13 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = 
       setFormData(initialData)
     }
   }, [initialData])
+
+  // Notify parent when form data changes
+  useEffect(() => {
+    if (onFormDataChange) {
+      onFormDataChange(formData)
+    }
+  }, [formData, onFormDataChange])
 
   const activeSectionIndex = Math.max(
     0,
@@ -157,7 +166,7 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = 
             </div>
           </div>
           
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             {config.settings.language?.enabled && supportedLanguages.length > 1 && (
               <StandaloneLanguageSelector
                 activeLanguage={activeLanguage}
@@ -174,6 +183,17 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, isExternal = 
               </div>
               <Progress value={calculateProgress()} className="w-32 h-2" />
             </div>
+            {onDashboard && (
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={onDashboard}
+                className="text-gray-600 hover:text-gray-900"
+              >
+                <LayoutDashboard className="w-4 h-4 mr-2" />
+                My Dashboard
+              </Button>
+            )}
             <Button 
               className={cn(isExternal && "hover:opacity-90")}
               style={{ backgroundColor: config.settings.themeColor || '#000' }}

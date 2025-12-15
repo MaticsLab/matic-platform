@@ -41,10 +41,11 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   const [hasExistingSubmission, setHasExistingSubmission] = useState(false)
   const [initialData, setInitialData] = useState<any>(null)
   const [submissionData, setSubmissionData] = useState<Record<string, any> | null>(null)
-  const [applicationStatus, setApplicationStatus] = useState<string>('submitted')
+  const [applicationStatus, setApplicationStatus] = useState<string>('draft') // Default to draft until we know they've submitted
   const [endingPage, setEndingPage] = useState<EndingPageConfig | null>(null)
   const [applicationRowId, setApplicationRowId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'dashboard' | 'form'>('form') // Track if viewing dashboard or filling form
+  const [currentFormData, setCurrentFormData] = useState<Record<string, any>>({}) // Track current form data for dashboard save
 
   // Language support
   const defaultLanguage = form?.settings?.language?.default || 'en'
@@ -169,10 +170,13 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         })
 
         // Use row_id and status from login response
+        console.log('🔐 Login response:', { row_id: applicant.row_id, status: applicant.status, submission_data: applicant.submission_data })
         if (applicant.row_id) {
           setApplicationRowId(applicant.row_id)
         }
+        // Always set status from login response (defaults to 'draft' on backend if no row)
         if (applicant.status) {
+          console.log('📊 Setting application status to:', applicant.status)
           setApplicationStatus(applicant.status)
         }
 
@@ -243,10 +247,15 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       console.log('📤 Submitting form data:', { formId: form.id, data: formData, email, saveAndExit: options?.saveAndExit })
       
       // Call the backend API to save the submission
+      // If saveAndExit is true, mark as draft (don't change status to submitted)
       await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${form.id}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: formData, email })
+        body: JSON.stringify({ 
+          data: formData, 
+          email,
+          save_draft: options?.saveAndExit === true // Only mark as draft if saveAndExit
+        })
       }).then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
@@ -459,17 +468,21 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       setPassword('')
       setApplicationRowId(null)
       setViewMode('form')
+      setCurrentFormData({})
     }
 
-    // Handle save and go to dashboard
+    // Handle save and go to dashboard (saves as draft, doesn't submit)
     const handleSaveAndDashboard = async () => {
-      // Save current form data first if we have a formId
-      if (form?.id && initialData && Object.keys(initialData).length > 0) {
+      // Use current form data (from DynamicApplicationForm) or fall back to initialData
+      const dataToSave = Object.keys(currentFormData).length > 0 ? currentFormData : initialData
+      
+      // Save current form data as draft (doesn't change status to submitted)
+      if (form?.id && dataToSave && Object.keys(dataToSave).length > 0) {
         try {
           await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${form.id}/submit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ data: initialData, email })
+            body: JSON.stringify({ data: dataToSave, email, save_draft: true })
           })
           toast.success('Progress saved!')
         } catch (error) {
@@ -478,7 +491,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       }
       setViewMode('dashboard')
       setHasExistingSubmission(true)
-      setSubmissionData(initialData || {})
+      setSubmissionData(dataToSave || {})
     }
 
     // Show dashboard if user has existing submission AND viewMode is dashboard
@@ -505,26 +518,14 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         animate={{ opacity: 1 }} 
         className="min-h-screen bg-white"
       >
-        {/* Dashboard Navigation Bar */}
-        <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-100">
-          <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-end gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={handleSaveAndDashboard}
-              className="text-gray-600 hover:text-gray-900"
-            >
-              <LayoutDashboard className="w-4 h-4 mr-2" />
-              My Dashboard
-            </Button>
-          </div>
-        </div>
         <DynamicApplicationForm 
           config={portalConfig}
           onSubmit={handleFormSubmit}
+          onFormDataChange={setCurrentFormData}
           isExternal={true}
           formId={form?.id}
           initialData={initialData}
+          onDashboard={handleSaveAndDashboard}
         />
       </motion.div>
     )
