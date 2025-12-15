@@ -3,4 +3,4 @@
  */
 
 export { ApplicantDashboardPage } from './ApplicantDashboardPage'
-export { DashboardBuilder } from './DashboardBuilder'
+export { DashboardBuilder, DashboardSettingsPanel } from './DashboardBuilder'

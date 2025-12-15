@@ -26,7 +26,9 @@ import { SignUpPreview } from './SignUpPreview'
 import { ConfirmationPreview } from './ConfirmationPreview'
 import { ReviewPreview } from './ReviewPreview'
 import { EndingPagesBuilder } from '@/components/EndingPages/EndingPagesBuilder'
-import { DashboardBuilder } from '@/components/ApplicantDashboard/DashboardBuilder'
+import { DashboardBuilder, DashboardSettingsPanel } from '@/components/ApplicantDashboard/DashboardBuilder'
+import type { DashboardLayout, DashboardSettings } from '@/types/dashboard'
+import { dashboardClient } from '@/lib/api/dashboard-client'
 import { EndingBlocksToolbox } from './EndingBlocksToolbox'
 import { EndingBlockEditor } from './EndingBlockEditor'
 import { DEFAULT_ENDING_TEMPLATE } from '@/lib/ending-templates'
@@ -121,6 +123,9 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
   const [leftSidebarTab, setLeftSidebarTab] = useState<'structure' | 'elements' | 'theme'>('structure')
   const [shareTabKey, setShareTabKey] = useState(0)
+  
+  // Dashboard layout state
+  const [dashboardLayout, setDashboardLayout] = useState<DashboardLayout | null>(null)
   
   // Track previous selected field for autosave on deselect
   const previousSelectedFieldId = useRef<string | null>(null)
@@ -1130,16 +1135,26 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             </div>
 
             {/* Canvas */}
-            <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative">
-                {/* Background Pattern (subtle grid) */}
-                <div className="absolute inset-0 opacity-[0.015]" style={{
-                  backgroundImage: `radial-gradient(circle, #000 1px, transparent 1px)`,
-                  backgroundSize: '24px 24px'
-                }} />
+            <div className={cn(
+              "flex-1 overflow-y-auto bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative",
+              activeSpecialPage === 'dashboard' ? "p-0" : "p-6"
+            )}>
+                {/* Background Pattern (subtle grid) - hide for dashboard */}
+                {activeSpecialPage !== 'dashboard' && (
+                  <div className="absolute inset-0 opacity-[0.015]" style={{
+                    backgroundImage: `radial-gradient(circle, #000 1px, transparent 1px)`,
+                    backgroundSize: '24px 24px'
+                  }} />
+                )}
                 
                 <div className={cn(
-                  "bg-white shadow-xl border border-gray-200/80 rounded-2xl transition-all duration-300 min-h-[800px] relative z-10",
-                  viewMode === 'mobile' ? "w-[375px]" : "w-full max-w-3xl"
+                  "transition-all duration-300 relative z-10",
+                  activeSpecialPage === 'dashboard' 
+                    ? "w-full h-full bg-gray-50" 
+                    : cn(
+                        "bg-white shadow-xl border border-gray-200/80 rounded-2xl min-h-[800px]",
+                        viewMode === 'mobile' ? "w-[375px]" : "w-full max-w-3xl"
+                      )
                 )}>
                   {isPreview ? (
                     <div className="h-full">
@@ -1171,8 +1186,13 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       }}
                     />
                   ) : activeSpecialPage === 'dashboard' && formId ? (
-                    <div className="h-full overflow-hidden rounded-2xl">
-                      <DashboardBuilder formId={formId} />
+                    <div className="h-full overflow-hidden">
+                      <DashboardBuilder 
+                        formId={formId}
+                        renderSettingsExternally={true}
+                        onLayoutChange={setDashboardLayout}
+                        externalLayout={dashboardLayout}
+                      />
                     </div>
                   ) : displaySection?.sectionType === 'ending' ? (
                     <ConfirmationPreview 
@@ -1240,11 +1260,11 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             {/* Right Sidebar - Settings */}
             <div className={cn(
                "bg-white border-l border-gray-200 flex flex-col shadow-sm z-10 transition-all duration-300 ease-in-out",
-               (selectedFieldId || selectedBlockId || (displaySection?.sectionType === 'ending' && activeSectionId)) ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
+               (selectedFieldId || selectedBlockId || (displaySection?.sectionType === 'ending' && activeSectionId) || activeSpecialPage === 'dashboard') ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
             )}>
                <div className="flex items-center justify-between p-4 border-b border-gray-100">
                   <span className="font-semibold text-sm">
-                    {displaySection?.sectionType === 'ending' ? 'Ending Settings' : 'Field Settings'}
+                    {activeSpecialPage === 'dashboard' ? 'Dashboard Settings' : displaySection?.sectionType === 'ending' ? 'Ending Settings' : 'Field Settings'}
                   </span>
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => {
                     setSelectedFieldId(null)
@@ -1321,6 +1341,19 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                        </div>
                      )
                    })()}
+                   
+                   {/* Dashboard Settings */}
+                   {activeSpecialPage === 'dashboard' && dashboardLayout && (
+                      <DashboardSettingsPanel
+                        layout={dashboardLayout}
+                        onUpdate={(updates) => {
+                          setDashboardLayout(prev => prev ? {
+                            ...prev,
+                            settings: { ...prev.settings, ...updates }
+                          } : null)
+                        }}
+                      />
+                   )}
                    
                    {/* Ending Settings - Conditions */}
                    {displaySection?.sectionType === 'ending' && activeSectionId && !selectedBlockId && (
