@@ -18,6 +18,8 @@ export interface GmailConnection {
   connected: boolean;
   email?: string;
   needs_refresh?: boolean;
+  needs_reconnect?: boolean;
+  reconnect_reason?: string;
   accounts_count?: number;
   accounts?: GmailAccount[];
 }

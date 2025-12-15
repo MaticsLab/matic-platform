@@ -27,6 +27,9 @@ import { ConfirmationPreview } from './ConfirmationPreview'
 import { ReviewPreview } from './ReviewPreview'
 import { EndingPagesBuilder } from '@/components/EndingPages/EndingPagesBuilder'
 import { VisualDashboardBuilder } from '@/components/ApplicantDashboard/VisualDashboardBuilder'
+import { UnifiedSidebar } from './UnifiedSidebar'
+import { DashboardPreview } from './DashboardPreview'
+import type { DashboardSettings } from '@/types/dashboard'
 import { EndingBlocksToolbox } from './EndingBlocksToolbox'
 import { EndingBlockEditor } from './EndingBlockEditor'
 import { DEFAULT_ENDING_TEMPLATE } from '@/lib/ending-templates'
@@ -38,6 +41,7 @@ import { DynamicApplicationForm } from '@/components/ApplicationsHub/Application
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { formsClient } from '@/lib/api/forms-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
+import { dashboardClient } from '@/lib/api/dashboard-client'
 import { toast } from 'sonner'
 import { SettingsModal } from './SettingsModal'
 import {
@@ -121,6 +125,14 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
   const [leftSidebarTab, setLeftSidebarTab] = useState<'structure' | 'elements' | 'theme'>('structure')
   const [shareTabKey, setShareTabKey] = useState(0)
+  const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
+    showStatus: true,
+    showTimeline: true,
+    showChat: true,
+    showDocuments: true,
+    welcomeTitle: 'Welcome to Your Dashboard',
+    welcomeText: 'Track your application progress and communicate with our team.'
+  })
   
   // Track previous selected field for autosave on deselect
   const previousSelectedFieldId = useRef<string | null>(null)
@@ -278,6 +290,32 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                ]
              }
 
+             // Load dashboard settings from dedicated dashboard layout endpoint first,
+             // fall back to form settings
+             try {
+               const dashboardLayout = await dashboardClient.getLayout(fullForm.id)
+               if (dashboardLayout?.settings) {
+                 setDashboardSettings(prev => ({
+                   ...prev,
+                   showStatus: dashboardLayout.settings.showStatus ?? dashboardLayout.settings.show_status ?? prev.showStatus,
+                   showTimeline: dashboardLayout.settings.showTimeline ?? dashboardLayout.settings.show_timeline ?? prev.showTimeline,
+                   showChat: dashboardLayout.settings.showChat ?? dashboardLayout.settings.show_chat ?? prev.showChat,
+                   showDocuments: dashboardLayout.settings.showDocuments ?? dashboardLayout.settings.show_documents ?? prev.showDocuments,
+                   welcomeTitle: dashboardLayout.settings.welcomeTitle ?? dashboardLayout.settings.welcome_title ?? prev.welcomeTitle,
+                   welcomeText: dashboardLayout.settings.welcomeText ?? dashboardLayout.settings.welcome_text ?? prev.welcomeText,
+                 }))
+               }
+             } catch (layoutError) {
+               // Fall back to form settings if dashboard layout endpoint fails
+               console.warn('Failed to load dashboard layout, using form settings:', layoutError)
+               if (fullForm.settings.dashboardSettings) {
+                 setDashboardSettings(prev => ({
+                   ...prev,
+                   ...fullForm.settings.dashboardSettings
+                 }))
+               }
+             }
+
              setConfig({
                  sections: sections,
                  settings: {
@@ -292,7 +330,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                        rightToLeft: false
                      },
                      loginFields: fullForm.settings.loginFields || INITIAL_CONFIG.settings.loginFields,
-                     signupFields
+                     signupFields,
+                     dashboardSettings: fullForm.settings.dashboardSettings
                  },
                  translations: fullForm.translations || {}
              })
@@ -379,24 +418,40 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         })
 
         const translationCount = Object.keys(config.translations || {}).length
+        let targetFormId = formId
 
         if (formId) {
             await formsClient.updateStructure(formId, config)
             // Also set is_published to true so submissions are accepted
             await formsClient.update(formId, { is_published: true })
-            toast.success(`Portal published successfully! (${translationCount} languages)`)
         } else {
             const newForm = await formsClient.create({
                 workspace_id: workspace.id,
                 name: config.settings.name,
                 description: 'Generated Portal'
             }) as any
+            targetFormId = newForm.id
             setFormId(newForm.id)
             await formsClient.updateStructure(newForm.id, config)
             // Also set is_published to true so submissions are accepted
             await formsClient.update(newForm.id, { is_published: true })
-            toast.success(`Portal created and published! (${translationCount} languages)`)
         }
+
+        // Save dashboard layout separately to dedicated endpoint
+        if (targetFormId) {
+            try {
+                await dashboardClient.updateLayout(targetFormId, {
+                    sections: [],  // Sections are managed by form settings
+                    settings: dashboardSettings
+                })
+                console.log('📤 Saved dashboard settings:', dashboardSettings)
+            } catch (dashboardError) {
+                console.warn('Failed to save dashboard layout:', dashboardError)
+                // Don't fail the whole save for dashboard layout issues
+            }
+        }
+
+        toast.success(`Portal published successfully! (${translationCount} languages)`)
         setIsPublished(true)
         setHasUnsavedChanges(false)
     } catch (error: any) {
@@ -726,6 +781,23 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     setHasUnsavedChanges(true)
   }
 
+  const handleDashboardSettingsChange = (updates: Partial<DashboardSettings>) => {
+    setDashboardSettings(prev => ({ ...prev, ...updates }))
+    // Also store in config settings for persistence
+    setConfig(prev => {
+      const currentDashboardSettings = (prev.settings as any).dashboardSettings || {}
+      return {
+        ...prev,
+        settings: {
+          ...prev.settings,
+          dashboardSettings: { ...currentDashboardSettings, ...updates }
+        } as typeof prev.settings
+      }
+    })
+    setHasUnsavedChanges(true)
+    setIsPublished(false)
+  }
+
   // Helper functions for recursive updates
   function updateFieldRecursive(fields: Field[], targetId: string, updates: Partial<Field>): Field[] {
     return fields.map(field => {
@@ -943,168 +1015,43 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             </div>
 
             <TabsContent value="structure" className="flex-1 data-[state=active]:flex flex-col mt-0 min-h-0 overflow-hidden">
-              {/* Header with Add Button */}
-              <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900">All Sections</h3>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" className="h-8 text-xs gap-1">
-                      <Plus className="w-3.5 h-3.5" />
-                      Add
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem className="flex items-start gap-3" onClick={() => handleAddSection('form')}>
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600 border border-amber-100">
-                        <ScrollText className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">Form</p>
-                        <p className="text-xs text-gray-500">Collect user information</p>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="flex items-start gap-3" onClick={() => handleAddSection('cover')}>
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
-                        <BookOpen className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">Cover</p>
-                        <p className="text-xs text-gray-500">Welcome page intro</p>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="flex items-start gap-3" onClick={() => handleAddSection('ending')}>
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
-                        <CheckCircle className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">Ending</p>
-                        <p className="text-xs text-gray-500">Thank you / confirmation</p>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="flex items-start gap-3" onClick={() => handleAddSection('review')}>
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-50 text-purple-600 border border-purple-100">
-                        <EyeIcon className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">Review</p>
-                        <p className="text-xs text-gray-500">Let users review answers</p>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="flex items-start gap-3" onClick={() => handleAddSection('dashboard')}>
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
-                        <LayoutDashboard className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">Dashboard</p>
-                        <p className="text-xs text-gray-500">Additional info after submit</p>
-                      </div>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-
-              {/* Special Pages */}
-              <div className="px-2 pt-3 pb-2 space-y-1">
-                {/* Sign Up Page */}
-                <button
-                  onClick={() => {
-                    setActiveSpecialPage('signup')
+              <UnifiedSidebar
+                sections={config.sections}
+                activeSectionId={activeSectionId}
+                activeSpecialPage={activeSpecialPage}
+                onSelectSection={(id) => {
+                  setActiveSectionId(id)
+                  setSelectedFieldId(null)
+                  setSelectedEndingId(null)
+                }}
+                onSelectSpecialPage={(page) => {
+                  setActiveSpecialPage(page)
+                  if (page) {
                     setActiveSectionId('')
                     setSelectedFieldId(null)
-                  }}
-                  title="Sign Up Page"
-                  className={cn(
-                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left",
-                    activeSpecialPage === 'signup'
-                      ? "bg-blue-50 text-blue-900" 
-                      : "text-gray-700 hover:bg-gray-50"
-                  )}
-                >
-                  <Lock className="w-4 h-4 flex-shrink-0 text-green-600" />
-                  <span className="flex-1 truncate font-medium">Sign Up</span>
-                </button>
-
-                {/* Review Page */}
-                <button
-                  onClick={() => {
-                    setActiveSpecialPage('review')
-                    setActiveSectionId('')
-                    setSelectedFieldId(null)
-                  }}
-                  title="Review & Submit Page"
-                  className={cn(
-                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left",
-                    activeSpecialPage === 'review'
-                      ? "bg-blue-50 text-blue-900" 
-                      : "text-gray-700 hover:bg-gray-50"
-                  )}
-                >
-                  <EyeIcon className="w-4 h-4 flex-shrink-0 text-purple-600" />
-                  <span className="flex-1 truncate font-medium">Review & Submit</span>
-                </button>
-
-                {/* Dashboard Page */}
-                <button
-                  onClick={() => {
-                    setActiveSpecialPage('dashboard')
-                    setActiveSectionId('')
-                    setSelectedFieldId(null)
-                  }}
-                  title="Applicant Dashboard"
-                  className={cn(
-                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left",
-                    activeSpecialPage === 'dashboard'
-                      ? "bg-blue-50 text-blue-900" 
-                      : "text-gray-700 hover:bg-gray-50"
-                  )}
-                >
-                  <LayoutDashboard className="w-4 h-4 flex-shrink-0 text-orange-600" />
-                  <span className="flex-1 truncate font-medium">Dashboard</span>
-                </button>
-              </div>
-
-              {/* Divider */}
-              {config.sections.length > 0 && (
-                <div className="px-2 py-2">
-                  <div className="border-t border-gray-200" />
-                </div>
-              )}
-
-              {/* Form Sections - Scrollable */}
-              <div className="flex-1 overflow-hidden">
-                <ScrollArea className="h-full w-full">
-                  <div className="w-full">
-                    <SectionList 
-                    sections={config.sections} 
-                    activeId={activeSectionId} 
-                    onSelect={(id) => {
-                      setActiveSectionId(id)
-                      setActiveSpecialPage(null)
-                      setSelectedFieldId(null)
-                      setSelectedEndingId(null)
-                    }}
-                    onReorder={(sections: Section[]) => {
-                      setConfig(prev => ({ ...prev, sections }))
-                      setHasUnsavedChanges(true)
-                    }}
-                    onDelete={(sectionId: string) => {
-                      setConfig(prev => ({
-                        ...prev,
-                        sections: prev.sections.filter(s => s.id !== sectionId)
-                      }));
-                      setHasUnsavedChanges(true)
-                      // Select first remaining section if active one was deleted
-                      if (activeSectionId === sectionId) {
-                        const remaining = config.sections.filter(s => s.id !== sectionId);
-                        if (remaining.length > 0) {
-                          setActiveSectionId(remaining[0].id);
-                        }
-                      }
-                    }}
-                  />
-                  </div>
-                </ScrollArea>
-              </div>
+                  }
+                }}
+                onReorderSections={(sections: Section[]) => {
+                  setConfig(prev => ({ ...prev, sections }))
+                  setHasUnsavedChanges(true)
+                }}
+                onDeleteSection={(sectionId: string) => {
+                  setConfig(prev => ({
+                    ...prev,
+                    sections: prev.sections.filter(s => s.id !== sectionId)
+                  }))
+                  setHasUnsavedChanges(true)
+                  if (activeSectionId === sectionId) {
+                    const remaining = config.sections.filter(s => s.id !== sectionId)
+                    if (remaining.length > 0) {
+                      setActiveSectionId(remaining[0].id)
+                    }
+                  }
+                }}
+                onAddSection={(type) => handleAddSection(type as Section['sectionType'])}
+                dashboardSettings={dashboardSettings}
+                onDashboardSettingsChange={handleDashboardSettingsChange}
+              />
             </TabsContent>
 
             <TabsContent value="elements" className="flex-1 mt-0 overflow-hidden data-[state=active]:flex flex-col min-h-0">
@@ -1180,14 +1127,13 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         setIsPublished(false)
                       }}
                     />
-                  ) : activeSpecialPage === 'dashboard' && formId ? (
+                  ) : activeSpecialPage === 'dashboard' ? (
                     <div className="h-full overflow-hidden">
-                      <VisualDashboardBuilder 
-                        formId={formId}
-                        workspaceId={workspaceId || undefined}
+                      <DashboardPreview 
                         themeColor={config.settings.themeColor}
                         logoUrl={config.settings.logoUrl}
                         portalName={config.settings.name}
+                        dashboardSettings={dashboardSettings}
                       />
                     </div>
                   ) : displaySection?.sectionType === 'ending' ? (
@@ -1256,11 +1202,11 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             {/* Right Sidebar - Settings */}
             <div className={cn(
                "bg-white border-l border-gray-200 flex flex-col shadow-sm z-10 transition-all duration-300 ease-in-out",
-               (selectedFieldId || selectedBlockId || (displaySection?.sectionType === 'ending' && activeSectionId) || activeSpecialPage === 'dashboard') ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
+               (selectedFieldId || selectedBlockId || (displaySection?.sectionType === 'ending' && activeSectionId)) ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
             )}>
                <div className="flex items-center justify-between p-4 border-b border-gray-100">
                   <span className="font-semibold text-sm">
-                    {activeSpecialPage === 'dashboard' ? 'Dashboard Settings' : displaySection?.sectionType === 'ending' ? 'Ending Settings' : 'Field Settings'}
+                    {displaySection?.sectionType === 'ending' ? 'Ending Settings' : 'Field Settings'}
                   </span>
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => {
                     setSelectedFieldId(null)

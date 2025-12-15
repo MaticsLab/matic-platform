@@ -501,3 +501,20 @@ type PortalActivity struct {
 func (PortalActivity) TableName() string {
 	return "portal_activities"
 }
+
+// PortalDocument - Files uploaded by applicants to their applications
+type PortalDocument struct {
+	BaseModel
+	FormID      uuid.UUID  `gorm:"type:uuid;not null;index" json:"form_id"`
+	RowID       uuid.UUID  `gorm:"type:uuid;not null;index" json:"row_id"`
+	ApplicantID *uuid.UUID `gorm:"type:uuid;index" json:"applicant_id,omitempty"`
+	Name        string     `gorm:"type:varchar(255);not null" json:"name"`
+	URL         string     `gorm:"type:text;not null" json:"url"`
+	Size        int64      `gorm:"default:0" json:"size"`
+	MimeType    string     `gorm:"type:varchar(100)" json:"mime_type,omitempty"`
+	UploadedAt  time.Time  `gorm:"default:CURRENT_TIMESTAMP" json:"uploaded_at"`
+}
+
+func (PortalDocument) TableName() string {
+	return "portal_documents"
+}
