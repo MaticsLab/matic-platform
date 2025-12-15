@@ -121,6 +121,19 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         const response = await fetch(endpoint, { cache: 'no-store' })
         if (response.ok) {
           const data = await response.json()
+          // Debug: log raw form data from API
+          console.log('📥 PublicPortal raw form data:', {
+            fieldsCount: data.fields?.length,
+            sampleField: data.fields?.[0],
+            selectFields: data.fields?.filter((f: any) => ['select', 'multiselect', 'radio', 'dropdown'].includes(f.type)).map((f: any) => ({
+              label: f.label,
+              type: f.type,
+              options: f.options,
+              'config.items': f.config?.items,
+              'config.options': f.config?.options,
+              config: f.config
+            }))
+          })
           setForm(data)
         }
       } catch (error) {
@@ -139,10 +152,13 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     setIsLoading(true)
 
     try {
+      // Use view_id for portal authentication (portal_applicants references table_views)
+      const formIdToUse = form.view_id || form.id
+      
       if (isLogin) {
         // Login with existing account
         const applicant = await portalAuthClient.login({
-          form_id: form.id,
+          form_id: formIdToUse,
           email,
           password
         })
@@ -168,9 +184,9 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         setIsAuthenticated(true)
         toast.success('Logged in successfully')
       } else {
-        // Sign up new account - always use form.id (table ID), not view_id
+        // Sign up new account
         const applicant = await portalAuthClient.signup({
-          form_id: form.id,
+          form_id: formIdToUse,
           email,
           password,
           full_name: signupData.name || '',
@@ -278,7 +294,20 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     // Build a lookup of fields by section_id
     // section_id can be either at top level or in config
     const fieldsBySection: Record<string, any[]> = {}
-    console.log('🔍 Raw fields from API:', flatFields.slice(0, 2).map(f => ({
+    
+    // Debug: Log ALL select-type fields and their options/config.items
+    const selectFields = flatFields.filter((f: any) => ['select', 'multiselect', 'radio', 'dropdown'].includes(f.type))
+    console.log('📋 ALL SELECT-TYPE FIELDS from API:', selectFields.map((f: any) => ({
+      id: f.id,
+      label: f.label,
+      type: f.type,
+      'field.options': f.options,
+      'field.config': f.config,
+      'field.config?.items': f.config?.items,
+      'field.config?.options': f.config?.options,
+    })))
+    
+    console.log('🔍 Raw fields from API:', flatFields.slice(0, 2).map((f: any) => ({
       id: f.id,
       label: f.label,
       section_id: f.section_id,
@@ -295,11 +324,31 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       }
     })
 
+    // Helper function to transform API field to portal field format
+    // This mirrors what PortalEditor does when loading fields
+    const transformFieldForPortal = (f: any) => {
+      const config = f.config || {}
+      const { section_id, is_required, items, ...restConfig } = config
+      return {
+        id: f.id,
+        type: f.type,
+        label: f.label,
+        description: f.description,
+        required: is_required ?? f.required,
+        width: config.width || 'full',
+        placeholder: config.placeholder,
+        options: items || f.options,  // Map config.items to options (this is the key fix!)
+        children: config.children,
+        validation: f.validation,
+        config: restConfig
+      }
+    }
+
     // Attach fields to sections based on section id, excluding ending sections
     let sections = rawSections
       .filter((section: any) => section.sectionType !== 'ending')
       .map((section: any) => {
-        const sectionFields = fieldsBySection[section.id] || []
+        const sectionFields = (fieldsBySection[section.id] || []).map(transformFieldForPortal)
         return {
           ...section,
           sectionType: section.sectionType || 'form',
@@ -309,7 +358,9 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
 
     // Handle fields without section_id (unassigned) - put in first section
     const assignedFieldIds = new Set(flatFields.filter((f: any) => f.section_id || (f.config && f.config.section_id)).map((f: any) => f.id))
-    const unassignedFields = flatFields.filter((f: any) => !f.section_id && !(f.config && f.config.section_id))
+    const unassignedFields = flatFields
+      .filter((f: any) => !f.section_id && !(f.config && f.config.section_id))
+      .map(transformFieldForPortal)
     
     if (unassignedFields.length > 0) {
       if (sections.length === 0) {
@@ -321,7 +372,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
 
     // Ensure we have at least one section
     if (sections.length === 0) {
-      sections = [{ id: 'default', title: translatedForm?.name || 'Form', sectionType: 'form', fields: flatFields }]
+      sections = [{ id: 'default', title: translatedForm?.name || 'Form', sectionType: 'form', fields: flatFields.map(transformFieldForPortal) }]
     }
 
     // Add review section at the end
@@ -346,7 +397,13 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         id: s.id,
         title: s.title,
         fieldCount: s.fields?.length,
-        fields: s.fields?.map((f: any) => ({ id: f.id, label: f.label, type: f.type, section_id: f.section_id }))
+        fields: s.fields?.map((f: any) => ({ 
+          id: f.id, 
+          label: f.label, 
+          type: f.type, 
+          options: f.options,  // Show transformed options
+          hasOptions: !!f.options && f.options.length > 0
+        }))
       })),
       totalFlatFields: flatFields.length,
       unassignedFieldsCount: unassignedFields.length,

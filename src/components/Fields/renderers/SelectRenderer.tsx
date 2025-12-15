@@ -39,6 +39,14 @@ interface SelectOption {
 function normalizeOptions(config: Record<string, any>): SelectOption[] {
   const rawOptions = config?.options || [];
   
+  // Debug: log options normalization
+  console.log('🎯 SelectRenderer normalizeOptions:', {
+    'config.options': config?.options,
+    'config.items': config?.items,
+    rawOptions,
+    configKeys: config ? Object.keys(config) : []
+  });
+  
   return rawOptions.map((opt: string | SelectOption) => {
     if (typeof opt === 'string') {
       return { value: opt, label: opt };
