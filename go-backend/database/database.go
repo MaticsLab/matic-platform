@@ -101,6 +101,9 @@ func AutoMigrate() error {
 
 		// Ending Pages
 		&models.EndingPage{},
+
+		// Portal Documents
+		&models.PortalDocument{},
 	)
 
 	if err != nil {

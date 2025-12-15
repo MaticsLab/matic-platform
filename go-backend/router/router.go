@@ -47,6 +47,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	// Load HTML templates
 	r.LoadHTMLGlob("templates/*")
 
+	// Serve static files (uploaded documents)
+	r.Static("/uploads", "./uploads")
+
 	// Root route - API documentation (HTML)
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "api-docs.html", nil)
@@ -224,6 +227,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			portalDashboard.GET("/applications/:id/activities", handlers.ListPortalActivities)
 			portalDashboard.POST("/applications/:id/activities", handlers.CreatePortalActivity)
 			portalDashboard.POST("/applications/:id/activities/read", handlers.MarkActivitiesRead)
+
+			// Document routes
+			portalDashboard.GET("/documents", handlers.ListPortalDocuments)
+			portalDashboard.POST("/documents", handlers.UploadPortalDocument)
+			portalDashboard.DELETE("/documents/:id", handlers.DeletePortalDocument)
 		}
 
 		// Public Email Tracking (must be public for tracking pixel to work)

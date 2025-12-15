@@ -94,6 +94,15 @@ export type PortalConfig = {
       redirectUrl?: string
       redirectDelay?: number // seconds
     }
+    // Dashboard settings for the applicant dashboard
+    dashboardSettings?: {
+      showStatus?: boolean
+      showTimeline?: boolean
+      showChat?: boolean
+      showDocuments?: boolean
+      welcomeTitle?: string
+      welcomeText?: string
+    }
   }
   /** 
    * Translations in new i18next format
