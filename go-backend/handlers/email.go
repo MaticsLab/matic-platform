@@ -174,6 +174,8 @@ func HandleGmailCallback(c *gin.Context) {
 		existingConnection.AccessToken = token.AccessToken
 		existingConnection.RefreshToken = token.RefreshToken
 		existingConnection.TokenExpiry = token.Expiry
+		existingConnection.NeedsReconnect = false  // Reset reconnection flag
+		existingConnection.ReconnectReason = ""    // Clear reason
 		database.DB.Save(&existingConnection)
 	} else {
 		// Create new connection
@@ -224,21 +226,38 @@ func GetGmailConnection(c *gin.Context) {
 
 	// Find the default or first account
 	var defaultEmail string
+	var needsReconnect bool
+	var reconnectReason string
 	for _, conn := range connections {
 		if conn.IsDefault {
 			defaultEmail = conn.Email
+			needsReconnect = conn.NeedsReconnect
+			reconnectReason = conn.ReconnectReason
 			break
 		}
 	}
 	if defaultEmail == "" && len(connections) > 0 {
 		defaultEmail = connections[0].Email
+		needsReconnect = connections[0].NeedsReconnect
+		reconnectReason = connections[0].ReconnectReason
+	}
+
+	// Check if any account needs reconnection
+	for _, conn := range connections {
+		if conn.NeedsReconnect {
+			needsReconnect = true
+			reconnectReason = conn.ReconnectReason
+			break
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"connected":      true,
-		"email":          defaultEmail,
-		"accounts_count": len(connections),
-		"accounts":       connections,
+		"connected":        true,
+		"email":            defaultEmail,
+		"accounts_count":   len(connections),
+		"accounts":         connections,
+		"needs_reconnect":  needsReconnect,
+		"reconnect_reason": reconnectReason,
 	})
 }
 
@@ -474,7 +493,21 @@ func SendEmail(c *gin.Context) {
 
 		if err != nil {
 			sentEmail.Status = "failed"
-			errors = append(errors, fmt.Sprintf("Failed to send to %s: %v", recipient.Email, err))
+			errorMsg := fmt.Sprintf("Failed to send to %s: %v", recipient.Email, err)
+			errors = append(errors, errorMsg)
+
+			// Check if this is an OAuth token error - mark connection as needing reconnection
+			errStr := err.Error()
+			if strings.Contains(errStr, "invalid_grant") ||
+				strings.Contains(errStr, "Token has been expired or revoked") ||
+				strings.Contains(errStr, "token expired") ||
+				strings.Contains(errStr, "invalid_token") ||
+				strings.Contains(errStr, "unauthorized") {
+				connection.NeedsReconnect = true
+				connection.ReconnectReason = "Your Gmail authorization has expired or been revoked. Please reconnect your account."
+				database.DB.Save(&connection)
+				fmt.Printf("[Email] OAuth error detected, marked connection as needing reconnection: %s\n", errStr)
+			}
 		} else {
 			sentEmail.GmailMessageID = sentMessage.Id
 			sentEmail.GmailThreadID = sentMessage.ThreadId

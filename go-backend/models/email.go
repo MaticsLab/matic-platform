@@ -9,20 +9,22 @@ import (
 
 // GmailConnection stores OAuth tokens for Gmail API
 type GmailConnection struct {
-	ID             uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
-	WorkspaceID    uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
-	UserID         string         `gorm:"not null" json:"user_id"` // Supabase user ID who connected
-	Email          string         `gorm:"not null" json:"email"`
-	DisplayName    string         `json:"display_name,omitempty"`
-	AccessToken    string         `gorm:"not null" json:"-"` // Don't expose in JSON
-	RefreshToken   string         `gorm:"not null" json:"-"` // Don't expose in JSON
-	TokenExpiry    time.Time      `json:"token_expiry"`
-	Scopes         datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"scopes"`
-	SendPermission string         `gorm:"default:'myself'" json:"send_permission"` // myself, admins, members, everyone, specific
-	AllowedUserIDs datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"allowed_user_ids,omitempty"`
-	IsDefault      bool           `gorm:"default:false" json:"is_default"`
-	CreatedAt      time.Time      `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt      time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	ID              uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
+	WorkspaceID     uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
+	UserID          string         `gorm:"not null" json:"user_id"` // Supabase user ID who connected
+	Email           string         `gorm:"not null" json:"email"`
+	DisplayName     string         `json:"display_name,omitempty"`
+	AccessToken     string         `gorm:"not null" json:"-"` // Don't expose in JSON
+	RefreshToken    string         `gorm:"not null" json:"-"` // Don't expose in JSON
+	TokenExpiry     time.Time      `json:"token_expiry"`
+	Scopes          datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"scopes"`
+	SendPermission  string         `gorm:"default:'myself'" json:"send_permission"` // myself, admins, members, everyone, specific
+	AllowedUserIDs  datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"allowed_user_ids,omitempty"`
+	IsDefault       bool           `gorm:"default:false" json:"is_default"`
+	NeedsReconnect  bool           `gorm:"default:false" json:"needs_reconnect"`         // True if OAuth token was revoked/expired
+	ReconnectReason string         `gorm:"default:''" json:"reconnect_reason,omitempty"` // Reason why reconnection is needed
+	CreatedAt       time.Time      `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt       time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 func (g *GmailConnection) TableName() string {

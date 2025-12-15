@@ -163,6 +163,11 @@ export function ApplicationContactPanel({
       return
     }
 
+    if (gmailConnection?.needs_reconnect) {
+      setSendResult({ success: false, message: 'Your Gmail authorization has expired. Please reconnect your account in Settings → Communications.' })
+      return
+    }
+
     if (!subject.trim() || !messageBody.trim()) {
       setSendResult({ success: false, message: 'Please enter a subject and message.' })
       return
@@ -198,10 +203,28 @@ export function ApplicationContactPanel({
         // Refresh history
         loadEmailHistory()
       } else {
-        setSendResult({ 
-          success: false, 
-          message: result.errors?.length ? result.errors[0] : 'Failed to send email.'
-        })
+        const errorMessage = result.errors?.length ? result.errors[0] : 'Failed to send email.'
+        
+        // Check if this is an OAuth error and update connection state
+        if (errorMessage.includes('invalid_grant') || 
+            errorMessage.includes('Token has been expired or revoked') ||
+            errorMessage.includes('token expired') ||
+            errorMessage.includes('unauthorized')) {
+          setGmailConnection(prev => prev ? {
+            ...prev,
+            needs_reconnect: true,
+            reconnect_reason: 'Your Gmail authorization has expired or been revoked. Please reconnect your account.'
+          } : prev)
+          setSendResult({ 
+            success: false, 
+            message: 'Your Gmail authorization has expired. Please reconnect your account in Settings → Communications.'
+          })
+        } else {
+          setSendResult({ 
+            success: false, 
+            message: errorMessage
+          })
+        }
       }
     } catch (error) {
       console.error('Failed to send email:', error)
@@ -377,6 +400,19 @@ export function ApplicationContactPanel({
                   </div>
                   <p className="text-sm text-amber-600 mt-1">
                     Connect your Gmail account in Communications settings to send emails.
+                  </p>
+                </div>
+              ) : gmailConnection?.needs_reconnect ? (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-center gap-2 text-red-700">
+                    <AlertCircle className="w-5 h-5" />
+                    <span className="font-medium">Gmail reconnection required</span>
+                  </div>
+                  <p className="text-sm text-red-600 mt-1">
+                    {gmailConnection.reconnect_reason || 'Your Gmail authorization has expired or been revoked. Please reconnect your account.'}
+                  </p>
+                  <p className="text-sm text-red-600 mt-2">
+                    Go to <strong>Settings → Communications</strong> to reconnect your Gmail account.
                   </p>
                 </div>
               ) : (
