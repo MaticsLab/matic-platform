@@ -62,11 +62,17 @@ export function CollaborativeInput({
     
     // Observer for remote changes (from other users)
     const observer = (event: Y.YTextEvent) => {
+      // Skip local transactions (changes we made ourselves)
+      if (event.transaction.local) {
+        return;
+      }
+      
       const text = yText.toString();
       
       // Skip if this is the same value we already have
       if (text === lastRemoteValueRef.current) return;
       
+      console.log(`[Collab] 📥 Remote edit for field ${fieldId}-${fieldKey}:`, text);
       lastRemoteValueRef.current = text;
       const input = inputRef.current;
       
@@ -104,11 +110,15 @@ export function CollaborativeInput({
     const oldValue = yText.toString();
     if (newValue === oldValue) return;
     
+    // Update last remote value to prevent echo
+    lastRemoteValueRef.current = newValue;
+    
     // Immediately update parent to reflect change in local state
     // This prevents cursor jumping while typing
     onChange(newValue);
     
     // Update Y.Text - this will sync to other clients
+    // Mark as local to prevent our own observer from firing
     ydoc.transact(() => {
       if (yText.length > 0) {
         yText.delete(0, yText.length);
@@ -116,7 +126,7 @@ export function CollaborativeInput({
       if (newValue.length > 0) {
         yText.insert(0, newValue);
       }
-    }, 'local');
+    });
   };
   
   return (
