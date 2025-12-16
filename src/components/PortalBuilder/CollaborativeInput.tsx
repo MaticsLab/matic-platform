@@ -83,6 +83,13 @@ export function CollaborativeInput({
         }
       });
     };
+    
+    yText.observe(observer);
+    
+    return () => {
+      yText.unobserve(observer);
+    };
+  }, [ydoc, fieldId, fieldKey, value, onChange]);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
@@ -97,21 +104,11 @@ export function CollaborativeInput({
     const oldValue = yText.toString();
     if (newValue === oldValue) return;
     
-    // Update Y.Text - this will sync to other clients
-    // Do NOT call onChange here - let PortalConfigSyncBridge handle parent updates
-    ydoc.transact(() => {
-      if (yText.length > 0) {
-        yText.delete(0, yText.length);
-      }
-      if (newValue) {
-        yText.insert(0, newValue);
-      }
-    });
-    
     // Immediately update parent to reflect change in local state
     // This prevents cursor jumping while typing
     onChange(newValue);
     
+    // Update Y.Text - this will sync to other clients
     ydoc.transact(() => {
       if (yText.length > 0) {
         yText.delete(0, yText.length);
@@ -120,9 +117,6 @@ export function CollaborativeInput({
         yText.insert(0, newValue);
       }
     }, 'local');
-    
-    onChange(newValue);
-    isLocalChangeRef.current = false;
   };
   
   return (
