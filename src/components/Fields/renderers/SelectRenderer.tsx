@@ -39,20 +39,23 @@ interface SelectOption {
 function normalizeOptions(config: Record<string, any>): SelectOption[] {
   const rawOptions = config?.options || [];
   
-  // Debug: log options normalization
-  console.log('🎯 SelectRenderer normalizeOptions:', {
-    'config.options': config?.options,
-    'config.items': config?.items,
-    rawOptions,
-    configKeys: config ? Object.keys(config) : []
-  });
+  // Ensure rawOptions is actually an array
+  if (!Array.isArray(rawOptions)) {
+    return [];
+  }
   
-  return rawOptions.map((opt: string | SelectOption) => {
-    if (typeof opt === 'string') {
-      return { value: opt, label: opt };
-    }
-    return { value: opt.value, label: opt.label || opt.value, color: opt.color };
-  });
+  return rawOptions
+    .filter((opt): opt is string | SelectOption => opt != null)
+    .map((opt: string | SelectOption) => {
+      if (typeof opt === 'string') {
+        return { value: opt, label: opt };
+      }
+      if (typeof opt === 'object' && opt.value != null) {
+        return { value: String(opt.value), label: opt.label || String(opt.value), color: opt.color };
+      }
+      return null;
+    })
+    .filter((opt): opt is SelectOption => opt !== null && opt.value !== '');
 }
 
 function getOptionColor(option: SelectOption): string {
@@ -125,8 +128,26 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
 
   const fieldTypeId = field.field_type_id || field.type || 'select';
   const isMulti = isMultiSelect(fieldTypeId);
-  const options = normalizeOptions(config);
+  const options = normalizeOptions(config || {});
   const [isOpen, setIsOpen] = useState(false);
+  
+  // Early return for disabled state in form mode - show simple placeholder instead of Radix Select
+  // This avoids Radix UI issues when the component is just being used for preview
+  if (disabled && (mode === 'form' || mode === 'edit') && !value) {
+    return (
+      <div className={cn('space-y-2', className)}>
+        {mode === 'form' && field.label && (
+          <Label className="text-gray-500">
+            {field.label}
+            {required && <span className="text-red-500 ml-1">*</span>}
+          </Label>
+        )}
+        <div className="h-9 px-3 py-2 border rounded-md bg-gray-50 text-sm text-gray-400 flex items-center">
+          {placeholder || (isMulti ? 'Select options...' : 'Select an option...')}
+        </div>
+      </div>
+    );
+  }
 
   // Normalize value to array for multiselect
   const normalizedValue: string[] = isMulti
@@ -232,7 +253,7 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
     // Single select
     return (
       <Select
-        value={value || ''}
+        value={value || undefined}
         onValueChange={onChange}
         disabled={disabled}
       >
@@ -240,11 +261,17 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
           <SelectValue placeholder={placeholder || 'Select...'} />
         </SelectTrigger>
         <SelectContent>
-          {options.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
-              {opt.label || opt.value}
+          {options.length > 0 ? (
+            options.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label || opt.value}
+              </SelectItem>
+            ))
+          ) : (
+            <SelectItem value="__no_options" disabled>
+              No options available
             </SelectItem>
-          ))}
+          )}
         </SelectContent>
       </Select>
     );
@@ -292,7 +319,7 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
           </div>
         ) : (
           <Select
-            value={value || ''}
+            value={value || undefined}
             onValueChange={onChange}
             disabled={disabled}
             required={required}
@@ -301,11 +328,17 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
               <SelectValue placeholder={placeholder || 'Select an option'} />
             </SelectTrigger>
             <SelectContent>
-              {options.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label || opt.value}
+              {options.length > 0 ? (
+                options.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label || opt.value}
+                  </SelectItem>
+                ))
+              ) : (
+                <SelectItem value="__no_options" disabled>
+                  No options available
                 </SelectItem>
-              ))}
+              )}
             </SelectContent>
           </Select>
         )}
@@ -330,6 +363,19 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
           <SelectTrigger className="bg-gray-50">
             <SelectValue placeholder={isMulti ? 'Select options...' : 'Select an option...'} />
           </SelectTrigger>
+          <SelectContent>
+            {options.length > 0 ? (
+              options.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label || opt.value}
+                </SelectItem>
+              ))
+            ) : (
+              <SelectItem value="__placeholder" disabled>
+                No options
+              </SelectItem>
+            )}
+          </SelectContent>
         </Select>
       </div>
     );

@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Check, LayoutDashboard } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, LayoutDashboard, Save } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/ui-components/card'
@@ -22,9 +22,10 @@ interface DynamicApplicationFormProps {
   formId?: string
   initialSectionId?: string
   initialData?: Record<string, any>
+  email?: string // Email for autosave
 }
 
-export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataChange, onDashboard, isExternal = false, formId, initialSectionId, initialData }: DynamicApplicationFormProps) {
+export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataChange, onDashboard, isExternal = false, formId, initialSectionId, initialData, email }: DynamicApplicationFormProps) {
   const defaultLanguage = config.settings.language?.default || 'en'
   const supportedLanguages = Array.from(new Set([defaultLanguage, ...(config.settings.language?.supported || [])])).filter(lang => lang && lang.trim() !== '')
   const [activeLanguage, setActiveLanguage] = useState<string>(defaultLanguage)
@@ -50,6 +51,17 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
   const [activeSectionId, setActiveSectionId] = useState<string>(initialSectionId || translatedConfig.sections?.[0]?.id || '')
   const [formData, setFormData] = useState<Record<string, any>>(initialData || {})
   const [isSaving, setIsSaving] = useState(false)
+  const [isAutosaving, setIsAutosaving] = useState(false)
+  const [lastSavedData, setLastSavedData] = useState<string>('')
+  
+  // Refs for autosave to avoid stale closures
+  const formDataRef = useRef(formData)
+  const isAutosavingRef = useRef(false)
+  
+  // Keep refs in sync
+  useEffect(() => {
+    formDataRef.current = formData
+  }, [formData])
 
   // Update active section when initialSectionId changes (for preview mode navigation)
   useEffect(() => {
@@ -62,6 +74,7 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
   useEffect(() => {
     if (initialData) {
       setFormData(initialData)
+      setLastSavedData(JSON.stringify(initialData))
     }
   }, [initialData])
 
@@ -71,6 +84,45 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
       onFormDataChange(formData)
     }
   }, [formData, onFormDataChange])
+  
+  // Autosave function - saves as draft without changing status
+  const autosave = useCallback(async () => {
+    if (!formId || !email || isAutosavingRef.current) return
+    
+    const currentData = formDataRef.current
+    const dataString = JSON.stringify(currentData)
+    
+    // Skip if no changes since last save
+    if (dataString === lastSavedData || Object.keys(currentData).length === 0) return
+    
+    isAutosavingRef.current = true
+    setIsAutosaving(true)
+    
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${formId}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: currentData, email, save_draft: true })
+      })
+      setLastSavedData(dataString)
+    } catch (error) {
+      console.warn('Autosave failed:', error)
+    } finally {
+      isAutosavingRef.current = false
+      setIsAutosaving(false)
+    }
+  }, [formId, email, lastSavedData])
+  
+  // Debounced autosave - triggers 3 seconds after last change
+  useEffect(() => {
+    if (!formId || !email) return
+    
+    const timer = setTimeout(() => {
+      autosave()
+    }, 3000) // 3 second debounce
+    
+    return () => clearTimeout(timer)
+  }, [formData, formId, email, autosave])
 
   const activeSectionIndex = Math.max(
     0,
@@ -178,8 +230,14 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
               />
             )}
             <div className="text-right hidden sm:block">
-              <div className="text-xs text-gray-500 mb-1">
-                Step {activeSectionIndex + 1} of {translatedConfig.sections?.length || 0}
+              <div className="text-xs text-gray-500 mb-1 flex items-center justify-end gap-2">
+                <span>Step {activeSectionIndex + 1} of {translatedConfig.sections?.length || 0}</span>
+                {isAutosaving && (
+                  <span className="text-blue-500 flex items-center gap-1">
+                    <Save className="w-3 h-3 animate-pulse" />
+                    Saving...
+                  </span>
+                )}
               </div>
               <Progress value={calculateProgress()} className="w-32 h-2" />
             </div>

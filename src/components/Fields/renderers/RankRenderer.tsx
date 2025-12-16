@@ -34,14 +34,6 @@ function normalizeOptions(config: Record<string, any>, formContext?: Record<stri
   
   // Handle dynamic options from source field
   if (config?.sourceField && config?.dynamicOptions && formContext) {
-    console.log('🔍 RankRenderer dynamic options debug:', {
-      sourceField: config.sourceField,
-      dynamicOptions: config.dynamicOptions,
-      formDataKeys: formContext._formData ? Object.keys(formContext._formData) : 'no formData',
-      portalFieldIds: formContext._portalFields?.map((f: any) => f.id) || 'no portalFields',
-      allFieldIds: formContext._allFields?.map((f: any) => f.id) || 'no allFields',
-    });
-    
     let sourceData = formContext._formData?.[config.sourceField];
     
     // Try to find by field ID in portal fields (original fields)
@@ -60,8 +52,6 @@ function normalizeOptions(config: Record<string, any>, formContext?: Record<stri
         sourceData = formContext._formData[sourceFieldDef.name || sourceFieldDef.id];
       }
     }
-    
-    console.log('🔍 RankRenderer sourceData found:', { sourceData, isArray: Array.isArray(sourceData) });
     
     if (sourceData && Array.isArray(sourceData)) {
       const key = config.sourceKey || '';

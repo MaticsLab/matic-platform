@@ -7,25 +7,31 @@
 
 import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
-import { createClient, RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
+import { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 
 export interface SupabaseProviderOptions {
-  supabaseUrl: string;
-  supabaseKey: string;
+  /** Existing Supabase client instance - reuse to avoid multiple GoTrueClient warning */
+  supabaseClient: SupabaseClient;
   roomId: string;
   doc: Y.Doc;
   awareness?: Awareness;
   userId?: string;
   userName?: string;
   userColor?: string;
+  userAvatarUrl?: string;
 }
 
 export interface UserPresence {
   id: string;
   name: string;
   color: string;
-  cursor?: { x: number; y: number };
+  avatarUrl?: string;
+  cursor?: { x: number; y: number; timestamp?: number };
   selection?: { anchor: number; head: number };
+  selectedBlockId?: string;
+  currentSection?: string;
+  currentSectionTitle?: string;
+  isTyping?: boolean;
 }
 
 /**
@@ -40,6 +46,7 @@ export class SupabaseYjsProvider {
   private userId: string;
   private userName: string;
   private userColor: string;
+  private userAvatarUrl?: string;
   private connected: boolean = false;
   private synced: boolean = false;
   private pendingUpdates: Uint8Array[] = [];
@@ -52,12 +59,13 @@ export class SupabaseYjsProvider {
   public onAwarenessUpdate?: (users: UserPresence[]) => void;
 
   constructor(options: SupabaseProviderOptions) {
-    this.supabase = createClient(options.supabaseUrl, options.supabaseKey);
+    this.supabase = options.supabaseClient;
     this.doc = options.doc;
     this.roomId = options.roomId;
     this.userId = options.userId || crypto.randomUUID();
     this.userName = options.userName || 'Anonymous';
     this.userColor = options.userColor || this.generateRandomColor();
+    this.userAvatarUrl = options.userAvatarUrl;
 
     // Initialize or use provided awareness
     this.awareness = options.awareness || new Awareness(this.doc);
@@ -67,8 +75,10 @@ export class SupabaseYjsProvider {
       id: this.userId,
       name: this.userName,
       color: this.userColor,
+      avatarUrl: this.userAvatarUrl,
       cursor: null,
       selection: null,
+      selectedBlockId: null,
     });
 
     // Listen for document updates
@@ -83,9 +93,6 @@ export class SupabaseYjsProvider {
    */
   async connect(): Promise<void> {
     if (this.connected) return;
-
-    // Load initial document state from database (if any)
-    await this.loadInitialState();
 
     // Create realtime channel
     this.channel = this.supabase.channel(`yjs:${this.roomId}`, {
@@ -120,6 +127,7 @@ export class SupabaseYjsProvider {
           id: this.userId,
           name: this.userName,
           color: this.userColor,
+          avatarUrl: this.userAvatarUrl,
           online_at: new Date().toISOString(),
         });
 
@@ -128,7 +136,7 @@ export class SupabaseYjsProvider {
         
         this.onConnect?.();
         
-        // Mark as synced after initial state is loaded
+        // Mark as synced
         if (!this.synced) {
           this.synced = true;
           this.onSync?.();
@@ -164,6 +172,20 @@ export class SupabaseYjsProvider {
     if (this.updateTimeout) {
       clearTimeout(this.updateTimeout);
     }
+    if (this.awarenessDebounceTimeout) {
+      clearTimeout(this.awarenessDebounceTimeout);
+    }
+  }
+
+  /**
+   * Update which block the user has selected
+   */
+  updateSelectedBlock(blockId: string | null): void {
+    const state = this.awareness.getLocalState() || {};
+    this.awareness.setLocalState({
+      ...state,
+      selectedBlockId: blockId,
+    });
   }
 
   /**
@@ -174,17 +196,6 @@ export class SupabaseYjsProvider {
     this.awareness.setLocalState({
       ...state,
       cursor: position,
-    });
-  }
-
-  /**
-   * Update local user's selection
-   */
-  updateSelection(selection: { anchor: number; head: number } | null): void {
-    const state = this.awareness.getLocalState() || {};
-    this.awareness.setLocalState({
-      ...state,
-      selection,
     });
   }
 
@@ -202,6 +213,13 @@ export class SupabaseYjsProvider {
     });
     
     return users;
+  }
+
+  /**
+   * Check if connected
+   */
+  isConnected(): boolean {
+    return this.connected;
   }
 
   // Private methods
@@ -241,9 +259,6 @@ export class SupabaseYjsProvider {
         sender: this.userId,
       },
     });
-
-    // Persist to database (debounced)
-    this.persistDocument();
   };
 
   private handleRemoteUpdate = (payload: { update: string; sender: string }): void => {
@@ -253,20 +268,41 @@ export class SupabaseYjsProvider {
     Y.applyUpdate(this.doc, update, 'remote');
   };
 
-  private handleAwarenessUpdate = ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }): void => {
-    // Broadcast awareness changes
-    this.broadcastAwareness();
+  // Debounce awareness notifications to prevent infinite loops
+  private awarenessDebounceTimeout: NodeJS.Timeout | null = null;
+  private lastUsersJson: string = '';
+  
+  private notifyAwarenessUpdate = (): void => {
+    if (this.awarenessDebounceTimeout) {
+      clearTimeout(this.awarenessDebounceTimeout);
+    }
     
-    // Notify listeners
-    this.onAwarenessUpdate?.(this.getUsers());
+    this.awarenessDebounceTimeout = setTimeout(() => {
+      const users = this.getUsers();
+      // Only notify if users actually changed (compare JSON to detect changes)
+      const usersJson = JSON.stringify(users.map(u => ({ id: u.id, name: u.name, selectedBlockId: u.selectedBlockId })));
+      if (usersJson !== this.lastUsersJson) {
+        this.lastUsersJson = usersJson;
+        this.onAwarenessUpdate?.(users);
+      }
+    }, 100); // Debounce by 100ms
+  };
+
+  private handleAwarenessUpdate = ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }): void => {
+    // Only broadcast if there are actual changes to our local state
+    if (added.length > 0 || updated.includes(this.awareness.clientID)) {
+      this.broadcastAwareness();
+    }
+    
+    // Debounced notification to prevent loops
+    this.notifyAwarenessUpdate();
   };
 
   private handleRemoteAwareness = (payload: { state: any; clientId: number }): void => {
     if (payload.clientId === this.awareness.clientID) return;
     
-    // Apply remote awareness state
-    this.awareness.setLocalStateField('remote', payload.state);
-    this.onAwarenessUpdate?.(this.getUsers());
+    // Debounced notification to prevent loops
+    this.notifyAwarenessUpdate();
   };
 
   private broadcastAwareness = (): void => {
@@ -288,49 +324,9 @@ export class SupabaseYjsProvider {
   private handlePresenceSync = (): void => {
     if (!this.channel) return;
     
-    const presenceState = this.channel.presenceState();
-    // Presence state is available here for tracking who's online
-    this.onAwarenessUpdate?.(this.getUsers());
+    // Use debounced notification to prevent loops
+    this.notifyAwarenessUpdate();
   };
-
-  private async loadInitialState(): Promise<void> {
-    try {
-      const { data, error } = await this.supabase
-        .from('portal_documents')
-        .select('content')
-        .eq('room_id', this.roomId)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Failed to load document:', error);
-        return;
-      }
-
-      if (data?.content) {
-        const update = this.base64ToArray(data.content);
-        Y.applyUpdate(this.doc, update, 'remote');
-      }
-    } catch (error) {
-      console.error('Error loading initial state:', error);
-    }
-  }
-
-  private persistDocument = this.debounce(async (): Promise<void> => {
-    try {
-      const state = Y.encodeStateAsUpdate(this.doc);
-      const base64State = this.arrayToBase64(state);
-
-      await this.supabase
-        .from('portal_documents')
-        .upsert({
-          room_id: this.roomId,
-          content: base64State,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'room_id' });
-    } catch (error) {
-      console.error('Error persisting document:', error);
-    }
-  }, 1000);
 
   // Utility methods
 
@@ -353,17 +349,6 @@ export class SupabaseYjsProvider {
       '#22D3EE', '#60A5FA', '#A78BFA', '#F472B6', '#FB7185',
     ];
     return colors[Math.floor(Math.random() * colors.length)];
-  }
-
-  private debounce<T extends (...args: any[]) => any>(
-    func: T,
-    wait: number
-  ): (...args: Parameters<T>) => void {
-    let timeoutId: NodeJS.Timeout | null = null;
-    return (...args: Parameters<T>) => {
-      if (timeoutId) clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => func(...args), wait);
-    };
   }
 }
 

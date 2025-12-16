@@ -59,14 +59,6 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   const translatedForm = useMemo(() => {
     if (!form) return null
     
-    // Debug logging
-    console.log('🌐 Translating form:', {
-      activeLanguage,
-      defaultLanguage,
-      hasTranslations: !!(form.settings as any)?.translations || !!(form as any)?.translations,
-      translations: (form.settings as any)?.translations || (form as any)?.translations
-    })
-
     if (!form.settings?.language?.enabled || activeLanguage === defaultLanguage) {
       return form
     }
@@ -76,7 +68,6 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     const normalizedTranslations = normalizeTranslations(rawTranslations)
     
     if (!normalizedTranslations[activeLanguage]) {
-      console.warn(`⚠️ No translations found for language: ${activeLanguage}`)
       return form
     }
 
@@ -109,7 +100,6 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       fields: translatedFields
     }
     
-    console.log('✅ Form translated:', result)
     return result
   }, [form, activeLanguage, defaultLanguage])
 
@@ -127,19 +117,6 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         const response = await fetch(endpoint, { cache: 'no-store' })
         if (response.ok) {
           const data = await response.json()
-          // Debug: log raw form data from API
-          console.log('📥 PublicPortal raw form data:', {
-            fieldsCount: data.fields?.length,
-            sampleField: data.fields?.[0],
-            selectFields: data.fields?.filter((f: any) => ['select', 'multiselect', 'radio', 'dropdown'].includes(f.type)).map((f: any) => ({
-              label: f.label,
-              type: f.type,
-              options: f.options,
-              'config.items': f.config?.items,
-              'config.options': f.config?.options,
-              config: f.config
-            }))
-          })
           setForm(data)
         }
       } catch (error) {
@@ -170,13 +147,11 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         })
 
         // Use row_id and status from login response
-        console.log('🔐 Login response:', { row_id: applicant.row_id, status: applicant.status, submission_data: applicant.submission_data })
         if (applicant.row_id) {
           setApplicationRowId(applicant.row_id)
         }
         // Always set status from login response (defaults to 'draft' on backend if no row)
         if (applicant.status) {
-          console.log('📊 Setting application status to:', applicant.status)
           setApplicationStatus(applicant.status)
         }
 
@@ -190,7 +165,6 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
             const res = await fetch(`${baseUrl}/forms/${form.id}/submission?email=${encodeURIComponent(email)}`)
             if (res.ok) {
               const rowData = await res.json()
-              console.log('📥 Loaded submission data:', rowData)
               existingData = rowData.data || rowData
               // Fallback: store the row ID for activity feed if not from login
               if (rowData.id && !applicant.row_id) {
@@ -244,7 +218,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         throw new Error('Form ID not found')
       }
       
-      console.log('📤 Submitting form data:', { formId: form.id, data: formData, email, saveAndExit: options?.saveAndExit })
+
       
       // Call the backend API to save the submission
       // If saveAndExit is true, mark as draft (don't change status to submitted)
@@ -266,8 +240,13 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       // If Save & Exit, skip ending page and go back to login
       if (options?.saveAndExit) {
         toast.success('Application saved successfully!')
-        setIsAuthenticated(false)  // Reset authentication to show login page
+        // Reset state to show login page - keep email for easy re-login
+        setIsAuthenticated(false)
         setIsLogin(true)
+        // Reset submission state so dashboard doesn't show stale data
+        setHasExistingSubmission(false)
+        setViewMode('form')
+        setCurrentFormData({})
         return
       }
       
@@ -333,29 +312,9 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     // section_id can be either at top level or in config
     const fieldsBySection: Record<string, any[]> = {}
     
-    // Debug: Log ALL select-type fields and their options/config.items
-    const selectFields = flatFields.filter((f: any) => ['select', 'multiselect', 'radio', 'dropdown'].includes(f.type))
-    console.log('📋 ALL SELECT-TYPE FIELDS from API:', selectFields.map((f: any) => ({
-      id: f.id,
-      label: f.label,
-      type: f.type,
-      'field.options': f.options,
-      'field.config': f.config,
-      'field.config?.items': f.config?.items,
-      'field.config?.options': f.config?.options,
-    })))
-    
-    console.log('🔍 Raw fields from API:', flatFields.slice(0, 2).map((f: any) => ({
-      id: f.id,
-      label: f.label,
-      section_id: f.section_id,
-      config: f.config,
-      fullField: f
-    })))
-    
+    // Build fields by section lookup
     flatFields.forEach((field: any) => {
       const sid = field.section_id || (field.config && field.config.section_id)
-      console.log(`📍 Field "${field.label}": section_id=${field.section_id}, config.section_id=${field.config?.section_id}, resolved=${sid}`)
       if (sid) {
         if (!fieldsBySection[sid]) fieldsBySection[sid] = []
         fieldsBySection[sid].push(field)
@@ -428,36 +387,6 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       translations: (translatedForm?.settings as any)?.translations || {}
     }
 
-    console.log('🚀 Portal config being passed to DynamicApplicationForm:', {
-      sectionsCount: sections.length,
-      firstSectionFields: sections[0]?.fields?.length,
-      sections: sections.map((s: any) => ({
-        id: s.id,
-        title: s.title,
-        fieldCount: s.fields?.length,
-        fields: s.fields?.map((f: any) => ({ 
-          id: f.id, 
-          label: f.label, 
-          type: f.type, 
-          options: f.options,  // Show transformed options
-          hasOptions: !!f.options && f.options.length > 0
-        }))
-      })),
-      totalFlatFields: flatFields.length,
-      unassignedFieldsCount: unassignedFields.length,
-    })
-    
-    // Debug: Log field breakdown
-    console.log('📊 Field breakdown:')
-    sections.forEach((s: any, idx: number) => {
-      console.log(`  Section ${idx} (${s.id}): ${s.title} - ${s.fields?.length || 0} fields`)
-      if (s.fields && s.fields.length > 0) {
-        s.fields.forEach((f: any) => {
-          console.log(`    - ${f.label} (section_id: ${f.section_id || 'unassigned'})`)
-        })
-      }
-    })
-
     // Logout handler shared by dashboard and form views
     const handleLogout = () => {
       setIsAuthenticated(false)
@@ -526,6 +455,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
           formId={form?.id}
           initialData={initialData}
           onDashboard={handleSaveAndDashboard}
+          email={email}
         />
       </motion.div>
     )

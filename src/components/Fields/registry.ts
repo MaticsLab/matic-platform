@@ -27,14 +27,8 @@ async function initializeCache(): Promise<void> {
     }
     
     lastFetchTime = Date.now();
-    console.log(`[FieldTypeRegistry] Cached ${fieldTypes.length} field types`);
   } catch (error) {
-    // Silently handle auth errors for public portal forms
-    if (error instanceof Error && error.message?.includes('Authorization')) {
-      console.log('[FieldTypeRegistry] Skipping field type fetch (no auth token - portal context)');
-    } else {
-      console.error('[FieldTypeRegistry] Failed to fetch field types:', error);
-    }
+    // Silently handle auth errors for public portal forms - no action needed
     // Initialize with empty cache on error - will retry on next access
     if (!fieldTypeCache) {
       fieldTypeCache = new Map();

@@ -248,13 +248,6 @@ export function ApplicationForm({
   const rawSections = (formDefinition?.settings?.sections as any[]) || []
   const hasFields = (formDefinition?.fields?.length || 0) > 0
   
-  // Debug logging
-  console.log('ApplicationForm Debug:', {
-    formDefinition: formDefinition ? { id: formDefinition.id, name: formDefinition.name, fieldsCount: formDefinition.fields?.length } : null,
-    rawSections,
-    hasFields
-  })
-  
   // If formDefinition is provided, we treat it as dynamic.
   // If no sections defined but fields exist, create a default section.
   const sections = rawSections.length > 0 

@@ -97,19 +97,6 @@ function portalFieldToDefinition(portalField: PortalField): Field {
                        portalField.config?.items || 
                        [];
   
-  // Debug: log options resolution for select-type fields
-  if (['select', 'multiselect', 'radio', 'dropdown'].includes(portalField.type)) {
-    console.log('🔍 PortalFieldAdapter options debug:', {
-      fieldLabel: portalField.label,
-      fieldType: portalField.type,
-      'portalField.options': portalField.options,
-      'portalField.config?.options': portalField.config?.options,
-      'portalField.config?.items': portalField.config?.items,
-      resolvedOptions: optionsArray,
-      fullConfig: portalField.config
-    });
-  }
-  
   return {
     id: portalField.id,
     table_id: '',  // Not applicable for portal fields

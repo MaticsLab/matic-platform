@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { GripVertical, Trash2, ChevronUp, ChevronDown, BookOpen, CheckCircle, Eye, ScrollText, MoreVertical, LayoutDashboard } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Section } from '@/types/portal'
+import { SectionCollaboratorIndicator } from './PresenceIndicators'
+import { getCollaborationActions } from '@/lib/collaboration/collaboration-store'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +25,16 @@ interface SectionListProps {
 
 export function SectionList({ sections, activeId, onSelect, onReorder, onDelete }: SectionListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  
+  // Update collaboration awareness when active section changes
+  // Using getCollaborationActions() - this is a non-reactive getter that doesn't cause re-renders
+  useEffect(() => {
+    const { updateCurrentSection } = getCollaborationActions()
+    if (activeId) {
+      const activeSection = sections.find(s => s.id === activeId)
+      updateCurrentSection(activeId, activeSection?.title || 'Untitled Section')
+    }
+  }, [activeId, sections])
 
   const variants = {
     form: { label: 'Form', description: 'Page to collect user input', icon: ScrollText, bg: 'bg-amber-50', fg: 'text-amber-600', border: 'border-amber-200', activeBg: 'bg-amber-100' },
@@ -139,6 +151,9 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
                     }
                   </div>
                 </div>
+
+                {/* Collaborators editing this section */}
+                <SectionCollaboratorIndicator sectionId={section.id} />
 
                 {/* Actions Menu */}
                 <DropdownMenu>

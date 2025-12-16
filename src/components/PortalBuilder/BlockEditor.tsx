@@ -1,22 +1,15 @@
 /**
- * Block Editor - Tiptap-Inspired Section Editor
+ * Block Editor - Real-time Collaborative Section Editor
  * 
- * A rich block-based editor for portal sections inspired by Tiptap/Notion:
+ * A rich block-based editor for portal sections with:
+ * - Real-time collaboration via Supabase Realtime + Yjs
+ * - Presence indicators showing who's editing
  * - Slash commands (/) with keyboard navigation
  * - Drag-and-drop block reordering via @dnd-kit
  * - Floating menu on empty lines
  * - Drag handles on hover
- * - Placeholders on empty blocks
  * - Inline editing for text content
  * - Clean, minimal design with smooth animations
- * 
- * Phase 1 Implementation Status:
- * ✅ Slash commands with keyboard navigation
- * ✅ Block-based field rendering
- * ✅ Inline editing for layout fields
- * ✅ Drag handles (visual)
- * ✅ Drag-and-drop reordering
- * ⏳ Tiptap integration (future - using custom implementation instead)
  */
 
 'use client';
@@ -56,6 +49,8 @@ import {
 import { cn } from '@/lib/utils';
 import { Section, Field, FieldType } from '@/types/portal';
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter';
+import { useCollaborationOptional } from './CollaborationProvider';
+import { BlockCollaboratorRing } from './PresenceIndicators';
 
 // ============================================================================
 // TYPES
@@ -67,6 +62,14 @@ interface BlockEditorProps {
   selectedBlockId: string | null;
   onSelectBlock: (id: string | null) => void;
   themeColor?: string;
+  /** Room ID for real-time collaboration (usually form ID) */
+  roomId?: string;
+  /** Current user info for collaboration presence */
+  currentUser?: {
+    id: string;
+    name: string;
+    avatarUrl?: string;
+  };
 }
 
 interface BlockCommand {
@@ -1138,6 +1141,8 @@ export function BlockEditor({
   selectedBlockId,
   onSelectBlock,
   themeColor = '#3B82F6',
+  roomId,
+  currentUser,
 }: BlockEditorProps) {
   const [slashMenu, setSlashMenu] = useState<{ position: { top: number; left: number }; insertIndex: number; containerId?: string } | null>(null);
   const [slashQuery, setSlashQuery] = useState('');
@@ -1145,6 +1150,16 @@ export function BlockEditor({
   const [activeId, setActiveId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Use collaboration context from PortalEditor
+  const collaboration = useCollaborationOptional();
+
+  // Update provider when selected block changes
+  useEffect(() => {
+    if (collaboration) {
+      collaboration.updateSelectedBlock(selectedBlockId);
+    }
+  }, [selectedBlockId, collaboration]);
 
   // DnD sensors
   const sensors = useSensors(

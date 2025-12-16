@@ -15,7 +15,6 @@ import { ScrollArea } from '@/ui-components/scroll-area'
 import { Separator } from '@/ui-components/separator'
 import { FormBuilder } from './FormBuilder'
 import { BlockEditor } from './BlockEditor'
-import { TiptapBlockEditor } from './tiptap'
 import { PortalSettings } from './PortalSettings'
 import { SectionList } from './SectionList'
 import { FieldToolbox } from './FieldToolbox'
@@ -39,6 +38,9 @@ import { getBlockDefinition } from '@/lib/ending-block-registry'
 import type { EndingBlock } from '@/types/ending-blocks'
 import { DynamicApplicationForm } from '@/components/ApplicationsHub/Applications/ApplicantPortal/DynamicApplicationForm'
 import { PortalConfig, Section, Field } from '@/types/portal'
+import { supabase } from '@/lib/supabase'
+import { CollaborationProvider, useCollaborationOptional } from './CollaborationProvider'
+import { PresenceHeader, SectionCollaboratorIndicator, CursorOverlay } from './PresenceIndicators'
 import { formsClient } from '@/lib/api/forms-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { dashboardClient } from '@/lib/api/dashboard-client'
@@ -120,7 +122,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
   const [useBlockEditor, setUseBlockEditor] = useState(true) // Toggle for block editor vs FormBuilder
-  const [useCollaborativeEditor, setUseCollaborativeEditor] = useState(false) // Toggle for Tiptap collaborative editor
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatarUrl?: string } | null>(null)
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
   const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
   const [leftSidebarTab, setLeftSidebarTab] = useState<'structure' | 'elements' | 'theme'>('structure')
@@ -151,11 +153,19 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     setActiveLanguage(config.settings.language?.default || 'en')
   }, [config.settings.language?.default])
 
+  // Ref to track saving state without causing effect re-runs
+  const isSavingRef = useRef(isSaving)
+  isSavingRef.current = isSaving
+  
+  // Ref to track hasUnsavedChanges without causing effect re-runs
+  const hasUnsavedChangesRef = useRef(hasUnsavedChanges)
+  hasUnsavedChangesRef.current = hasUnsavedChanges
+
   // Autosave when user clicks off a field (deselects it)
   useEffect(() => {
     // If we had a field selected before and now we don't (or selected a different one)
     // and there are unsaved changes, trigger autosave
-    if (previousSelectedFieldId.current && previousSelectedFieldId.current !== selectedFieldId && hasUnsavedChanges && formId && !isSaving) {
+    if (previousSelectedFieldId.current && previousSelectedFieldId.current !== selectedFieldId && hasUnsavedChangesRef.current && formId && !isSavingRef.current) {
       // Trigger autosave
       const autosave = async () => {
         setIsSaving(true)
@@ -173,13 +183,17 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
       autosave()
     }
     previousSelectedFieldId.current = selectedFieldId
-  }, [selectedFieldId, formId, hasUnsavedChanges, isSaving])
+  }, [selectedFieldId, formId])
 
   // Auto-save debounced on config changes
   useEffect(() => {
-    if (!hasUnsavedChanges || !formId || isSaving) return
+    // Check refs at effect setup to decide if we need to schedule a save
+    if (!hasUnsavedChangesRef.current || !formId) return
     
     const timer = setTimeout(async () => {
+      // Check refs at execution time to avoid race conditions
+      if (isSavingRef.current || !hasUnsavedChangesRef.current) return
+      
       setIsSaving(true)
       try {
         await formsClient.updateStructure(formId, configRef.current)
@@ -193,7 +207,22 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     }, 2000) // 2 second debounce
     
     return () => clearTimeout(timer)
-  }, [config, formId, hasUnsavedChanges, isSaving])
+  }, [config, formId])
+
+  // Fetch current user for collaboration
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setCurrentUser({
+          id: user.id,
+          name: user.user_metadata?.full_name || user.email || 'Anonymous',
+          avatarUrl: user.user_metadata?.avatar_url
+        })
+      }
+    }
+    fetchUser()
+  }, [])
 
   useEffect(() => {
     const loadForm = async () => {
@@ -229,8 +258,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         }
 
         if (fullForm) {
-          console.log('📥 Full Form Loaded from backend:', JSON.stringify(fullForm, null, 2))
-          
           // Helper to parse config safely
           const getConfig = (f: any) => {
             if (f.config) return f.config;
@@ -802,7 +829,15 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   function updateFieldRecursive(fields: Field[], targetId: string, updates: Partial<Field>): Field[] {
     return fields.map(field => {
       if (field.id === targetId) {
-        return { ...field, ...updates }
+        // Deep merge config to preserve existing config values
+        const mergedConfig = updates.config 
+          ? { ...field.config, ...updates.config }
+          : field.config
+        return { 
+          ...field, 
+          ...updates,
+          config: mergedConfig
+        }
       }
       if (field.children) {
         return { ...field, children: updateFieldRecursive(field.children, targetId, updates) }
@@ -853,12 +888,14 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   }
 
   return (
+    <CollaborationProvider roomId={formId || 'new-form'} enabled={!!formId}>
     <DndProvider backend={HTML5Backend}>
       <div className="flex flex-col h-full bg-gray-100">
         {/* Top Bar - Full Width */}
         <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm z-20 shrink-0">
             <div className="flex items-center gap-4">
-               
+                {/* Presence indicators */}
+                <PresenceHeader />
                 <div className="h-6 w-px bg-gray-200" />
                 <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
                   <Button 
@@ -878,19 +915,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     <Smartphone className="w-4 h-4" />
                   </Button>
                 </div>
-                {/* Collaborative editor toggle */}
-                {useBlockEditor && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant={useCollaborativeEditor ? "default" : "outline"}
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => setUseCollaborativeEditor(!useCollaborativeEditor)}
-                    >
-                      {useCollaborativeEditor ? '🔴 Live' : '⚪ Collaborate'}
-                    </Button>
-                  </div>
-                )}
                 {config.settings.language?.enabled && (
                   <div className="flex items-center gap-2">
                     <Select value={activeLanguage} onValueChange={handleLanguageChange} disabled={isTranslatingActiveLanguage}>
@@ -1156,29 +1180,15 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         onDeleteBlock={handleDeleteBlock}
                       />
                     ) : useBlockEditor ? (
-                      useCollaborativeEditor ? (
-                        <TiptapBlockEditor
-                          section={displaySection}
-                          onUpdate={(updates: Partial<Section>) => handleUpdateSection(displaySection.id, updates)}
-                          selectedBlockId={selectedBlockId}
-                          onSelectBlock={setSelectedBlockId}
-                          themeColor={config.settings.themeColor}
-                          collaborative={true}
-                          roomId={formId || displaySection.id}
-                          currentUser={{
-                            id: workspaceId || 'anonymous',
-                            name: workspaceId || 'Anonymous User'
-                          }}
-                        />
-                      ) : (
-                        <BlockEditor 
-                          section={displaySection} 
-                          onUpdate={(updates: Partial<Section>) => handleUpdateSection(displaySection.id, updates)} 
-                          selectedBlockId={selectedBlockId}
-                          onSelectBlock={setSelectedBlockId}
-                          themeColor={config.settings.themeColor}
-                        />
-                      )
+                      <BlockEditor 
+                        section={displaySection} 
+                        onUpdate={(updates: Partial<Section>) => handleUpdateSection(displaySection.id, updates)} 
+                        selectedBlockId={selectedBlockId}
+                        onSelectBlock={setSelectedBlockId}
+                        themeColor={config.settings.themeColor}
+                        roomId={formId || displaySection.id}
+                        currentUser={currentUser || { id: workspaceId || 'anonymous', name: 'Anonymous User' }}
+                      />
                     ) : (
                       <FormBuilder 
                         section={displaySection} 
@@ -1321,13 +1331,17 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         }
                         onUpdate={(fieldId: string, updates: Partial<Field>) => {
                           if (activeSpecialPage === 'signup') {
-                            // Update signup field
+                            // Update signup field - deep merge config
                             setConfig(prev => ({
                               ...prev,
                               settings: {
                                 ...prev.settings,
                                 signupFields: prev.settings.signupFields.map(f => 
-                                  f.id === fieldId ? { ...f, ...updates } : f
+                                  f.id === fieldId ? { 
+                                    ...f, 
+                                    ...updates,
+                                    config: updates.config ? { ...f.config, ...updates.config } : f.config
+                                  } : f
                                 )
                               }
                             }))
@@ -1356,5 +1370,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         }}
       />
     </DndProvider>
+    </CollaborationProvider>
   )
 }
