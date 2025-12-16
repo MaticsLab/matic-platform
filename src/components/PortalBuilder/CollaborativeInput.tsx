@@ -81,7 +81,9 @@ export function CollaborativeInput({
         if (input && document.activeElement === input) {
           input.setSelectionRange(cursorPos, cursorPos);
         }
-      }); - update Y.Text only, parent will be updated via PortalConfigSyncBridge
+      });
+    };
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     const yText = yTextRef.current;
