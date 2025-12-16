@@ -1118,7 +1118,11 @@ function Block({
                   type="text"
                   value={field.label}
                   onChange={(e) => onUpdate({ label: e.target.value })}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onSelect()
+                  }}
+                  onFocus={() => onSelect()}
                   className="flex-1 text-sm font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0"
                   style={{ color: resolvedTheme?.questionsColor || '#111827' }}
                   placeholder="Field label..."
@@ -1133,7 +1137,11 @@ function Block({
                   type="text"
                   value={field.description || ''}
                   onChange={(e) => onUpdate({ description: e.target.value })}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onSelect()
+                  }}
+                  onFocus={() => onSelect()}
                   className="w-full text-xs bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0"
                   style={{ color: resolvedTheme?.answersColor || '#6b7280' }}
                   placeholder="Add a description (help text shown below field)..."
