@@ -15,10 +15,8 @@ interface PortalConfigSyncBridgeProps {
 /**
  * Bridge component that syncs PortalConfig with Yjs for real-time collaboration.
  * 
- * This must be rendered inside a CollaborationProvider.
- * It handles both:
- * - Pushing local config changes to Yjs (for other users to receive)
- * - Receiving remote config changes from Yjs (from other users)
+ * Uses Y.Map instead of Y.Text to prevent JSON corruption during concurrent edits.
+ * This provides atomic updates for the config structure.
  */
 export function PortalConfigSyncBridge({ 
   config, 
@@ -30,7 +28,7 @@ export function PortalConfigSyncBridge({
   
   // Track if we're applying a remote update to avoid loops
   const isApplyingRemoteRef = useRef(false);
-  const yTextRef = useRef<Y.Text | null>(null);
+  const yMapRef = useRef<Y.Map<any> | null>(null);
   const lastSyncedJsonRef = useRef<string>('');
   const isInitializedRef = useRef(false);
   const configRef = useRef(config);
@@ -42,54 +40,70 @@ export function PortalConfigSyncBridge({
 
     const yText = ydoc.getText('portal-config');
     yTextRef.current = yText;
+Map = ydoc.getMap('portal-config');
+    yMapRef.current = yMap;
 
     // Observer for remote changes
-    const observer = (event: Y.YTextEvent) => {
+    const observer = (event: Y.YMapEvent<any>) => {
       // Skip local transactions
       if (event.transaction.local) return;
       
       isApplyingRemoteRef.current = true;
       
       try {
-        const text = yText.toString();
-        if (!text) {
+        const configData = yMap.get('data');
+        if (!configData) {
           isApplyingRemoteRef.current = false;
           return;
         }
 
+        // Parse the config data
+        let parsed: PortalConfig;
+        try {
+          if (typeof configData === 'string') {
+            parsed = JSON.parse(configData);
+          } else {
+            parsed = configData;
+          }
+        } catch (parseError) {
+          console.warn('[Collab] Failed to parse remote config - skipping update:', parseError);
+          isApplyingRemoteRef.current = false;
+          return;
+        }
+
+        const json = JSON.stringify(parsed);
+        
         // Skip if same content
-        if (text === lastSyncedJsonRef.current) {
+        if (json === lastSyncedJsonRef.current) {
           isApplyingRemoteRef.current = false;
           return;
         }
 
         console.log('[Collab] 📥 Received remote config update');
-        const parsed = JSON.parse(text) as PortalConfig;
-        lastSyncedJsonRef.current = text;
+        lastSyncedJsonRef.current = json;
         
         // Apply remote update to local state immediately
         setConfig(parsed);
       } catch (e) {
-        console.warn('[Collab] Failed to parse remote config:', e);
+        console.error('[Collab] Unexpected error in observer:', e);
       } finally {
         // Reset flag immediately for faster updates
         isApplyingRemoteRef.current = false;
       }
     };
 
-    yText.observe(observer);
+    yMap.observe(observer);
     
     // Check if there's existing remote data to initialize from
-    // Only do this once and only if not skipping initial sync
     if (!isInitializedRef.current && !skipInitialSync) {
-      const existingText = yText.toString();
-      if (existingText) {
+      const existingData = yMap.get('data');
+      if (existingData) {
         try {
-          const parsed = JSON.parse(existingText) as PortalConfig;
+          const parsed = typeof existingData === 'string' ? JSON.parse(existingData) : existingData;
           // Only initialize if the remote has meaningful data
           if (parsed.sections && parsed.sections.length > 0) {
             console.log('[Collab] 🔄 Initializing from existing Yjs config');
-            lastSyncedJsonRef.current = existingText;
+            lastSyncedJsonRef.current = JSON.stringify(parsed);
             isApplyingRemoteRef.current = true;
             setConfig(parsed);
             setTimeout(() => {
@@ -104,28 +118,31 @@ export function PortalConfigSyncBridge({
     console.log('[Collab] ✅ Portal config sync observer attached');
 
     return () => {
-      yText.unobserve(observer);
-    };
-  }, [ydoc, setConfig, skipInitialSync]);
+      yMap setConfig, skipInitialSync]);
 
-  // Sync local config changes to Yjs (immediate, no debounce for real-time editing)
-  useEffect(() => {
-    // Skip if we're applying a remote update
-    if (isApplyingRemoteRef.current) return;
+  // Sync lMap = yMapRef.current;
+    if (!yMap || !ydoc) return;
     
-    const yText = yTextRef.current;
-    if (!yText || !ydoc) return;
-    
-    const json = JSON.stringify(config);
+    let json: string;
+    try {
+      json = JSON.stringify(config);
+    } catch (e) {
+      console.error('[Collab] Failed to stringify config:', e);
+      return;
+    }
     
     // Skip if same content
     if (json === lastSyncedJsonRef.current) return;
     
     lastSyncedJsonRef.current = json;
     
-    // Use immediate transaction for real-time sync
+    // Use Y.Map for atomic updates - prevents JSON corruption
     ydoc.transact(() => {
-      yText.delete(0, yText.length);
+      yMap.set('data'eplace in one transaction to prevent concurrent corruption
+      const currentLength = yText.length;
+      if (currentLength > 0) {
+        yText.delete(0, currentLength);
+      }
       yText.insert(0, json);
     }, 'local');
     
