@@ -119,10 +119,13 @@ export class SupabaseYjsProvider {
 
     // Subscribe to channel
     await this.channel.subscribe(async (status) => {
+      console.log('[Collab] Channel status:', status, 'Room:', this.roomId);
+      
       if (status === 'SUBSCRIBED') {
         this.connected = true;
         
         // Track presence
+        console.log('[Collab] Tracking presence for:', this.userName, this.userId);
         await this.channel?.track({
           id: this.userId,
           name: this.userName,
@@ -168,6 +171,7 @@ export class SupabaseYjsProvider {
     this.doc.off('update', this.handleDocUpdate);
     this.awareness.off('update', this.handleAwarenessUpdate);
     this.awareness.destroy();
+    this.remoteUsers.clear();
     
     if (this.updateTimeout) {
       clearTimeout(this.updateTimeout);
@@ -203,16 +207,9 @@ export class SupabaseYjsProvider {
    * Get all connected users
    */
   getUsers(): UserPresence[] {
-    const states = this.awareness.getStates();
-    const users: UserPresence[] = [];
-    
-    states.forEach((state, clientId) => {
-      if (state && clientId !== this.awareness.clientID) {
-        users.push(state as UserPresence);
-      }
-    });
-    
-    return users;
+    // Return users from our tracked remote users map
+    // This is populated by handleRemoteAwareness and handlePresenceSync
+    return Array.from(this.remoteUsers.values());
   }
 
   /**
@@ -298,8 +295,17 @@ export class SupabaseYjsProvider {
     this.notifyAwarenessUpdate();
   };
 
+  // Store remote user states since we're using broadcast, not native Yjs awareness sync
+  private remoteUsers: Map<string, UserPresence> = new Map();
+  
   private handleRemoteAwareness = (payload: { state: any; clientId: number }): void => {
     if (payload.clientId === this.awareness.clientID) return;
+    
+    // Store the remote user's state
+    if (payload.state && payload.state.id) {
+      console.log('[Collab] Remote awareness received:', payload.state.name, payload.state.id);
+      this.remoteUsers.set(payload.state.id, payload.state as UserPresence);
+    }
     
     // Debounced notification to prevent loops
     this.notifyAwarenessUpdate();
@@ -323,6 +329,51 @@ export class SupabaseYjsProvider {
 
   private handlePresenceSync = (): void => {
     if (!this.channel) return;
+    
+    // Get presence state and update remote users
+    const presenceState = this.channel.presenceState();
+    console.log('[Collab] Presence sync, state:', presenceState);
+    
+    // Clear and rebuild remote users from presence
+    const currentRemoteUserIds = new Set<string>();
+    
+    Object.entries(presenceState).forEach(([_key, presences]) => {
+      // Each presence key can have multiple presence objects (multiple tabs)
+      // Supabase presence returns objects with our tracked data plus presence_ref
+      const presenceArray = presences as unknown as Array<{
+        id: string;
+        name: string;
+        color: string;
+        avatarUrl?: string;
+        presence_ref: string;
+      }>;
+      
+      presenceArray.forEach(presence => {
+        if (presence.id && presence.id !== this.userId) {
+          currentRemoteUserIds.add(presence.id);
+          console.log('[Collab] Found remote user in presence:', presence.name, presence.id);
+          // Only add if not already in remoteUsers (preserve cursor/selection data)
+          if (!this.remoteUsers.has(presence.id)) {
+            this.remoteUsers.set(presence.id, {
+              id: presence.id,
+              name: presence.name,
+              color: presence.color,
+              avatarUrl: presence.avatarUrl,
+            });
+          }
+        }
+      });
+    });
+    
+    // Remove users who are no longer in presence
+    this.remoteUsers.forEach((_, id) => {
+      if (!currentRemoteUserIds.has(id)) {
+        console.log('[Collab] Removing disconnected user:', id);
+        this.remoteUsers.delete(id);
+      }
+    });
+    
+    console.log('[Collab] Total remote users after sync:', this.remoteUsers.size, Array.from(this.remoteUsers.values()).map(u => u.name));
     
     // Use debounced notification to prevent loops
     this.notifyAwarenessUpdate();
