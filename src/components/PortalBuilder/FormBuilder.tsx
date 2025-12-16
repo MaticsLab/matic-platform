@@ -19,6 +19,7 @@ import { Textarea } from '@/ui-components/textarea'
 import { Section, Field, FieldType } from '@/types/portal'
 import { RichTextContent, RichTextEditor } from './RichTextEditor'
 import { MentionableInput } from './MentionableInput'
+import { BlockCollaboratorRing } from './PresenceIndicators'
 
 // Callout color configurations
 const CALLOUT_COLORS = {
@@ -682,6 +683,7 @@ function FieldEditor({
   }
 
   return (
+    <BlockCollaboratorRing blockId={field.id}>
     <div 
       className={cn(
         "group relative bg-white border rounded-xl p-4 transition-all cursor-pointer",
@@ -866,5 +868,6 @@ function FieldEditor({
         </div>
       </div>
     </div>
+    </BlockCollaboratorRing>
   )
 }

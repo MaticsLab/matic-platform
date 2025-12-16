@@ -39,7 +39,7 @@ import type { EndingBlock } from '@/types/ending-blocks'
 import { DynamicApplicationForm } from '@/components/ApplicationsHub/Applications/ApplicantPortal/DynamicApplicationForm'
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { supabase } from '@/lib/supabase'
-import { CollaborationProvider, useCollaborationOptional } from './CollaborationProvider'
+import { CollaborationProvider, useCollaborationOptional, getCollaborationActions } from './CollaborationProvider'
 import { PresenceHeader, SectionCollaboratorIndicator, CursorOverlay } from './PresenceIndicators'
 import { formsClient } from '@/lib/api/forms-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
@@ -147,6 +147,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     if (selectedFieldId) {
       setRightSidebarTab('settings')
     }
+  }, [selectedFieldId])
+
+  // Update collaboration awareness when selected field changes
+  useEffect(() => {
+    const { updateSelectedBlock } = getCollaborationActions()
+    updateSelectedBlock(selectedFieldId)
   }, [selectedFieldId])
 
   useEffect(() => {

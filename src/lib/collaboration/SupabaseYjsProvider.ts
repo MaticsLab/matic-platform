@@ -276,10 +276,18 @@ export class SupabaseYjsProvider {
     
     this.awarenessDebounceTimeout = setTimeout(() => {
       const users = this.getUsers();
-      // Only notify if users actually changed (compare JSON to detect changes)
-      const usersJson = JSON.stringify(users.map(u => ({ id: u.id, name: u.name, selectedBlockId: u.selectedBlockId })));
+      // Include all relevant fields in comparison to detect section/block changes
+      const usersJson = JSON.stringify(users.map(u => ({
+        id: u.id,
+        name: u.name,
+        selectedBlockId: u.selectedBlockId,
+        currentSection: u.currentSection,
+        currentSectionTitle: u.currentSectionTitle,
+        isTyping: u.isTyping
+      })));
       if (usersJson !== this.lastUsersJson) {
         this.lastUsersJson = usersJson;
+        console.log('[Collab] Awareness changed, notifying:', users.map(u => ({ name: u.name, section: u.currentSection, block: u.selectedBlockId })));
         this.onAwarenessUpdate?.(users);
       }
     }, 100); // Debounce by 100ms
@@ -301,10 +309,22 @@ export class SupabaseYjsProvider {
   private handleRemoteAwareness = (payload: { state: any; clientId: number }): void => {
     if (payload.clientId === this.awareness.clientID) return;
     
-    // Store the remote user's state
+    // Store/update the remote user's state with all awareness fields
     if (payload.state && payload.state.id) {
-      console.log('[Collab] Remote awareness received:', payload.state.name, payload.state.id);
-      this.remoteUsers.set(payload.state.id, payload.state as UserPresence);
+      const existingUser = this.remoteUsers.get(payload.state.id);
+      // Merge with existing data to preserve any fields from presence
+      const updatedUser: UserPresence = {
+        ...existingUser,
+        ...payload.state,
+        // Ensure these fields are always updated from awareness
+        currentSection: payload.state.currentSection,
+        currentSectionTitle: payload.state.currentSectionTitle,
+        selectedBlockId: payload.state.selectedBlockId,
+        cursor: payload.state.cursor,
+        isTyping: payload.state.isTyping,
+      };
+      console.log('[Collab] Remote awareness received:', updatedUser.name, 'section:', updatedUser.currentSection, 'block:', updatedUser.selectedBlockId);
+      this.remoteUsers.set(payload.state.id, updatedUser);
     }
     
     // Debounced notification to prevent loops
