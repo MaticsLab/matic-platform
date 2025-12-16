@@ -13,6 +13,9 @@ import {
   type Collaborator 
 } from '@/lib/collaboration/collaboration-store';
 
+// Re-export Collaborator type for consumers
+export type { Collaborator };
+
 // ============================================================================
 // Presence Header - Shows in the toolbar area
 // Uses Zustand selectors directly - each selector only triggers re-render
@@ -21,9 +24,10 @@ import {
 
 interface PresenceHeaderProps {
   className?: string;
+  onNavigateToUser?: (user: Collaborator) => void;
 }
 
-export function PresenceHeader({ className }: PresenceHeaderProps) {
+export function PresenceHeader({ className, onNavigateToUser }: PresenceHeaderProps) {
   // Each of these hooks only re-renders this component when their specific value changes
   const isConnected = useIsConnected();
   const currentUser = useCurrentUser();
@@ -70,20 +74,28 @@ export function PresenceHeader({ className }: PresenceHeaderProps) {
               </div>
             )}
             
-            {/* Other collaborators */}
+            {/* Other collaborators - clickable to navigate */}
             {collaborators.slice(0, 3).map((user) => (
-              <div
+              <button
                 key={user.id}
-                className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-medium text-white overflow-hidden"
-                style={{ backgroundColor: user.avatarUrl ? 'transparent' : user.color }}
-                title={user.name}
+                onClick={() => onNavigateToUser?.(user)}
+                className={cn(
+                  "w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-medium text-white overflow-hidden transition-all",
+                  onNavigateToUser && "hover:scale-110 hover:ring-2 hover:ring-offset-1 cursor-pointer",
+                  !onNavigateToUser && "cursor-default"
+                )}
+                style={{ 
+                  backgroundColor: user.avatarUrl ? 'transparent' : user.color,
+                  ['--tw-ring-color' as string]: user.color 
+                }}
+                title={`${user.name}${user.currentSectionTitle ? ` - ${user.currentSectionTitle}` : ''}${user.selectedBlockId ? ' (click to go to their location)' : ''}`}
               >
                 {user.avatarUrl ? (
                   <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
                 ) : (
                   user.name.charAt(0).toUpperCase()
                 )}
-              </div>
+              </button>
             ))}
             
             {/* Overflow indicator */}

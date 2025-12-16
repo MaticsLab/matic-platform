@@ -40,7 +40,7 @@ import { DynamicApplicationForm } from '@/components/ApplicationsHub/Application
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { supabase } from '@/lib/supabase'
 import { CollaborationProvider, useCollaborationOptional, getCollaborationActions } from './CollaborationProvider'
-import { PresenceHeader, SectionCollaboratorIndicator, CursorOverlay } from './PresenceIndicators'
+import { PresenceHeader, SectionCollaboratorIndicator, CursorOverlay, type Collaborator } from './PresenceIndicators'
 import { formsClient } from '@/lib/api/forms-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { dashboardClient } from '@/lib/api/dashboard-client'
@@ -158,6 +158,36 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   useEffect(() => {
     setActiveLanguage(config.settings.language?.default || 'en')
   }, [config.settings.language?.default])
+
+  // Navigate to a collaborator's current location (section + field)
+  const handleNavigateToUser = (user: Collaborator) => {
+    // First, try to navigate to their section
+    if (user.currentSection) {
+      // Check if it's a special page
+      if (user.currentSection.startsWith('special-')) {
+        const specialPage = user.currentSection.replace('special-', '') as 'signup' | 'review' | 'dashboard'
+        setActiveSpecialPage(specialPage)
+        setActiveSectionId('')
+      } else {
+        // Regular section
+        setActiveSectionId(user.currentSection)
+        setActiveSpecialPage(null)
+      }
+    }
+    
+    // Then try to select their block/field
+    if (user.selectedBlockId) {
+      setSelectedFieldId(user.selectedBlockId)
+      
+      // Scroll the block into view after a short delay to allow render
+      setTimeout(() => {
+        const blockElement = document.querySelector(`[data-block-id="${user.selectedBlockId}"]`)
+        if (blockElement) {
+          blockElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 100)
+    }
+  }
 
   // Ref to track saving state without causing effect re-runs
   const isSavingRef = useRef(isSaving)
@@ -915,8 +945,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         {/* Top Bar - Full Width */}
         <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm z-20 shrink-0">
             <div className="flex items-center gap-4">
-                {/* Presence indicators */}
-                <PresenceHeader />
+                {/* Presence indicators - click avatars to navigate to their location */}
+                <PresenceHeader onNavigateToUser={handleNavigateToUser} />
                 <div className="h-6 w-px bg-gray-200" />
                 <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
                   <Button 

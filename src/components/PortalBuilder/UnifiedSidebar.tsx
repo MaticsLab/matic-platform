@@ -28,6 +28,7 @@ import {
 } from '@/ui-components/dropdown-menu'
 import { Section } from '@/types/portal'
 import { DashboardSettings } from '@/types/dashboard'
+import { getCollaborationActions } from '@/lib/collaboration/collaboration-store'
 
 interface UnifiedSidebarProps {
   sections: Section[]
@@ -119,6 +120,23 @@ export function UnifiedSidebar({
       return next
     })
   }
+
+  // Update collaboration awareness when active section changes
+  useEffect(() => {
+    const { updateCurrentSection } = getCollaborationActions()
+    if (activeSectionId) {
+      const activeSection = sections.find(s => s.id === activeSectionId)
+      updateCurrentSection(activeSectionId, activeSection?.title || 'Untitled Section')
+    } else if (activeSpecialPage) {
+      // Track special pages too
+      const pageNames = {
+        signup: 'Sign Up / Login',
+        review: 'Review & Submit',
+        dashboard: 'Applicant Dashboard'
+      }
+      updateCurrentSection(`special-${activeSpecialPage}`, pageNames[activeSpecialPage])
+    }
+  }, [activeSectionId, activeSpecialPage, sections])
 
   // Separate sections by type
   const formSections = sections.filter(s => s.sectionType === 'form' || !s.sectionType)
