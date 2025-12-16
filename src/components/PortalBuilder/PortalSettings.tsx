@@ -138,6 +138,138 @@ export function PortalSettings({ type, settings, onUpdate }: PortalSettingsProps
               </div>
             </div>
           </div>
+
+          <Separator className="my-6" />
+
+          {/* Form Designer Section */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">Form Designer</h3>
+            <p className="text-xs text-gray-500 mb-4">Customize form field appearance.</p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Questions Background</Label>
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-8 h-8 rounded border border-gray-200"
+                    style={{ backgroundColor: settings.formTheme?.questionsBackgroundColor || '#ffffff' }}
+                  />
+                  <Input 
+                    value={settings.formTheme?.questionsBackgroundColor || '#ffffff'} 
+                    onChange={(e) => onUpdate({ 
+                      formTheme: { 
+                        ...settings.formTheme, 
+                        questionsBackgroundColor: e.target.value 
+                      } 
+                    })}
+                    className="w-24 font-mono text-xs"
+                    placeholder="#ffffff"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <Label className="text-sm">Primary</Label>
+                  <span className="text-gray-400 text-xs cursor-help" title="Used for buttons and accents">ⓘ</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-8 h-8 rounded border border-gray-200"
+                    style={{ backgroundColor: settings.formTheme?.primaryColor || settings.themeColor || '#3B82F6' }}
+                  />
+                  <Input 
+                    value={settings.formTheme?.primaryColor || settings.themeColor || '#3B82F6'} 
+                    onChange={(e) => onUpdate({ 
+                      formTheme: { 
+                        ...settings.formTheme, 
+                        primaryColor: e.target.value 
+                      } 
+                    })}
+                    className="w-24 font-mono text-xs"
+                    placeholder="#3B82F6"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Questions</Label>
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-8 h-8 rounded border border-gray-200"
+                    style={{ backgroundColor: settings.formTheme?.questionsColor || '#111827' }}
+                  />
+                  <Input 
+                    value={settings.formTheme?.questionsColor || '#111827'} 
+                    onChange={(e) => onUpdate({ 
+                      formTheme: { 
+                        ...settings.formTheme, 
+                        questionsColor: e.target.value 
+                      } 
+                    })}
+                    className="w-24 font-mono text-xs"
+                    placeholder="#111827"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Answers</Label>
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-8 h-8 rounded border border-gray-200"
+                    style={{ backgroundColor: settings.formTheme?.answersColor || '#374151' }}
+                  />
+                  <Input 
+                    value={settings.formTheme?.answersColor || '#374151'} 
+                    onChange={(e) => onUpdate({ 
+                      formTheme: { 
+                        ...settings.formTheme, 
+                        answersColor: e.target.value 
+                      } 
+                    })}
+                    className="w-24 font-mono text-xs"
+                    placeholder="#374151"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <Label className="text-sm">Logo</Label>
+                  <span className="text-gray-400 text-xs cursor-help" title="Show logo in form header">ⓘ</span>
+                </div>
+                <Switch
+                  checked={settings.formTheme?.showLogo !== false}
+                  onCheckedChange={(checked) => onUpdate({ 
+                    formTheme: { 
+                      ...settings.formTheme, 
+                      showLogo: checked 
+                    } 
+                  })}
+                />
+              </div>
+              {settings.logoUrl && settings.formTheme?.showLogo !== false && (
+                <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                  <img 
+                    src={settings.logoUrl} 
+                    alt="Logo preview" 
+                    className="h-8 w-auto object-contain"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     )

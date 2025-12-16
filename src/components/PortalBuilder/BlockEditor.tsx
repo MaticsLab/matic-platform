@@ -56,12 +56,24 @@ import { BlockCollaboratorRing } from './PresenceIndicators';
 // TYPES
 // ============================================================================
 
+interface FormTheme {
+  questionsBackgroundColor?: string;
+  primaryColor?: string;
+  questionsColor?: string;
+  answersColor?: string;
+  showLogo?: boolean;
+}
+
 interface BlockEditorProps {
   section: Section;
   onUpdate: (updates: Partial<Section>) => void;
   selectedBlockId: string | null;
   onSelectBlock: (id: string | null) => void;
   themeColor?: string;
+  /** Form designer theme settings */
+  formTheme?: FormTheme;
+  /** Logo URL for header display */
+  logoUrl?: string;
   /** Room ID for real-time collaboration (usually form ID) */
   roomId?: string;
   /** Current user info for collaboration presence */
@@ -706,6 +718,14 @@ interface BlockProps {
   onMoveDown: () => void;
   onOpenSlashMenu: (position: { top: number; left: number }, containerId?: string) => void;
   themeColor?: string;
+  /** Form theme settings for colors */
+  resolvedTheme?: {
+    questionsBackgroundColor: string;
+    primaryColor: string;
+    questionsColor: string;
+    answersColor: string;
+    showLogo: boolean;
+  };
   allFields: Field[];
   isFirst: boolean;
   isLast: boolean;
@@ -733,6 +753,7 @@ function Block({
   onMoveDown,
   onOpenSlashMenu,
   themeColor,
+  resolvedTheme,
   allFields,
   isFirst,
   isLast,
@@ -1098,11 +1119,12 @@ function Block({
                   value={field.label}
                   onChange={(e) => onUpdate({ label: e.target.value })}
                   onClick={(e) => e.stopPropagation()}
-                  className="flex-1 text-sm font-medium text-gray-900 bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0"
+                  className="flex-1 text-sm font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0"
+                  style={{ color: resolvedTheme?.questionsColor || '#111827' }}
                   placeholder="Field label..."
                 />
                 {field.required && (
-                  <span className="text-red-500 text-xs">*</span>
+                  <span style={{ color: resolvedTheme?.primaryColor || '#ef4444' }} className="text-xs">*</span>
                 )}
               </div>
               {/* Description - show when selected, has value, or user clicks to add */}
@@ -1112,7 +1134,8 @@ function Block({
                   value={field.description || ''}
                   onChange={(e) => onUpdate({ description: e.target.value })}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full text-xs text-gray-500 bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0"
+                  className="w-full text-xs bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0"
+                  style={{ color: resolvedTheme?.answersColor || '#6b7280' }}
                   placeholder="Add a description (help text shown below field)..."
                 />
               ) : null}
@@ -1144,9 +1167,19 @@ export function BlockEditor({
   selectedBlockId,
   onSelectBlock,
   themeColor = '#3B82F6',
+  formTheme,
+  logoUrl,
   roomId,
   currentUser,
 }: BlockEditorProps) {
+  // Resolve theme colors with defaults
+  const resolvedTheme = {
+    questionsBackgroundColor: formTheme?.questionsBackgroundColor || '#ffffff',
+    primaryColor: formTheme?.primaryColor || themeColor,
+    questionsColor: formTheme?.questionsColor || '#111827',
+    answersColor: formTheme?.answersColor || '#374151',
+    showLogo: formTheme?.showLogo !== false,
+  };
   const [slashMenu, setSlashMenu] = useState<{ position: { top: number; left: number }; insertIndex: number; containerId?: string } | null>(null);
   const [slashQuery, setSlashQuery] = useState('');
   const [isTypingSlash, setIsTypingSlash] = useState(false);
@@ -1335,23 +1368,37 @@ export function BlockEditor({
   return (
     <div
       ref={containerRef}
-      className="flex flex-col min-h-full bg-white"
+      className="flex flex-col min-h-full"
+      style={{ backgroundColor: resolvedTheme.questionsBackgroundColor }}
       onClick={() => onSelectBlock(null)}
     >
+      {/* Logo Header - shown if logo exists and showLogo is enabled */}
+      {logoUrl && resolvedTheme.showLogo && (
+        <div className="px-20 pt-6 pb-4 flex items-center justify-end">
+          <img 
+            src={logoUrl} 
+            alt="Logo" 
+            className="h-10 w-auto object-contain max-w-[200px]"
+          />
+        </div>
+      )}
+
       {/* Section Header */}
-      <div className="px-20 pt-10 pb-6 border-b border-gray-100">
+      <div className={cn("px-20 pb-6 border-b border-gray-100", !logoUrl || !resolvedTheme.showLogo ? "pt-10" : "pt-2")}>
         <input
           type="text"
           value={section.title}
           onChange={(e) => onUpdate({ title: e.target.value })}
-          className="w-full text-3xl font-bold text-gray-900 bg-transparent border-none outline-none placeholder:text-gray-300 focus:placeholder:text-gray-400 transition-colors"
+          className="w-full text-3xl font-bold bg-transparent border-none outline-none placeholder:text-gray-300 focus:placeholder:text-gray-400 transition-colors"
+          style={{ color: resolvedTheme.primaryColor }}
           placeholder="Untitled Section"
         />
         <input
           type="text"
           value={section.description || ''}
           onChange={(e) => onUpdate({ description: e.target.value })}
-          className="w-full text-gray-500 bg-transparent border-none outline-none mt-3 placeholder:text-gray-300 focus:placeholder:text-gray-400 transition-colors"
+          className="w-full bg-transparent border-none outline-none mt-3 placeholder:text-gray-300 focus:placeholder:text-gray-400 transition-colors"
+          style={{ color: resolvedTheme.answersColor }}
           placeholder="Add a description to help applicants..."
         />
       </div>
@@ -1421,6 +1468,7 @@ export function BlockEditor({
                         onMoveDown={() => handleMoveBlock(field.id, 'down')}
                         onOpenSlashMenu={(pos, containerId) => openSlashMenu(pos, index + 1, containerId)}
                         themeColor={themeColor}
+                        resolvedTheme={resolvedTheme}
                         allFields={section.fields}
                         isFirst={index === 0}
                         isLast={index === section.fields.length - 1}

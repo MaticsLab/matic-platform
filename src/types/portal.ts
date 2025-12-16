@@ -57,6 +57,14 @@ export type PortalConfig = {
     authLayout?: 'split' | 'centered' | 'card'
     backgroundImageUrl?: string
     socialLogin?: boolean
+    // Form designer theme settings
+    formTheme?: {
+      questionsBackgroundColor?: string  // Background color for question cards
+      primaryColor?: string              // Primary accent color (buttons, highlights)
+      questionsColor?: string            // Color for question labels
+      answersColor?: string              // Color for answer text/inputs
+      showLogo?: boolean                 // Whether to show logo in form header
+    }
     termsUrl?: string
     privacyUrl?: string
     loginFields: Field[]
