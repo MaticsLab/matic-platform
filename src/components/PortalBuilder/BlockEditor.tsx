@@ -1115,9 +1115,20 @@ function Block({
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <input
+                  key={field.id}
                   type="text"
                   value={field.label}
-                  onChange={(e) => onUpdate({ label: e.target.value })}
+                  onChange={(e) => {
+                    // Preserve cursor position
+                    const cursorPos = e.target.selectionStart;
+                    onUpdate({ label: e.target.value });
+                    // Restore cursor position after React re-render
+                    requestAnimationFrame(() => {
+                      if (document.activeElement === e.target && cursorPos !== null) {
+                        e.target.setSelectionRange(cursorPos, cursorPos);
+                      }
+                    });
+                  }}
                   onClick={(e) => {
                     e.stopPropagation()
                     onSelect()
@@ -1134,9 +1145,20 @@ function Block({
               {/* Description - show when selected, has value, or user clicks to add */}
               {(isSelected || field.description) ? (
                 <input
+                  key={`${field.id}-desc`}
                   type="text"
                   value={field.description || ''}
-                  onChange={(e) => onUpdate({ description: e.target.value })}
+                  onChange={(e) => {
+                    // Preserve cursor position
+                    const cursorPos = e.target.selectionStart;
+                    onUpdate({ description: e.target.value });
+                    // Restore cursor position after React re-render
+                    requestAnimationFrame(() => {
+                      if (document.activeElement === e.target && cursorPos !== null) {
+                        e.target.setSelectionRange(cursorPos, cursorPos);
+                      }
+                    });
+                  }}
                   onClick={(e) => {
                     e.stopPropagation()
                     onSelect()
