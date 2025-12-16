@@ -6,16 +6,19 @@ import {
   X, Mail, Trash2, ChevronRight, ChevronDown, 
   User, FileText, Star, MessageSquare,
   CheckCircle2, ArrowRight, AlertCircle, Users, Send,
-  Paperclip, Sparkles, AtSign, Plus, Tag, Loader2, FileEdit
+  Paperclip, Sparkles, AtSign, Plus, Tag, Loader2, FileEdit, Settings
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { emailClient, SendEmailRequest, GmailConnection } from '@/lib/api/email-client';
+import { emailClient, SendEmailRequest } from '@/lib/api/email-client';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/ui-components/popover";
+import { EmailConnectionStatus } from '@/components/Email/EmailConnectionStatus';
+import { useEmailConnection } from '@/hooks/useEmailConnection';
+import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
 
 export function ApplicationDetail({ 
   application, 
@@ -42,29 +45,20 @@ export function ApplicationDetail({
   const [emailCc, setEmailCc] = useState('');
   const [emailBcc, setEmailBcc] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [gmailConnection, setGmailConnection] = useState<GmailConnection | null>(null);
-  const [isCheckingConnection, setIsCheckingConnection] = useState(true);
+  const [showEmailSettings, setShowEmailSettings] = useState(false);
 
-  // Check Gmail connection on mount
-  useEffect(() => {
-    const checkConnection = async () => {
-      if (!workspaceId) {
-        setIsCheckingConnection(false);
-        return;
-      }
-      try {
-        setIsCheckingConnection(true);
-        const connection = await emailClient.getConnection(workspaceId);
-        setGmailConnection(connection);
-      } catch (error) {
-        console.error('Failed to check Gmail connection:', error);
-        setGmailConnection({ connected: false, email: '' });
-      } finally {
-        setIsCheckingConnection(false);
-      }
-    };
-    checkConnection();
-  }, [workspaceId]);
+  // Gmail connection - use shared hook
+  const { 
+    connection: gmailConnection, 
+    accounts: emailAccounts,
+    isChecking: isCheckingConnection,
+    selectedFromEmail,
+    setSelectedFromEmail,
+    canSendEmail,
+    sendBlockedReason,
+    handleOAuthError,
+    refresh: refreshConnection
+  } = useEmailConnection(workspaceId);
 
   // Insert merge tag into email body
   const insertMergeTag = (fieldLabel: string) => {
@@ -92,8 +86,8 @@ export function ApplicationDetail({
       return;
     }
 
-    if (!gmailConnection?.connected) {
-      toast.error('Please connect your Gmail account in Communications settings');
+    if (!canSendEmail) {
+      toast.error(sendBlockedReason || 'Cannot send email');
       return;
     }
 
@@ -121,7 +115,9 @@ export function ApplicationDetail({
         setEmailSubject('');
         setEmailBody('');
       } else {
-        toast.error(result.errors?.[0] || 'Failed to send email');
+        const errorMessage = result.errors?.[0] || 'Failed to send email';
+        handleOAuthError(errorMessage);
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error('Failed to send email:', error);
@@ -519,26 +515,64 @@ export function ApplicationDetail({
                 {activeCommentTab === 'email' ? (
                   <>
                     {/* Gmail Connection Status */}
-                    {isCheckingConnection ? (
-                      <div className="flex items-center gap-2 py-2 text-sm text-gray-500">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Checking email connection...
-                      </div>
-                    ) : !gmailConnection?.connected && workspaceId ? (
-                      <div className="py-2 mb-2 text-sm text-amber-600 bg-amber-50 rounded-lg px-3">
-                        Gmail not connected. Go to Communications to connect.
-                      </div>
-                    ) : null}
+                    <EmailConnectionStatus
+                      connection={connection}
+                      isChecking={isChecking}
+                      variant="inline"
+                      onConfigureClick={() => setShowEmailSettings(true)}
+                    />
 
                     {/* From field */}
                     <div className="flex items-center gap-3 py-2 border-b border-gray-200">
                       <span className="text-gray-600 text-sm w-16">From</span>
-                      <div className="flex-1 flex items-center gap-2">
-                        <span className="text-gray-900 text-sm">
-                          {gmailConnection?.email || 'You'}
-                        </span>
-                        <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-auto" />
-                      </div>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="flex-1 flex items-center gap-2 hover:bg-gray-100 rounded px-1 py-0.5 transition-colors text-left">
+                            <span className="text-gray-900 text-sm">
+                              {selectedFromEmail || connection?.email || 'Select sender...'}
+                            </span>
+                            <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-auto" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-0 bg-white border border-gray-200 shadow-lg" align="start">
+                          <div className="max-h-48 overflow-y-auto">
+                            {accounts.map((account) => (
+                              <button
+                                key={account.email}
+                                onClick={() => setSelectedFromEmail(account.email)}
+                                className={cn(
+                                  "w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center gap-2",
+                                  selectedFromEmail === account.email && "bg-blue-50"
+                                )}
+                              >
+                                <Mail className="w-4 h-4 text-gray-400" />
+                                <span className="truncate">{account.email}</span>
+                              </button>
+                            ))}
+                            {accounts.length === 0 && (
+                              <div className="px-3 py-2 text-sm text-gray-500">
+                                No email accounts connected
+                              </div>
+                            )}
+                            <div className="border-t">
+                              <button
+                                onClick={() => setShowEmailSettings(true)}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-600"
+                              >
+                                <Settings className="w-4 h-4" />
+                                Configure Email Settings
+                              </button>
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <button
+                        onClick={() => setShowEmailSettings(true)}
+                        className="p-1 hover:bg-gray-200 rounded transition-colors"
+                        title="Email settings"
+                      >
+                        <Settings className="w-4 h-4 text-gray-500" />
+                      </button>
                     </div>
 
                     {/* To field */}
@@ -727,6 +761,16 @@ export function ApplicationDetail({
           </div>
         )}
       </div>
+
+      {/* Email Settings Dialog */}
+      {workspaceId && (
+        <EmailSettingsDialog
+          workspaceId={workspaceId}
+          open={showEmailSettings}
+          onOpenChange={setShowEmailSettings}
+          onAccountsUpdated={refresh}
+        />
+      )}
     </div>
   );
 }
