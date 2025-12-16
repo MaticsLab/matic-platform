@@ -59,9 +59,9 @@ export function PortalConfigSyncBridge({
         let parsed: PortalConfig;
         try {
           if (typeof configData === 'string') {
-            parsed = JSON.parse(configData);
+            parsed = JSON.parse(configData) as PortalConfig;
           } else {
-            parsed = configData;
+            parsed = configData as PortalConfig;
           }
         } catch (parseError) {
           console.warn('[Collab] Failed to parse remote config - skipping update:', parseError);
@@ -97,7 +97,7 @@ export function PortalConfigSyncBridge({
       const existingData = yMap.get('data');
       if (existingData) {
         try {
-          const parsed = typeof existingData === 'string' ? JSON.parse(existingData) : existingData;
+          const parsed = (typeof existingData === 'string' ? JSON.parse(existingData) : existingData) as PortalConfig;
           // Only initialize if the remote has meaningful data
           if (parsed.sections && parsed.sections.length > 0) {
             console.log('[Collab] 🔄 Initializing from existing Yjs config');
