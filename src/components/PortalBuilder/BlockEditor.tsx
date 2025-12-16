@@ -1029,6 +1029,7 @@ function Block({
   }
 
   return (
+    <BlockCollaboratorRing blockId={field.id}>
     <motion.div
       ref={blockRef}
       layout
@@ -1128,6 +1129,7 @@ function Block({
         )}
       </div>
     </motion.div>
+    </BlockCollaboratorRing>
   );
 }
 
