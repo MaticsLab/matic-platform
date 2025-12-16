@@ -110,7 +110,9 @@ export function CollaborativeInput({
     
     // Immediately update parent to reflect change in local state
     // This prevents cursor jumping while typing
-    onChange(newValue)l
+    onChange(newValue);
+    
+    ydoc.transact(() => {
       if (yText.length > 0) {
         yText.delete(0, yText.length);
       }
