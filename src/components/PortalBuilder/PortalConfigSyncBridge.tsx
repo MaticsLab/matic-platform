@@ -43,15 +43,21 @@ export function PortalConfigSyncBridge({
 
     // Observer for remote changes
     const observer = (event: Y.YMapEvent<any>) => {
-      // Skip local transactions
-      if (event.transaction.local) return;
+      // Skip local transactions to avoid loops
+      if (event.transaction.local) {
+        return;
+      }
+      
+      // Prevent recursive updates
+      if (isApplyingRemoteRef.current) {
+        return;
+      }
       
       isApplyingRemoteRef.current = true;
       
       try {
         const configData = yMap.get('data');
         if (!configData) {
-          isApplyingRemoteRef.current = false;
           return;
         }
 
@@ -65,28 +71,28 @@ export function PortalConfigSyncBridge({
           }
         } catch (parseError) {
           console.warn('[Collab] Failed to parse remote config - skipping update:', parseError);
-          isApplyingRemoteRef.current = false;
           return;
         }
 
         const json = JSON.stringify(parsed);
         
-        // Skip if same content
+        // Skip if same content (prevents duplicate applications)
         if (json === lastSyncedJsonRef.current) {
-          isApplyingRemoteRef.current = false;
           return;
         }
 
         console.log('[Collab] 📥 Received remote config update');
         lastSyncedJsonRef.current = json;
         
-        // Apply remote update to local state immediately
+        // Apply remote update to local state
         setConfig(parsed);
       } catch (e) {
         console.error('[Collab] Unexpected error in observer:', e);
       } finally {
-        // Reset flag immediately for faster updates
-        isApplyingRemoteRef.current = false;
+        // Use a small delay to ensure we don't process rapid-fire updates
+        setTimeout(() => {
+          isApplyingRemoteRef.current = false;
+        }, 50);
       }
     };
 
@@ -120,7 +126,7 @@ export function PortalConfigSyncBridge({
     };
   }, [ydoc, setConfig, skipInitialSync]);
 
-  // Sync local config changes to Yjs (immediate, no debounce for real-time editing)
+  // Sync local config changes to Yjs (immediate for real-time feel)
   useEffect(() => {
     // Skip if we're applying a remote update
     if (isApplyingRemoteRef.current) return;
@@ -144,9 +150,9 @@ export function PortalConfigSyncBridge({
     // Use Y.Map for atomic updates - prevents JSON corruption
     ydoc.transact(() => {
       yMap.set('data', json);
-    }, 'local');
+    });
     
-    console.log('[Collab] 📤 Synced config change to Yjs (real-time)');
+    console.log('[Collab] 📤 Synced config change to Yjs');
   }, [config, ydoc]);
 
   // This component doesn't render anything - it's just for syncing

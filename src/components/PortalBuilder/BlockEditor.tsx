@@ -51,7 +51,6 @@ import { Section, Field, FieldType } from '@/types/portal';
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter';
 import { useCollaborationOptional } from './CollaborationProvider';
 import { BlockCollaboratorRing } from './PresenceIndicators';
-import { CollaborativeInput } from './CollaborativeInput';
 
 // ============================================================================
 // TYPES
@@ -1115,11 +1114,18 @@ function Block({
             {/* Editable Label & Description */}
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <CollaborativeInput
-                  fieldId={field.id}
-                  fieldKey="label"
+                <input
+                  type="text"
                   value={field.label}
-                  onChange={(newValue) => onUpdate({ label: newValue })}
+                  onChange={(e) => {
+                    const cursorPos = e.target.selectionStart;
+                    onUpdate({ label: e.target.value });
+                    requestAnimationFrame(() => {
+                      if (document.activeElement === e.target && cursorPos !== null) {
+                        e.target.setSelectionRange(cursorPos, cursorPos);
+                      }
+                    });
+                  }}
                   onClick={(e) => {
                     e.stopPropagation()
                     onSelect()
@@ -1135,11 +1141,18 @@ function Block({
               </div>
               {/* Description - show when selected, has value, or user clicks to add */}
               {(isSelected || field.description) ? (
-                <CollaborativeInput
-                  fieldId={field.id}
-                  fieldKey="description"
+                <input
+                  type="text"
                   value={field.description || ''}
-                  onChange={(newValue) => onUpdate({ description: newValue })}
+                  onChange={(e) => {
+                    const cursorPos = e.target.selectionStart;
+                    onUpdate({ description: e.target.value });
+                    requestAnimationFrame(() => {
+                      if (document.activeElement === e.target && cursorPos !== null) {
+                        e.target.setSelectionRange(cursorPos, cursorPos);
+                      }
+                    });
+                  }}
                   onClick={(e) => {
                     e.stopPropagation()
                     onSelect()

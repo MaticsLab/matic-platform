@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import * as Y from 'yjs';
 import { useYDoc } from './CollaborationProvider';
 
@@ -18,7 +18,11 @@ interface CollaborativeInputProps {
 
 /**
  * Input component that syncs text character-by-character via Yjs
- * for true Google Docs-style collaboration
+ * for true Google Docs-style collaboration.
+ * 
+ * IMPORTANT: This component manages its own state via Y.Text and only
+ * calls onChange to update the parent when receiving REMOTE changes.
+ * Local changes go directly to Y.Text and are synced via PortalConfigSyncBridge.
  */
 export function CollaborativeInput({
   fieldId,
@@ -34,7 +38,7 @@ export function CollaborativeInput({
   const ydoc = useYDoc();
   const inputRef = useRef<HTMLInputElement>(null);
   const yTextRef = useRef<Y.Text | null>(null);
-  const isLocalChangeRef = useRef(false);
+  const lastRemoteValueRef = useRef<string>('');
   
   // Initialize Y.Text for this specific field
   useEffect(() => {
@@ -43,27 +47,33 @@ export function CollaborativeInput({
     const yText = ydoc.getText(`field-${fieldId}-${fieldKey}`);
     yTextRef.current = yText;
     
-    // Initialize Y.Text with current value if empty
-    if (yText.length === 0 && value) {
-      yText.insert(0, value);
+    // Sync Y.Text with prop value if different
+    const currentYText = yText.toString();
+    if (currentYText !== value && value !== undefined) {
+      ydoc.transact(() => {
+        if (yText.length > 0) {
+          yText.delete(0, yText.length);
+        }
+        if (value) {
+          yText.insert(0, value);
+        }
+      });
     }
     
-    // Observer for remote changes
+    // Observer for remote changes (from other users)
     const observer = (event: Y.YTextEvent) => {
-      // Skip local transactions
-      if (event.transaction.local) return;
-      
       const text = yText.toString();
+      
+      // Skip if this is the same value we already have
+      if (text === lastRemoteValueRef.current) return;
+      
+      lastRemoteValueRef.current = text;
       const input = inputRef.current;
       
-      if (!input || document.activeElement !== input) {
-        // Not focused, just update
-        onChange(text);
-        return;
-      }
-      
       // Preserve cursor position during remote updates
-      const cursorPos = input.selectionStart || 0;
+      const cursorPos = input?.selectionStart || 0;
+      
+      // Update parent state
       onChange(text);
       
       // Restore cursor after React re-render
@@ -71,39 +81,34 @@ export function CollaborativeInput({
         if (input && document.activeElement === input) {
           input.setSelectionRange(cursorPos, cursorPos);
         }
-      });
-    };
-    
-    yText.observe(observer);
-    
-    return () => {
-      yText.unobserve(observer);
-    };
-  }, [ydoc, fieldId, fieldKey, onChange]);
-  
-  // Handle local input changes
+      }); - update Y.Text only, parent will be updated via PortalConfigSyncBridge
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     const yText = yTextRef.current;
     
     if (!yText || !ydoc) {
+      // Fallback if no Yjs - directly update parent
       onChange(newValue);
       return;
     }
     
-    isLocalChangeRef.current = true;
-    
-    // Calculate diff and apply minimal changes to Y.Text
     const oldValue = yText.toString();
+    if (newValue === oldValue) return;
     
-    if (newValue === oldValue) {
-      isLocalChangeRef.current = false;
-      return;
-    }
-    
-    // Use transaction for atomic update
+    // Update Y.Text - this will sync to other clients
+    // Do NOT call onChange here - let PortalConfigSyncBridge handle parent updates
     ydoc.transact(() => {
-      // Simple approach: replace all
+      if (yText.length > 0) {
+        yText.delete(0, yText.length);
+      }
+      if (newValue) {
+        yText.insert(0, newValue);
+      }
+    });
+    
+    // Immediately update parent to reflect change in local state
+    // This prevents cursor jumping while typing
+    onChange(newValue)l
       if (yText.length > 0) {
         yText.delete(0, yText.length);
       }
