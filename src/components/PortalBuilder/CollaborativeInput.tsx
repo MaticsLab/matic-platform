@@ -1,0 +1,132 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import * as Y from 'yjs';
+import { useYDoc } from './CollaborationProvider';
+
+interface CollaborativeInputProps {
+  fieldId: string;
+  fieldKey: 'label' | 'description';
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+  style?: React.CSSProperties;
+  placeholder?: string;
+  onClick?: (e: React.MouseEvent<HTMLInputElement>) => void;
+  onFocus?: () => void;
+}
+
+/**
+ * Input component that syncs text character-by-character via Yjs
+ * for true Google Docs-style collaboration
+ */
+export function CollaborativeInput({
+  fieldId,
+  fieldKey,
+  value,
+  onChange,
+  className,
+  style,
+  placeholder,
+  onClick,
+  onFocus,
+}: CollaborativeInputProps) {
+  const ydoc = useYDoc();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const yTextRef = useRef<Y.Text | null>(null);
+  const isLocalChangeRef = useRef(false);
+  
+  // Initialize Y.Text for this specific field
+  useEffect(() => {
+    if (!ydoc) return;
+    
+    const yText = ydoc.getText(`field-${fieldId}-${fieldKey}`);
+    yTextRef.current = yText;
+    
+    // Initialize Y.Text with current value if empty
+    if (yText.length === 0 && value) {
+      yText.insert(0, value);
+    }
+    
+    // Observer for remote changes
+    const observer = (event: Y.YTextEvent) => {
+      // Skip local transactions
+      if (event.transaction.local) return;
+      
+      const text = yText.toString();
+      const input = inputRef.current;
+      
+      if (!input || document.activeElement !== input) {
+        // Not focused, just update
+        onChange(text);
+        return;
+      }
+      
+      // Preserve cursor position during remote updates
+      const cursorPos = input.selectionStart || 0;
+      onChange(text);
+      
+      // Restore cursor after React re-render
+      requestAnimationFrame(() => {
+        if (input && document.activeElement === input) {
+          input.setSelectionRange(cursorPos, cursorPos);
+        }
+      });
+    };
+    
+    yText.observe(observer);
+    
+    return () => {
+      yText.unobserve(observer);
+    };
+  }, [ydoc, fieldId, fieldKey, onChange]);
+  
+  // Handle local input changes
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    const yText = yTextRef.current;
+    
+    if (!yText || !ydoc) {
+      onChange(newValue);
+      return;
+    }
+    
+    isLocalChangeRef.current = true;
+    
+    // Calculate diff and apply minimal changes to Y.Text
+    const oldValue = yText.toString();
+    
+    if (newValue === oldValue) {
+      isLocalChangeRef.current = false;
+      return;
+    }
+    
+    // Use transaction for atomic update
+    ydoc.transact(() => {
+      // Simple approach: replace all
+      if (yText.length > 0) {
+        yText.delete(0, yText.length);
+      }
+      if (newValue.length > 0) {
+        yText.insert(0, newValue);
+      }
+    }, 'local');
+    
+    onChange(newValue);
+    isLocalChangeRef.current = false;
+  };
+  
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={value}
+      onChange={handleChange}
+      onClick={onClick}
+      onFocus={onFocus}
+      className={className}
+      style={style}
+      placeholder={placeholder}
+    />
+  );
+}

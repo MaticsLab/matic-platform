@@ -51,6 +51,7 @@ import { Section, Field, FieldType } from '@/types/portal';
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter';
 import { useCollaborationOptional } from './CollaborationProvider';
 import { BlockCollaboratorRing } from './PresenceIndicators';
+import { CollaborativeInput } from './CollaborativeInput';
 
 // ============================================================================
 // TYPES
@@ -1114,21 +1115,11 @@ function Block({
             {/* Editable Label & Description */}
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <input
-                  key={field.id}
-                  type="text"
+                <CollaborativeInput
+                  fieldId={field.id}
+                  fieldKey="label"
                   value={field.label}
-                  onChange={(e) => {
-                    // Preserve cursor position
-                    const cursorPos = e.target.selectionStart;
-                    onUpdate({ label: e.target.value });
-                    // Restore cursor position after React re-render
-                    requestAnimationFrame(() => {
-                      if (document.activeElement === e.target && cursorPos !== null) {
-                        e.target.setSelectionRange(cursorPos, cursorPos);
-                      }
-                    });
-                  }}
+                  onChange={(newValue) => onUpdate({ label: newValue })}
                   onClick={(e) => {
                     e.stopPropagation()
                     onSelect()
@@ -1144,21 +1135,11 @@ function Block({
               </div>
               {/* Description - show when selected, has value, or user clicks to add */}
               {(isSelected || field.description) ? (
-                <input
-                  key={`${field.id}-desc`}
-                  type="text"
+                <CollaborativeInput
+                  fieldId={field.id}
+                  fieldKey="description"
                   value={field.description || ''}
-                  onChange={(e) => {
-                    // Preserve cursor position
-                    const cursorPos = e.target.selectionStart;
-                    onUpdate({ description: e.target.value });
-                    // Restore cursor position after React re-render
-                    requestAnimationFrame(() => {
-                      if (document.activeElement === e.target && cursorPos !== null) {
-                        e.target.setSelectionRange(cursorPos, cursorPos);
-                      }
-                    });
-                  }}
+                  onChange={(newValue) => onUpdate({ description: newValue })}
                   onClick={(e) => {
                     e.stopPropagation()
                     onSelect()
