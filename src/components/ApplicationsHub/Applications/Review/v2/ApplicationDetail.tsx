@@ -516,8 +516,8 @@ export function ApplicationDetail({
                   <>
                     {/* Gmail Connection Status */}
                     <EmailConnectionStatus
-                      connection={connection}
-                      isChecking={isChecking}
+                      connection={gmailConnection}
+                      isChecking={isCheckingConnection}
                       variant="inline"
                       onConfigureClick={() => setShowEmailSettings(true)}
                     />
@@ -529,14 +529,14 @@ export function ApplicationDetail({
                         <PopoverTrigger asChild>
                           <button className="flex-1 flex items-center gap-2 hover:bg-gray-100 rounded px-1 py-0.5 transition-colors text-left">
                             <span className="text-gray-900 text-sm">
-                              {selectedFromEmail || connection?.email || 'Select sender...'}
+                              {selectedFromEmail || gmailConnection?.email || 'Select sender...'}
                             </span>
                             <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-auto" />
                           </button>
                         </PopoverTrigger>
                         <PopoverContent className="w-64 p-0 bg-white border border-gray-200 shadow-lg" align="start">
                           <div className="max-h-48 overflow-y-auto">
-                            {accounts.map((account) => (
+                            {emailAccounts.map((account) => (
                               <button
                                 key={account.email}
                                 onClick={() => setSelectedFromEmail(account.email)}
@@ -549,7 +549,7 @@ export function ApplicationDetail({
                                 <span className="truncate">{account.email}</span>
                               </button>
                             ))}
-                            {accounts.length === 0 && (
+                            {emailAccounts.length === 0 && (
                               <div className="px-3 py-2 text-sm text-gray-500">
                                 No email accounts connected
                               </div>
