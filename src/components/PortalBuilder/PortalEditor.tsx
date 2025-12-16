@@ -39,7 +39,8 @@ import type { EndingBlock } from '@/types/ending-blocks'
 import { DynamicApplicationForm } from '@/components/ApplicationsHub/Applications/ApplicantPortal/DynamicApplicationForm'
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { supabase } from '@/lib/supabase'
-import { CollaborationProvider, useCollaborationOptional, getCollaborationActions } from './CollaborationProvider'
+import { CollaborationProvider, useCollaborationOptional, getCollaborationActions, useYDoc } from './CollaborationProvider'
+import { PortalConfigSyncBridge } from './PortalConfigSyncBridge'
 import { PresenceHeader, SectionCollaboratorIndicator, CursorOverlay, type Collaborator } from './PresenceIndicators'
 import { formsClient } from '@/lib/api/forms-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
@@ -940,6 +941,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
   return (
     <CollaborationProvider roomId={formId || 'new-form'} enabled={!!formId}>
+    {/* Sync portal config with other collaborators via Yjs */}
+    <PortalConfigSyncBridge config={config} setConfig={setConfig} />
     <DndProvider backend={HTML5Backend}>
       <div className="flex flex-col h-full bg-gray-100">
         {/* Top Bar - Full Width */}

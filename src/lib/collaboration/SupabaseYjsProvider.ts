@@ -247,6 +247,8 @@ export class SupabaseYjsProvider {
     // Convert to base64 for transmission
     const base64Update = this.arrayToBase64(mergedUpdate);
 
+    console.log('[Collab] 📤 Broadcasting yjs-update, size:', base64Update.length);
+
     // Broadcast to other clients
     this.channel.send({
       type: 'broadcast',
@@ -261,8 +263,12 @@ export class SupabaseYjsProvider {
   private handleRemoteUpdate = (payload: { update: string; sender: string }): void => {
     if (payload.sender === this.userId) return;
 
+    console.log('[Collab] 📥 Received yjs-update from:', payload.sender);
+
     const update = this.base64ToArray(payload.update);
     Y.applyUpdate(this.doc, update, 'remote');
+    
+    console.log('[Collab] ✅ Applied remote yjs-update');
   };
 
   // Debounce awareness notifications to prevent infinite loops
