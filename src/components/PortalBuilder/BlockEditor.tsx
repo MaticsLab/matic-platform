@@ -521,6 +521,8 @@ interface ChildFieldsDndContextProps {
   field: Field;
   onDeleteChild: (id: string) => void;
   onUpdateChild: (id: string, updates: Partial<Field>) => void;
+  onSelectChild: (id: string) => void;
+  selectedChildId: string | null;
   themeColor?: string;
   allFields: Field[];
 }
@@ -531,6 +533,8 @@ function ChildFieldsDndContext({
   field, 
   onDeleteChild, 
   onUpdateChild, 
+  onSelectChild,
+  selectedChildId,
   themeColor, 
   allFields 
 }: ChildFieldsDndContextProps) {
@@ -567,6 +571,8 @@ function ChildFieldsDndContext({
               field={child}
               onDelete={() => onDeleteChild(child.id)}
               onUpdate={(updates) => onUpdateChild(child.id, updates)}
+              onSelect={() => onSelectChild(child.id)}
+              isSelected={selectedChildId === child.id}
               themeColor={themeColor}
               allFields={allFields}
             />
@@ -585,11 +591,13 @@ interface SortableChildFieldProps {
   field: Field;
   onDelete: () => void;
   onUpdate: (updates: Partial<Field>) => void;
+  onSelect: () => void;
+  isSelected: boolean;
   themeColor?: string;
   allFields: Field[];
 }
 
-function SortableChildField({ field, onDelete, onUpdate, themeColor, allFields }: SortableChildFieldProps) {
+function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, themeColor, allFields }: SortableChildFieldProps) {
   const [isHovered, setIsHovered] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const labelInputRef = useRef<HTMLInputElement | null>(null);
@@ -615,24 +623,17 @@ function SortableChildField({ field, onDelete, onUpdate, themeColor, allFields }
       style={style} 
       {...attributes}
       className={cn(
-        "relative p-3 bg-white rounded-lg border shadow-sm transition-all",
+        "relative p-3 bg-white rounded-lg border shadow-sm transition-all cursor-pointer",
         isDragging ? "border-blue-300 shadow-md" : "border-gray-100",
-        isHovered && !isDragging && "border-gray-200"
+        isHovered && !isDragging && "border-gray-200",
+        isSelected && "ring-2 ring-blue-500 border-blue-300 bg-blue-50/30"
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={(e) => {
-        // Treat clicks inside the card as intent to edit this field
+        // Select this field to show settings panel
         e.stopPropagation();
-        // Focus the label input for immediate editing
-        if (labelInputRef.current) {
-          labelInputRef.current.focus();
-          labelInputRef.current.select();
-        } else {
-          // Fallback: focus the first interactive element inside
-          const firstEditable = containerRef.current?.querySelector('input, textarea, select') as HTMLElement | null;
-          firstEditable?.focus();
-        }
+        onSelect();
       }}
     >
       {/* Drag handle and actions */}
@@ -713,6 +714,10 @@ interface BlockProps {
   onAddToContainer?: (field: Field) => void;
   /** Whether a drag is currently over this container */
   isDropTarget?: boolean;
+  /** Currently selected block ID (for child field selection) */
+  selectedBlockId?: string | null;
+  /** Callback to select a block (for child fields) */
+  onSelectBlock?: (id: string | null) => void;
 }
 
 function Block({
@@ -732,6 +737,8 @@ function Block({
   isDragging,
   onAddToContainer,
   isDropTarget,
+  selectedBlockId,
+  onSelectBlock,
 }: BlockProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -992,6 +999,8 @@ function Block({
               field={field}
               onDeleteChild={handleDeleteChild}
               onUpdateChild={handleUpdateChild}
+              onSelectChild={(id) => onSelectBlock?.(id)}
+              selectedChildId={selectedBlockId || null}
               themeColor={themeColor}
               allFields={allFields}
             />
@@ -1397,6 +1406,8 @@ export function BlockEditor({
                         allFields={section.fields}
                         isFirst={index === 0}
                         isLast={index === section.fields.length - 1}
+                        selectedBlockId={selectedBlockId}
+                        onSelectBlock={onSelectBlock}
                       />
                     </SortableBlock>
                   ))}
