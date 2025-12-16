@@ -768,7 +768,7 @@ export function ApplicationDetail({
           workspaceId={workspaceId}
           open={showEmailSettings}
           onOpenChange={setShowEmailSettings}
-          onAccountsUpdated={refresh}
+          onAccountsUpdated={refreshConnection}
         />
       )}
     </div>
