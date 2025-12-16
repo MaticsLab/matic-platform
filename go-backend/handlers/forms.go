@@ -1078,7 +1078,7 @@ func SubmitForm(c *gin.Context) {
 		// This ensures only one submission can be processed at a time for a given email+form
 		lockKey := fmt.Sprintf("%s:%s", formID, email)
 		lockID := int64(hashString(lockKey))
-		
+
 		// Acquire advisory lock (will wait if another transaction has it)
 		database.DB.Exec("SELECT pg_advisory_lock($1)", lockID)
 		defer database.DB.Exec("SELECT pg_advisory_unlock($1)", lockID)
@@ -1179,7 +1179,7 @@ func SubmitForm(c *gin.Context) {
 			c.JSON(http.StatusOK, existingRow)
 			return
 		}
-		
+
 		fmt.Printf("📝 SubmitForm: No existing row found for email=%s, will create new\n", email)
 	}
 

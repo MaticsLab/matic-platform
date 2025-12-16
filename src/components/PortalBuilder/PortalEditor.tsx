@@ -1049,7 +1049,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         {activeTopTab === 'edit' && (
         <div className="flex-1 flex overflow-hidden">
             {/* Left Sidebar - Navigation */}
-            <div className="w-[320px] min-w-[320px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 overflow-hidden">
+            <div className="w-[340px] min-w-[340px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 overflow-y-auto overflow-x-hidden">
           <Tabs value={leftSidebarTab} onValueChange={(value) => setLeftSidebarTab(value as any)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100">
               <TabsList className="w-full grid grid-cols-3 bg-gray-100 p-1 rounded-full h-auto">

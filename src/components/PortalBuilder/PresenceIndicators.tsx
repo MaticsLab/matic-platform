@@ -361,20 +361,30 @@ interface BlockCollaboratorRingProps {
 export function BlockCollaboratorRing({ blockId, children }: BlockCollaboratorRingProps) {
   // This hook only re-renders when someone starts/stops editing this specific block
   const editingUser = useBlockCollaborator(blockId);
+  const allCollaborators = useCollaborators();
+  
+  // Debug: Log when we have collaborators but no match for this block
+  React.useEffect(() => {
+    if (allCollaborators.length > 0) {
+      console.log('[BlockRing] blockId:', blockId, 'collaborators:', allCollaborators.map(c => ({ name: c.name, block: c.selectedBlockId })));
+    }
+  }, [blockId, allCollaborators]);
   
   if (!editingUser) return <>{children}</>;
+  
+  console.log('[BlockRing] MATCH! User editing this block:', editingUser.name, blockId);
   
   return (
     <div className="relative">
       <div 
-        className="absolute -inset-1 rounded-lg pointer-events-none animate-pulse"
+        className="absolute -inset-1 rounded-lg pointer-events-none animate-pulse z-10"
         style={{ 
-          border: `2px solid ${editingUser.color}`,
-          boxShadow: `0 0 8px ${editingUser.color}40`
+          border: `3px solid ${editingUser.color}`,
+          boxShadow: `0 0 12px ${editingUser.color}60`
         }}
       />
       <div 
-        className="absolute -top-3 left-2 px-1.5 py-0.5 rounded text-[10px] font-medium text-white whitespace-nowrap"
+        className="absolute -top-4 left-2 px-2 py-1 rounded text-xs font-medium text-white whitespace-nowrap z-20"
         style={{ backgroundColor: editingUser.color }}
       >
         {editingUser.name}

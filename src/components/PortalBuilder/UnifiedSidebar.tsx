@@ -222,7 +222,7 @@ export function UnifiedSidebar({
   }
 
   return (
-    <div className="h-full flex flex-col bg-white overflow-hidden min-h-0 w-full">
+    <div className="h-full flex flex-col bg-white overflow-y-auto overflow-x-hidden min-h-0 w-full">
       {/* Header */}
       <div className="px-3 py-3 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
         <h3 className="text-sm font-semibold text-gray-900">Portal Structure</h3>
@@ -274,7 +274,7 @@ export function UnifiedSidebar({
               <Lock className="w-4 h-4 text-green-600" />
               <span className="text-sm font-semibold text-gray-700 flex-1 text-left">Authentication</span>
             </CollapsibleTrigger>
-            <CollapsibleContent className="pl-6 pr-2 py-1 space-y-1">
+            <CollapsibleContent className="pl-4 pr-1 py-1 space-y-1">
               <button
                 onClick={() => {
                   onSelectSpecialPage('signup')
@@ -308,7 +308,7 @@ export function UnifiedSidebar({
               <span className="text-sm font-semibold text-gray-700 flex-1 text-left">Application Form</span>
               <span className="text-xs text-gray-400">{formSections.length}</span>
             </CollapsibleTrigger>
-            <CollapsibleContent className="pl-6 pr-2 py-1 space-y-1">
+            <CollapsibleContent className="pl-4 pr-1 py-1 space-y-1">
               <AnimatePresence mode="popLayout">
                 {formSections.map((section) => renderSectionItem(section, true))}
               </AnimatePresence>
@@ -375,10 +375,10 @@ export function UnifiedSidebar({
                   )} />
                 </CollapsibleTrigger>
                 
-                <CollapsibleContent className="mt-2 ml-4 space-y-3 pb-2">
+                <CollapsibleContent className="mt-2 ml-2 space-y-3 pb-2">
                   {/* Dashboard Components Toggles */}
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide px-2">Components</p>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide px-1">Components</p>
                     {DASHBOARD_COMPONENTS.map((comp) => {
                       const Icon = comp.icon
                       const isEnabled = dashboardSettings[comp.key as keyof DashboardSettings] as boolean
@@ -407,7 +407,7 @@ export function UnifiedSidebar({
                   <Separator />
 
                   {/* Welcome Message Settings */}
-                  <div className="space-y-3 px-1">
+                  <div className="space-y-3">
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wide px-1">Welcome Message</p>
                     <div className="space-y-2">
                       <div>
@@ -435,8 +435,8 @@ export function UnifiedSidebar({
 
               {/* Ending Pages */}
               {endingSections.length > 0 && (
-                <div className="pl-4 space-y-1">
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide px-2 py-1">Thank You Pages</p>
+                <div className="pl-2 space-y-1">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide px-1 py-1 truncate">Thank You Pages</p>
                   <AnimatePresence mode="popLayout">
                     {endingSections.map((section) => renderSectionItem(section, false))}
                   </AnimatePresence>
