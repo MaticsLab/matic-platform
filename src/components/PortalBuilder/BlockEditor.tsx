@@ -512,6 +512,72 @@ function SortableBlock({ id, children, isDragging }: SortableBlockProps) {
 }
 
 // ============================================================================
+// CHILD FIELDS DND CONTEXT - Separate component to properly isolate DnD context
+// ============================================================================
+
+interface ChildFieldsDndContextProps {
+  children: Field[];
+  onReorder: (event: DragEndEvent) => void;
+  field: Field;
+  onDeleteChild: (id: string) => void;
+  onUpdateChild: (id: string, updates: Partial<Field>) => void;
+  themeColor?: string;
+  allFields: Field[];
+}
+
+function ChildFieldsDndContext({ 
+  children, 
+  onReorder, 
+  field, 
+  onDeleteChild, 
+  onUpdateChild, 
+  themeColor, 
+  allFields 
+}: ChildFieldsDndContextProps) {
+  // Create isolated sensors for child DnD context
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5, // Smaller distance for children
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={onReorder}
+    >
+      <SortableContext 
+        items={children.map(c => c.id)} 
+        strategy={verticalListSortingStrategy}
+      >
+        <div className={cn(
+          "space-y-2",
+          field.type === 'group' && "grid gap-3",
+          field.type === 'group' && (field.config?.columns === 2 ? "grid-cols-2" : field.config?.columns === 3 ? "grid-cols-3" : "")
+        )}>
+          {children.map(child => (
+            <SortableChildField
+              key={child.id}
+              field={child}
+              onDelete={() => onDeleteChild(child.id)}
+              onUpdate={(updates) => onUpdateChild(child.id, updates)}
+              themeColor={themeColor}
+              allFields={allFields}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+// ============================================================================
 // SORTABLE CHILD FIELD - For fields inside group/repeater containers
 // ============================================================================
 
@@ -920,32 +986,15 @@ function Block({
               </div>
             </button>
           ) : (
-            <DndContext
-              collisionDetection={closestCenter}
-              onDragEnd={handleChildDragEnd}
-            >
-              <SortableContext 
-                items={children.map(c => c.id)} 
-                strategy={verticalListSortingStrategy}
-              >
-                <div className={cn(
-                  "space-y-2",
-                  field.type === 'group' && "grid gap-3",
-                  field.type === 'group' && (field.config?.columns === 2 ? "grid-cols-2" : field.config?.columns === 3 ? "grid-cols-3" : "")
-                )}>
-                  {children.map(child => (
-                    <SortableChildField
-                      key={child.id}
-                      field={child}
-                      onDelete={() => handleDeleteChild(child.id)}
-                      onUpdate={(updates) => handleUpdateChild(child.id, updates)}
-                      themeColor={themeColor}
-                      allFields={allFields}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
+            <ChildFieldsDndContext 
+              children={children}
+              onReorder={handleChildDragEnd}
+              field={field}
+              onDeleteChild={handleDeleteChild}
+              onUpdateChild={handleUpdateChild}
+              themeColor={themeColor}
+              allFields={allFields}
+            />
           )}
 
           {/* Add more button when there are children */}
@@ -1187,13 +1236,10 @@ export function BlockEditor({
     if (containerId) {
       const newFields = section.fields.map(f => {
         if (f.id === containerId) {
-          const currentChildren = f.config?.children || [];
+          const currentChildren = f.children || [];
           return {
             ...f,
-            config: {
-              ...f.config,
-              children: [...currentChildren, newField],
-            },
+            children: [...currentChildren, newField],
           };
         }
         return f;
