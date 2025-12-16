@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { FileCheck, Mail, Settings, FileText, Users, GitMerge, Share2, Copy, Edit2, Check, ExternalLink, BarChart3, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search, Plus, Eye, MessageSquare, Workflow, UserPlus, X, Loader2 } from 'lucide-react'
+import { FileCheck, Mail, Settings, FileText, Users, GitMerge, BarChart3, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search, Plus, Eye, MessageSquare, Workflow, UserPlus, X, Loader2 } from 'lucide-react'
 import { ReviewWorkspaceV2 } from './Review/v2'
 import { CommunicationsCenter } from './Communications/CommunicationsCenter'
 import { ReviewerManagement } from './Reviewers/ReviewerManagement'
@@ -66,18 +66,9 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
   const params = useParams()
   const slugFromUrl = params?.slug as string
 
-  // Share Dialog State
-  const [isShareOpen, setIsShareOpen] = useState(false)
-  const [applicationSlug, setApplicationSlug] = useState('')
-  const [isEditingSlug, setIsEditingSlug] = useState(false)
-  const [tempSlug, setTempSlug] = useState('')
-  const [copied, setCopied] = useState(false)
+  // Panel State
   const [showReviewersPanel, setShowReviewersPanel] = useState(false)
   const [showCommunicationsPanel, setShowCommunicationsPanel] = useState(false)
-  const [isSavingSlug, setIsSavingSlug] = useState(false)
-
-  // Forms are now accessed via forms.maticsapp.com/{slug} or custom subdomains
-  const fullUrl = applicationSlug ? `https://forms.maticsapp.com/${applicationSlug}` : ''
 
   // Fetch workspace details
   useEffect(() => {
@@ -97,57 +88,19 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
     fetchWorkspace()
   }, [workspaceId, slugFromUrl])
 
-  // Fetch minimal form details (only for slug/share dialog)
-  // ReviewWorkspace uses the combined endpoint for full data, so we avoid duplicate fetches
+  // Fetch minimal form details for display
   useEffect(() => {
     const fetchFormBasic = async () => {
       if (!formId) return
       try {
-        // Only fetch form for the slug - don't duplicate what ReviewWorkspace fetches
         const data = await goClient.get<Form>(`/forms/${formId}`)
         setForm(data)
-        setApplicationSlug(data.slug)
       } catch (error) {
         console.error('Failed to fetch form:', error)
       }
     }
     fetchFormBasic()
   }, [formId])
-
-  // Stats are now calculated from ReviewWorkspace data (avoids duplicate API calls)
-  // The stats state is kept for UI but not fetched separately
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(fullUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  const handleSaveSlug = async () => {
-    if (!form) return
-    
-    // Basic validation: slugify
-    const cleanSlug = tempSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-')
-    
-    if (!cleanSlug || cleanSlug.trim() === '') {
-      toast.error('Please enter a valid URL slug')
-      return
-    }
-    
-    setIsSavingSlug(true)
-    try {
-      const updatedForm = await goClient.patch<Form>(`/forms/${form.id}`, { slug: cleanSlug })
-      setForm(updatedForm)
-      setApplicationSlug(updatedForm.slug)
-      setIsEditingSlug(false)
-      toast.success('Application URL updated successfully')
-    } catch (error: any) {
-      console.error('Failed to update slug:', error)
-      toast.error(error?.message || 'Failed to update URL. Please try again.')
-    } finally {
-      setIsSavingSlug(false)
-    }
-  }
 
   // Register tab actions - Team button shown for all sub modules
   useEffect(() => {
@@ -166,12 +119,6 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
         label: 'Portal Editor',
         icon: FileText,
         onClick: () => window.open(`/workspace/${workspaceSlug || workspaceId}/portal-editor?formId=${formId}`, '_blank'),
-        variant: 'outline' as const
-      },
-      {
-        label: 'Share',
-        icon: Share2,
-        onClick: () => setIsShareOpen(true),
         variant: 'outline' as const
       }
     )
@@ -275,86 +222,6 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
-
-      {/* Share Dialog */}
-      <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Share Application</DialogTitle>
-            <DialogDescription>
-              Share this link with applicants to let them apply. You can customize the URL below.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Public Application Link</Label>
-              <div className="flex gap-2">
-                <div className="flex-1 relative">
-                  {isEditingSlug ? (
-                    <div className="flex items-center border rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
-                      <div className="bg-gray-50 px-3 py-2 text-sm text-gray-500 border-r border-gray-200 whitespace-nowrap">
-                        forms.maticsapp.com/
-                      </div>
-                      <input 
-                        value={tempSlug}
-                        onChange={e => setTempSlug(e.target.value)}
-                        className="flex-1 px-3 py-2 text-sm outline-none"
-                        placeholder="enter-slug-here"
-                        autoFocus
-                      />
-                    </div>
-                  ) : (
-                    <Input 
-                      value={fullUrl} 
-                      readOnly
-                      className="bg-gray-50 text-gray-600"
-                    />
-                  )}
-                </div>
-                
-                {!isEditingSlug ? (
-                  <>
-                    <Button variant="outline" size="icon" onClick={() => {
-                      setTempSlug(applicationSlug)
-                      setIsEditingSlug(true)
-                    }}>
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button variant="outline" size="icon" onClick={handleCopy}>
-                      {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-                    </Button>
-                  </>
-                ) : (
-                  <Button onClick={handleSaveSlug} disabled={isSavingSlug}>
-                    {isSavingSlug ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      'Save'
-                    )}
-                  </Button>
-                )}
-              </div>
-            </div>
-            
-            {!isEditingSlug && (
-              <div className="bg-blue-50 text-blue-700 p-3 rounded-lg text-sm flex gap-2 items-start">
-                <ExternalLink className="w-4 h-4 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium">Ready to share?</p>
-                  <a href={fullUrl} target="_blank" rel="noreferrer" className="hover:underline opacity-90">
-                    Open public application page
-                  </a>
-                </div>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Content Area */}
       <div className="flex-1 overflow-hidden relative">
         {activeTab === 'review' && formId && (

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Upload, Palette, Lock, Eye, EyeOff, LayoutTemplate, Type, MousePointerClick, Image as ImageIcon, Globe } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Upload, Palette, Lock, Eye, EyeOff, LayoutTemplate, Type, MousePointerClick, Image as ImageIcon, Globe, Loader2 } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
@@ -11,15 +11,109 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui-components/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
 import { PortalConfig, Field } from '@/types/portal'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 
 interface PortalSettingsProps {
   type: string
   settings: PortalConfig['settings']
   onUpdate: (updates: Partial<PortalConfig['settings']>) => void
+  /** Form ID for organizing uploads */
+  formId?: string
 }
 
-export function PortalSettings({ type, settings, onUpdate }: PortalSettingsProps) {
+export function PortalSettings({ type, settings, onUpdate, formId }: PortalSettingsProps) {
   const [authPreviewTab, setAuthPreviewTab] = useState<'login' | 'signup'>('login')
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
+  const [isUploadingBackground, setIsUploadingBackground] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+  const backgroundInputRef = useRef<HTMLInputElement>(null)
+
+  // Handle logo file upload
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file')
+      return
+    }
+
+    // Validate file size (2MB max)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image must be less than 2MB')
+      return
+    }
+
+    setIsUploadingLogo(true)
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `logos/${formId || 'default'}/${Date.now()}.${fileExt}`
+
+      const { data, error } = await supabase.storage
+        .from('form-assets')
+        .upload(fileName, file, { upsert: true })
+
+      if (error) throw error
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('form-assets')
+        .getPublicUrl(fileName)
+
+      onUpdate({ logoUrl: publicUrl })
+      toast.success('Logo uploaded successfully')
+    } catch (error: any) {
+      console.error('Logo upload error:', error)
+      toast.error(error.message || 'Failed to upload logo')
+    } finally {
+      setIsUploadingLogo(false)
+      // Reset input
+      if (logoInputRef.current) logoInputRef.current.value = ''
+    }
+  }
+
+  // Handle background image upload
+  const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be less than 5MB')
+      return
+    }
+
+    setIsUploadingBackground(true)
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `backgrounds/${formId || 'default'}/${Date.now()}.${fileExt}`
+
+      const { data, error } = await supabase.storage
+        .from('form-assets')
+        .upload(fileName, file, { upsert: true })
+
+      if (error) throw error
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('form-assets')
+        .getPublicUrl(fileName)
+
+      onUpdate({ backgroundImageUrl: publicUrl })
+      toast.success('Background uploaded successfully')
+    } catch (error: any) {
+      console.error('Background upload error:', error)
+      toast.error(error.message || 'Failed to upload background')
+    } finally {
+      setIsUploadingBackground(false)
+      if (backgroundInputRef.current) backgroundInputRef.current.value = ''
+    }
+  }
 
   if (type === 'branding') {
     return (
@@ -98,8 +192,26 @@ export function PortalSettings({ type, settings, onUpdate }: PortalSettingsProps
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Logo</Label>
-              <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer group">
-                {settings.logoUrl ? (
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleLogoUpload}
+                className="hidden"
+              />
+              <div 
+                onClick={() => !isUploadingLogo && logoInputRef.current?.click()}
+                className={cn(
+                  "border-2 border-dashed border-gray-200 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer group",
+                  isUploadingLogo && "opacity-50 cursor-wait"
+                )}
+              >
+                {isUploadingLogo ? (
+                  <div className="flex flex-col items-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-gray-400 mb-2" />
+                    <p className="text-xs text-gray-500">Uploading...</p>
+                  </div>
+                ) : settings.logoUrl ? (
                    <div className="relative w-20 h-20 mx-auto">
                       <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-contain" />
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
@@ -125,6 +237,13 @@ export function PortalSettings({ type, settings, onUpdate }: PortalSettingsProps
 
             <div className="space-y-2">
               <Label>Background Image</Label>
+              <input
+                ref={backgroundInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleBackgroundUpload}
+                className="hidden"
+              />
               <div className="flex gap-2">
                 <Input 
                   value={settings.backgroundImageUrl || ''} 
@@ -132,8 +251,18 @@ export function PortalSettings({ type, settings, onUpdate }: PortalSettingsProps
                   placeholder="https://..."
                   className="text-xs"
                 />
-                <Button variant="outline" size="icon" className="h-9 w-9 shrink-0">
-                  <ImageIcon className="w-4 h-4" />
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => !isUploadingBackground && backgroundInputRef.current?.click()}
+                  disabled={isUploadingBackground}
+                >
+                  {isUploadingBackground ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ImageIcon className="w-4 h-4" />
+                  )}
                 </Button>
               </div>
             </div>

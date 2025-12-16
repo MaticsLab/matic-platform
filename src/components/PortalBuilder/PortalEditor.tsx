@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { DndProvider } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { 
-  Layout, Settings, FileText, Plus, Save, Eye, Users,
+  Layout, Settings, FileText, Plus, Save, Eye,
   ChevronLeft, Monitor, Smartphone, Palette, Lock, Loader2, X, CheckCircle2,
   BookOpen, CheckCircle, Eye as EyeIcon, ScrollText, LayoutDashboard
 } from 'lucide-react'
@@ -20,7 +20,7 @@ import { SectionList } from './SectionList'
 import { FieldToolbox } from './FieldToolbox'
 import { FieldSettingsPanel } from './FieldSettingsPanel'
 import { ConditionBuilder } from './ConditionBuilder'
-// ShareTab removed - functionality consolidated elsewhere
+import { ShareTab } from './ShareTab'
 import { SignUpPreview } from './SignUpPreview'
 import { ConfirmationPreview } from './ConfirmationPreview'
 import { ReviewPreview } from './ReviewPreview'
@@ -125,8 +125,9 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [useBlockEditor, setUseBlockEditor] = useState(true) // Toggle for block editor vs FormBuilder
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatarUrl?: string } | null>(null)
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
-  const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate'>('integrate')
+  const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
   const [leftSidebarTab, setLeftSidebarTab] = useState<'structure' | 'elements' | 'theme'>('structure')
+  const [shareTabKey, setShareTabKey] = useState(0)
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
     showStatus: true,
     showTimeline: true,
@@ -985,30 +986,33 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                 )}
             </div>
 
-            <div className="flex items-center justify-center gap-2">
-               <button 
-                 onClick={() => setActiveTopTab('integrate')}
-                 className={cn(
-                   "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full border transition-all",
-                   activeTopTab === 'integrate' 
-                     ? "bg-white border-gray-300 text-gray-900 shadow-sm" 
-                     : "border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900"
-                 )}
-               >
-                 <FileText className="w-4 h-4" />
-                 Portal Editor
-               </button>
+            <div className="flex items-center justify-center bg-gray-100 p-1 rounded-full">
                <button 
                  onClick={() => setActiveTopTab('edit')}
                  className={cn(
-                   "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full border transition-all",
-                   activeTopTab === 'edit' 
-                     ? "bg-white border-gray-300 text-gray-900 shadow-sm" 
-                     : "border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900"
+                   "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
+                   activeTopTab === 'edit' ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
                  )}
                >
-                 <Users className="w-4 h-4" />
-                 Team
+                 Edit
+               </button>
+               <button 
+                 onClick={() => setActiveTopTab('integrate')}
+                 className={cn(
+                   "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
+                   activeTopTab === 'integrate' ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
+                 )}
+               >
+                 Integrate
+               </button>
+               <button 
+                 onClick={() => setActiveTopTab('share')}
+                 className={cn(
+                   "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
+                   activeTopTab === 'share' ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
+                 )}
+               >
+                 Share
                </button>
             </div>
 
@@ -1052,6 +1056,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         </div>
 
         {/* Main Content Area */}
+        {activeTopTab === 'share' && (
+          <div className="flex-1 overflow-auto bg-white">
+            <ShareTab key={`share-${formId}-${workspaceId}-${shareTabKey}`} formId={formId} isPublished={isPublished} workspaceId={workspaceId || undefined} />
+          </div>
+        )}
+        
         {activeTopTab === 'integrate' && (
           <div className="flex-1 overflow-auto bg-gray-50 p-8">
             <div className="max-w-2xl mx-auto text-center py-16">
@@ -1132,6 +1142,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                <PortalSettings 
                   type="branding" 
                   settings={config.settings} 
+                  formId={formId || undefined}
                   onUpdate={(updates: Partial<PortalConfig['settings']>) => {
                     setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))
                     setHasUnsavedChanges(true)
