@@ -116,9 +116,7 @@ export function PortalConfigSyncBridge({
     console.log('[Collab] ✅ Portal config sync observer attached');
 
     return () => {
-      yMap setConfig, skipInitialSync]);
-
-  // Sync .unobserve(observer);
+      yMap.unobserve(observer);
     };
   }, [ydoc, setConfig, skipInitialSync]);
 
@@ -127,7 +125,9 @@ export function PortalConfigSyncBridge({
     // Skip if we're applying a remote update
     if (isApplyingRemoteRef.current) return;
     
-    const y
+    const yMap = yMapRef.current;
+    if (!yMap || !ydoc) return;
+    
     let json: string;
     try {
       json = JSON.stringify(config);
@@ -136,14 +136,14 @@ export function PortalConfigSyncBridge({
       return;
     }
     
-    // Skip if same c atomic updates - prevents JSON corruption
+    // Skip if same content
+    if (json === lastSyncedJsonRef.current) return;
+    
+    lastSyncedJsonRef.current = json;
+    
+    // Use Y.Map for atomic updates - prevents JSON corruption
     ydoc.transact(() => {
-      yMap.set('data'eplace in one transaction to prevent concurrent corruption
-      const currentLength = yText.length;
-      if (currentLength > 0) {
-        yText.delete(0, currentLength);
-      }
-      yText.insert(0, json);
+      yMap.set('data', json);
     }, 'local');
     
     console.log('[Collab] 📤 Synced config change to Yjs (real-time)');
