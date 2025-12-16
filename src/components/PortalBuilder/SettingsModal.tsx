@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { PortalConfig } from '@/types/portal'
-import { translateResource } from '@/lib/ai/translation'
+import { translateResource, translateResourceIncremental } from '@/lib/ai/translation'
 import { collectTranslatableContentNew, normalizeTranslations } from '@/lib/portal-translations'
 import { LANGUAGES, getLanguageName } from '@/lib/languages'
 import { toast } from 'sonner'
@@ -73,6 +73,10 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
       console.log('📝 Content to translate (new format):', contentToTranslate)
 
       const targetLanguageName = getLanguageName(langCode)
+      
+      // Check if we have existing translations for this language
+      const currentTranslations = normalizeTranslations(config.translations || {})
+      const existingLangTranslations = currentTranslations[langCode]
 
       let translatedResource: TranslationResource = {
         portal: { name: '' },
@@ -82,17 +86,34 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
       
       // Only translate if auto-translate is NOT disabled
       if (!config.settings.language?.disableAutoTranslate) {
-        // Call AI with new format
-        toast.success(`Starting translation to ${targetLanguageName}`)
-        translatedResource = await translateResource(contentToTranslate, targetLanguageName)
+        // Use incremental translation if we have existing translations
+        if (existingLangTranslations && Object.keys(existingLangTranslations.fields || {}).length > 0) {
+          const existingCount = Object.keys(existingLangTranslations.fields || {}).length
+          const newCount = Object.keys(contentToTranslate.fields || {}).length
+          const diff = newCount - existingCount
+          if (diff > 0) {
+            toast.success(`Updating ${targetLanguageName} translations (${diff} new items)`)
+            translatedResource = await translateResourceIncremental(
+              contentToTranslate,
+              existingLangTranslations,
+              targetLanguageName
+            )
+          } else {
+            // No new content, use existing translations
+            toast.success(`${targetLanguageName} translations are up to date`)
+            translatedResource = existingLangTranslations
+          }
+        } else {
+          toast.success(`Starting translation to ${targetLanguageName}`)
+          translatedResource = await translateResource(contentToTranslate, targetLanguageName)
+        }
         console.log('✅ Translations received (new format):', translatedResource)
       } else {
         console.log('🚫 Auto-translate disabled, skipping AI translation')
         toast.success(`Added ${targetLanguageName} (Auto-translate disabled)`)
       }
       
-      // Normalize existing translations and add new one
-      const currentTranslations = normalizeTranslations(config.translations || {})
+      // Merge with existing translations
       const newTranslations = {
         ...currentTranslations,
         [langCode]: translatedResource

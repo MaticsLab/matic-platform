@@ -60,7 +60,7 @@ import {
   updateSectionTranslationNew,
   normalizeTranslations
 } from '@/lib/portal-translations'
-import { translateContent, translateResource } from '@/lib/ai/translation'
+import { translateContent, translateResource, translateResourceIncremental } from '@/lib/ai/translation'
 import { LANGUAGES, getLanguageName } from '@/lib/languages'
 import type { TranslationResource, PortalTranslations } from '@/lib/i18n/types'
 
@@ -360,7 +360,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                      signupFields,
                      dashboardSettings: fullForm.settings.dashboardSettings
                  },
-                 translations: fullForm.translations || {}
+                 translations: fullForm.settings?.translations || {}
              })
              if (sections.length > 0) {
                setActiveSectionId(sections[0].id)
@@ -649,12 +649,19 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
     // Normalize translations to check if we have content for this language
     const normalizedTranslations = normalizeTranslations(config.translations || {})
-    const hasTranslations = normalizedTranslations[lang] && (
-      Object.keys(normalizedTranslations[lang].fields || {}).length > 0 ||
-      Object.keys(normalizedTranslations[lang].sections || {}).length > 0
-    )
+    const existingLangTranslations = normalizedTranslations[lang]
     
-    if (lang === defaultLang || hasTranslations) {
+    // Count fields in current config vs existing translations
+    const currentContent = collectTranslatableContentNew(config)
+    const currentFieldCount = Object.keys(currentContent.fields || {}).length + Object.keys(currentContent.sections || {}).length
+    const existingFieldCount = existingLangTranslations 
+      ? Object.keys(existingLangTranslations.fields || {}).length + Object.keys(existingLangTranslations.sections || {}).length
+      : 0
+    
+    // If translations exist and cover all content, just switch
+    const hasCompleteTranslations = existingLangTranslations && existingFieldCount >= currentFieldCount
+    
+    if (lang === defaultLang || hasCompleteTranslations) {
       setActiveLanguage(lang)
       return
     }
@@ -669,10 +676,18 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
       }
       
       if (!config.settings.language?.disableAutoTranslate) {
-        toast.success(`Translating to ${targetLanguageName}`)
-        // Use new format for translation
-        const contentToTranslate = collectTranslatableContentNew(config)
-        translatedResource = await translateResource(contentToTranslate, targetLanguageName)
+        // Use incremental translation - only translate new/changed content
+        if (existingLangTranslations && existingFieldCount > 0) {
+          toast.success(`Updating ${targetLanguageName} translations (${currentFieldCount - existingFieldCount} new items)`)
+          translatedResource = await translateResourceIncremental(
+            currentContent,
+            existingLangTranslations,
+            targetLanguageName
+          )
+        } else {
+          toast.success(`Translating to ${targetLanguageName}`)
+          translatedResource = await translateResource(currentContent, targetLanguageName)
+        }
       } else {
         toast.success(`Switched to ${targetLanguageName} (Auto-translate disabled)`)
       }

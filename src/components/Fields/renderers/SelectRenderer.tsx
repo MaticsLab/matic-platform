@@ -44,18 +44,24 @@ function normalizeOptions(config: Record<string, any>): SelectOption[] {
     return [];
   }
   
-  return rawOptions
-    .filter((opt): opt is string | SelectOption => opt != null)
-    .map((opt: string | SelectOption) => {
-      if (typeof opt === 'string') {
-        return { value: opt, label: opt };
+  const result: SelectOption[] = [];
+  
+  for (const opt of rawOptions) {
+    if (opt == null) continue;
+    
+    if (typeof opt === 'string') {
+      if (opt !== '') {
+        result.push({ value: opt, label: opt });
       }
-      if (typeof opt === 'object' && opt.value != null) {
-        return { value: String(opt.value), label: opt.label || String(opt.value), color: opt.color };
+    } else if (typeof opt === 'object' && opt.value != null) {
+      const value = String(opt.value);
+      if (value !== '') {
+        result.push({ value, label: opt.label || value, color: opt.color });
       }
-      return null;
-    })
-    .filter((opt): opt is SelectOption => opt !== null && opt.value !== '');
+    }
+  }
+  
+  return result;
 }
 
 function getOptionColor(option: SelectOption): string {

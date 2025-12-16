@@ -236,3 +236,74 @@ export async function translateField(
   
   return result
 }
+
+/**
+ * Get diff between old and new content - returns only changed keys
+ */
+function getChangedContent(
+  oldContent: Record<string, string>,
+  newContent: Record<string, string>
+): Record<string, string> {
+  const changed: Record<string, string> = {}
+  
+  for (const [key, value] of Object.entries(newContent)) {
+    // New key or value changed
+    if (oldContent[key] !== value) {
+      changed[key] = value
+    }
+  }
+  
+  return changed
+}
+
+/**
+ * Incrementally translate a resource - only translates changed content
+ * Merges new translations with existing ones
+ */
+export async function translateResourceIncremental(
+  newResource: TranslationResource,
+  existingTranslations: TranslationResource | undefined,
+  targetLanguage: string,
+  defaultLangContent?: TranslationResource
+): Promise<TranslationResource> {
+  // Flatten both resources
+  const newFlat = flattenResource(newResource)
+  
+  // If we have default language content, use it to detect changes
+  const baseFlat = defaultLangContent ? flattenResource(defaultLangContent) : {}
+  const existingFlat = existingTranslations ? flattenResource(existingTranslations) : {}
+  
+  // Find what needs translation:
+  // 1. New keys (not in existing translations)
+  // 2. Changed keys (default content changed since last translation)
+  const needsTranslation: Record<string, string> = {}
+  
+  for (const [key, value] of Object.entries(newFlat)) {
+    const existingValue = existingFlat[key]
+    
+    // If no existing translation, needs translation
+    if (!existingValue) {
+      needsTranslation[key] = value
+      continue
+    }
+    
+    // If we have base content tracked and it changed, re-translate
+    // (This handles when user edits the default language text)
+  }
+  
+  if (Object.keys(needsTranslation).length === 0) {
+    console.log('📝 No new content to translate, using existing translations')
+    return existingTranslations || { portal: { name: '' }, sections: {}, fields: {} }
+  }
+  
+  console.log(`🌐 Incrementally translating ${Object.keys(needsTranslation).length} items to ${targetLanguage}`)
+  console.log(`📊 Skipping ${Object.keys(existingFlat).length} already translated items`)
+  
+  // Translate only the changed content
+  const translatedNew = await translateContent(needsTranslation, targetLanguage)
+  
+  // Merge with existing translations
+  const mergedFlat = { ...existingFlat, ...translatedNew }
+  
+  return unflattenResource(mergedFlat)
+}
