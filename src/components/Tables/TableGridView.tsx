@@ -137,15 +137,39 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
   const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(null)
   const [filterConfig, setFilterConfig] = useState<{ columnId: string; operator: string; value: string } | null>(null)
   
+  // Real-time collaboration state
+  const [editingUsers, setEditingUsers] = useState<Record<string, { userId: string; userName: string; userColor: string }>>({}) // Key: rowId:columnId
+  const [realtimeCellValues, setRealtimeCellValues] = useState<Record<string, any>>({}) // Key: rowId:columnId
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; color: string } | null>(null)
+  
   const gridRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const tableNameInputRef = useRef<HTMLInputElement>(null)
   const columnsRef = useRef<Column[]>([])
+  const channelRef = useRef<any>(null)
+  const broadcastDebounceTimers = useRef<Record<string, NodeJS.Timeout>>({})
 
   // Keep columns ref in sync
   useEffect(() => {
     columnsRef.current = columns
   }, [columns])
+
+  // Load current user for collaboration
+  useEffect(() => {
+    const loadUser = async () => {
+      const user = await getCurrentUser()
+      if (user) {
+        const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899']
+        const color = colors[Math.floor(Math.random() * colors.length)]
+        setCurrentUser({
+          id: user.id,
+          name: user.email?.split('@')[0] || 'User',
+          color
+        })
+      }
+    }
+    loadUser()
+  }, [])
 
   // Column resizing logic
   useEffect(() => {
@@ -198,7 +222,11 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
 
     const channel = supabase
       .channel(`table-realtime-${tableId}`)
-      .on(
+    
+    // Store channel ref for broadcasting
+    channelRef.current = channel
+    
+    channel.on(
         'postgres_changes',
         {
           event: '*',
@@ -332,6 +360,47 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
           }
         }
       )
+      .on(
+        'broadcast',
+        { event: 'field_editing' },
+        (payload) => {
+          console.log('📡 Received field editing:', payload)
+          const { userId, userName, userColor, rowId, columnId, value, isEditing } = payload.payload
+          
+          // Ignore own edits
+          if (currentUser && userId === currentUser.id) return
+          
+          const cellKey = `${rowId}:${columnId}`
+          
+          if (isEditing) {
+            // Another user started editing this cell
+            setEditingUsers(prev => ({
+              ...prev,
+              [cellKey]: { userId, userName, userColor }
+            }))
+            
+            // Update the real-time value
+            if (value !== undefined) {
+              setRealtimeCellValues(prev => ({
+                ...prev,
+                [cellKey]: value
+              }))
+            }
+          } else {
+            // User stopped editing
+            setEditingUsers(prev => {
+              const updated = { ...prev }
+              delete updated[cellKey]
+              return updated
+            })
+            setRealtimeCellValues(prev => {
+              const updated = { ...prev }
+              delete updated[cellKey]
+              return updated
+            })
+          }
+        }
+      )
       .subscribe((status) => {
         console.log('🔌 Supabase Realtime status:', status)
         if (status === 'SUBSCRIBED') {
@@ -343,6 +412,10 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
 
     return () => {
       console.log('🔌 Cleaning up Supabase Realtime subscription')
+      // Clear any pending broadcast timers
+      Object.values(broadcastDebounceTimers.current).forEach(timer => clearTimeout(timer))
+      broadcastDebounceTimers.current = {}
+      channelRef.current = null
       supabase.removeChannel(channel)
     }
   }, [tableId])
@@ -1104,8 +1177,45 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
     }
   }
 
+  // Broadcast field editing with debounce
+  const broadcastFieldEditing = useCallback((rowId: string, columnId: string, value: any, isEditing: boolean) => {
+    if (!currentUser || !channelRef.current) return
+    
+    const cellKey = `${rowId}:${columnId}`
+    
+    // Clear existing debounce timer for this cell
+    if (broadcastDebounceTimers.current[cellKey]) {
+      clearTimeout(broadcastDebounceTimers.current[cellKey])
+    }
+    
+    // Debounce to avoid too many broadcasts (150ms)
+    broadcastDebounceTimers.current[cellKey] = setTimeout(() => {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'field_editing',
+        payload: {
+          userId: currentUser.id,
+          userName: currentUser.name,
+          userColor: currentUser.color,
+          rowId,
+          columnId,
+          value,
+          isEditing
+        }
+      })
+      delete broadcastDebounceTimers.current[cellKey]
+    }, 150)
+  }, [currentUser])
+
   const renderCell = (row: Row, column: Column) => {
-    const value = getCellValue(row.data, column)
+    const cellKey = `${row.id}:${column.id}`
+    const otherUserEditing = editingUsers[cellKey]
+    const realtimeValue = realtimeCellValues[cellKey]
+    
+    // Use realtime value if another user is editing, otherwise use stored value
+    const baseValue = getCellValue(row.data, column)
+    const value = otherUserEditing && realtimeValue !== undefined ? realtimeValue : baseValue
+    
     const isEditing = editingCell?.rowId === row.id && editingCell?.columnId === column.id
     const isSelected = selectedCell?.rowId === row.id && selectedCell?.columnId === column.id
 
@@ -1357,16 +1467,28 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
           type="text"
           defaultValue={typeof value === 'object' ? JSON.stringify(value) : (value || '')}
           autoFocus
+          onChange={(e) => {
+            // Broadcast real-time changes to other users
+            broadcastFieldEditing(row.id, column.id, e.target.value, true)
+          }}
+          onFocus={() => {
+            // Notify others that we're editing this cell
+            broadcastFieldEditing(row.id, column.id, value, true)
+          }}
           onBlur={(e) => {
             handleCellEdit(row.id, column.name, e.target.value)
             setEditingCell(null)
+            // Notify others that we stopped editing
+            broadcastFieldEditing(row.id, column.id, e.target.value, false)
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               handleCellEdit(row.id, column.name, e.currentTarget.value)
               setEditingCell(null)
+              broadcastFieldEditing(row.id, column.id, e.currentTarget.value, false)
             } else if (e.key === 'Escape') {
               setEditingCell(null)
+              broadcastFieldEditing(row.id, column.id, value, false)
             }
           }}
           className="w-full h-full px-2 py-1 border-2 border-blue-500 rounded focus:outline-none"
@@ -1413,15 +1535,35 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
 
     return (
       <div
-        className={`px-3 py-2 cursor-pointer hover:bg-blue-50 relative group/cell h-full ${isSelected ? 'ring-2 ring-inset ring-blue-500 bg-blue-50' : ''}`}
+        className={`px-3 py-2 cursor-pointer hover:bg-blue-50 relative group/cell h-full ${
+          isSelected ? 'ring-2 ring-inset ring-blue-500 bg-blue-50' : 
+          otherUserEditing ? 'ring-2 ring-inset bg-opacity-10' : ''
+        }`}
+        style={otherUserEditing ? { 
+          borderColor: otherUserEditing.userColor,
+          backgroundColor: `${otherUserEditing.userColor}10`
+        } : {}}
         onClick={() => setSelectedCell({ rowId: row.id, columnId: column.id })}
-        onDoubleClick={() => setEditingCell({ rowId: row.id, columnId: column.id })}
+        onDoubleClick={() => {
+          if (!otherUserEditing) {
+            setEditingCell({ rowId: row.id, columnId: column.id })
+          }
+        }}
       >
         <div className={`${isSelected ? 'line-clamp-2 whitespace-normal' : 'truncate whitespace-nowrap'}`}>
           {renderValue()}
         </div>
         
-        {isSelected && (
+        {otherUserEditing && (
+          <div 
+            className="absolute top-0 right-0 px-2 py-0.5 text-xs font-medium text-white rounded-bl shadow-sm z-10"
+            style={{ backgroundColor: otherUserEditing.userColor }}
+          >
+            {otherUserEditing.userName}
+          </div>
+        )}
+        
+        {isSelected && !otherUserEditing && (
           <Button
             variant="ghost"
             size="icon"
@@ -1562,6 +1704,33 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
               <div className={`h-1.5 w-1.5 rounded-full ${realtimeStatus === 'connected' ? 'bg-green-500' : 'bg-yellow-500'}`} />
               {realtimeStatus === 'connected' ? 'Live' : 'Connecting...'}
             </Badge>
+            
+            {/* Active collaborators indicator */}
+            {Object.keys(editingUsers).length > 0 && (
+              <div className="flex items-center gap-1">
+                <div className="flex -space-x-2">
+                  {Array.from(new Set(Object.values(editingUsers).map(u => u.userId))).slice(0, 3).map((userId) => {
+                    const user = Object.values(editingUsers).find(u => u.userId === userId)
+                    if (!user) return null
+                    return (
+                      <div
+                        key={userId}
+                        className="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-xs font-medium text-white shadow-sm"
+                        style={{ backgroundColor: user.userColor }}
+                        title={`${user.userName} is editing`}
+                      >
+                        {user.userName[0].toUpperCase()}
+                      </div>
+                    )
+                  })}
+                </div>
+                {Array.from(new Set(Object.values(editingUsers).map(u => u.userId))).length > 3 && (
+                  <span className="text-xs text-gray-500">
+                    +{Array.from(new Set(Object.values(editingUsers).map(u => u.userId))).length - 3}
+                  </span>
+                )}
+              </div>
+            )}
 
             <div className="h-6 w-px bg-gray-200 mx-2" />
 
@@ -2000,7 +2169,13 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
         currentTableId={tableId}
       />
 
-      <Sheet open={!!expandedCell} onOpenChange={(open) => !open && setExpandedCell(null)}>
+      <Sheet open={!!expandedCell} onOpenChange={(open) => {
+        if (!open && expandedCell) {
+          // Notify others that we stopped editing
+          broadcastFieldEditing(expandedCell.rowId, columns.find(c => c.name === expandedCell.columnName)?.id || '', expandedCell.value, false)
+        }
+        setExpandedCell(open ? expandedCell : null)
+      }}>
         <SheetContent className="w-[400px] sm:w-[540px]">
           <SheetHeader>
             <SheetTitle>Edit Cell</SheetTitle>
@@ -2012,14 +2187,36 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
             <Textarea
               className="h-full resize-none font-mono text-sm"
               value={expandedCell?.value || ''}
-              onChange={(e) => setExpandedCell(prev => prev ? { ...prev, value: e.target.value } : null)}
+              onChange={(e) => {
+                const newValue = e.target.value
+                setExpandedCell(prev => prev ? { ...prev, value: newValue } : null)
+                // Broadcast real-time changes
+                if (expandedCell) {
+                  const column = columns.find(c => c.name === expandedCell.columnName)
+                  if (column) {
+                    broadcastFieldEditing(expandedCell.rowId, column.id, newValue, true)
+                  }
+                }
+              }}
             />
           </div>
           <SheetFooter>
-            <Button variant="outline" onClick={() => setExpandedCell(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => {
+              if (expandedCell) {
+                const column = columns.find(c => c.name === expandedCell.columnName)
+                if (column) {
+                  broadcastFieldEditing(expandedCell.rowId, column.id, expandedCell.value, false)
+                }
+              }
+              setExpandedCell(null)
+            }}>Cancel</Button>
             <Button onClick={() => {
               if (expandedCell) {
                 handleCellEdit(expandedCell.rowId, expandedCell.columnName, expandedCell.value)
+                const column = columns.find(c => c.name === expandedCell.columnName)
+                if (column) {
+                  broadcastFieldEditing(expandedCell.rowId, column.id, expandedCell.value, false)
+                }
                 setExpandedCell(null)
               }
             }}>Save changes</Button>
