@@ -38,9 +38,7 @@ export function PortalConfigSyncBridge({
   useEffect(() => {
     if (!ydoc) return;
 
-    const yText = ydoc.getText('portal-config');
-    yTextRef.current = yText;
-Map = ydoc.getMap('portal-config');
+    const yMap = ydoc.getMap('portal-config');
     yMapRef.current = yMap;
 
     // Observer for remote changes
@@ -120,9 +118,16 @@ Map = ydoc.getMap('portal-config');
     return () => {
       yMap setConfig, skipInitialSync]);
 
-  // Sync lMap = yMapRef.current;
-    if (!yMap || !ydoc) return;
+  // Sync .unobserve(observer);
+    };
+  }, [ydoc, setConfig, skipInitialSync]);
+
+  // Sync local config changes to Yjs (immediate, no debounce for real-time editing)
+  useEffect(() => {
+    // Skip if we're applying a remote update
+    if (isApplyingRemoteRef.current) return;
     
+    const y
     let json: string;
     try {
       json = JSON.stringify(config);
@@ -131,12 +136,7 @@ Map = ydoc.getMap('portal-config');
       return;
     }
     
-    // Skip if same content
-    if (json === lastSyncedJsonRef.current) return;
-    
-    lastSyncedJsonRef.current = json;
-    
-    // Use Y.Map for atomic updates - prevents JSON corruption
+    // Skip if same c atomic updates - prevents JSON corruption
     ydoc.transact(() => {
       yMap.set('data'eplace in one transaction to prevent concurrent corruption
       const currentLength = yText.length;
