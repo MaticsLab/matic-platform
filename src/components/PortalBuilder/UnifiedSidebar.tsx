@@ -107,7 +107,6 @@ export function UnifiedSidebar({
   onDashboardSettingsChange,
 }: UnifiedSidebarProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['entry', 'form', 'after']))
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
 
   const toggleGroup = (group: string) => {
     setExpandedGroups(prev => {
@@ -126,34 +125,43 @@ export function UnifiedSidebar({
   const endingSections = sections.filter(s => s.sectionType === 'ending')
   const dashboardSections = sections.filter(s => s.sectionType === 'dashboard')
 
-  // Drag handlers for form sections
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedIndex(index)
+  // Drag handlers for form sections - use section ID to track dragged item
+  const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null)
+  
+  const handleDragStart = (e: React.DragEvent, sectionId: string) => {
+    setDraggedSectionId(sectionId)
     e.dataTransfer.effectAllowed = 'move'
+    // Add data for compatibility
+    e.dataTransfer.setData('text/plain', sectionId)
   }
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
+  const handleDragOver = (e: React.DragEvent, targetSectionId: string) => {
     e.preventDefault()
-    if (draggedIndex === null || draggedIndex === index) return
+    if (!draggedSectionId || draggedSectionId === targetSectionId) return
+    
+    // Find actual indices in the full sections array
+    const draggedIndex = sections.findIndex(s => s.id === draggedSectionId)
+    const targetIndex = sections.findIndex(s => s.id === targetSectionId)
+    
+    if (draggedIndex === -1 || targetIndex === -1) return
     
     const newSections = [...sections]
-    const draggedSection = newSections[draggedIndex]
-    newSections.splice(draggedIndex, 1)
-    newSections.splice(index, 0, draggedSection)
+    const [draggedSection] = newSections.splice(draggedIndex, 1)
+    newSections.splice(targetIndex, 0, draggedSection)
     
-    setDraggedIndex(index)
     onReorderSections(newSections)
   }
 
   const handleDragEnd = () => {
-    setDraggedIndex(null)
+    setDraggedSectionId(null)
   }
 
-  const renderSectionItem = (section: Section, index: number, isDraggable = true) => {
+  const renderSectionItem = (section: Section, isDraggable = true) => {
     const type = (section.sectionType || 'form') as keyof typeof SECTION_VARIANTS
     const variant = SECTION_VARIANTS[type] || SECTION_VARIANTS.form
     const Icon = variant.icon
     const isActive = activeSectionId === section.id && !activeSpecialPage
+    const isDragging = draggedSectionId === section.id
 
     return (
       <motion.div
@@ -163,8 +171,8 @@ export function UnifiedSidebar({
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -10 }}
         draggable={isDraggable}
-        onDragStart={isDraggable ? (e) => handleDragStart(e as any, index) : undefined}
-        onDragOver={isDraggable ? (e) => handleDragOver(e as any, index) : undefined}
+        onDragStart={isDraggable ? (e) => handleDragStart(e as any, section.id) : undefined}
+        onDragOver={isDraggable ? (e) => handleDragOver(e as any, section.id) : undefined}
         onDragEnd={isDraggable ? handleDragEnd : undefined}
         onClick={() => {
           onSelectSection(section.id)
@@ -174,7 +182,8 @@ export function UnifiedSidebar({
           "group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all overflow-hidden",
           isActive 
             ? cn("shadow-sm border", variant.activeBg, variant.border)
-            : "hover:bg-gray-50"
+            : "hover:bg-gray-50",
+          isDragging && "opacity-50 ring-2 ring-blue-400"
         )}
       >
         {isDraggable && (
@@ -301,7 +310,7 @@ export function UnifiedSidebar({
             </CollapsibleTrigger>
             <CollapsibleContent className="pl-6 pr-2 py-1 space-y-1">
               <AnimatePresence mode="popLayout">
-                {formSections.map((section, index) => renderSectionItem(section, index))}
+                {formSections.map((section) => renderSectionItem(section, true))}
               </AnimatePresence>
               
               {/* Review & Submit */}
@@ -429,7 +438,7 @@ export function UnifiedSidebar({
                 <div className="pl-4 space-y-1">
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide px-2 py-1">Thank You Pages</p>
                   <AnimatePresence mode="popLayout">
-                    {endingSections.map((section, index) => renderSectionItem(section, sections.indexOf(section), false))}
+                    {endingSections.map((section) => renderSectionItem(section, false))}
                   </AnimatePresence>
                 </div>
               )}
