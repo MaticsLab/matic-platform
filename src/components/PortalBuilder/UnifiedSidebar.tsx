@@ -179,7 +179,7 @@ export function UnifiedSidebar({
           onSelectSpecialPage(null)
         }}
         className={cn(
-          "group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all overflow-hidden",
+          "group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-all w-full max-w-full",
           isActive 
             ? cn("shadow-sm border", variant.activeBg, variant.border)
             : "hover:bg-gray-50",
@@ -222,9 +222,9 @@ export function UnifiedSidebar({
   }
 
   return (
-    <div className="h-full flex flex-col bg-white overflow-hidden min-h-0">
+    <div className="h-full flex flex-col bg-white overflow-hidden min-h-0 w-full">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+      <div className="px-3 py-3 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
         <h3 className="text-sm font-semibold text-gray-900">Portal Structure</h3>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -260,8 +260,8 @@ export function UnifiedSidebar({
         </DropdownMenu>
       </div>
 
-      <ScrollArea className="flex-1 min-h-0">
-        <div className="p-2 space-y-1">
+      <ScrollArea className="flex-1 min-h-0 w-full">
+        <div className="p-2 space-y-1 w-full">
           {/* ═══════════════════════════════════════════════════════════════════
               ENTRY GROUP - Authentication
           ═══════════════════════════════════════════════════════════════════ */}

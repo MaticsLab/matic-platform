@@ -1049,8 +1049,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         {activeTopTab === 'edit' && (
         <div className="flex-1 flex overflow-hidden">
             {/* Left Sidebar - Navigation */}
-            <div className="w-80 bg-white border-r border-gray-200 flex flex-col shadow-sm z-10">
-          <Tabs value={leftSidebarTab} onValueChange={(value) => setLeftSidebarTab(value as any)} className="flex-1 flex flex-col gap-0 min-h-0">
+            <div className="w-[320px] min-w-[320px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 overflow-hidden">
+          <Tabs value={leftSidebarTab} onValueChange={(value) => setLeftSidebarTab(value as any)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100">
               <TabsList className="w-full grid grid-cols-3 bg-gray-100 p-1 rounded-full h-auto">
                 <TabsTrigger value="structure" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Sections</TabsTrigger>
@@ -1059,7 +1059,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
               </TabsList>
             </div>
 
-            <TabsContent value="structure" className="flex-1 data-[state=active]:flex flex-col mt-0 min-h-0 overflow-hidden">
+            <TabsContent value="structure" className="flex-1 data-[state=active]:flex flex-col mt-0 min-h-0 overflow-hidden w-full">
               <UnifiedSidebar
                 sections={config.sections}
                 activeSectionId={activeSectionId}
