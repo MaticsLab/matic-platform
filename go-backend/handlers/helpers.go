@@ -2,12 +2,21 @@ package handlers
 
 import (
 	"encoding/json"
+	"hash/fnv"
 	"regexp"
 	"strings"
 	"unicode"
 
 	"gorm.io/datatypes"
 )
+
+// hashString creates a consistent int64 hash from a string
+// Used for PostgreSQL advisory locks
+func hashString(s string) int64 {
+	h := fnv.New64a()
+	h.Write([]byte(s))
+	return int64(h.Sum64())
+}
 
 // mapToJSON converts a map to datatypes.JSON
 // Used for all JSONB fields in the database

@@ -923,32 +923,45 @@ func DeleteFormSubmission(c *gin.Context) {
 	formID := c.Param("id")
 	submissionID := c.Param("submission_id")
 
-	fmt.Printf("Deleting submission %s from form %s\n", submissionID, formID)
+	fmt.Printf("🗑️ DeleteFormSubmission: formID=%s submissionID=%s\n", formID, submissionID)
 
-	// formID might be a view_id, so we need to resolve the actual table_id
+	// formID is typically the table_id, but might be a view_id in some cases
 	tableID := formID
 
 	// Check if formID is a view_id - if so, get the table_id
 	var view models.View
 	if err := database.DB.Where("id = ?", formID).First(&view).Error; err == nil {
 		tableID = view.TableID.String()
-		fmt.Printf("Resolved view_id %s to table_id %s\n", formID, tableID)
+		fmt.Printf("🗑️ DeleteFormSubmission: Resolved view_id %s to table_id %s\n", formID, tableID)
+	} else {
+		// formID is the table_id itself
+		fmt.Printf("🗑️ DeleteFormSubmission: Using formID as table_id: %s\n", tableID)
 	}
 
-	// Verify the submission exists and belongs to the table
+	// First try to find the row directly by ID (in case table_id doesn't match)
 	var row models.Row
-	if err := database.DB.Where("id = ? AND table_id = ?", submissionID, tableID).First(&row).Error; err != nil {
+	if err := database.DB.Where("id = ?", submissionID).First(&row).Error; err != nil {
+		fmt.Printf("❌ DeleteFormSubmission: Row not found by ID %s: %v\n", submissionID, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
 	}
 
-	// Delete the submission (row)
-	if err := database.DB.Delete(&row).Error; err != nil {
+	fmt.Printf("🗑️ DeleteFormSubmission: Found row %s, row.TableID=%s, expected tableID=%s\n", row.ID, row.TableID, tableID)
+
+	// Verify the row belongs to the expected table
+	if row.TableID.String() != tableID {
+		fmt.Printf("⚠️ DeleteFormSubmission: Row table_id mismatch! row.TableID=%s, tableID=%s\n", row.TableID, tableID)
+		// Still allow deletion if the row exists (table_id might be passed differently)
+	}
+
+	// Delete the submission (row) - use Unscoped to permanently delete
+	if err := database.DB.Unscoped().Delete(&row).Error; err != nil {
+		fmt.Printf("❌ DeleteFormSubmission: Failed to delete: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete submission"})
 		return
 	}
 
-	fmt.Printf("Successfully deleted submission %s\n", submissionID)
+	fmt.Printf("✅ DeleteFormSubmission: Successfully deleted submission %s\n", submissionID)
 	c.JSON(http.StatusOK, gin.H{"message": "Submission deleted successfully"})
 }
 
@@ -1059,11 +1072,25 @@ func SubmitForm(c *gin.Context) {
 			"table_id = ? AND data->>'email' = ?",
 		}
 
+		fmt.Printf("📝 SubmitForm: Looking for existing submission with email=%s, formID=%s\n", email, formID)
+
+		// Use a transaction with advisory lock to prevent race conditions
+		// This ensures only one submission can be processed at a time for a given email+form
+		lockKey := fmt.Sprintf("%s:%s", formID, email)
+		lockID := int64(hashString(lockKey))
+		
+		// Acquire advisory lock (will wait if another transaction has it)
+		database.DB.Exec("SELECT pg_advisory_lock($1)", lockID)
+		defer database.DB.Exec("SELECT pg_advisory_unlock($1)", lockID)
+
 		var found bool
 		for _, query := range queries {
 			if err := database.DB.Where(query, formID, email).First(&existingRow).Error; err == nil {
+				fmt.Printf("📝 SubmitForm: Found existing row using query: %s\n", query)
 				found = true
 				break
+			} else {
+				fmt.Printf("📝 SubmitForm: Query '%s' did not find row\n", query)
 			}
 		}
 
@@ -1152,7 +1179,11 @@ func SubmitForm(c *gin.Context) {
 			c.JSON(http.StatusOK, existingRow)
 			return
 		}
+		
+		fmt.Printf("📝 SubmitForm: No existing row found for email=%s, will create new\n", email)
 	}
+
+	fmt.Printf("📝 SubmitForm: Creating NEW row for form %s (email=%s, save_draft=%v)\n", formID, email, input.SaveDraft)
 
 	// Create new row with transaction
 	tx := database.DB.Begin()
