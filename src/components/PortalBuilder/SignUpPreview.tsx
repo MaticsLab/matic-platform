@@ -82,12 +82,6 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId, onUpdate
               <img src={logo} alt="Logo" className="h-10 object-contain" />
             </div>
           )}
-          {/* Logo */}
-          {logo && (
-            <div className="flex items-center gap-3">
-              <img src={logo} alt="Logo" className="h-10 object-contain" />
-            </div>
-          )}
           
           {/* Title - Editable */}
           <div className="space-y-2">

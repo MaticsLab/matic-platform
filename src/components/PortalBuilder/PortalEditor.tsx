@@ -1124,10 +1124,9 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             <div className="w-[380px] min-w-[380px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 overflow-y-auto overflow-x-hidden">
           <Tabs value={leftSidebarTab} onValueChange={(value) => setLeftSidebarTab(value as any)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100">
-              <TabsList className="w-full grid grid-cols-3 bg-gray-100 p-1 rounded-full h-auto">
+              <TabsList className="w-full grid grid-cols-2 bg-gray-100 p-1 rounded-full h-auto">
                 <TabsTrigger value="structure" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Sections</TabsTrigger>
                 <TabsTrigger value="elements" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Fields</TabsTrigger>
-                <TabsTrigger value="theme" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Theme</TabsTrigger>
               </TabsList>
             </div>
 
@@ -1178,18 +1177,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                ) : (
                  <FieldToolbox onAddField={handleAddField} />
                )}
-            </TabsContent>
-
-            <TabsContent value="theme" className="flex-1 overflow-y-auto min-h-0">
-               <PortalSettings 
-                  type="branding" 
-                  settings={config.settings} 
-                  formId={formId || undefined}
-                  onUpdate={(updates: Partial<PortalConfig['settings']>) => {
-                    setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))
-                    setHasUnsavedChanges(true)
-                  }} 
-                />
             </TabsContent>
           </Tabs>
             </div>
