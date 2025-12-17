@@ -368,6 +368,8 @@ export class SupabaseYjsProvider {
     
     // Clear and rebuild remote users from presence
     const currentRemoteUserIds = new Set<string>();
+    const now = Date.now();
+    const staleThreshold = 60000; // 60 seconds - consider presence stale after this
     
     Object.entries(presenceState).forEach(([_key, presences]) => {
       // Each presence key can have multiple presence objects (multiple tabs)
@@ -378,25 +380,44 @@ export class SupabaseYjsProvider {
         name: string;
         color: string;
         avatarUrl?: string;
+        online_at: string;
         presence_ref: string;
       }>;
       
-      presenceArray.forEach(presence => {
-        // Use clientId to differentiate tabs, not userId
-        if (presence.clientId && presence.clientId !== this.clientId) {
-          currentRemoteUserIds.add(presence.clientId);
-          console.log('[Collab] Found remote user in presence:', presence.name, 'userId:', presence.id, 'clientId:', presence.clientId);
-          // Only add if not already in remoteUsers (preserve cursor/selection data)
-          if (!this.remoteUsers.has(presence.clientId)) {
-            this.remoteUsers.set(presence.clientId, {
-              id: presence.id, // Keep userId for display
-              name: presence.name,
-              color: presence.color,
-              avatarUrl: presence.avatarUrl,
-            });
-          }
+      // When there are duplicates, only keep the most recent one
+      if (presenceArray.length > 1) {
+        console.log('[Collab] Multiple presence entries for same key, keeping most recent');
+        presenceArray.sort((a, b) => {
+          const timeA = new Date(a.online_at).getTime();
+          const timeB = new Date(b.online_at).getTime();
+          return timeB - timeA; // Sort descending (most recent first)
+        });
+      }
+      
+      // Only process the first (most recent) entry
+      const presence = presenceArray[0];
+      if (presence && presence.clientId && presence.clientId !== this.clientId) {
+        // Check if presence is stale
+        const onlineAt = new Date(presence.online_at).getTime();
+        const age = now - onlineAt;
+        
+        if (age > staleThreshold) {
+          console.log('[Collab] Skipping stale presence:', presence.name, 'age:', Math.round(age / 1000) + 's');
+          return;
         }
-      });
+        
+        currentRemoteUserIds.add(presence.clientId);
+        console.log('[Collab] Found remote user in presence:', presence.name, 'userId:', presence.id, 'clientId:', presence.clientId);
+        // Only add if not already in remoteUsers (preserve cursor/selection data)
+        if (!this.remoteUsers.has(presence.clientId)) {
+          this.remoteUsers.set(presence.clientId, {
+            id: presence.id, // Keep userId for display
+            name: presence.name,
+            color: presence.color,
+            avatarUrl: presence.avatarUrl,
+          });
+        }
+      }
     });
     
     // Remove users who are no longer in presence
