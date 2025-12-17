@@ -1230,6 +1230,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       config={displayConfig} 
                       onSelectField={setSelectedFieldId}
                       selectedFieldId={selectedFieldId}
+                      formId={formId || undefined}
                       onUpdateSettings={(updates) => {
                         setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))
                         setHasUnsavedChanges(true)

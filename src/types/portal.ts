@@ -52,6 +52,10 @@ export type PortalConfig = {
     description?: string
     themeColor: string
     logoUrl: string
+    loginPageImage?: string              // Image for login page split-screen
+    signupPageImage?: string             // Image for signup page split-screen
+    loginPageLogo?: string               // Logo specific to login page
+    signupPageLogo?: string              // Logo specific to signup page
     font?: 'inter' | 'roboto' | 'serif' | 'mono'
     buttonStyle?: 'rounded' | 'pill' | 'sharp'
     authLayout?: 'split' | 'centered' | 'card'
