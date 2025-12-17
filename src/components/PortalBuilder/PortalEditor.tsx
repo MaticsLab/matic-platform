@@ -157,6 +157,13 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     updateSelectedBlock(selectedFieldId)
   }, [selectedFieldId])
 
+  // Close settings panel when block is deselected
+  useEffect(() => {
+    if (!selectedBlockId && !selectedFieldId) {
+      setShowFieldSettings(false)
+    }
+  }, [selectedBlockId, selectedFieldId])
+
   useEffect(() => {
     setActiveLanguage(config.settings.language?.default || 'en')
   }, [config.settings.language?.default])

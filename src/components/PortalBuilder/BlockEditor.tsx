@@ -1403,7 +1403,6 @@ function Block({
       onMouseLeave={() => {
         setIsHovered(false);
         setShowDeleteConfirm(false);
-        setShowMoveDropdown(false);
       }}
     >
       {/* Drag handle + Plus button - Left side inside card */}
