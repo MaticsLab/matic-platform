@@ -1270,6 +1270,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         onUpdate={(updates: Partial<Section>) => handleUpdateSection(displaySection.id, updates)} 
                         selectedBlockId={selectedBlockId}
                         onSelectBlock={setSelectedBlockId}
+                        onOpenSettings={() => setShowFieldSettings(true)}
                         themeColor={config.settings.themeColor}
                         formTheme={config.settings.formTheme}
                         logoUrl={config.settings.logoUrl}

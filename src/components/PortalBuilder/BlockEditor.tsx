@@ -546,6 +546,7 @@ interface ChildFieldsDndContextProps {
   selectedChildId: string | null;
   themeColor?: string;
   allFields: Field[];
+  onOpenSettings?: () => void;
 }
 
 function ChildFieldsDndContext({ 
@@ -557,7 +558,8 @@ function ChildFieldsDndContext({
   onSelectChild,
   selectedChildId,
   themeColor, 
-  allFields 
+  allFields,
+  onOpenSettings 
 }: ChildFieldsDndContextProps) {
   // Create isolated sensors for child DnD context
   const sensors = useSensors(
@@ -596,6 +598,7 @@ function ChildFieldsDndContext({
               isSelected={selectedChildId === child.id}
               themeColor={themeColor}
               allFields={allFields}
+              onOpenSettings={onOpenSettings}
             />
           ))}
         </div>
@@ -616,9 +619,10 @@ interface SortableChildFieldProps {
   isSelected: boolean;
   themeColor?: string;
   allFields: Field[];
+  onOpenSettings?: () => void;
 }
 
-function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, themeColor, allFields }: SortableChildFieldProps) {
+function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, themeColor, allFields, onOpenSettings }: SortableChildFieldProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -662,6 +666,7 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
         isHovered && !isDragging && "border-gray-300 bg-gray-50/50",
         isSelected && "ring-2 ring-blue-500 bg-blue-50/30"
       )}
+      onClick={() => onSelect()}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
         setIsHovered(false);
@@ -693,7 +698,7 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
         <button
           onClick={(e) => { 
             e.stopPropagation(); 
-            onSelect(); 
+            onOpenSettings?.(); 
           }}
           className="p-1.5 rounded-md hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
           title="Field settings"
@@ -1198,6 +1203,7 @@ function Block({
               selectedChildId={selectedBlockId || null}
               themeColor={themeColor}
               allFields={allFields}
+              onOpenSettings={onOpenSettings}
             />
           )}
 
@@ -1846,6 +1852,7 @@ export function BlockEditor({
                               isLast={index === section.fields.length - 1}
                               selectedBlockId={selectedBlockId}
                               onSelectBlock={onSelectBlock}
+                              onOpenSettings={onOpenSettings}
                             />
                           </SortableBlock>
                         </div>
