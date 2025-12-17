@@ -286,16 +286,6 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-        <div className="flex items-center gap-2">
-          <Settings className="w-4 h-4 text-gray-500" />
-          <span className="font-medium text-sm text-gray-900">
-            {FIELD_TYPES.find(t => t.value === selectedField.type)?.label || selectedField.type}
-          </span>
-        </div>
-      </div>
-
       <div className="flex-1 overflow-y-auto">
         <Accordion type="multiple" defaultValue={['basic', 'options', 'validation']} className="w-full">
           

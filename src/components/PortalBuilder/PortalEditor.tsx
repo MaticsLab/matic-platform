@@ -1313,7 +1313,28 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             )}>
                <div className="flex items-center justify-between p-4 border-b border-gray-100">
                   <span className="font-semibold text-sm">
-                    {displaySection?.sectionType === 'ending' ? 'Ending Settings' : 'Field Settings'}
+                    {displaySection?.sectionType === 'ending' 
+                      ? 'Ending Settings' 
+                      : (() => {
+                          const selectedField = selectedBlockId 
+                            ? displaySection?.fields.find(f => f.id === selectedBlockId)
+                            : selectedFieldId 
+                              ? displaySection?.fields.find(f => f.id === selectedFieldId)
+                              : null;
+                          const fieldTypes: Record<string, string> = {
+                            text: 'Text Input', textarea: 'Text Area', email: 'Email', phone: 'Phone',
+                            number: 'Number', url: 'URL', address: 'Address', select: 'Dropdown',
+                            multiselect: 'Multi-Select', radio: 'Single Choice', checkbox: 'Checkbox',
+                            date: 'Date', datetime: 'Date & Time', time: 'Time', file: 'File Upload',
+                            image: 'Image Upload', signature: 'Signature', rating: 'Rating',
+                            rank: 'Ranking', divider: 'Divider', heading: 'Heading',
+                            paragraph: 'Paragraph', callout: 'Callout', group: 'Group',
+                            repeater: 'Repeater'
+                          };
+                          const fieldLabel = selectedField ? fieldTypes[selectedField.type] || selectedField.type : 'Field';
+                          return `${fieldLabel} Settings`;
+                        })()
+                    }
                   </span>
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => {
                     setShowFieldSettings(false)
