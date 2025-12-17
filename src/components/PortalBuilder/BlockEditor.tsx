@@ -1633,6 +1633,7 @@ function Block({
                     </div>
                 </SortableContext>
               </DndContext>
+              </div>
             )}
             
             {/* Field Preview - hide when editing options for select/multiselect/radio */}
