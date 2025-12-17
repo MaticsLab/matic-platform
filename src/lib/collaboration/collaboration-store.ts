@@ -145,9 +145,8 @@ export const useCollaborationStore = create<CollaborationStore>()(
         users
           .filter(u => u.id !== currentUserId)
           .forEach(u => {
-            const existing = userMap.get(u.id);
-            // Keep the most recently active user instance (or first if timestamps are equal)
-            if (!existing || (u.lastActivity && (!existing.lastActivity || u.lastActivity > existing.lastActivity))) {
+            // Keep first instance of each user (deduplicates by userId)
+            if (!userMap.has(u.id)) {
               userMap.set(u.id, {
                 ...u,
                 lastActivity: Date.now(),
