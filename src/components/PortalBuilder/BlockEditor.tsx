@@ -1638,14 +1638,16 @@ function Block({
             
             {/* Field Preview - hide when editing options for select/multiselect/radio */}
             {!(isSelected && ['select', 'multiselect', 'radio'].includes(field.type)) && (
-              <PortalFieldAdapter
-                field={{ ...field, label: '', description: '', required: false }}
-                value={undefined}
-                onChange={() => {}}
-                themeColor={themeColor}
-                allFields={allFields}
-                disabled={true}
-              />
+              <div onClick={() => onSelect()}>
+                <PortalFieldAdapter
+                  field={{ ...field, label: '', description: '', required: false }}
+                  value={undefined}
+                  onChange={() => {}}
+                  themeColor={themeColor}
+                  allFields={allFields}
+                  disabled={true}
+                />
+              </div>
             )}
           </div>
         )}
