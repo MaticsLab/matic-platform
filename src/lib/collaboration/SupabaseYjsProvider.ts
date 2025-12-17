@@ -434,7 +434,6 @@ export class SupabaseYjsProvider {
         console.log('[Collab] Skipped presence entry - reason:', reason);
       }
     });
-    });
     
     // Remove users who are no longer in presence
     this.remoteUsers.forEach((_, clientId) => {
