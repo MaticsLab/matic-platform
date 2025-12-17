@@ -802,7 +802,10 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
         isHovered && !isDragging && "border-gray-300 bg-gray-50/50",
         isSelected && "ring-2 ring-blue-500 bg-blue-50/30"
       )}
-      onClick={() => onSelect()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
         setIsHovered(false);
@@ -1268,7 +1271,10 @@ function Block({
           )}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
-          onClick={() => onSelect()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
         >
         {/* Drag handle - inside card on left */}
         <motion.div
@@ -1389,7 +1395,10 @@ function Block({
           isSelected && "bg-blue-50/50 ring-2 ring-blue-500",
           !isSelected && isHovered && "bg-gray-50/70",
         )}
-        onClick={() => onSelect()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect();
+        }}
         onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
         setIsHovered(false);
