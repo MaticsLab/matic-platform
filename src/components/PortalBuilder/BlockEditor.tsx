@@ -44,7 +44,7 @@ import {
   CheckSquare, List, Upload, Heading, ToggleLeft,
   FileText, Star, MapPin, Layers, Repeat, Image,
   Link, Clock, Minus, AlertCircle, ChevronUp, ChevronDown,
-  Sparkles, Command, FolderInput, Check, X
+  Sparkles, Command, FolderInput, Check, X, Settings
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Section, Field, FieldType } from '@/types/portal';
@@ -657,11 +657,6 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
         setIsHovered(false);
         setShowDeleteConfirm(false);
       }}
-      onClick={(e) => {
-        // Select this field to show settings panel
-        e.stopPropagation();
-        onSelect();
-      }}
     >
       {/* Drag handle - Left side inside card */}
       <motion.div
@@ -685,6 +680,16 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
         animate={{ opacity: (isHovered || isSelected) ? 1 : 0 }}
         className="absolute top-2 right-2 flex items-center gap-1 z-10"
       >
+        <button
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            onSelect(); 
+          }}
+          className="p-1.5 rounded-md hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
+          title="Field settings"
+        >
+          <Settings className="w-3.5 h-3.5" />
+        </button>
         {showDeleteConfirm ? (
           <div className="flex items-center gap-1 bg-white rounded-md shadow-lg border border-red-200 p-1">
             <span className="text-xs text-gray-700 px-1.5">Delete?</span>
@@ -1086,7 +1091,6 @@ function Block({
         )}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onClick={(e) => { e.stopPropagation(); onSelect(); }}
       >
         {/* Drag handle - inside card on left */}
         <motion.div
@@ -1126,10 +1130,21 @@ function Block({
               placeholder={field.type === 'group' ? 'Field Group' : 'Repeater'}
             />
             <button
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                onSelect(); 
+              }}
+              className="p-1.5 rounded-md hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors"
+              title="Field settings"
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </button>
+            <button
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
               className="p-1.5 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+              title="Delete"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -1200,7 +1215,6 @@ function Block({
         setShowDeleteConfirm(false);
         setShowMoveDropdown(false);
       }}
-      onClick={(e) => { e.stopPropagation(); onSelect(); }}
     >
       {/* Drag handle + Plus button - Left side inside card */}
       <motion.div
@@ -1285,6 +1299,16 @@ function Block({
             )}
           </div>
         )}
+        <button
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            onSelect(); 
+          }}
+          className="p-1.5 rounded-md hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
+          title="Field settings"
+        >
+          <Settings className="w-3.5 h-3.5" />
+        </button>
         {showDeleteConfirm ? (
           <div className="flex items-center gap-1 bg-white rounded-md shadow-lg border border-red-200 p-1">
             <span className="text-xs text-gray-700 px-1.5">Delete?</span>
@@ -1437,15 +1461,17 @@ function Block({
               </div>
             )}
             
-            {/* Field Preview - pass empty label to avoid duplication */}
-            <PortalFieldAdapter
-              field={{ ...field, label: '', description: '' }}
-              value={undefined}
-              onChange={() => {}}
-              themeColor={themeColor}
-              allFields={allFields}
-              disabled={true}
-            />
+            {/* Field Preview - hide when editing options for select/multiselect/radio */}
+            {!(isSelected && ['select', 'multiselect', 'radio'].includes(field.type)) && (
+              <PortalFieldAdapter
+                field={{ ...field, label: '', description: '' }}
+                value={undefined}
+                onChange={() => {}}
+                themeColor={themeColor}
+                allFields={allFields}
+                disabled={true}
+              />
+            )}
           </div>
         )}
       </div>
