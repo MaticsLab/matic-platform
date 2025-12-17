@@ -608,6 +608,122 @@ function ChildFieldsDndContext({
 }
 
 // ============================================================================
+// SORTABLE OPTION COMPONENTS - For draggable option items in inline editors
+// ============================================================================
+
+interface SortableOptionProps {
+  id: string;
+  option: string;
+  index: number;
+  onUpdate: (newValue: string) => void;
+  onDelete: () => void;
+}
+
+function SortableOption({ id, option, index, onUpdate, onDelete }: SortableOptionProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-1.5 group">
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-0.5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className="w-3 h-3 text-gray-300 hover:text-gray-500" />
+      </button>
+      <input
+        type="text"
+        value={option}
+        onChange={(e) => onUpdate(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+        className="flex-1 h-7 px-2 text-xs bg-gray-50/50 border border-gray-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+        placeholder={`Option ${index + 1}`}
+      />
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all"
+      >
+        <Trash2 className="w-3 h-3" />
+      </button>
+    </div>
+  );
+}
+
+interface SortableConfigOptionProps {
+  id: string;
+  option: { label: string; value: string };
+  index: number;
+  onUpdate: (newLabel: string) => void;
+  onDelete: () => void;
+}
+
+function SortableConfigOption({ id, option, index, onUpdate, onDelete }: SortableConfigOptionProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-1.5 group">
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-0.5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className="w-3 h-3 text-gray-300 hover:text-gray-500" />
+      </button>
+      <input
+        type="text"
+        value={option.label}
+        onChange={(e) => onUpdate(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+        className="flex-1 h-7 px-2 text-xs bg-gray-50/50 border border-gray-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+        placeholder={`Option ${index + 1}`}
+      />
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
+      >
+        <Trash2 className="w-3 h-3" />
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
 // SORTABLE CHILD FIELD - For fields inside group/repeater containers
 // ============================================================================
 
@@ -654,6 +770,26 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
   // Check if field supports inline options editing
   const supportsInlineOptions = ['select', 'multiselect', 'radio'].includes(field.type);
   const options = (field.config?.options as Array<{ label: string; value: string }>) || [];
+
+  // Handle option reordering
+  const handleOptionDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = options.findIndex(opt => opt.value === active.id);
+    const newIndex = options.findIndex(opt => opt.value === over.id);
+
+    const newOptions = arrayMove(options, oldIndex, newIndex);
+    onUpdate({ config: { ...field.config, options: newOptions } });
+  }, [options, onUpdate, field.config]);
+
+  const optionSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    })
+  );
 
   return (
     <div 
@@ -810,37 +946,29 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
                   Add
                 </button>
               </div>
-              <div className="space-y-1 max-h-32 overflow-y-auto">
-                {options.map((option, idx) => (
-                  <div key={option.value} className="flex items-center gap-1.5 group">
-                    <GripVertical className="w-3 h-3 text-gray-300" />
-                    <input
-                      type="text"
-                      value={option.label}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        const newOptions = [...options];
-                        newOptions[idx] = { ...option, label: e.target.value };
-                        onUpdate({ config: { ...field.config, options: newOptions } });
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex-1 h-7 px-2 text-xs bg-gray-50/50 border border-gray-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                      placeholder={`Option ${idx + 1}`}
-                    />
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const newOptions = options.filter((_, i) => i !== idx);
-                        onUpdate({ config: { ...field.config, options: newOptions } });
-                      }}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+              <DndContext sensors={optionSensors} collisionDetection={closestCenter} onDragEnd={handleOptionDragEnd}>
+                <SortableContext items={options.map(opt => opt.value)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {options.map((option, idx) => (
+                      <SortableConfigOption
+                        key={option.value}
+                        id={option.value}
+                        option={option}
+                        index={idx}
+                        onUpdate={(newLabel) => {
+                          const newOptions = [...options];
+                          newOptions[idx] = { ...option, label: newLabel };
+                          onUpdate({ config: { ...field.config, options: newOptions } });
+                        }}
+                        onDelete={() => {
+                          const newOptions = options.filter((_, i) => i !== idx);
+                          onUpdate({ config: { ...field.config, options: newOptions } });
+                        }}
+                      />
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
             </div>
           )}
         </div>
@@ -963,6 +1091,27 @@ function Block({
       setIsEditing(false);
     }
   };
+
+  // Handle option reordering for select/multiselect/radio fields
+  const handleOptionDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const currentOptions = field.options || [];
+    const oldIndex = parseInt(active.id.toString().replace('option-', ''));
+    const newIndex = parseInt(over.id.toString().replace('option-', ''));
+
+    const newOptions = arrayMove(currentOptions, oldIndex, newIndex);
+    onUpdate({ options: newOptions });
+  }, [field.options, onUpdate]);
+
+  const optionSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    })
+  );
 
   // Render inline editable content for layout fields
   const renderInlineContent = () => {
@@ -1458,37 +1607,29 @@ function Block({
                     Add
                   </button>
                 </div>
-                <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {(field.options || []).map((option: string, index: number) => (
-                    <div key={index} className="flex items-center gap-1.5 group">
-                      <GripVertical className="w-3 h-3 text-gray-300" />
-                      <input
-                        type="text"
-                        value={option}
-                        onChange={(e) => {
-                          const newOptions = [...(field.options || [])];
-                          newOptions[index] = e.target.value;
+                <DndContext sensors={optionSensors} collisionDetection={closestCenter} onDragEnd={handleOptionDragEnd}>
+                  <SortableContext items={(field.options || []).map((_, idx) => `option-${idx}`)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {(field.options || []).map((option: string, index: number) => (
+                        <SortableOption
+                          key={`option-${index}`}
+                          id={`option-${index}`}
+                          option={option}
+                          index={index}
+                          onUpdate={(newValue) => {
+                            const newOptions = [...(field.options || [])];
+                            newOptions[index] = newValue;
                           onUpdate({ options: newOptions });
                         }}
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex-1 h-7 px-2 text-xs bg-gray-50/50 border border-gray-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                        placeholder={`Option ${index + 1}`}
-                      />
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
+                        onDelete={() => {
                           const newOptions = (field.options || []).filter((_, i) => i !== index);
                           onUpdate({ options: newOptions });
                         }}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             )}
             
             {/* Field Preview - hide when editing options for select/multiselect/radio */}
