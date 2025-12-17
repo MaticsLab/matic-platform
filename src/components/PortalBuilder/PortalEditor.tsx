@@ -1173,7 +1173,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     }))
                     setHasUnsavedChanges(true)
                   }}
-                  formId={formId}
+                  formId={formId || undefined}
                 />
               </div>
             )}
