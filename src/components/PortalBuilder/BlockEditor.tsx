@@ -44,7 +44,7 @@ import {
   CheckSquare, List, Upload, Heading, ToggleLeft,
   FileText, Star, MapPin, Layers, Repeat, Image,
   Link, Clock, Minus, AlertCircle, ChevronUp, ChevronDown,
-  Sparkles, Command, FolderInput
+  Sparkles, Command, FolderInput, Check, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Section, Field, FieldType } from '@/types/portal';
@@ -776,6 +776,7 @@ function Block({
 }: BlockProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const blockRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
@@ -1071,7 +1072,10 @@ function Block({
         !isSelected && isHovered && "bg-gray-50/70",
       )}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setShowDeleteConfirm(false);
+      }}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
     >
       {/* Drag handle + Plus button - Left side */}
@@ -1101,22 +1105,22 @@ function Block({
         </button>
       </motion.div>
 
-      {/* Actions - Right side */}
+      {/* Actions - Top right corner inside card */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: (isHovered || isSelected) ? 1 : 0 }}
-        className="absolute -right-12 top-2 flex flex-col gap-0.5 z-10"
+        className="absolute top-2 right-2 flex items-center gap-1 z-10"
       >
         {allSections && allSections.length > 1 && onMoveToSection && (
           <div className="relative group/move">
             <button
               onClick={(e) => { e.stopPropagation(); }}
-              className="p-1.5 rounded-md hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors"
+              className="p-1.5 rounded-md hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
               title="Move to section"
             >
-              <FolderInput className="w-4 h-4" />
+              <FolderInput className="w-3.5 h-3.5" />
             </button>
-            <div className="absolute right-full mr-1 top-0 hidden group-hover/move:block z-50">
+            <div className="absolute right-0 top-full mt-1 hidden group-hover/move:block z-50">
               <div className="bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[160px]">
                 <div className="px-3 py-1.5 text-xs font-medium text-gray-500 border-b border-gray-100">
                   Move to section
@@ -1139,12 +1143,42 @@ function Block({
             </div>
           </div>
         )}
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="p-1.5 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        {showDeleteConfirm ? (
+          <div className="flex items-center gap-1 bg-white rounded-md shadow-lg border border-red-200 p-1">
+            <span className="text-xs text-gray-700 px-1.5">Delete?</span>
+            <button
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                onDelete(); 
+              }}
+              className="p-1 rounded hover:bg-red-100 text-red-600 transition-colors"
+              title="Confirm delete"
+            >
+              <Check className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                setShowDeleteConfirm(false); 
+              }}
+              className="p-1 rounded hover:bg-gray-100 text-gray-500 transition-colors"
+              title="Cancel"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              setShowDeleteConfirm(true); 
+            }}
+            className="p-1.5 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
+            title="Delete field"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
       </motion.div>
 
       {/* Content */}
@@ -1177,9 +1211,6 @@ function Block({
                   style={{ color: resolvedTheme?.questionsColor || '#111827' }}
                   placeholder="Field label..."
                 />
-                {field.required && (
-                  <span style={{ color: resolvedTheme?.primaryColor || '#ef4444' }} className="text-xs">*</span>
-                )}
               </div>
               {/* Description - show when selected, has value, or user clicks to add */}
               {(isSelected || field.description) ? (

@@ -44,6 +44,7 @@ export class SupabaseYjsProvider {
   private awareness: Awareness;
   private roomId: string;
   private userId: string;
+  private clientId: string; // Unique per browser tab/session
   private userName: string;
   private userColor: string;
   private userAvatarUrl?: string;
@@ -63,6 +64,7 @@ export class SupabaseYjsProvider {
     this.doc = options.doc;
     this.roomId = options.roomId;
     this.userId = options.userId || crypto.randomUUID();
+    this.clientId = crypto.randomUUID(); // Always unique per tab/session
     this.userName = options.userName || 'Anonymous';
     this.userColor = options.userColor || this.generateRandomColor();
     this.userAvatarUrl = options.userAvatarUrl;
@@ -97,8 +99,8 @@ export class SupabaseYjsProvider {
     // Create realtime channel
     this.channel = this.supabase.channel(`yjs:${this.roomId}`, {
       config: {
-        broadcast: { self: false }, // Don't receive own broadcasts
-        presence: { key: this.userId },
+        broadcast: { self: true }, // Receive own broadcasts to sync across tabs
+        presence: { key: this.clientId }, // Use clientId to differentiate tabs
       },
     });
 
@@ -125,9 +127,10 @@ export class SupabaseYjsProvider {
         this.connected = true;
         
         // Track presence
-        console.log('[Collab] Tracking presence for:', this.userName, this.userId);
+        console.log('[Collab] Tracking presence for:', this.userName, 'userId:', this.userId, 'clientId:', this.clientId);
         await this.channel?.track({
           id: this.userId,
+          clientId: this.clientId, // Track both user and client ID
           name: this.userName,
           color: this.userColor,
           avatarUrl: this.userAvatarUrl,
@@ -255,13 +258,13 @@ export class SupabaseYjsProvider {
       event: 'yjs-update',
       payload: {
         update: base64Update,
-        sender: this.userId,
+        sender: this.clientId, // Use clientId to identify this specific tab
       },
     });
   };
 
   private handleRemoteUpdate = (payload: { update: string; sender: string }): void => {
-    if (payload.sender === this.userId) return;
+    if (payload.sender === this.clientId) return; // Filter by clientId, not userId
 
     console.log('[Collab] 📥 Received yjs-update from:', payload.sender);
 
@@ -296,7 +299,7 @@ export class SupabaseYjsProvider {
         console.log('[Collab] Awareness changed, notifying:', users.map(u => ({ name: u.name, section: u.currentSection, block: u.selectedBlockId })));
         this.onAwarenessUpdate?.(users);
       }
-    }, 100); // Debounce by 100ms
+    }, 300); // Debounce by 300ms to reduce flickering
   };
 
   private handleAwarenessUpdate = ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }): void => {
@@ -312,16 +315,19 @@ export class SupabaseYjsProvider {
   // Store remote user states since we're using broadcast, not native Yjs awareness sync
   private remoteUsers: Map<string, UserPresence> = new Map();
   
-  private handleRemoteAwareness = (payload: { state: any; clientId: number }): void => {
-    if (payload.clientId === this.awareness.clientID) return;
+  private handleRemoteAwareness = (payload: { state: any; clientId: string }): void => {
+    // Filter by clientId instead of awareness clientID (which uses numbers)
+    if (payload.clientId === this.clientId) return;
     
     // Store/update the remote user's state with all awareness fields
-    if (payload.state && payload.state.id) {
-      const existingUser = this.remoteUsers.get(payload.state.id);
+    // Use clientId as the key to support same user in multiple tabs
+    if (payload.state && payload.clientId) {
+      const existingUser = this.remoteUsers.get(payload.clientId);
       // Merge with existing data to preserve any fields from presence
       const updatedUser: UserPresence = {
         ...existingUser,
         ...payload.state,
+        id: payload.state.id || payload.clientId, // Use userId from state, fallback to clientId
         // Ensure these fields are always updated from awareness
         currentSection: payload.state.currentSection,
         currentSectionTitle: payload.state.currentSectionTitle,
@@ -330,7 +336,7 @@ export class SupabaseYjsProvider {
         isTyping: payload.state.isTyping,
       };
       console.log('[Collab] Remote awareness received:', updatedUser.name, 'section:', updatedUser.currentSection, 'block:', updatedUser.selectedBlockId);
-      this.remoteUsers.set(payload.state.id, updatedUser);
+      this.remoteUsers.set(payload.clientId, updatedUser);
     }
     
     // Debounced notification to prevent loops
@@ -348,7 +354,7 @@ export class SupabaseYjsProvider {
       event: 'awareness-update',
       payload: {
         state: localState,
-        clientId: this.awareness.clientID,
+        clientId: this.clientId, // Include clientId to identify this tab
       },
     });
   };
@@ -368,6 +374,7 @@ export class SupabaseYjsProvider {
       // Supabase presence returns objects with our tracked data plus presence_ref
       const presenceArray = presences as unknown as Array<{
         id: string;
+        clientId: string;
         name: string;
         color: string;
         avatarUrl?: string;
@@ -375,13 +382,14 @@ export class SupabaseYjsProvider {
       }>;
       
       presenceArray.forEach(presence => {
-        if (presence.id && presence.id !== this.userId) {
-          currentRemoteUserIds.add(presence.id);
-          console.log('[Collab] Found remote user in presence:', presence.name, presence.id);
+        // Use clientId to differentiate tabs, not userId
+        if (presence.clientId && presence.clientId !== this.clientId) {
+          currentRemoteUserIds.add(presence.clientId);
+          console.log('[Collab] Found remote user in presence:', presence.name, 'userId:', presence.id, 'clientId:', presence.clientId);
           // Only add if not already in remoteUsers (preserve cursor/selection data)
-          if (!this.remoteUsers.has(presence.id)) {
-            this.remoteUsers.set(presence.id, {
-              id: presence.id,
+          if (!this.remoteUsers.has(presence.clientId)) {
+            this.remoteUsers.set(presence.clientId, {
+              id: presence.id, // Keep userId for display
               name: presence.name,
               color: presence.color,
               avatarUrl: presence.avatarUrl,
@@ -392,10 +400,10 @@ export class SupabaseYjsProvider {
     });
     
     // Remove users who are no longer in presence
-    this.remoteUsers.forEach((_, id) => {
-      if (!currentRemoteUserIds.has(id)) {
-        console.log('[Collab] Removing disconnected user:', id);
-        this.remoteUsers.delete(id);
+    this.remoteUsers.forEach((_, clientId) => {
+      if (!currentRemoteUserIds.has(clientId)) {
+        console.log('[Collab] Removing disconnected user:', clientId);
+        this.remoteUsers.delete(clientId);
       }
     });
     

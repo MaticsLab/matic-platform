@@ -141,14 +141,14 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
 
                 {/* Title */}
                 <div className="flex-1 min-w-0 overflow-hidden">
-                  <div className={cn(
-                    "text-sm font-medium truncate transition-colors",
-                    isActive ? "text-gray-900" : "text-gray-700"
-                  )}>
-                    {(section.title || variant.label).length > 20 
-                      ? (section.title || variant.label).substring(0, 20) + '...'
-                      : (section.title || variant.label)
-                    }
+                  <div 
+                    className={cn(
+                      "text-sm font-medium truncate transition-colors",
+                      isActive ? "text-gray-900" : "text-gray-700"
+                    )}
+                    title={section.title || variant.label}
+                  >
+                    {section.title || variant.label}
                   </div>
                 </div>
 
