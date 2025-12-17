@@ -1267,6 +1267,7 @@ function Block({
         )}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onClick={() => onSelect()}
       >
         {/* Drag handle - inside card on left */}
         <motion.div
@@ -1377,17 +1378,17 @@ function Block({
 
   return (
     <BlockCollaboratorRing blockId={field.id}>
-    <motion.div
-      ref={blockRef}
-      layout
-      data-block-id={field.id}
-      className={cn(
-        "relative group transition-all duration-200 rounded-lg cursor-pointer",
-        isSelected && "bg-blue-50/50 ring-2 ring-blue-500",
-        !isSelected && isHovered && "bg-gray-50/70",
-      )}
-      onClick={() => onSelect()}
-      onMouseEnter={() => setIsHovered(true)}
+      <motion.div
+        ref={blockRef}
+        layout
+        data-block-id={field.id}
+        className={cn(
+          "relative group transition-all duration-200 rounded-lg cursor-pointer",
+          isSelected && "bg-blue-50/50 ring-2 ring-blue-500",
+          !isSelected && isHovered && "bg-gray-50/70",
+        )}
+        onClick={() => onSelect()}
+        onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
         setIsHovered(false);
         setShowDeleteConfirm(false);
@@ -1646,7 +1647,7 @@ function Block({
           </div>
         )}
       </div>
-    </motion.div>
+      </motion.div>
     </BlockCollaboratorRing>
   );
 }
