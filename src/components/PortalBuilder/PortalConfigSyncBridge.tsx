@@ -26,6 +26,12 @@ export function PortalConfigSyncBridge({
   const ydoc = useYDoc();
   const isConnected = useIsConnected();
   
+  console.log('[Collab Sync] Bridge status:', { 
+    hasYdoc: !!ydoc, 
+    isConnected,
+    sectionsCount: config.sections.length 
+  });
+  
   // Track if we're applying a remote update to avoid loops
   const isApplyingRemoteRef = useRef(false);
   const yMapRef = useRef<Y.Map<any> | null>(null);
@@ -129,10 +135,20 @@ export function PortalConfigSyncBridge({
   // Sync local config changes to Yjs (immediate for real-time feel)
   useEffect(() => {
     // Skip if we're applying a remote update
-    if (isApplyingRemoteRef.current) return;
+    if (isApplyingRemoteRef.current) {
+      console.log('[Collab] ⏭️ Skipping local sync (applying remote update)');
+      return;
+    }
     
     const yMap = yMapRef.current;
-    if (!yMap || !ydoc) return;
+    if (!yMap) {
+      console.log('[Collab] ⚠️ No yMap available for sync');
+      return;
+    }
+    if (!ydoc) {
+      console.log('[Collab] ⚠️ No ydoc available for sync');
+      return;
+    }
     
     let json: string;
     try {
@@ -143,9 +159,17 @@ export function PortalConfigSyncBridge({
     }
     
     // Skip if same content
-    if (json === lastSyncedJsonRef.current) return;
+    if (json === lastSyncedJsonRef.current) {
+      console.log('[Collab] ⏭️ Skipping sync (same content)');
+      return;
+    }
     
     lastSyncedJsonRef.current = json;
+    
+    console.log('[Collab] 🔄 Config changed, syncing to Yjs...', {
+      sections: config.sections.length,
+      fields: config.sections.reduce((acc, s) => acc + s.fields.length, 0)
+    });
     
     // Use Y.Map for atomic updates - prevents JSON corruption
     ydoc.transact(() => {

@@ -159,6 +159,12 @@ export const useCollaborationStore = create<CollaborationStore>()(
 
       provider.connect();
 
+      console.log('[Collab Store] ✅ Provider initialized and connecting...', {
+        roomId: `portal-builder:${roomId}`,
+        userName: currentUser.name,
+        userId: currentUser.id,
+      });
+
       set({
         roomId,
         currentUser,
