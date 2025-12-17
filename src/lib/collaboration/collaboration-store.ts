@@ -141,17 +141,16 @@ export const useCollaborationStore = create<CollaborationStore>()(
         const currentUserId = get().currentUser?.id;
         
         // Deduplicate users by userId (in case same user has multiple tabs open)
+        // Keep the latest instance of each user to ensure fresh data
         const userMap = new Map<string, Collaborator>();
         users
           .filter(u => u.id !== currentUserId)
           .forEach(u => {
-            // Keep first instance of each user (deduplicates by userId)
-            if (!userMap.has(u.id)) {
-              userMap.set(u.id, {
-                ...u,
-                lastActivity: Date.now(),
-              });
-            }
+            // Always update with latest data (last write wins)
+            userMap.set(u.id, {
+              ...u,
+              lastActivity: Date.now(),
+            });
           });
         
         const others = Array.from(userMap.values());
