@@ -140,6 +140,11 @@ export const useCollaborationStore = create<CollaborationStore>()(
       provider.onAwarenessUpdate = (users) => {
         const currentUserId = get().currentUser?.id;
         
+        console.log('[Collab Store] Awareness update received:', users.length, 'users');
+        users.forEach(u => {
+          console.log('[Collab Store]   - User:', { id: u.id, name: u.name, clientId: (u as any).clientId });
+        });
+        
         // Deduplicate users by userId (in case same user has multiple tabs open)
         // Keep the latest instance of each user to ensure fresh data
         const userMap = new Map<string, Collaborator>();
@@ -147,6 +152,7 @@ export const useCollaborationStore = create<CollaborationStore>()(
           .filter(u => u.id !== currentUserId)
           .forEach(u => {
             // Always update with latest data (last write wins)
+            console.log('[Collab Store] Adding user to map:', u.id, u.name, 'prev exists:', userMap.has(u.id));
             userMap.set(u.id, {
               ...u,
               lastActivity: Date.now(),
@@ -154,6 +160,7 @@ export const useCollaborationStore = create<CollaborationStore>()(
           });
         
         const others = Array.from(userMap.values());
+        console.log('[Collab Store] After deduplication:', others.length, 'users:', others.map(u => ({ id: u.id, name: u.name })));
         get()._setCollaborators(others);
       };
 

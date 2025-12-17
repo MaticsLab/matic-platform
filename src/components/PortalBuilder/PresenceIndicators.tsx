@@ -33,6 +33,25 @@ export function PresenceHeader({ className, onNavigateToUser }: PresenceHeaderPr
   const currentUser = useCurrentUser();
   const collaborators = useCollaborators();
   
+  // Debug logging to see if duplicates exist
+  useEffect(() => {
+    if (collaborators.length > 0) {
+      console.log('[PresenceHeader] Collaborators:', collaborators.map(c => ({ 
+        id: c.id, 
+        name: c.name, 
+        color: c.color,
+        section: c.currentSection 
+      })));
+      
+      // Check for duplicates by id
+      const ids = collaborators.map(c => c.id);
+      const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+      if (duplicates.length > 0) {
+        console.warn('[PresenceHeader] ⚠️ DUPLICATE USER IDS DETECTED:', duplicates);
+      }
+    }
+  }, [collaborators]);
+  
   const totalUsers = collaborators.length + (currentUser ? 1 : 0);
 
   return (
