@@ -61,13 +61,15 @@ export function CollaborationProvider({ children, roomId, enabled = true }: Coll
     }
   }, [enabled, roomId, initialize]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount ONLY - no dependencies to prevent premature cleanup
   useEffect(() => {
     return () => {
+      console.log('[Collab Provider] Unmounting, cleaning up...');
       initializedRoomRef.current = null;
       destroy();
     };
-  }, [destroy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return <>{children}</>;
 }

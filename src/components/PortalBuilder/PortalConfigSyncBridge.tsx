@@ -42,7 +42,12 @@ export function PortalConfigSyncBridge({
 
   // Setup Yjs observer for remote changes
   useEffect(() => {
-    if (!ydoc) return;
+    if (!ydoc) {
+      // Reset initialization when ydoc becomes unavailable
+      isInitializedRef.current = false;
+      yMapRef.current = null;
+      return;
+    }
 
     const yMap = ydoc.getMap('portal-config');
     yMapRef.current = yMap;
@@ -128,7 +133,10 @@ export function PortalConfigSyncBridge({
     console.log('[Collab] ✅ Portal config sync observer attached');
 
     return () => {
+      console.log('[Collab] 🧹 Cleaning up portal config observer');
       yMap.unobserve(observer);
+      isInitializedRef.current = false;
+      yMapRef.current = null;
     };
   }, [ydoc, setConfig, skipInitialSync]);
 
