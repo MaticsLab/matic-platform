@@ -386,7 +386,7 @@ export class SupabaseYjsProvider {
       
       // When there are duplicates, only keep the most recent one
       if (presenceArray.length > 1) {
-        console.log('[Collab] Multiple presence entries for same key, keeping most recent');
+        console.log('[Collab] Multiple presence entries for same key:', presenceArray.length, presenceArray.map(p => ({ name: p.name, clientId: p.clientId, online_at: p.online_at })));
         presenceArray.sort((a, b) => {
           const timeA = new Date(a.online_at).getTime();
           const timeB = new Date(b.online_at).getTime();
@@ -396,6 +396,14 @@ export class SupabaseYjsProvider {
       
       // Only process the first (most recent) entry
       const presence = presenceArray[0];
+      console.log('[Collab] Processing presence entry:', { 
+        name: presence?.name, 
+        clientId: presence?.clientId, 
+        myClientId: this.clientId,
+        isSelf: presence?.clientId === this.clientId,
+        hasClientId: !!presence?.clientId
+      });
+      
       if (presence && presence.clientId && presence.clientId !== this.clientId) {
         // Check if presence is stale
         const onlineAt = new Date(presence.online_at).getTime();
@@ -407,7 +415,7 @@ export class SupabaseYjsProvider {
         }
         
         currentRemoteUserIds.add(presence.clientId);
-        console.log('[Collab] Found remote user in presence:', presence.name, 'userId:', presence.id, 'clientId:', presence.clientId);
+        console.log('[Collab] ✅ Added remote user from presence:', presence.name, 'userId:', presence.id, 'clientId:', presence.clientId);
         // Only add if not already in remoteUsers (preserve cursor/selection data)
         if (!this.remoteUsers.has(presence.clientId)) {
           this.remoteUsers.set(presence.clientId, {
@@ -417,6 +425,8 @@ export class SupabaseYjsProvider {
             avatarUrl: presence.avatarUrl,
           });
         }
+      } else {
+        console.log('[Collab] Skipped presence entry - reason:', !presence ? 'no presence' : !presence.clientId ? 'no clientId' : 'is self');
       }
     });
     
