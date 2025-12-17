@@ -618,6 +618,7 @@ interface SortableChildFieldProps {
 
 function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, themeColor, allFields }: SortableChildFieldProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const labelInputRef = useRef<HTMLInputElement | null>(null);
   const {
@@ -636,65 +637,113 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
     zIndex: isDragging ? 50 : 'auto',
   };
 
+  // Check if field supports inline options editing
+  const supportsInlineOptions = ['select', 'multiselect', 'radio'].includes(field.type);
+  const options = (field.config?.options as Array<{ label: string; value: string }>) || [];
+
   return (
     <div 
       ref={(el) => { setNodeRef(el); containerRef.current = el; }} 
       style={style} 
       {...attributes}
       className={cn(
-        "relative p-3 bg-white rounded-lg border shadow-sm transition-all cursor-pointer",
-        isDragging ? "border-blue-300 shadow-md" : "border-gray-100",
-        isHovered && !isDragging && "border-gray-200",
+        "relative p-4 bg-white rounded-lg border-2 transition-all cursor-pointer",
+        isDragging ? "border-blue-300 shadow-md" : "border-gray-200",
+        isHovered && !isDragging && "border-gray-300 bg-gray-50/50",
         isSelected && "ring-2 ring-blue-500 border-blue-300 bg-blue-50/30"
       )}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setShowDeleteConfirm(false);
+      }}
       onClick={(e) => {
         // Select this field to show settings panel
         e.stopPropagation();
         onSelect();
       }}
     >
-      {/* Drag handle and actions */}
+      {/* Drag handle - Left side */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: isHovered ? 1 : 0 }}
-        className="absolute -left-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10"
+        className="absolute -left-8 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10"
       >
         <button
           {...listeners}
-          className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
+          className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
           onClick={(e) => e.stopPropagation()}
         >
-          <GripVertical className="w-3 h-3" />
+          <GripVertical className="w-4 h-4" />
         </button>
       </motion.div>
 
-      {/* Delete button */}
+      {/* Action buttons - Top right inside card */}
       <motion.div
         initial={{ opacity: 0 }}
-        animate={{ opacity: isHovered ? 1 : 0 }}
-        className="absolute -right-2 top-1 z-10"
+        animate={{ opacity: (isHovered || isSelected) ? 1 : 0 }}
+        className="absolute top-3 right-3 flex items-center gap-1 z-10"
       >
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"
-        >
-          <Trash2 className="w-3 h-3" />
-        </button>
+        {!showDeleteConfirm ? (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowDeleteConfirm(true);
+              }}
+              className="p-1.5 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+              title="Delete field"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </>
+        ) : (
+          <div className="flex items-center gap-1 bg-white rounded-md shadow-sm border border-gray-200 px-2 py-1">
+            <span className="text-xs text-gray-600 mr-1">Delete?</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="p-1 rounded hover:bg-red-50 text-red-500"
+              title="Confirm delete"
+            >
+              <Check className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowDeleteConfirm(false);
+              }}
+              className="p-1 rounded hover:bg-gray-100 text-gray-500"
+              title="Cancel"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </motion.div>
 
       {/* Editable label and field preview */}
-      <div className="space-y-1.5">
-        <input
-          ref={labelInputRef}
-          type="text"
-          value={field.label}
-          onChange={(e) => onUpdate({ label: e.target.value })}
-          onClick={(e) => e.stopPropagation()}
-          className="w-full text-xs font-medium text-gray-700 bg-transparent border-none outline-none placeholder:text-gray-400"
-          placeholder="Field label..."
-        />
+      <div className="space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <input
+              ref={labelInputRef}
+              type="text"
+              value={field.label}
+              onChange={(e) => onUpdate({ label: e.target.value })}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full text-sm font-medium text-gray-900 bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0"
+              placeholder="Field label..."
+            />
+            {field.description && (
+              <p className="text-xs text-gray-500 mt-0.5">{field.description}</p>
+            )}
+          </div>
+          <div className="w-12" /> {/* Spacer for action buttons */}
+        </div>
+
         <PortalFieldAdapter
           field={{ ...field, label: '', description: '' }}
           value={undefined}
@@ -703,6 +752,55 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
           allFields={allFields}
           disabled={true}
         />
+
+        {/* Inline options editor for select/multiselect/radio */}
+        {supportsInlineOptions && (
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-gray-700">Options</label>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const newOptions = [...options, { label: `Option ${options.length + 1}`, value: `option-${Date.now()}` }];
+                  onUpdate({ config: { ...field.config, options: newOptions } });
+                }}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                + Add option
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {options.map((option, idx) => (
+                <div key={option.value} className="flex items-center gap-2 group/option">
+                  <GripVertical className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                  <input
+                    type="text"
+                    value={option.label}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      const newOptions = [...options];
+                      newOptions[idx] = { ...option, label: e.target.value };
+                      onUpdate({ config: { ...field.config, options: newOptions } });
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-1 text-xs px-2 py-1.5 border border-gray-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                    placeholder={`Option ${idx + 1}`}
+                  />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const newOptions = options.filter((_, i) => i !== idx);
+                      onUpdate({ config: { ...field.config, options: newOptions } });
+                    }}
+                    className="opacity-0 group-hover/option:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
