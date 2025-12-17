@@ -769,19 +769,19 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
 
   // Check if field supports inline options editing
   const supportsInlineOptions = ['select', 'multiselect', 'radio'].includes(field.type);
-  const options = (field.config?.options as Array<{ label: string; value: string }>) || [];
 
   // Handle option reordering
   const handleOptionDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = options.findIndex(opt => opt.value === active.id);
-    const newIndex = options.findIndex(opt => opt.value === over.id);
+    const currentOptions = field.options || [];
+    const oldIndex = parseInt(active.id.toString().replace('option-', ''));
+    const newIndex = parseInt(over.id.toString().replace('option-', ''));
 
-    const newOptions = arrayMove(options, oldIndex, newIndex);
-    onUpdate({ config: { ...field.config, options: newOptions } });
-  }, [options, onUpdate, field.config]);
+    const newOptions = arrayMove(currentOptions, oldIndex, newIndex);
+    onUpdate({ options: newOptions });
+  }, [field.options, onUpdate]);
 
   const optionSensors = useSensors(
     useSensor(PointerSensor, {
@@ -940,8 +940,8 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    const newOptions = [...options, { label: `Option ${options.length + 1}`, value: `option-${Date.now()}` }];
-                    onUpdate({ config: { ...field.config, options: newOptions } });
+                    const currentOptions = field.options || [];
+                    onUpdate({ options: [...currentOptions, `Option ${currentOptions.length + 1}`] });
                   }}
                   className="text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded transition-colors flex items-center gap-1"
                 >
@@ -950,22 +950,22 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
                 </button>
               </div>
               <DndContext sensors={optionSensors} collisionDetection={closestCenter} onDragEnd={handleOptionDragEnd}>
-                <SortableContext items={options.map(opt => opt.value)} strategy={verticalListSortingStrategy}>
+                <SortableContext items={(field.options || []).map((_, idx) => `option-${idx}`)} strategy={verticalListSortingStrategy}>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {options.map((option, idx) => (
-                      <SortableConfigOption
-                        key={option.value}
-                        id={option.value}
+                    {(field.options || []).map((option: string, index: number) => (
+                      <SortableOption
+                        key={`option-${index}`}
+                        id={`option-${index}`}
                         option={option}
-                        index={idx}
-                        onUpdate={(newLabel) => {
-                          const newOptions = [...options];
-                          newOptions[idx] = { ...option, label: newLabel };
-                          onUpdate({ config: { ...field.config, options: newOptions } });
+                        index={index}
+                        onUpdate={(newValue) => {
+                          const newOptions = [...(field.options || [])];
+                          newOptions[index] = newValue;
+                          onUpdate({ options: newOptions });
                         }}
                         onDelete={() => {
-                          const newOptions = options.filter((_, i) => i !== idx);
-                          onUpdate({ config: { ...field.config, options: newOptions } });
+                          const newOptions = (field.options || []).filter((_, i) => i !== index);
+                          onUpdate({ options: newOptions });
                         }}
                       />
                     ))}
