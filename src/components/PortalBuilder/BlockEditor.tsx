@@ -650,7 +650,7 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
         "relative bg-white rounded-lg border-2 transition-all cursor-pointer",
         isDragging ? "border-blue-300 shadow-md" : "border-gray-200",
         isHovered && !isDragging && "border-gray-300 bg-gray-50/50",
-        isSelected && "ring-2 ring-blue-500 border-blue-300 bg-blue-50/30"
+        isSelected && "ring-2 ring-blue-500 bg-blue-50/30"
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
@@ -765,10 +765,10 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
             ) : null}
           </div>
 
-          {/* Show field preview only if it doesn't have inline options editor */}
-          {!supportsInlineOptions && (
+          {/* Field Preview - hide when editing options for select/multiselect/radio */}
+          {!(isSelected && supportsInlineOptions) && (
             <PortalFieldAdapter
-              field={{ ...field, label: '', description: '' }}
+              field={{ ...field, label: '', description: '', required: false }}
               value={undefined}
               onChange={() => {}}
               themeColor={themeColor}
@@ -1464,7 +1464,7 @@ function Block({
             {/* Field Preview - hide when editing options for select/multiselect/radio */}
             {!(isSelected && ['select', 'multiselect', 'radio'].includes(field.type)) && (
               <PortalFieldAdapter
-                field={{ ...field, label: '', description: '' }}
+                field={{ ...field, label: '', description: '', required: false }}
                 value={undefined}
                 onChange={() => {}}
                 themeColor={themeColor}
