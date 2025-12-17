@@ -1317,9 +1317,9 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       ? 'Ending Settings' 
                       : (() => {
                           const selectedField = selectedBlockId 
-                            ? displaySection?.fields.find(f => f.id === selectedBlockId)
+                            ? displaySection?.fields.find((f: Field) => f.id === selectedBlockId)
                             : selectedFieldId 
-                              ? displaySection?.fields.find(f => f.id === selectedFieldId)
+                              ? displaySection?.fields.find((f: Field) => f.id === selectedFieldId)
                               : null;
                           const fieldTypes: Record<string, string> = {
                             text: 'Text Input', textarea: 'Text Area', email: 'Email', phone: 'Phone',
