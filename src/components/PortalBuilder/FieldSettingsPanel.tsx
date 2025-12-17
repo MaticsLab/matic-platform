@@ -290,11 +290,10 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50">
         <div className="flex items-center gap-2">
           <Settings className="w-4 h-4 text-gray-500" />
-          <span className="font-medium text-sm text-gray-900">Field Settings</span>
+          <span className="font-medium text-sm text-gray-900">
+            {FIELD_TYPES.find(t => t.value === selectedField.type)?.label || selectedField.type}
+          </span>
         </div>
-        <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded font-medium">
-          {FIELD_TYPES.find(t => t.value === selectedField.type)?.label || selectedField.type}
-        </span>
       </div>
 
       <div className="flex-1 overflow-y-auto">
