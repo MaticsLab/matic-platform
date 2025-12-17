@@ -44,7 +44,7 @@ import {
   CheckSquare, List, Upload, Heading, ToggleLeft,
   FileText, Star, MapPin, Layers, Repeat, Image,
   Link, Clock, Minus, AlertCircle, ChevronUp, ChevronDown,
-  Sparkles, Command
+  Sparkles, Command, FolderInput
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Section, Field, FieldType } from '@/types/portal';
@@ -82,6 +82,10 @@ interface BlockEditorProps {
     name: string;
     avatarUrl?: string;
   };
+  /** All sections for moving fields between sections */
+  allSections?: Section[];
+  /** Callback to move a field to a different section */
+  onMoveFieldToSection?: (fieldId: string, targetSectionId: string) => void;
 }
 
 interface BlockCommand {
@@ -717,6 +721,9 @@ interface BlockProps {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onOpenSlashMenu: (position: { top: number; left: number }, containerId?: string) => void;
+  onMoveToSection?: (targetSectionId: string) => void;
+  allSections?: Section[];
+  currentSectionId?: string;
   themeColor?: string;
   /** Form theme settings for colors */
   resolvedTheme?: {
@@ -752,6 +759,9 @@ function Block({
   onMoveUp,
   onMoveDown,
   onOpenSlashMenu,
+  onMoveToSection,
+  allSections,
+  currentSectionId,
   themeColor,
   resolvedTheme,
   allFields,
@@ -1097,6 +1107,38 @@ function Block({
         animate={{ opacity: (isHovered || isSelected) ? 1 : 0 }}
         className="absolute -right-12 top-2 flex flex-col gap-0.5 z-10"
       >
+        {allSections && allSections.length > 1 && onMoveToSection && (
+          <div className="relative group/move">
+            <button
+              onClick={(e) => { e.stopPropagation(); }}
+              className="p-1.5 rounded-md hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors"
+              title="Move to section"
+            >
+              <FolderInput className="w-4 h-4" />
+            </button>
+            <div className="absolute right-full mr-1 top-0 hidden group-hover/move:block z-50">
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[160px]">
+                <div className="px-3 py-1.5 text-xs font-medium text-gray-500 border-b border-gray-100">
+                  Move to section
+                </div>
+                {allSections
+                  .filter(s => s.id !== currentSectionId && s.sectionType === 'form')
+                  .map((section) => (
+                    <button
+                      key={section.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMoveToSection(section.id);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors text-gray-700"
+                    >
+                      {section.title}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          </div>
+        )}
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
           className="p-1.5 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
@@ -1195,6 +1237,8 @@ export function BlockEditor({
   logoUrl,
   roomId,
   currentUser,
+  allSections,
+  onMoveFieldToSection,
 }: BlockEditorProps) {
   // Resolve theme colors with defaults
   const resolvedTheme = {
@@ -1479,28 +1523,48 @@ export function BlockEditor({
                   items={section.fields.map(f => f.id)} 
                   strategy={verticalListSortingStrategy}
                 >
-                  {section.fields.map((field, index) => (
-                    <SortableBlock key={field.id} id={field.id}>
-                      <Block
-                        field={field}
-                        isDropTarget={overContainerId === field.id}
-                        isSelected={selectedBlockId === field.id}
-                        onSelect={() => onSelectBlock(field.id)}
-                        onDelete={() => handleDeleteBlock(field.id)}
-                        onUpdate={(updates) => handleUpdateBlock(field.id, updates)}
-                        onMoveUp={() => handleMoveBlock(field.id, 'up')}
-                        onMoveDown={() => handleMoveBlock(field.id, 'down')}
-                        onOpenSlashMenu={(pos, containerId) => openSlashMenu(pos, index + 1, containerId)}
-                        themeColor={themeColor}
-                        resolvedTheme={resolvedTheme}
-                        allFields={section.fields}
-                        isFirst={index === 0}
-                        isLast={index === section.fields.length - 1}
-                        selectedBlockId={selectedBlockId}
-                        onSelectBlock={onSelectBlock}
-                      />
-                    </SortableBlock>
-                  ))}
+                  {/* Grid container for responsive field widths */}
+                  <div className="grid grid-cols-12 gap-2">
+                    {section.fields.map((field, index) => {
+                      // Calculate grid column span based on field width
+                      const getColSpan = (width?: string) => {
+                        switch (width) {
+                          case 'half': return 'col-span-6'
+                          case 'third': return 'col-span-4'
+                          case 'quarter': return 'col-span-3'
+                          default: return 'col-span-12' // full width
+                        }
+                      }
+
+                      return (
+                        <div key={field.id} className={cn(getColSpan(field.width))}>
+                          <SortableBlock id={field.id}>
+                            <Block
+                              field={field}
+                              isDropTarget={overContainerId === field.id}
+                              isSelected={selectedBlockId === field.id}
+                              onSelect={() => onSelectBlock(field.id)}
+                              onDelete={() => handleDeleteBlock(field.id)}
+                              onUpdate={(updates) => handleUpdateBlock(field.id, updates)}
+                              onMoveUp={() => handleMoveBlock(field.id, 'up')}
+                              onMoveDown={() => handleMoveBlock(field.id, 'down')}
+                              onOpenSlashMenu={(pos, containerId) => openSlashMenu(pos, index + 1, containerId)}
+                              onMoveToSection={onMoveFieldToSection ? (targetSectionId) => onMoveFieldToSection(field.id, targetSectionId) : undefined}
+                              allSections={allSections}
+                              currentSectionId={section.id}
+                              themeColor={themeColor}
+                              resolvedTheme={resolvedTheme}
+                              allFields={section.fields}
+                              isFirst={index === 0}
+                              isLast={index === section.fields.length - 1}
+                              selectedBlockId={selectedBlockId}
+                              onSelectBlock={onSelectBlock}
+                            />
+                          </SortableBlock>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </SortableContext>
               </DndContext>
 

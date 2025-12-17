@@ -860,6 +860,48 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     setHasUnsavedChanges(true)
   }
 
+  const handleMoveFieldToSection = (fieldId: string, targetSectionId: string) => {
+    setConfig(prev => {
+      // Find the field in all sections
+      let fieldToMove: Field | null = null
+      const sourceSectionId = prev.sections.find(section => {
+        const found = section.fields?.find(f => f.id === fieldId)
+        if (found) {
+          fieldToMove = found
+          return true
+        }
+        return false
+      })?.id
+
+      if (!fieldToMove || !sourceSectionId) return prev
+
+      // Remove from source section and add to target
+      const updatedSections = prev.sections.map(section => {
+        if (section.id === sourceSectionId) {
+          return {
+            ...section,
+            fields: (section.fields || []).filter(f => f.id !== fieldId)
+          }
+        }
+        if (section.id === targetSectionId) {
+          return {
+            ...section,
+            fields: [...(section.fields || []), fieldToMove!]
+          }
+        }
+        return section
+      })
+
+      return {
+        ...prev,
+        sections: updatedSections
+      }
+    })
+    
+    setHasUnsavedChanges(true)
+    setIsPublished(false)
+  }
+
   const handleDashboardSettingsChange = (updates: Partial<DashboardSettings>) => {
     setDashboardSettings(prev => ({ ...prev, ...updates }))
     // Also store in config settings for persistence
@@ -1242,6 +1284,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         logoUrl={config.settings.logoUrl}
                         roomId={formId || displaySection.id}
                         currentUser={currentUser || { id: workspaceId || 'anonymous', name: 'Anonymous User' }}
+                        allSections={config.sections}
+                        onMoveFieldToSection={handleMoveFieldToSection}
                       />
                     ) : (
                       <FormBuilder 
