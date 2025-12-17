@@ -1206,7 +1206,7 @@ function Block({
       data-block-id={field.id}
       className={cn(
         "relative group transition-all duration-200 rounded-lg",
-        isSelected && "bg-blue-50/50 ring-2 ring-blue-500 ring-offset-1",
+        isSelected && "bg-blue-50/50 ring-2 ring-blue-500",
         !isSelected && isHovered && "bg-gray-50/70",
       )}
       onMouseEnter={() => setIsHovered(true)}
