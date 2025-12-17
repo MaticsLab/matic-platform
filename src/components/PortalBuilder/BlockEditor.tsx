@@ -620,7 +620,7 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
   const [isHovered, setIsHovered] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const labelInputRef = useRef<HTMLInputElement | null>(null);
+  const labelInputRef = useRef<HTMLTextAreaElement | null>(null);
   const {
     attributes,
     listeners,
@@ -729,16 +729,22 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
           {/* Editable Label & Description */}
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <input
+              <textarea
                 ref={labelInputRef}
-                type="text"
                 value={field.label}
                 onChange={(e) => onUpdate({ label: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
                 onFocus={() => onSelect()}
-                className="flex-1 text-sm font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 text-gray-900"
+                className="flex-1 text-sm font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 text-gray-900 resize-none overflow-hidden"
                 placeholder="Field label..."
+                rows={1}
+                onInput={(e) => {
+                  const target = e.target as HTMLTextAreaElement;
+                  target.style.height = 'auto';
+                  target.style.height = target.scrollHeight + 'px';
+                }}
               />
+              {field.required && <span className="text-red-500 text-sm">*</span>}
             </div>
             {/* Description - show when selected, has value, or user clicks to add */}
             {(isSelected || field.description) ? (
@@ -1326,8 +1332,7 @@ function Block({
             {/* Editable Label & Description */}
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <input
-                  type="text"
+                <textarea
                   value={field.label}
                   onChange={(e) => {
                     const cursorPos = e.target.selectionStart;
@@ -1343,10 +1348,17 @@ function Block({
                     onSelect()
                   }}
                   onFocus={() => onSelect()}
-                  className="flex-1 text-sm font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0"
+                  className="flex-1 text-sm font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 resize-none overflow-hidden"
                   style={{ color: resolvedTheme?.questionsColor || '#111827' }}
                   placeholder="Field label..."
+                  rows={1}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = 'auto';
+                    target.style.height = target.scrollHeight + 'px';
+                  }}
                 />
+                {field.required && <span className="text-red-500 text-sm">*</span>}
               </div>
               {/* Description - show when selected, has value, or user clicks to add */}
               {(isSelected || field.description) ? (

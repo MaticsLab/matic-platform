@@ -217,9 +217,9 @@ export function TextRenderer(props: FieldRendererProps): React.ReactElement | nu
   if (mode === 'preview') {
     return (
       <div className={cn('space-y-2', className)}>
-        <Label className="text-gray-500">
+        <Label className="text-gray-500 flex items-center gap-1">
           {field.label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+          {required && <span className="text-red-500">*</span>}
         </Label>
         
         {isTextarea ? (
