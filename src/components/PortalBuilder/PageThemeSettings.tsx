@@ -47,13 +47,13 @@ export function PageThemeSettings({ pageType, settings, onUpdate, formId }: Page
       const fileName = `auth-images/${formId || 'default'}/${pageType}-${Date.now()}.${fileExt}`
 
       const { data, error } = await supabase.storage
-        .from('form-assets')
+        .from('workspace-assets')
         .upload(fileName, file, { upsert: true })
 
       if (error) throw error
 
       const { data: { publicUrl } } = supabase.storage
-        .from('form-assets')
+        .from('workspace-assets')
         .getPublicUrl(fileName)
 
       if (pageType === 'login') {
@@ -92,13 +92,13 @@ export function PageThemeSettings({ pageType, settings, onUpdate, formId }: Page
       const fileName = `logos/${formId || 'default'}/${pageType}-${Date.now()}.${fileExt}`
 
       const { data, error } = await supabase.storage
-        .from('form-assets')
+        .from('workspace-assets')
         .upload(fileName, file, { upsert: true })
 
       if (error) throw error
 
       const { data: { publicUrl } } = supabase.storage
-        .from('form-assets')
+        .from('workspace-assets')
         .getPublicUrl(fileName)
 
       if (pageType === 'login') {
