@@ -56,21 +56,6 @@ export function PresenceHeader({ className, onNavigateToUser }: PresenceHeaderPr
 
   return (
     <div className={cn("flex items-center gap-3", className)}>
-      {/* Connection status indicator */}
-      <div className="flex items-center gap-1.5">
-        <Circle 
-          className={cn(
-            "w-2 h-2 transition-colors",
-            isConnected 
-              ? "fill-green-500 text-green-500" 
-              : "fill-amber-500 text-amber-500 animate-pulse"
-          )} 
-        />
-        <span className="text-xs text-gray-500">
-          {isConnected ? 'Live' : 'Connecting...'}
-        </span>
-      </div>
-
       {/* User avatars */}
       {totalUsers > 0 && (
         <div className="flex items-center gap-2 px-2.5 py-1 bg-white border border-gray-200 rounded-full shadow-sm cursor-default">
