@@ -663,11 +663,11 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
         onSelect();
       }}
     >
-      {/* Drag handle - Left side outside card */}
+      {/* Drag handle - Left side inside card */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: isHovered ? 1 : 0 }}
-        className="absolute -left-8 top-2 flex flex-col gap-0.5 z-10"
+        className="absolute left-2 top-2 flex flex-col gap-0.5 z-10"
       >
         <button
           {...listeners}
@@ -724,7 +724,7 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
       </motion.div>
 
       {/* Content */}
-      <div className="py-3 px-2">
+      <div className="pt-10 pb-3 px-2">
         <div className="space-y-2">
           {/* Editable Label & Description */}
           <div className="space-y-1">
@@ -1318,7 +1318,7 @@ function Block({
       </motion.div>
 
       {/* Content */}
-      <div className="py-3 px-2">
+      <div className="pt-10 pb-3 px-2">
         {isLayoutField ? (
           renderInlineContent()
         ) : (
