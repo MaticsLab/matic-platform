@@ -1647,16 +1647,18 @@ function Block({
                   allFields={allFields}
                   disabled={true}
                 />
-                {/* Clickable overlay to capture clicks on the preview */}
-                <div 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onSelect();
-                  }}
-                  className="absolute inset-0 cursor-pointer"
-                  title="Click to select field"
-                />
+                {/* Clickable overlay - only show when NOT selected to avoid interfering with editing */}
+                {!isSelected && (
+                  <div 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onSelect();
+                    }}
+                    className="absolute inset-0 cursor-pointer"
+                    title="Click to select field"
+                  />
+                )}
               </div>
             )}
           </div>
