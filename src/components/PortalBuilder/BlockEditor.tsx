@@ -663,18 +663,19 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
         onSelect();
       }}
     >
-      {/* Drag handle - Left side */}
+      {/* Drag handle - Left side inside card */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: isHovered ? 1 : 0 }}
-        className="absolute -left-8 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10"
+        className="absolute left-2 top-2 flex items-center gap-0.5 z-10"
       >
         <button
           {...listeners}
-          className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
+          className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
           onClick={(e) => e.stopPropagation()}
+          title="Drag to reorder"
         >
-          <GripVertical className="w-4 h-4" />
+          <GripVertical className="w-3.5 h-3.5" />
         </button>
       </motion.div>
 
@@ -682,7 +683,7 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: (isHovered || isSelected) ? 1 : 0 }}
-        className="absolute top-3 right-3 flex items-center gap-1 z-10"
+        className="absolute top-2 right-2 flex items-center gap-1 z-10"
       >
         {!showDeleteConfirm ? (
           <>
@@ -691,10 +692,10 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
                 e.stopPropagation();
                 setShowDeleteConfirm(true);
               }}
-              className="p-1.5 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+              className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
               title="Delete field"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </>
         ) : (
@@ -727,7 +728,7 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
       {/* Editable label and field preview */}
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 pl-16">
             <input
               ref={labelInputRef}
               type="text"
@@ -744,14 +745,17 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
           <div className="w-12" /> {/* Spacer for action buttons */}
         </div>
 
-        <PortalFieldAdapter
-          field={{ ...field, label: '', description: '' }}
-          value={undefined}
-          onChange={() => {}}
-          themeColor={themeColor}
-          allFields={allFields}
-          disabled={true}
-        />
+        {/* Show field preview only if it doesn't have inline options editor */}
+        {!supportsInlineOptions && (
+          <PortalFieldAdapter
+            field={{ ...field, label: '', description: '' }}
+            value={undefined}
+            onChange={() => {}}
+            themeColor={themeColor}
+            allFields={allFields}
+            disabled={true}
+          />
+        )}
 
         {/* Inline options editor for select/multiselect/radio */}
         {supportsInlineOptions && (
@@ -1065,17 +1069,18 @@ function Block({
         onMouseLeave={() => setIsHovered(false)}
         onClick={(e) => { e.stopPropagation(); onSelect(); }}
       >
-        {/* Drag handle */}
+        {/* Drag handle - inside card on left */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: (isHovered || isSelected) ? 1 : 0 }}
-          className="absolute -left-14 top-4 flex flex-col gap-0.5 z-10"
+          className="absolute left-2 top-2 flex flex-col gap-0.5 z-10"
         >
           <button 
             {...dragListeners}
-            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing transition-colors"
+            className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
+            title="Drag to reorder"
           >
-            <GripVertical className="w-4 h-4" />
+            <GripVertical className="w-3.5 h-3.5" />
           </button>
         </motion.div>
 
@@ -1178,30 +1183,32 @@ function Block({
       }}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
     >
-      {/* Drag handle + Plus button - Left side */}
+      {/* Drag handle + Plus button - Left side inside card */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: (isHovered || isSelected) ? 1 : 0 }}
-        className="absolute -left-14 top-2 flex items-center gap-0.5 z-10"
+        className="absolute left-2 top-2 flex items-center gap-0.5 z-10"
       >
+        <button 
+          {...dragListeners}
+          className={cn(
+            "p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200",
+            isDragging && "cursor-grabbing bg-gray-100"
+          )}
+          title="Drag to reorder"
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </button>
         <button
           onClick={(e) => {
             e.stopPropagation();
             const rect = (e.target as HTMLElement).getBoundingClientRect();
             onOpenSlashMenu({ top: rect.bottom + 4, left: rect.left });
           }}
-          className="p-1.5 rounded-md hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors"
+          className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
+          title="Add field below"
         >
-          <Plus className="w-4 h-4" />
-        </button>
-        <button 
-          {...dragListeners}
-          className={cn(
-            "p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing transition-colors",
-            isDragging && "cursor-grabbing bg-gray-100"
-          )}
-        >
-          <GripVertical className="w-4 h-4" />
+          <Plus className="w-3.5 h-3.5" />
         </button>
       </motion.div>
 
