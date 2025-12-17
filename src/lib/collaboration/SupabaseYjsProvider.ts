@@ -100,7 +100,7 @@ export class SupabaseYjsProvider {
     this.channel = this.supabase.channel(`yjs:${this.roomId}`, {
       config: {
         broadcast: { self: true }, // Receive own broadcasts to sync across tabs
-        presence: { key: this.clientId }, // Use clientId to differentiate tabs
+        presence: { key: this.userId }, // Use userId as unique key
       },
     });
 
@@ -127,10 +127,9 @@ export class SupabaseYjsProvider {
         this.connected = true;
         
         // Track presence
-        console.log('[Collab] Tracking presence for:', this.userName, 'userId:', this.userId, 'clientId:', this.clientId);
+        console.log('[Collab] Tracking presence for:', this.userName, 'userId:', this.userId);
         await this.channel?.track({
           id: this.userId,
-          clientId: this.clientId, // Track both user and client ID
           name: this.userName,
           color: this.userColor,
           avatarUrl: this.userAvatarUrl,
@@ -258,13 +257,13 @@ export class SupabaseYjsProvider {
       event: 'yjs-update',
       payload: {
         update: base64Update,
-        sender: this.clientId, // Use clientId to identify this specific tab
+        sender: this.userId,
       },
     });
   };
 
   private handleRemoteUpdate = (payload: { update: string; sender: string }): void => {
-    if (payload.sender === this.clientId) return; // Filter by clientId, not userId
+    if (payload.sender === this.userId) return;
 
     console.log('[Collab] 📥 Received yjs-update from:', payload.sender);
 
@@ -315,19 +314,18 @@ export class SupabaseYjsProvider {
   // Store remote user states since we're using broadcast, not native Yjs awareness sync
   private remoteUsers: Map<string, UserPresence> = new Map();
   
-  private handleRemoteAwareness = (payload: { state: any; clientId: string }): void => {
-    // Filter by clientId instead of awareness clientID (which uses numbers)
-    if (payload.clientId === this.clientId) return;
+  private handleRemoteAwareness = (payload: { state: any; userId: string }): void => {
+    // Filter out our own awareness updates
+    if (payload.userId === this.userId) return;
     
     // Store/update the remote user's state with all awareness fields
-    // Use clientId as the key to support same user in multiple tabs
-    if (payload.state && payload.clientId) {
-      const existingUser = this.remoteUsers.get(payload.clientId);
+    if (payload.state && payload.userId) {
+      const existingUser = this.remoteUsers.get(payload.userId);
       // Merge with existing data to preserve any fields from presence
       const updatedUser: UserPresence = {
         ...existingUser,
         ...payload.state,
-        id: payload.state.id || payload.clientId, // Use userId from state, fallback to clientId
+        id: payload.userId,
         // Ensure these fields are always updated from awareness
         currentSection: payload.state.currentSection,
         currentSectionTitle: payload.state.currentSectionTitle,
@@ -336,7 +334,7 @@ export class SupabaseYjsProvider {
         isTyping: payload.state.isTyping,
       };
       console.log('[Collab] Remote awareness received:', updatedUser.name, 'section:', updatedUser.currentSection, 'block:', updatedUser.selectedBlockId);
-      this.remoteUsers.set(payload.clientId, updatedUser);
+      this.remoteUsers.set(payload.userId, updatedUser);
     }
     
     // Debounced notification to prevent loops
@@ -354,7 +352,7 @@ export class SupabaseYjsProvider {
       event: 'awareness-update',
       payload: {
         state: localState,
-        clientId: this.clientId, // Include clientId to identify this tab
+        userId: this.userId,
       },
     });
   };
@@ -371,12 +369,10 @@ export class SupabaseYjsProvider {
     const now = Date.now();
     const staleThreshold = 60000; // 60 seconds - consider presence stale after this
     
-    Object.entries(presenceState).forEach(([presenceKey, presences]) => {
-      // Each presence key can have multiple presence objects (multiple tabs)
+    Object.entries(presenceState).forEach(([userId, presences]) => {
       // Supabase presence returns objects with our tracked data plus presence_ref
       const presenceArray = presences as unknown as Array<{
         id: string;
-        clientId?: string;
         name: string;
         color: string;
         avatarUrl?: string;
@@ -384,62 +380,49 @@ export class SupabaseYjsProvider {
         presence_ref: string;
       }>;
       
-      // When there are duplicates, only keep the most recent one
-      if (presenceArray.length > 1) {
-        console.log('[Collab] Multiple presence entries for same key:', presenceArray.length, presenceArray.map(p => ({ name: p.name, clientId: p.clientId, online_at: p.online_at })));
-        presenceArray.sort((a, b) => {
-          const timeA = new Date(a.online_at).getTime();
-          const timeB = new Date(b.online_at).getTime();
-          return timeB - timeA; // Sort descending (most recent first)
-        });
+      // Only process if not self
+      if (userId === this.userId) {
+        console.log('[Collab] Skipping self presence');
+        return;
       }
       
-      // Only process the first (most recent) entry
-      const presence = presenceArray[0];
+      // Take the most recent presence if there are duplicates
+      const presence = presenceArray.length > 1
+        ? presenceArray.sort((a, b) => 
+            new Date(b.online_at).getTime() - new Date(a.online_at).getTime()
+          )[0]
+        : presenceArray[0];
       
-      // Use presenceKey as clientId if not in the data (Supabase uses key as identifier)
-      const effectiveClientId = presence.clientId || presenceKey;
+      if (!presence) return;
       
-      console.log('[Collab] Processing presence entry:', { 
-        name: presence?.name, 
-        clientId: effectiveClientId,
-        myClientId: this.clientId,
-        isSelf: effectiveClientId === this.clientId,
-        hasData: !!presence
-      });
+      // Check if presence is stale
+      const onlineAt = new Date(presence.online_at).getTime();
+      const age = now - onlineAt;
       
-      if (presence && effectiveClientId && effectiveClientId !== this.clientId) {
-        // Check if presence is stale
-        const onlineAt = new Date(presence.online_at).getTime();
-        const age = now - onlineAt;
-        
-        if (age > staleThreshold) {
-          console.log('[Collab] Skipping stale presence:', presence.name, 'age:', Math.round(age / 1000) + 's');
-          return;
-        }
-        
-        currentRemoteUserIds.add(effectiveClientId);
-        console.log('[Collab] ✅ Added remote user from presence:', presence.name, 'userId:', presence.id, 'clientId:', effectiveClientId);
-        // Only add if not already in remoteUsers (preserve cursor/selection data)
-        if (!this.remoteUsers.has(effectiveClientId)) {
-          this.remoteUsers.set(effectiveClientId, {
-            id: presence.id, // Keep userId for display
-            name: presence.name,
-            color: presence.color,
-            avatarUrl: presence.avatarUrl,
-          });
-        }
-      } else {
-        const reason = !presence ? 'no presence' : !effectiveClientId ? 'no clientId' : 'is self';
-        console.log('[Collab] Skipped presence entry - reason:', reason);
+      if (age > staleThreshold) {
+        console.log('[Collab] Skipping stale presence:', presence.name, 'age:', Math.round(age / 1000) + 's');
+        return;
+      }
+      
+      currentRemoteUserIds.add(userId);
+      console.log('[Collab] ✅ Added remote user from presence:', presence.name, 'userId:', userId);
+      
+      // Update or add user (preserve cursor/selection data from awareness)
+      if (!this.remoteUsers.has(userId)) {
+        this.remoteUsers.set(userId, {
+          id: userId,
+          name: presence.name,
+          color: presence.color,
+          avatarUrl: presence.avatarUrl,
+        });
       }
     });
     
     // Remove users who are no longer in presence
-    this.remoteUsers.forEach((_, clientId) => {
-      if (!currentRemoteUserIds.has(clientId)) {
-        console.log('[Collab] Removing disconnected user:', clientId);
-        this.remoteUsers.delete(clientId);
+    this.remoteUsers.forEach((_, userId) => {
+      if (!currentRemoteUserIds.has(userId)) {
+        console.log('[Collab] Removing disconnected user:', userId);
+        this.remoteUsers.delete(userId);
       }
     });
     
