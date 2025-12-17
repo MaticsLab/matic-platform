@@ -1529,11 +1529,11 @@ function Block({
       </motion.div>
 
       {/* Content */}
-      <div className="pt-10 pb-3 px-2" onClick={(e) => e.stopPropagation()}>
+      <div className="pt-10 pb-3 px-2">
         {isLayoutField ? (
           renderInlineContent()
         ) : (
-          <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+          <div className="space-y-2">
             {/* Editable Label & Description */}
             <div className="space-y-1">
               <div className="flex items-center gap-2">
