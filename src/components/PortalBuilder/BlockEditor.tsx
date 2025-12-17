@@ -726,9 +726,9 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
       </motion.div>
 
       {/* Editable label and field preview */}
-      <div className="space-y-2">
+      <div className="space-y-2 pt-8">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0 pl-16">
+          <div className="flex-1 min-w-0">
             <input
               ref={labelInputRef}
               type="text"
@@ -1085,7 +1085,7 @@ function Block({
         </motion.div>
 
         {/* Content */}
-        <div className="p-5 pl-14">
+        <div className="p-5 pt-10">
           {/* Header */}
           <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-gray-200">
             <div className={cn(
@@ -1667,13 +1667,18 @@ export function BlockEditor({
           style={{ color: resolvedTheme.primaryColor }}
           placeholder="Untitled Section"
         />
-        <input
-          type="text"
+        <textarea
           value={section.description || ''}
           onChange={(e) => onUpdate({ description: e.target.value })}
-          className="w-full bg-transparent border-none outline-none mt-3 placeholder:text-gray-300 focus:placeholder:text-gray-400 transition-colors"
+          className="w-full bg-transparent border-none outline-none mt-3 placeholder:text-gray-300 focus:placeholder:text-gray-400 transition-colors resize-none overflow-hidden"
           style={{ color: resolvedTheme.answersColor }}
           placeholder="Add a description to help applicants..."
+          rows={1}
+          onInput={(e) => {
+            const target = e.target as HTMLTextAreaElement;
+            target.style.height = 'auto';
+            target.style.height = target.scrollHeight + 'px';
+          }}
         />
       </div>
 
