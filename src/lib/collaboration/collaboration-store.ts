@@ -139,12 +139,23 @@ export const useCollaborationStore = create<CollaborationStore>()(
       provider.onSync = () => get()._setSynced(true);
       provider.onAwarenessUpdate = (users) => {
         const currentUserId = get().currentUser?.id;
-        const others = users
+        
+        // Deduplicate users by userId (in case same user has multiple tabs open)
+        const userMap = new Map<string, Collaborator>();
+        users
           .filter(u => u.id !== currentUserId)
-          .map(u => ({
-            ...u,
-            lastActivity: Date.now(),
-          }));
+          .forEach(u => {
+            const existing = userMap.get(u.id);
+            // Keep the most recently active user instance (or first if timestamps are equal)
+            if (!existing || (u.lastActivity && (!existing.lastActivity || u.lastActivity > existing.lastActivity))) {
+              userMap.set(u.id, {
+                ...u,
+                lastActivity: Date.now(),
+              });
+            }
+          });
+        
+        const others = Array.from(userMap.values());
         get()._setCollaborators(others);
       };
 

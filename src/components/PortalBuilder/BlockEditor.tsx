@@ -1250,25 +1250,26 @@ function Block({
     };
     
     return (
-      <motion.div
-        ref={(node) => {
-          // Combine refs for both block and droppable
-          (blockRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-          setDroppableRef(node);
-        }}
-        layout
-        className={cn(
-          "relative group rounded-xl border-2 border-dashed transition-all duration-200",
-          isSelected 
-            ? "border-blue-400 bg-blue-50/50 shadow-sm shadow-blue-100" 
-            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50/50",
-          // Highlight when a field is being dragged over this container
-          (isOver || isDropTarget) && "border-green-400 bg-green-50/50 ring-2 ring-green-200",
-        )}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        onClick={() => onSelect()}
-      >
+      <BlockCollaboratorRing blockId={field.id}>
+        <motion.div
+          ref={(node) => {
+            // Combine refs for both block and droppable
+            (blockRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+            setDroppableRef(node);
+          }}
+          layout
+          className={cn(
+            "relative group rounded-xl border-2 border-dashed transition-all duration-200",
+            isSelected 
+              ? "border-blue-400 bg-blue-50/50 shadow-sm shadow-blue-100" 
+              : "border-gray-200 hover:border-gray-300 hover:bg-gray-50/50",
+            // Highlight when a field is being dragged over this container
+            (isOver || isDropTarget) && "border-green-400 bg-green-50/50 ring-2 ring-green-200",
+          )}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          onClick={() => onSelect()}
+        >
         {/* Drag handle - inside card on left */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -1373,6 +1374,7 @@ function Block({
           )}
         </div>
       </motion.div>
+      </BlockCollaboratorRing>
     );
   }
 
@@ -1620,15 +1622,15 @@ function Block({
                           onUpdate={(newValue) => {
                             const newOptions = [...(field.options || [])];
                             newOptions[index] = newValue;
-                          onUpdate({ options: newOptions });
-                        }}
-                        onDelete={() => {
-                          const newOptions = (field.options || []).filter((_, i) => i !== index);
-                          onUpdate({ options: newOptions });
-                        }}
-                      />
-                    ))}
-                  </div>
+                            onUpdate({ options: newOptions });
+                          }}
+                          onDelete={() => {
+                            const newOptions = (field.options || []).filter((_, i) => i !== index);
+                            onUpdate({ options: newOptions });
+                          }}
+                        />
+                      ))}
+                    </div>
                 </SortableContext>
               </DndContext>
             )}
@@ -1647,7 +1649,7 @@ function Block({
           </div>
         )}
       </div>
-      </motion.div>
+    </motion.div>
     </BlockCollaboratorRing>
   );
 }
