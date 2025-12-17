@@ -1211,6 +1211,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   "transition-all duration-300 relative z-10",
                   activeSpecialPage === 'dashboard' 
                     ? "w-full h-full bg-gray-50" 
+                    : activeSpecialPage === 'signup'
+                    ? "w-full h-full" // Full width/height for signup page
                     : cn(
                         "bg-white shadow-xl border border-gray-200/80 rounded-2xl min-h-[800px]",
                         viewMode === 'mobile' ? "w-[375px]" : "w-full max-w-3xl"
