@@ -326,8 +326,59 @@ export function PageThemeSettings({ pageType, settings, onUpdate, formId }: Page
               )}
             </Button>
           )}
-          <p className="text-xs text-gray-500">Displayed on the right side in split-screen layout</p>
+          <p className="text-xs text-gray-500">Displayed on the side in split-screen layout</p>
         </div>
+
+        {/* Image Position */}
+        {currentImage && (
+          <div className="space-y-2">
+            <Label>Image Position</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  if (pageType === 'login') {
+                    onUpdate({ loginImagePosition: 'left' })
+                  } else {
+                    onUpdate({ signupImagePosition: 'left' })
+                  }
+                }}
+                className={cn(
+                  "flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all",
+                  (pageType === 'login' ? settings.loginImagePosition : settings.signupImagePosition) === 'left'
+                    ? "border-blue-500 bg-blue-50 text-blue-700"
+                    : "border-gray-200 hover:border-gray-300 text-gray-600"
+                )}
+              >
+                <div className="flex gap-1">
+                  <div className="w-3 h-4 bg-gray-400 rounded-sm" />
+                  <div className="w-5 h-4 bg-gray-300 rounded-sm" />
+                </div>
+                <span className="text-xs font-medium">Left</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (pageType === 'login') {
+                    onUpdate({ loginImagePosition: 'right' })
+                  } else {
+                    onUpdate({ signupImagePosition: 'right' })
+                  }
+                }}
+                className={cn(
+                  "flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all",
+                  (pageType === 'login' ? settings.loginImagePosition : settings.signupImagePosition) !== 'left'
+                    ? "border-blue-500 bg-blue-50 text-blue-700"
+                    : "border-gray-200 hover:border-gray-300 text-gray-600"
+                )}
+              >
+                <div className="flex gap-1">
+                  <div className="w-5 h-4 bg-gray-300 rounded-sm" />
+                  <div className="w-3 h-4 bg-gray-400 rounded-sm" />
+                </div>
+                <span className="text-xs font-medium">Right</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Theme Color */}
         <div className="space-y-2">

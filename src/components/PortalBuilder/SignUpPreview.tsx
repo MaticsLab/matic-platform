@@ -36,6 +36,7 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId, onUpdate
 
   const logo = settings.signupPageLogo || settings.logoUrl
   const backgroundImage = settings.signupPageImage
+  const imagePosition = settings.signupImagePosition || 'right'
 
   const handleUpdateSignupPage = (key: string, value: string) => {
     if (!onUpdateSettings) return
@@ -73,8 +74,22 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId, onUpdate
         </Popover>
       )}
 
-      {/* Left Side - Form */}
-      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-8 lg:p-16">
+      {/* Left Side - Background Image or Form */}
+      {backgroundImage && imagePosition === 'left' && (
+        <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
+          <img 
+            src={backgroundImage} 
+            alt="Background" 
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </div>
+      )}
+
+      {/* Center/Right Side - Form */}
+      <div className={cn(
+        "w-full flex flex-col items-center justify-center p-8 lg:p-16",
+        backgroundImage ? "lg:w-1/2" : "lg:w-full"
+      )}>
         <div className="w-full max-w-md space-y-8">
           {/* Logo */}
           {logo && (
@@ -220,8 +235,8 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId, onUpdate
       </div>
       </div>
 
-      {/* Right Side - Background Image */}
-      {backgroundImage && (
+      {/* Right Side - Background Image (only if position is right) */}
+      {backgroundImage && imagePosition === 'right' && (
         <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
           <img 
             src={backgroundImage} 

@@ -56,6 +56,8 @@ export type PortalConfig = {
     signupPageImage?: string             // Image for signup page split-screen
     loginPageLogo?: string               // Logo specific to login page
     signupPageLogo?: string              // Logo specific to signup page
+    loginImagePosition?: 'left' | 'right' // Position of background image on login page
+    signupImagePosition?: 'left' | 'right' // Position of background image on signup page
     font?: 'inter' | 'roboto' | 'serif' | 'mono'
     buttonStyle?: 'rounded' | 'pill' | 'sharp'
     authLayout?: 'split' | 'centered' | 'card'
