@@ -86,6 +86,8 @@ interface BlockEditorProps {
   allSections?: Section[];
   /** Callback to move a field to a different section */
   onMoveFieldToSection?: (fieldId: string, targetSectionId: string) => void;
+  /** Callback to open field settings panel */
+  onOpenSettings?: () => void;
 }
 
 interface BlockCommand {
@@ -637,6 +639,14 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
     zIndex: isDragging ? 50 : 'auto',
   };
 
+  // Auto-resize textarea when label changes
+  useEffect(() => {
+    if (labelInputRef.current) {
+      labelInputRef.current.style.height = 'auto';
+      labelInputRef.current.style.height = labelInputRef.current.scrollHeight + 'px';
+    }
+  }, [field.label]);
+
   // Check if field supports inline options editing
   const supportsInlineOptions = ['select', 'multiselect', 'radio'].includes(field.type);
   const options = (field.config?.options as Array<{ label: string; value: string }>) || [];
@@ -874,6 +884,8 @@ interface BlockProps {
   selectedBlockId?: string | null;
   /** Callback to select a block (for child fields) */
   onSelectBlock?: (id: string | null) => void;
+  /** Callback to open field settings panel */
+  onOpenSettings?: () => void;
 }
 
 function Block({
@@ -899,6 +911,7 @@ function Block({
   isDropTarget,
   selectedBlockId,
   onSelectBlock,
+  onOpenSettings,
 }: BlockProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -906,6 +919,7 @@ function Block({
   const [showMoveDropdown, setShowMoveDropdown] = useState(false);
   const blockRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const labelTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isLayoutField = ['heading', 'paragraph', 'divider', 'callout'].includes(field.type);
   const isContainerField = ['group', 'repeater'].includes(field.type);
@@ -916,6 +930,14 @@ function Block({
     disabled: !isContainerField,
     data: { type: 'container', fieldId: field.id }
   });
+
+  // Auto-resize textarea when label changes
+  useEffect(() => {
+    if (labelTextareaRef.current) {
+      labelTextareaRef.current.style.height = 'auto';
+      labelTextareaRef.current.style.height = labelTextareaRef.current.scrollHeight + 'px';
+    }
+  }, [field.label]);
 
   // Focus input when editing starts
   useEffect(() => {
@@ -1205,10 +1227,11 @@ function Block({
       layout
       data-block-id={field.id}
       className={cn(
-        "relative group transition-all duration-200 rounded-lg",
+        "relative group transition-all duration-200 rounded-lg cursor-pointer",
         isSelected && "bg-blue-50/50 ring-2 ring-blue-500",
         !isSelected && isHovered && "bg-gray-50/70",
       )}
+      onClick={() => onSelect()}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
         setIsHovered(false);
@@ -1302,7 +1325,7 @@ function Block({
         <button
           onClick={(e) => { 
             e.stopPropagation(); 
-            onSelect(); 
+            onOpenSettings?.(); 
           }}
           className="p-1.5 rounded-md hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
           title="Field settings"
@@ -1357,6 +1380,7 @@ function Block({
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <textarea
+                  ref={labelTextareaRef}
                   value={field.label}
                   onChange={(e) => {
                     const cursorPos = e.target.selectionStart;
@@ -1496,6 +1520,7 @@ export function BlockEditor({
   currentUser,
   allSections,
   onMoveFieldToSection,
+  onOpenSettings,
 }: BlockEditorProps) {
   // Resolve theme colors with defaults
   const resolvedTheme = {

@@ -122,6 +122,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
+  const [showFieldSettings, setShowFieldSettings] = useState(false)
   const [useBlockEditor, setUseBlockEditor] = useState(true) // Toggle for block editor vs FormBuilder
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatarUrl?: string } | null>(null)
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
@@ -1300,13 +1301,14 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             {/* Right Sidebar - Settings */}
             <div className={cn(
                "bg-white border-l border-gray-200 flex flex-col shadow-sm z-10 transition-all duration-300 ease-in-out",
-               (selectedFieldId || selectedBlockId || (displaySection?.sectionType === 'ending' && activeSectionId)) ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
+               (showFieldSettings && (selectedFieldId || selectedBlockId || (displaySection?.sectionType === 'ending' && activeSectionId))) ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
             )}>
                <div className="flex items-center justify-between p-4 border-b border-gray-100">
                   <span className="font-semibold text-sm">
                     {displaySection?.sectionType === 'ending' ? 'Ending Settings' : 'Field Settings'}
                   </span>
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => {
+                    setShowFieldSettings(false)
                     setSelectedFieldId(null)
                     setSelectedBlockId(null)
                   }}>
@@ -1403,7 +1405,10 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         onUpdate={(fieldId: string, updates: Partial<Field>) => {
                           handleUpdateField(fieldId, updates)
                         }}
-                        onClose={() => setSelectedBlockId(null)}
+                        onClose={() => {
+                          setShowFieldSettings(false)
+                          setSelectedBlockId(null)
+                        }}
                         allFields={getAllFields()}
                       />
                    )}
