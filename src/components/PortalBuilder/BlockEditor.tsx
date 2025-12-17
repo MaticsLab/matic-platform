@@ -647,7 +647,7 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
       style={style} 
       {...attributes}
       className={cn(
-        "relative p-4 bg-white rounded-lg border-2 transition-all cursor-pointer",
+        "relative bg-white rounded-lg border-2 transition-all cursor-pointer",
         isDragging ? "border-blue-300 shadow-md" : "border-gray-200",
         isHovered && !isDragging && "border-gray-300 bg-gray-50/50",
         isSelected && "ring-2 ring-blue-500 border-blue-300 bg-blue-50/30"
@@ -663,11 +663,11 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
         onSelect();
       }}
     >
-      {/* Drag handle - Left side inside card */}
+      {/* Drag handle - Left side outside card */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: isHovered ? 1 : 0 }}
-        className="absolute left-2 top-2 flex items-center gap-0.5 z-10"
+        className="absolute -left-8 top-2 flex flex-col gap-0.5 z-10"
       >
         <button
           {...listeners}
@@ -685,28 +685,15 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
         animate={{ opacity: (isHovered || isSelected) ? 1 : 0 }}
         className="absolute top-2 right-2 flex items-center gap-1 z-10"
       >
-        {!showDeleteConfirm ? (
-          <>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowDeleteConfirm(true);
-              }}
-              className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
-              title="Delete field"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </>
-        ) : (
-          <div className="flex items-center gap-1 bg-white rounded-md shadow-sm border border-gray-200 px-2 py-1">
-            <span className="text-xs text-gray-600 mr-1">Delete?</span>
+        {showDeleteConfirm ? (
+          <div className="flex items-center gap-1 bg-white rounded-md shadow-lg border border-red-200 p-1">
+            <span className="text-xs text-gray-700 px-1.5">Delete?</span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete();
               }}
-              className="p-1 rounded hover:bg-red-50 text-red-500"
+              className="p-1 rounded hover:bg-red-100 text-red-600 transition-colors"
               title="Confirm delete"
             >
               <Check className="w-3.5 h-3.5" />
@@ -716,95 +703,121 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
                 e.stopPropagation();
                 setShowDeleteConfirm(false);
               }}
-              className="p-1 rounded hover:bg-gray-100 text-gray-500"
+              className="p-1 rounded hover:bg-gray-100 text-gray-500 transition-colors"
               title="Cancel"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDeleteConfirm(true);
+            }}
+            className="p-1.5 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
+            title="Delete field"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
         )}
       </motion.div>
 
-      {/* Editable label and field preview */}
-      <div className="space-y-2 pt-8">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <input
-              ref={labelInputRef}
-              type="text"
-              value={field.label}
-              onChange={(e) => onUpdate({ label: e.target.value })}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full text-sm font-medium text-gray-900 bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0"
-              placeholder="Field label..."
+      {/* Content */}
+      <div className="py-3 px-2">
+        <div className="space-y-2">
+          {/* Editable Label & Description */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <input
+                ref={labelInputRef}
+                type="text"
+                value={field.label}
+                onChange={(e) => onUpdate({ label: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                onFocus={() => onSelect()}
+                className="flex-1 text-sm font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 text-gray-900"
+                placeholder="Field label..."
+              />
+            </div>
+            {/* Description - show when selected, has value, or user clicks to add */}
+            {(isSelected || field.description) ? (
+              <input
+                type="text"
+                value={field.description || ''}
+                onChange={(e) => onUpdate({ description: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                onFocus={() => onSelect()}
+                className="w-full text-xs bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 text-gray-500"
+                placeholder="Add a description (help text shown below field)..."
+              />
+            ) : null}
+          </div>
+
+          {/* Show field preview only if it doesn't have inline options editor */}
+          {!supportsInlineOptions && (
+            <PortalFieldAdapter
+              field={{ ...field, label: '', description: '' }}
+              value={undefined}
+              onChange={() => {}}
+              themeColor={themeColor}
+              allFields={allFields}
+              disabled={true}
             />
-            {field.description && (
-              <p className="text-xs text-gray-500 mt-0.5">{field.description}</p>
-            )}
-          </div>
-          <div className="w-12" /> {/* Spacer for action buttons */}
+          )}
+
+          {/* Inline Options Editor for select/multiselect/radio fields */}
+          {isSelected && supportsInlineOptions && (
+            <div className="space-y-2 pt-2 border-t border-gray-100">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-500">Options</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newOptions = [...options, { label: `Option ${options.length + 1}`, value: `option-${Date.now()}` }];
+                    onUpdate({ config: { ...field.config, options: newOptions } });
+                  }}
+                  className="text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded transition-colors flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  Add
+                </button>
+              </div>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {options.map((option, idx) => (
+                  <div key={option.value} className="flex items-center gap-1.5 group">
+                    <GripVertical className="w-3 h-3 text-gray-300" />
+                    <input
+                      type="text"
+                      value={option.label}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        const newOptions = [...options];
+                        newOptions[idx] = { ...option, label: e.target.value };
+                        onUpdate({ config: { ...field.config, options: newOptions } });
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 h-7 px-2 text-xs bg-gray-50/50 border border-gray-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                      placeholder={`Option ${idx + 1}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const newOptions = options.filter((_, i) => i !== idx);
+                        onUpdate({ config: { ...field.config, options: newOptions } });
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-
-        {/* Show field preview only if it doesn't have inline options editor */}
-        {!supportsInlineOptions && (
-          <PortalFieldAdapter
-            field={{ ...field, label: '', description: '' }}
-            value={undefined}
-            onChange={() => {}}
-            themeColor={themeColor}
-            allFields={allFields}
-            disabled={true}
-          />
-        )}
-
-        {/* Inline options editor for select/multiselect/radio */}
-        {supportsInlineOptions && (
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-gray-700">Options</label>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const newOptions = [...options, { label: `Option ${options.length + 1}`, value: `option-${Date.now()}` }];
-                  onUpdate({ config: { ...field.config, options: newOptions } });
-                }}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-              >
-                + Add option
-              </button>
-            </div>
-            <div className="space-y-1.5">
-              {options.map((option, idx) => (
-                <div key={option.value} className="flex items-center gap-2 group/option">
-                  <GripVertical className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                  <input
-                    type="text"
-                    value={option.label}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      const newOptions = [...options];
-                      newOptions[idx] = { ...option, label: e.target.value };
-                      onUpdate({ config: { ...field.config, options: newOptions } });
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex-1 text-xs px-2 py-1.5 border border-gray-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                    placeholder={`Option ${idx + 1}`}
-                  />
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const newOptions = options.filter((_, i) => i !== idx);
-                      onUpdate({ config: { ...field.config, options: newOptions } });
-                    }}
-                    className="opacity-0 group-hover/option:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
