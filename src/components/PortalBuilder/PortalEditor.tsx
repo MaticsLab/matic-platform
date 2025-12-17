@@ -1144,7 +1144,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       setLeftSidebarTab('structure')
                     } else {
                       setLeftSidebarTab('theme')
-                      setThemePageType(activeSpecialPage === 'signup' ? 'signup' : activeSpecialPage === 'login' ? 'login' : 'sections')
+                      setThemePageType(activeSpecialPage === 'signup' ? 'signup' : 'sections')
                     }
                   }}
                   className="h-8 gap-1.5"
