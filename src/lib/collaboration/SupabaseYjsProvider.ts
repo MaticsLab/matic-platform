@@ -371,12 +371,12 @@ export class SupabaseYjsProvider {
     const now = Date.now();
     const staleThreshold = 60000; // 60 seconds - consider presence stale after this
     
-    Object.entries(presenceState).forEach(([_key, presences]) => {
+    Object.entries(presenceState).forEach(([presenceKey, presences]) => {
       // Each presence key can have multiple presence objects (multiple tabs)
       // Supabase presence returns objects with our tracked data plus presence_ref
       const presenceArray = presences as unknown as Array<{
         id: string;
-        clientId: string;
+        clientId?: string;
         name: string;
         color: string;
         avatarUrl?: string;
@@ -396,15 +396,19 @@ export class SupabaseYjsProvider {
       
       // Only process the first (most recent) entry
       const presence = presenceArray[0];
+      
+      // Use presenceKey as clientId if not in the data (Supabase uses key as identifier)
+      const effectiveClientId = presence.clientId || presenceKey;
+      
       console.log('[Collab] Processing presence entry:', { 
         name: presence?.name, 
-        clientId: presence?.clientId, 
+        clientId: effectiveClientId,
         myClientId: this.clientId,
-        isSelf: presence?.clientId === this.clientId,
-        hasClientId: !!presence?.clientId
+        isSelf: effectiveClientId === this.clientId,
+        hasData: !!presence
       });
       
-      if (presence && presence.clientId && presence.clientId !== this.clientId) {
+      if (presence && effectiveClientId && effectiveClientId !== this.clientId) {
         // Check if presence is stale
         const onlineAt = new Date(presence.online_at).getTime();
         const age = now - onlineAt;
@@ -414,11 +418,11 @@ export class SupabaseYjsProvider {
           return;
         }
         
-        currentRemoteUserIds.add(presence.clientId);
-        console.log('[Collab] ✅ Added remote user from presence:', presence.name, 'userId:', presence.id, 'clientId:', presence.clientId);
+        currentRemoteUserIds.add(effectiveClientId);
+        console.log('[Collab] ✅ Added remote user from presence:', presence.name, 'userId:', presence.id, 'clientId:', effectiveClientId);
         // Only add if not already in remoteUsers (preserve cursor/selection data)
-        if (!this.remoteUsers.has(presence.clientId)) {
-          this.remoteUsers.set(presence.clientId, {
+        if (!this.remoteUsers.has(effectiveClientId)) {
+          this.remoteUsers.set(effectiveClientId, {
             id: presence.id, // Keep userId for display
             name: presence.name,
             color: presence.color,
@@ -426,8 +430,10 @@ export class SupabaseYjsProvider {
           });
         }
       } else {
-        console.log('[Collab] Skipped presence entry - reason:', !presence ? 'no presence' : !presence.clientId ? 'no clientId' : 'is self');
+        const reason = !presence ? 'no presence' : !effectiveClientId ? 'no clientId' : 'is self';
+        console.log('[Collab] Skipped presence entry - reason:', reason);
       }
+    });
     });
     
     // Remove users who are no longer in presence
