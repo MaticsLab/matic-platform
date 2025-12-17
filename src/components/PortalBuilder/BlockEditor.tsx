@@ -105,39 +105,39 @@ interface BlockCommand {
 
 const BLOCK_COMMANDS: BlockCommand[] = [
   // Basic
-  { id: 'text', label: 'Text', description: 'Plain text input', icon: <Type className="w-4 h-4" />, fieldType: 'text', category: 'Basic', keywords: ['short', 'input', 'field'] },
-  { id: 'textarea', label: 'Long Text', description: 'Multi-line text area', icon: <AlignLeft className="w-4 h-4" />, fieldType: 'textarea', category: 'Basic', keywords: ['paragraph', 'multiline'] },
+  { id: 'text', label: 'Text Input', description: 'Single line text field', icon: <Type className="w-4 h-4" />, fieldType: 'text', category: 'Basic', keywords: ['short', 'input', 'field'] },
+  { id: 'textarea', label: 'Text Area', description: 'Multi-line text field', icon: <AlignLeft className="w-4 h-4" />, fieldType: 'textarea', category: 'Basic', keywords: ['paragraph', 'multiline'] },
   { id: 'number', label: 'Number', description: 'Numeric input', icon: <Hash className="w-4 h-4" />, fieldType: 'number', category: 'Basic', keywords: ['integer', 'decimal'] },
-  { id: 'email', label: 'Email', description: 'Email address', icon: <Mail className="w-4 h-4" />, fieldType: 'email', category: 'Basic' },
-  { id: 'phone', label: 'Phone', description: 'Phone number', icon: <Phone className="w-4 h-4" />, fieldType: 'phone', category: 'Basic', keywords: ['telephone', 'mobile'] },
-  { id: 'url', label: 'URL', description: 'Website link', icon: <Link className="w-4 h-4" />, fieldType: 'url', category: 'Basic', keywords: ['link', 'website'] },
+  { id: 'email', label: 'Email', description: 'Email with validation', icon: <Mail className="w-4 h-4" />, fieldType: 'email', category: 'Basic' },
+  { id: 'phone', label: 'Phone', description: 'Phone number field', icon: <Phone className="w-4 h-4" />, fieldType: 'phone', category: 'Basic', keywords: ['telephone', 'mobile'] },
+  { id: 'url', label: 'URL', description: 'Website URL field', icon: <Link className="w-4 h-4" />, fieldType: 'url', category: 'Basic', keywords: ['link', 'website'] },
   
   // Selection
-  { id: 'select', label: 'Dropdown', description: 'Single choice dropdown', icon: <List className="w-4 h-4" />, fieldType: 'select', category: 'Selection', defaultConfig: { options: ['Option 1', 'Option 2', 'Option 3'] } },
-  { id: 'multiselect', label: 'Multi-Select', description: 'Multiple choices', icon: <CheckSquare className="w-4 h-4" />, fieldType: 'multiselect', category: 'Selection', defaultConfig: { options: ['Option 1', 'Option 2', 'Option 3'] } },
-  { id: 'radio', label: 'Radio', description: 'Radio buttons', icon: <ToggleLeft className="w-4 h-4" />, fieldType: 'radio', category: 'Selection', defaultConfig: { options: ['Option 1', 'Option 2'] } },
-  { id: 'checkbox', label: 'Checkbox', description: 'Yes/No checkbox', icon: <CheckSquare className="w-4 h-4" />, fieldType: 'checkbox', category: 'Selection' },
+  { id: 'select', label: 'Dropdown', description: 'Single option selection', icon: <List className="w-4 h-4" />, fieldType: 'select', category: 'Selection', defaultConfig: { options: ['Option 1', 'Option 2', 'Option 3'] } },
+  { id: 'multiselect', label: 'Multi-Select', description: 'Multiple option selection', icon: <CheckSquare className="w-4 h-4" />, fieldType: 'multiselect', category: 'Selection', defaultConfig: { options: ['Option 1', 'Option 2', 'Option 3'] } },
+  { id: 'radio', label: 'Single Choice', description: 'Radio button options', icon: <ToggleLeft className="w-4 h-4" />, fieldType: 'radio', category: 'Selection', defaultConfig: { options: ['Option 1', 'Option 2'] } },
+  { id: 'checkbox', label: 'Checkbox', description: 'True/false toggle', icon: <CheckSquare className="w-4 h-4" />, fieldType: 'checkbox', category: 'Selection' },
   
   // Date & Time
   { id: 'date', label: 'Date', description: 'Date picker', icon: <Calendar className="w-4 h-4" />, fieldType: 'date', category: 'Date & Time' },
   { id: 'time', label: 'Time', description: 'Time picker', icon: <Clock className="w-4 h-4" />, fieldType: 'time', category: 'Date & Time' },
-  { id: 'datetime', label: 'Date & Time', description: 'Date and time', icon: <Calendar className="w-4 h-4" />, fieldType: 'datetime', category: 'Date & Time' },
+  { id: 'datetime', label: 'Date & Time', description: 'Date and time picker', icon: <Calendar className="w-4 h-4" />, fieldType: 'datetime', category: 'Date & Time' },
   
   // Media
-  { id: 'file', label: 'File Upload', description: 'Upload files', icon: <Upload className="w-4 h-4" />, fieldType: 'file', category: 'Media', keywords: ['attachment', 'document'] },
-  { id: 'image', label: 'Image', description: 'Upload image', icon: <Image className="w-4 h-4" />, fieldType: 'image', category: 'Media', keywords: ['photo', 'picture'] },
+  { id: 'file', label: 'File Upload', description: 'File upload field', icon: <Upload className="w-4 h-4" />, fieldType: 'file', category: 'Media', keywords: ['attachment', 'document'] },
+  { id: 'image', label: 'Image Upload', description: 'Image upload field', icon: <Image className="w-4 h-4" />, fieldType: 'image', category: 'Media', keywords: ['photo', 'picture'] },
   
   // Layout
-  { id: 'heading', label: 'Heading', description: 'Section title', icon: <Heading className="w-4 h-4" />, fieldType: 'heading', category: 'Layout', keywords: ['title', 'h1', 'h2', 'h3'] },
-  { id: 'paragraph', label: 'Paragraph', description: 'Text content', icon: <FileText className="w-4 h-4" />, fieldType: 'paragraph', category: 'Layout', keywords: ['text', 'description'] },
-  { id: 'divider', label: 'Divider', description: 'Horizontal line', icon: <Minus className="w-4 h-4" />, fieldType: 'divider', category: 'Layout', keywords: ['separator', 'hr'] },
-  { id: 'callout', label: 'Callout', description: 'Highlighted info', icon: <AlertCircle className="w-4 h-4" />, fieldType: 'callout', category: 'Layout', keywords: ['info', 'warning', 'note'] },
+  { id: 'heading', label: 'Heading', description: 'Section heading', icon: <Heading className="w-4 h-4" />, fieldType: 'heading', category: 'Layout', keywords: ['title', 'h1', 'h2', 'h3'] },
+  { id: 'paragraph', label: 'Paragraph', description: 'Display text', icon: <FileText className="w-4 h-4" />, fieldType: 'paragraph', category: 'Layout', keywords: ['text', 'description'] },
+  { id: 'divider', label: 'Divider', description: 'Visual divider', icon: <Minus className="w-4 h-4" />, fieldType: 'divider', category: 'Layout', keywords: ['separator', 'hr'] },
+  { id: 'callout', label: 'Callout Box', description: 'Highlighted message', icon: <AlertCircle className="w-4 h-4" />, fieldType: 'callout', category: 'Layout', keywords: ['info', 'warning', 'note'] },
   
   // Advanced
-  { id: 'address', label: 'Address', description: 'Full address', icon: <MapPin className="w-4 h-4" />, fieldType: 'address', category: 'Advanced', keywords: ['location'] },
-  { id: 'rating', label: 'Rating', description: 'Star rating', icon: <Star className="w-4 h-4" />, fieldType: 'rating', category: 'Advanced', keywords: ['stars', 'score'] },
-  { id: 'group', label: 'Field Group', description: 'Group fields together', icon: <Layers className="w-4 h-4" />, fieldType: 'group', category: 'Advanced', defaultConfig: { columns: 2 } },
-  { id: 'repeater', label: 'Repeater', description: 'Repeating fields', icon: <Repeat className="w-4 h-4" />, fieldType: 'repeater', category: 'Advanced', defaultConfig: { minItems: 0, maxItems: 10 } },
+  { id: 'address', label: 'Address', description: 'Address with autocomplete', icon: <MapPin className="w-4 h-4" />, fieldType: 'address', category: 'Advanced', keywords: ['location'] },
+  { id: 'rating', label: 'Rating', description: 'Star rating (1-5)', icon: <Star className="w-4 h-4" />, fieldType: 'rating', category: 'Advanced', keywords: ['stars', 'score'] },
+  { id: 'group', label: 'Group', description: 'Field group', icon: <Layers className="w-4 h-4" />, fieldType: 'group', category: 'Advanced', defaultConfig: { columns: 2 } },
+  { id: 'repeater', label: 'Repeater', description: 'Repeatable section', icon: <Repeat className="w-4 h-4" />, fieldType: 'repeater', category: 'Advanced', defaultConfig: { minItems: 0, maxItems: 10 } },
 ];
 
 const CATEGORIES = ['Basic', 'Selection', 'Date & Time', 'Media', 'Layout', 'Advanced'];
@@ -777,6 +777,7 @@ function Block({
   const [isHovered, setIsHovered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showMoveDropdown, setShowMoveDropdown] = useState(false);
   const blockRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
@@ -1075,6 +1076,7 @@ function Block({
       onMouseLeave={() => {
         setIsHovered(false);
         setShowDeleteConfirm(false);
+        setShowMoveDropdown(false);
       }}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
     >
@@ -1112,35 +1114,51 @@ function Block({
         className="absolute top-2 right-2 flex items-center gap-1 z-10"
       >
         {allSections && allSections.length > 1 && onMoveToSection && (
-          <div className="relative group/move">
+          <div className="relative">
             <button
-              onClick={(e) => { e.stopPropagation(); }}
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                setShowMoveDropdown(!showMoveDropdown);
+              }}
               className="p-1.5 rounded-md hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
               title="Move to section"
             >
               <FolderInput className="w-3.5 h-3.5" />
             </button>
-            <div className="absolute right-0 top-full mt-1 hidden group-hover/move:block z-50">
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[160px]">
-                <div className="px-3 py-1.5 text-xs font-medium text-gray-500 border-b border-gray-100">
-                  Move to section
+            {showMoveDropdown && (
+              <>
+                {/* Click-outside overlay */}
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowMoveDropdown(false);
+                  }}
+                />
+                <div className="absolute right-0 top-full mt-1 z-50">
+                  <div className="bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[160px]">
+                    <div className="px-3 py-1.5 text-xs font-medium text-gray-500 border-b border-gray-100">
+                      Move to section
+                    </div>
+                    {allSections
+                      .filter(s => s.id !== currentSectionId && s.sectionType === 'form')
+                      .map((section) => (
+                        <button
+                          key={section.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onMoveToSection(section.id);
+                            setShowMoveDropdown(false);
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors text-gray-700"
+                        >
+                          {section.title}
+                        </button>
+                      ))}
+                  </div>
                 </div>
-                {allSections
-                  .filter(s => s.id !== currentSectionId && s.sectionType === 'form')
-                  .map((section) => (
-                    <button
-                      key={section.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onMoveToSection(section.id);
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors text-gray-700"
-                    >
-                      {section.title}
-                    </button>
-                  ))}
-              </div>
-            </div>
+              </>
+            )}
           </div>
         )}
         {showDeleteConfirm ? (
@@ -1237,6 +1255,58 @@ function Block({
                 />
               ) : null}
             </div>
+            
+            {/* Inline Options Editor for select/multiselect/radio fields */}
+            {isSelected && ['select', 'multiselect', 'radio'].includes(field.type) && (
+              <div className="space-y-2 pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-500">Options</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const currentOptions = field.options || [];
+                      onUpdate({ options: [...currentOptions, `Option ${currentOptions.length + 1}`] });
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add
+                  </button>
+                </div>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {(field.options || []).map((option: string, index: number) => (
+                    <div key={index} className="flex items-center gap-1.5 group">
+                      <GripVertical className="w-3 h-3 text-gray-300" />
+                      <input
+                        type="text"
+                        value={option}
+                        onChange={(e) => {
+                          const newOptions = [...(field.options || [])];
+                          newOptions[index] = e.target.value;
+                          onUpdate({ options: newOptions });
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 h-7 px-2 text-xs bg-gray-50/50 border border-gray-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        placeholder={`Option ${index + 1}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newOptions = (field.options || []).filter((_, i) => i !== index);
+                          onUpdate({ options: newOptions });
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             {/* Field Preview - pass empty label to avoid duplication */}
             <PortalFieldAdapter
               field={{ ...field, label: '', description: '' }}
