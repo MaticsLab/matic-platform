@@ -28,6 +28,7 @@ import { EndingPagesBuilder } from '@/components/EndingPages/EndingPagesBuilder'
 import { VisualDashboardBuilder } from '@/components/ApplicantDashboard/VisualDashboardBuilder'
 import { UnifiedSidebar } from './UnifiedSidebar'
 import { DashboardPreview } from './DashboardPreview'
+import { PageThemeSettings } from './PageThemeSettings'
 import type { DashboardSettings } from '@/types/dashboard'
 import { EndingBlocksToolbox } from './EndingBlocksToolbox'
 import { EndingBlockEditor } from './EndingBlockEditor'
@@ -128,6 +129,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
   const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
   const [leftSidebarTab, setLeftSidebarTab] = useState<'structure' | 'elements' | 'theme'>('structure')
+  const [themePageType, setThemePageType] = useState<'login' | 'signup' | 'sections'>('signup')
   const [shareTabKey, setShareTabKey] = useState(0)
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
     showStatus: true,
@@ -1130,13 +1132,51 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         <div className="flex-1 flex overflow-hidden">
             {/* Left Sidebar - Navigation */}
             <div className="w-[380px] min-w-[380px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 overflow-y-auto overflow-x-hidden">
-          <Tabs value={leftSidebarTab} onValueChange={(value) => setLeftSidebarTab(value as any)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <Tabs value={leftSidebarTab === 'theme' ? 'structure' : leftSidebarTab} onValueChange={(value) => setLeftSidebarTab(value as any)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100">
-              <TabsList className="w-full grid grid-cols-2 bg-gray-100 p-1 rounded-full h-auto">
-                <TabsTrigger value="structure" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Sections</TabsTrigger>
-                <TabsTrigger value="elements" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Fields</TabsTrigger>
-              </TabsList>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-gray-900">{leftSidebarTab === 'theme' ? 'Theme Settings' : 'Designer'}</h2>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (leftSidebarTab === 'theme') {
+                      setLeftSidebarTab('structure')
+                    } else {
+                      setLeftSidebarTab('theme')
+                      setThemePageType(activeSpecialPage === 'signup' ? 'signup' : activeSpecialPage === 'login' ? 'login' : 'sections')
+                    }
+                  }}
+                  className="h-8 gap-1.5"
+                >
+                  <Palette className="w-3.5 h-3.5" />
+                  {leftSidebarTab === 'theme' ? 'Back' : 'Theme'}
+                </Button>
+              </div>
+              {leftSidebarTab !== 'theme' && (
+                <TabsList className="w-full grid grid-cols-2 bg-gray-100 p-1 rounded-full h-auto">
+                  <TabsTrigger value="structure" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Sections</TabsTrigger>
+                  <TabsTrigger value="elements" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Fields</TabsTrigger>
+                </TabsList>
+              )}
             </div>
+
+            {leftSidebarTab === 'theme' && (
+              <div className="flex-1 overflow-y-auto">
+                <PageThemeSettings
+                  pageType={themePageType}
+                  settings={config.settings}
+                  onUpdate={(updates) => {
+                    setConfig(prev => ({
+                      ...prev,
+                      settings: { ...prev.settings, ...updates }
+                    }))
+                    setHasUnsavedChanges(true)
+                  }}
+                  formId={formId}
+                />
+              </div>
+            )}
 
             <TabsContent value="structure" className="flex-1 data-[state=active]:flex flex-col mt-0 min-h-0 overflow-hidden w-full">
               <UnifiedSidebar

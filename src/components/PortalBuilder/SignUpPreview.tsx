@@ -1,19 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowRight, Mail, Lock, Phone, Edit2, Palette } from 'lucide-react'
+import { ArrowRight, Mail, Lock, Phone, Edit2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Textarea } from '@/ui-components/textarea'
 import { Label } from '@/ui-components/label'
 import { Field, PortalConfig } from '@/types/portal'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/ui-components/popover'
-import { PageThemeSettings } from './PageThemeSettings'
 
 interface SignUpPreviewProps {
   config: PortalConfig
@@ -50,30 +44,6 @@ export function SignUpPreview({ config, onSelectField, selectedFieldId, onUpdate
 
   return (
     <div className="min-h-screen bg-white flex relative">
-      {/* Theme Button (Floating) */}
-      {onUpdateSettings && (
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="absolute top-4 left-4 z-50 shadow-lg bg-white"
-            >
-              <Palette className="w-4 h-4 mr-2" />
-              Theme
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-80 p-0" align="start">
-            <PageThemeSettings
-              pageType="signup"
-              settings={settings}
-              onUpdate={onUpdateSettings}
-              formId={formId}
-            />
-          </PopoverContent>
-        </Popover>
-      )}
-
       {/* Left Side - Background Image or Form */}
       {backgroundImage && imagePosition === 'left' && (
         <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
