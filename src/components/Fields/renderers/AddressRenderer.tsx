@@ -86,7 +86,7 @@ export function AddressRenderer(props: FieldRendererProps): React.ReactElement |
   if (mode === 'form') {
     return (
       <div className={cn('space-y-2', className)}>
-        <Label htmlFor={field.name}>
+        <Label>
           {field.label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </Label>

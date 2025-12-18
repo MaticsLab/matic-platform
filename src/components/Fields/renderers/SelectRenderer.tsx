@@ -330,7 +330,7 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
             disabled={disabled}
             required={required}
           >
-            <SelectTrigger className={cn(error && 'border-red-500')}>
+            <SelectTrigger id={field.name} className={cn(error && 'border-red-500')}>
               <SelectValue placeholder={placeholder || 'Select an option'} />
             </SelectTrigger>
             <SelectContent>

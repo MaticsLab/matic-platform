@@ -103,7 +103,7 @@ export function RollupRenderer(props: FieldRendererProps): React.ReactElement | 
   if (mode === 'form') {
     return (
       <div className={cn('space-y-2', className)}>
-        <Label htmlFor={field.name} className="flex items-center gap-1.5">
+        <Label className="flex items-center gap-1.5">
           <Calculator size={14} className="text-purple-500" />
           {field.label}
         </Label>

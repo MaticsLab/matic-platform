@@ -52,12 +52,16 @@ export type PortalConfig = {
     description?: string
     themeColor: string
     logoUrl: string
-    loginPageImage?: string              // Image for login page split-screen
-    signupPageImage?: string             // Image for signup page split-screen
+    loginPageImage?: string              // Image/video URL for login page split-screen
+    signupPageImage?: string             // Image/video URL for signup page split-screen
     loginPageLogo?: string               // Logo specific to login page
     signupPageLogo?: string              // Logo specific to signup page
-    loginImagePosition?: 'left' | 'right' // Position of background image on login page
-    signupImagePosition?: 'left' | 'right' // Position of background image on signup page
+    loginImagePosition?: 'left' | 'right' // Position of background media on login page
+    signupImagePosition?: 'left' | 'right' // Position of background media on signup page
+    loginImageFocalPoint?: string        // CSS object-position for login media (e.g., "50% center")
+    signupImageFocalPoint?: string       // CSS object-position for signup media (e.g., "50% center")
+    loginPageMediaType?: 'image' | 'video' // Type of media for login page
+    signupPageMediaType?: 'image' | 'video' // Type of media for signup page
     font?: 'inter' | 'roboto' | 'serif' | 'mono'
     buttonStyle?: 'rounded' | 'pill' | 'sharp'
     authLayout?: 'split' | 'centered' | 'card'

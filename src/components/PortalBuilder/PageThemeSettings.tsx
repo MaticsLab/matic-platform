@@ -23,31 +23,46 @@ export function PageThemeSettings({ pageType, settings, onUpdate, formId }: Page
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
   const [showPositionDialog, setShowPositionDialog] = useState(false)
   const [tempImagePosition, setTempImagePosition] = useState({ x: 50, y: 50 })
+  const [isDragging, setIsDragging] = useState(false)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
+  const imageContainerRef = useRef<HTMLDivElement>(null)
 
   const currentImage = pageType === 'login' ? settings.loginPageImage : pageType === 'signup' ? settings.signupPageImage : undefined
   const currentLogo = pageType === 'login' ? settings.loginPageLogo : pageType === 'signup' ? settings.signupPageLogo : settings.logoUrl
+  const currentMediaType = pageType === 'login' ? (settings as any).loginPageMediaType : (settings as any).signupPageMediaType
 
-  // Handle background image upload
+  // Detect if current media is a video
+  const isVideo = currentImage && (
+    currentImage.endsWith('.mp4') || 
+    currentImage.endsWith('.webm') || 
+    currentImage.endsWith('.mov') ||
+    currentMediaType === 'video'
+  )
+
+  // Handle background media upload (image, video, or GIF)
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please upload an image file')
+    const isImageFile = file.type.startsWith('image/')
+    const isVideoFile = file.type.startsWith('video/')
+
+    if (!isImageFile && !isVideoFile) {
+      toast.error('Please upload an image or video file')
       return
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be less than 5MB')
+    const maxSize = isVideoFile ? 50 * 1024 * 1024 : 10 * 1024 * 1024 // 50MB for video, 10MB for image
+    if (file.size > maxSize) {
+      toast.error(`File must be less than ${isVideoFile ? '50MB' : '10MB'}`)
       return
     }
 
     setIsUploadingImage(true)
     try {
       const fileExt = file.name.split('.').pop()
-      const fileName = `auth-images/${formId || 'default'}/${pageType}-${Date.now()}.${fileExt}`
+      const fileName = `auth-media/${formId || 'default'}/${pageType}-${Date.now()}.${fileExt}`
 
       const { data, error } = await supabase.storage
         .from('workspace-assets')
@@ -59,15 +74,23 @@ export function PageThemeSettings({ pageType, settings, onUpdate, formId }: Page
         .from('workspace-assets')
         .getPublicUrl(fileName)
 
+      const mediaType = isVideoFile ? 'video' : 'image'
+
       if (pageType === 'login') {
-        onUpdate({ loginPageImage: publicUrl })
+        onUpdate({ 
+          loginPageImage: publicUrl,
+          loginPageMediaType: mediaType
+        } as any)
       } else if (pageType === 'signup') {
-        onUpdate({ signupPageImage: publicUrl })
+        onUpdate({ 
+          signupPageImage: publicUrl,
+          signupPageMediaType: mediaType
+        } as any)
       }
-      toast.success('Background image uploaded successfully')
+      toast.success(`Background ${mediaType} uploaded successfully`)
     } catch (error: any) {
-      console.error('Image upload error:', error)
-      toast.error(error.message || 'Failed to upload image')
+      console.error('Media upload error:', error)
+      toast.error(error.message || 'Failed to upload media')
     } finally {
       setIsUploadingImage(false)
       if (imageInputRef.current) imageInputRef.current.value = ''
@@ -288,31 +311,75 @@ export function PageThemeSettings({ pageType, settings, onUpdate, formId }: Page
           <p className="text-xs text-gray-500">Logo shown in the {pageType} form</p>
         </div>
 
-        {/* Background Image Upload */}
+        {/* Background Media Upload */}
         <div className="space-y-2">
-          <Label>Background Image</Label>
+          <Label>Background Media</Label>
           <input
             ref={imageInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,video/*"
             onChange={handleImageUpload}
             className="hidden"
           />
           {currentImage ? (
             <div className="relative group">
               <div className="w-full h-48 border-2 border-dashed border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-                <img src={currentImage} alt="Background" className="w-full h-full object-cover" />
+                {isVideo ? (
+                  <video 
+                    src={currentImage} 
+                    className="w-full h-full object-cover" 
+                    autoPlay 
+                    loop 
+                    muted 
+                    playsInline
+                  />
+                ) : (
+                  <img src={currentImage} alt="Background" className="w-full h-full object-cover" />
+                )}
               </div>
               <button
                 onClick={() => {
-                  const currentPos = pageType === 'login' ? settings.loginImagePosition : settings.signupImagePosition
-                  setTempImagePosition({ x: 50, y: currentPos === 'left' ? 50 : 50 })
+                  // Load current focal point or default to center
+                  const currentFocalPoint = pageType === 'login' 
+                    ? (settings as any).loginImageFocalPoint 
+                    : (settings as any).signupImageFocalPoint
+                  
+                  if (currentFocalPoint) {
+                    // Parse focal point like "50% center" to extract x value
+                    const match = currentFocalPoint.match(/(\d+)%/)
+                    const x = match ? parseInt(match[1]) : 50
+                    setTempImagePosition({ x, y: 50 })
+                  } else {
+                    setTempImagePosition({ x: 50, y: 50 })
+                  }
+                  
                   setShowPositionDialog(true)
                 }}
                 className="absolute top-2 left-2 px-3 py-1.5 rounded-md bg-white border border-gray-200 shadow-sm text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50 flex items-center gap-1.5"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
                 <span className="text-xs font-medium">Position</span>
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (pageType === 'login') {
+                    onUpdate({ 
+                      loginPageImage: '',
+                      loginPageMediaType: undefined,
+                      loginImageFocalPoint: undefined
+                    } as any)
+                  } else {
+                    onUpdate({ 
+                      signupPageImage: '',
+                      signupPageMediaType: undefined,
+                      signupImageFocalPoint: undefined
+                    } as any)
+                  }
+                }}
+                className="absolute top-2 right-2 p-1.5 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
           ) : (
@@ -327,9 +394,9 @@ export function PageThemeSettings({ pageType, settings, onUpdate, formId }: Page
               ) : (
                 <div className="flex flex-col items-center gap-2 text-gray-500">
                   <ImageIcon className="w-8 h-8" />
-                  <span className="text-sm font-medium">Upload Background Image</span>
-                  <span className="text-xs text-gray-400">PNG, JPG up to 5MB</span>
-                  <span className="text-xs text-gray-400">Recommended: 1200x1600px</span>
+                  <span className="text-sm font-medium">Upload Background Media</span>
+                  <span className="text-xs text-gray-400">Image: PNG, JPG, GIF up to 10MB</span>
+                  <span className="text-xs text-gray-400">Video: MP4, WebM up to 50MB</span>
                 </div>
               )}
             </Button>
@@ -408,70 +475,175 @@ export function PageThemeSettings({ pageType, settings, onUpdate, formId }: Page
 
       {/* Image Position Dialog */}
       <Dialog open={showPositionDialog} onOpenChange={setShowPositionDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Maximize2 className="w-4 h-4" />
-              Change image position
+              Adjust media position
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-gray-500">Drag to reposition image</p>
+            <p className="text-sm text-gray-600">
+              Drag the frame to select which part of the {isVideo ? 'video' : 'image'} will be shown on the login page
+            </p>
             <div 
-              className="relative w-full h-96 bg-gray-100 rounded-lg overflow-hidden cursor-move"
-              onMouseDown={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect()
-                const handleMouseMove = (moveEvent: MouseEvent) => {
-                  const x = ((moveEvent.clientX - rect.left) / rect.width) * 100
-                  const y = ((moveEvent.clientY - rect.top) / rect.height) * 100
-                  setTempImagePosition({
-                    x: Math.max(0, Math.min(100, x)),
-                    y: Math.max(0, Math.min(100, y))
-                  })
-                }
-                const handleMouseUp = () => {
-                  document.removeEventListener('mousemove', handleMouseMove)
-                  document.removeEventListener('mouseup', handleMouseUp)
-                }
-                document.addEventListener('mousemove', handleMouseMove)
-                document.addEventListener('mouseup', handleMouseUp)
-              }}
+              ref={imageContainerRef}
+              className="relative w-full aspect-video bg-gray-900 rounded-lg overflow-hidden select-none"
             >
               {currentImage && (
-                <img 
-                  src={currentImage} 
-                  alt="Background" 
-                  className="w-full h-full object-cover"
-                  style={{
-                    objectPosition: `${tempImagePosition.x}% ${tempImagePosition.y}%`
-                  }}
-                  draggable={false}
-                />
+                <>
+                  {/* Full background media */}
+                  {isVideo ? (
+                    <video 
+                      src={currentImage} 
+                      className="w-full h-full object-cover opacity-50"
+                      autoPlay 
+                      loop 
+                      muted 
+                      playsInline
+                    />
+                  ) : (
+                    <img 
+                      src={currentImage} 
+                      alt="Background" 
+                      className="w-full h-full object-cover opacity-50"
+                      draggable={false}
+                    />
+                  )}
+                  
+                  {/* Highlighted crop area (simulates what will be visible on split screen) */}
+                  <div 
+                    className="absolute inset-0 flex items-center"
+                    style={{
+                      left: `${tempImagePosition.x}%`,
+                      transform: 'translateX(-50%)'
+                    }}
+                  >
+                    <div className="relative w-1/2 h-full overflow-hidden">
+                      {isVideo ? (
+                        <video 
+                          src={currentImage} 
+                          className="absolute h-full object-cover"
+                          style={{
+                            width: '200%',
+                            left: `${50 - tempImagePosition.x}%`,
+                            objectPosition: `center ${tempImagePosition.y}%`
+                          }}
+                          autoPlay 
+                          loop 
+                          muted 
+                          playsInline
+                        />
+                      ) : (
+                        <img 
+                          src={currentImage} 
+                          alt="Cropped preview" 
+                          className="absolute h-full object-cover"
+                          style={{
+                            width: '200%',
+                            left: `${50 - tempImagePosition.x}%`,
+                            objectPosition: `center ${tempImagePosition.y}%`
+                          }}
+                          draggable={false}
+                        />
+                      )}
+                      <div className="absolute inset-0 border-4 border-white shadow-2xl pointer-events-none" />
+                      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-md text-xs font-medium text-gray-900">
+                        Visible area
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Draggable handle */}
+                  <div
+                    className={cn(
+                      "absolute top-1/2 w-12 h-12 -mt-6 -ml-6 cursor-grab active:cursor-grabbing",
+                      "bg-white rounded-full shadow-xl border-4 border-blue-500",
+                      "flex items-center justify-center transition-transform hover:scale-110",
+                      isDragging && "scale-110 cursor-grabbing"
+                    )}
+                    style={{
+                      left: `${tempImagePosition.x}%`,
+                    }}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      setIsDragging(true)
+                      const container = imageContainerRef.current
+                      if (!container) return
+
+                      const rect = container.getBoundingClientRect()
+                      
+                      const handleMouseMove = (moveEvent: MouseEvent) => {
+                        const x = ((moveEvent.clientX - rect.left) / rect.width) * 100
+                        const clampedX = Math.max(25, Math.min(75, x)) // Keep within bounds so half-width view stays visible
+                        setTempImagePosition(prev => ({
+                          ...prev,
+                          x: clampedX
+                        }))
+                      }
+                      
+                      const handleMouseUp = () => {
+                        setIsDragging(false)
+                        document.removeEventListener('mousemove', handleMouseMove)
+                        document.removeEventListener('mouseup', handleMouseUp)
+                      }
+                      
+                      document.addEventListener('mousemove', handleMouseMove)
+                      document.addEventListener('mouseup', handleMouseUp)
+                    }}
+                  >
+                    <div className="flex gap-0.5">
+                      <div className="w-0.5 h-4 bg-blue-500 rounded-full" />
+                      <div className="w-0.5 h-4 bg-blue-500 rounded-full" />
+                    </div>
+                  </div>
+
+                  {/* Center reference line */}
+                  <div className="absolute inset-y-0 left-1/2 w-0.5 bg-white/30 pointer-events-none" />
+                </>
               )}
-              <div 
-                className="absolute w-32 h-48 border-2 border-dashed border-white/80 pointer-events-none"
-                style={{
-                  left: '50%',
-                  top: '50%',
-                  transform: 'translate(-50%, -50%)'
-                }}
-              />
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowPositionDialog(false)}>
+
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-500">
+                Current position: {tempImagePosition.x.toFixed(0)}%
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setTempImagePosition({ x: 50, y: 50 })}
+                >
+                  Reset to Center
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button variant="outline" onClick={() => {
+                setShowPositionDialog(false)
+                setTempImagePosition({ x: 50, y: 50 })
+              }}>
                 Cancel
               </Button>
               <Button onClick={() => {
-                // Save position based on x coordinate - left if < 50, right if >= 50
-                const position = tempImagePosition.x < 50 ? 'left' : 'right'
+                // Convert x position to object-position percentage
+                const objectPosition = `${tempImagePosition.x}% center`
+                
                 if (pageType === 'login') {
-                  onUpdate({ loginImagePosition: position })
+                  onUpdate({ 
+                    loginImagePosition: tempImagePosition.x < 50 ? 'left' : 'right',
+                    loginImageFocalPoint: objectPosition
+                  } as any)
                 } else {
-                  onUpdate({ signupImagePosition: position })
+                  onUpdate({ 
+                    signupImagePosition: tempImagePosition.x < 50 ? 'left' : 'right',
+                    signupImageFocalPoint: objectPosition
+                  } as any)
                 }
                 setShowPositionDialog(false)
               }}>
-                Done
+                Apply Position
               </Button>
             </div>
           </div>

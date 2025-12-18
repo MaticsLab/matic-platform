@@ -1,0 +1,335 @@
+'use client'
+
+import { useState } from 'react'
+import { ArrowRight, Mail, Lock } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/ui-components/button'
+import { Input } from '@/ui-components/input'
+import { Label } from '@/ui-components/label'
+import { Field, PortalConfig } from '@/types/portal'
+import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
+
+interface AuthPageRendererProps {
+  type: 'login' | 'signup'
+  config: PortalConfig
+  email?: string
+  password?: string
+  signupData?: Record<string, any>
+  onEmailChange?: (email: string) => void
+  onPasswordChange?: (password: string) => void
+  onSignupDataChange?: (data: Record<string, any>) => void
+  onSubmit?: (e: React.FormEvent) => void
+  isLoading?: boolean
+  onSelectField?: (fieldId: string) => void
+  selectedFieldId?: string | null
+  onUpdateSettings?: (updates: Partial<PortalConfig['settings']>) => void
+  onToggleMode?: () => void
+  isPreview?: boolean
+}
+
+export function AuthPageRenderer({
+  type,
+  config,
+  email = '',
+  password = '',
+  signupData = {},
+  onEmailChange,
+  onPasswordChange,
+  onSignupDataChange,
+  onSubmit,
+  isLoading = false,
+  onSelectField,
+  selectedFieldId,
+  onUpdateSettings,
+  onToggleMode,
+  isPreview = false
+}: AuthPageRendererProps) {
+  const { settings } = config
+  const [editingField, setEditingField] = useState<string | null>(null)
+  
+  const themeColor = settings.themeColor || '#3B82F6'
+  const isSignup = type === 'signup'
+  
+  // Page-specific settings
+  const pageSettings = isSignup ? settings.signupPage : undefined
+  const title = pageSettings?.title || settings.name || 'Application Portal'
+  const description = pageSettings?.description || (isSignup ? 'Please sign up to continue your application.' : 'Please log in to continue your application.')
+  const buttonText = pageSettings?.buttonText || (isSignup ? 'Create Account' : 'Log In')
+  
+  const logo = isSignup ? (settings.signupPageLogo || settings.logoUrl) : (settings.loginPageLogo || settings.logoUrl)
+  const backgroundImage = isSignup ? settings.signupPageImage : settings.loginPageImage
+  const imagePosition = isSignup ? (settings.signupImagePosition || 'right') : (settings.loginImagePosition || 'right')
+  const imageFocalPoint = isSignup ? (settings as any).signupImageFocalPoint : (settings as any).loginImageFocalPoint
+  const mediaType = isSignup ? (settings as any).signupPageMediaType : (settings as any).loginPageMediaType
+  
+  // Detect if it's a video based on file extension or media type
+  const isVideo = backgroundImage && (
+    backgroundImage.endsWith('.mp4') || 
+    backgroundImage.endsWith('.webm') || 
+    backgroundImage.endsWith('.mov') ||
+    mediaType === 'video'
+  )
+
+  const handleUpdatePageSettings = (key: string, value: string) => {
+    if (!onUpdateSettings || !isSignup) return
+    onUpdateSettings({
+      signupPage: {
+        ...pageSettings,
+        [key]: value
+      }
+    })
+  }
+
+  const handleFieldChange = (fieldId: string, value: unknown) => {
+    const newData = { ...signupData, [fieldId]: value }
+    onSignupDataChange?.(newData)
+    
+    // Special handling for email and password fields
+    if (type === 'signup') {
+      const field = settings.signupFields?.find(f => f.id === fieldId)
+      if (field?.type === 'email') {
+        onEmailChange?.(value as string)
+      }
+      if (field?.type === 'text' && field.label.toLowerCase().includes('password')) {
+        onPasswordChange?.(value as string)
+      }
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-white flex relative">
+      {/* Background Media - Left Side */}
+      {backgroundImage && imagePosition === 'left' && (
+        <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
+          {isVideo ? (
+            <video 
+              src={backgroundImage} 
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                objectPosition: imageFocalPoint || 'center center'
+              }}
+              autoPlay 
+              loop 
+              muted 
+              playsInline
+            />
+          ) : (
+            <img 
+              src={backgroundImage} 
+              alt="Background" 
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                objectPosition: imageFocalPoint || 'center center'
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Form Content */}
+      <div className={cn(
+        "w-full flex flex-col items-center justify-center p-8 lg:p-16",
+        backgroundImage ? "lg:w-1/2" : "lg:w-full"
+      )}>
+        <div className="w-full max-w-md space-y-8">
+          {/* Logo */}
+          {logo && (
+            <div className="flex items-center gap-3">
+              <img src={logo} alt="Logo" className="h-10 object-contain" />
+            </div>
+          )}
+          
+          {/* Title - Editable in preview mode */}
+          <div className="space-y-2">
+            {isPreview && editingField === 'title' ? (
+              <Input
+                value={title}
+                onChange={(e) => handleUpdatePageSettings('title', e.target.value)}
+                onBlur={() => setEditingField(null)}
+                onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+                autoFocus
+                className="text-2xl font-bold text-center border-blue-500"
+              />
+            ) : (
+              <h1 
+                className={cn(
+                  "text-2xl font-bold tracking-tight text-gray-900",
+                  isPreview && onUpdateSettings && "cursor-pointer hover:bg-blue-50 rounded px-2 py-1 transition-colors"
+                )}
+                onClick={() => isPreview && onUpdateSettings && setEditingField('title')}
+              >
+                {title}
+              </h1>
+            )}
+          </div>
+          
+          {/* Description - Editable in preview mode */}
+          {isPreview && editingField === 'description' ? (
+            <Input
+              value={description}
+              onChange={(e) => handleUpdatePageSettings('description', e.target.value)}
+              onBlur={() => setEditingField(null)}
+              onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+              autoFocus
+              className="text-sm text-center border-blue-500"
+            />
+          ) : (
+            <p 
+              className={cn(
+                "text-gray-500 text-sm",
+                isPreview && onUpdateSettings && "cursor-pointer hover:bg-blue-50 rounded px-2 py-1 transition-colors"
+              )}
+              onClick={() => isPreview && onUpdateSettings && setEditingField('description')}
+            >
+              {description}
+            </p>
+          )}
+
+          {/* Form Fields */}
+          <form onSubmit={onSubmit} className="space-y-4">
+            {type === 'login' ? (
+              // Login fields - always email + password
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email Address</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      placeholder="you@example.com" 
+                      className="pl-10"
+                      value={email}
+                      onChange={(e) => onEmailChange?.(e.target.value)}
+                      required
+                      disabled={isPreview}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input 
+                      id="password" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      className="pl-10"
+                      value={password}
+                      onChange={(e) => onPasswordChange?.(e.target.value)}
+                      required
+                      disabled={isPreview}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              // Signup fields - from portal config
+              (settings.signupFields || []).map((field) => (
+                <div
+                  key={field.id}
+                  onClick={() => isPreview && onSelectField?.(field.id)}
+                  className={cn(
+                    "rounded-lg transition-all",
+                    isPreview && "cursor-pointer",
+                    isPreview && selectedFieldId === field.id 
+                      ? "ring-2 ring-blue-500 ring-offset-2 p-2 -m-2" 
+                      : isPreview && "hover:bg-gray-50 p-2 -m-2"
+                  )}
+                >
+                  <PortalFieldAdapter
+                    field={field}
+                    value={signupData[field.id]}
+                    onChange={(value) => handleFieldChange(field.id, value)}
+                    formData={signupData}
+                    disabled={isPreview}
+                  />
+                </div>
+              ))
+            )}
+
+            {/* Submit Button - Editable text in preview mode */}
+            {isPreview && editingField === 'button' ? (
+              <Input
+                value={buttonText}
+                onChange={(e) => handleUpdatePageSettings('buttonText', e.target.value)}
+                onBlur={() => setEditingField(null)}
+                onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+                autoFocus
+                className="text-center border-blue-500"
+              />
+            ) : (
+              <Button 
+                type={isPreview ? "button" : "submit"}
+                className={cn(
+                  "w-full h-10 text-base font-medium transition-all",
+                  isPreview && onUpdateSettings && "cursor-pointer"
+                )}
+                style={{ backgroundColor: themeColor }}
+                disabled={isLoading}
+                onClick={(e) => {
+                  if (isPreview && onUpdateSettings) {
+                    e.preventDefault()
+                    setEditingField('button')
+                  }
+                }}
+              >
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <span className="flex items-center gap-2">
+                    {buttonText} 
+                    <ArrowRight className="w-4 h-4" />
+                  </span>
+                )}
+              </Button>
+            )}
+          </form>
+        </div>
+
+        {/* Toggle between login/signup */}
+        {onToggleMode && (
+          <p className="text-center mt-6 text-sm text-gray-500">
+            {type === 'login' ? "Don't have an account? " : "Already have an account? "}
+            <button 
+              onClick={onToggleMode}
+              className="font-medium text-gray-900 hover:underline underline-offset-4"
+              type="button"
+            >
+              {type === 'login' ? 'Sign up' : 'Log in'}
+            </button>
+          </p>
+        )}
+      </div>
+
+      {/* Background Media - Right Side */}
+      {backgroundImage && imagePosition === 'right' && (
+        <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
+          {isVideo ? (
+            <video 
+              src={backgroundImage} 
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                objectPosition: imageFocalPoint || 'center center'
+              }}
+              autoPlay 
+              loop 
+              muted 
+              playsInline
+            />
+          ) : (
+            <img 
+              src={backgroundImage} 
+              alt="Background" 
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                objectPosition: imageFocalPoint || 'center center'
+              }}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

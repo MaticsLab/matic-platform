@@ -184,7 +184,7 @@ export function RepeaterRenderer(props: FieldRendererProps): React.ReactElement 
     return (
       <div className={cn('space-y-3', className)}>
         <div className="flex items-center justify-between">
-          <Label htmlFor={field.name}>
+          <Label>
             {field.label}
             {required && <span className="text-red-500 ml-1">*</span>}
           </Label>

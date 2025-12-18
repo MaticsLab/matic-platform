@@ -395,6 +395,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
              setConfig({
                  sections: sections,
                  settings: {
+                     ...fullForm.settings, // Preserve all settings including images
                      name: fullForm.name,
                      description: fullForm.description || fullForm.settings?.description,
                      themeColor: fullForm.settings.themeColor || '#3B82F6',
@@ -452,6 +453,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
               setConfig({
                   sections: [defaultSection],
                   settings: {
+                     ...fullForm.settings, // Preserve all settings including images
                      name: fullForm.name,
                      description: fullForm.description || fullForm.settings?.description,
                      themeColor: fullForm.settings?.themeColor || '#3B82F6',

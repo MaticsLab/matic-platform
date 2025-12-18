@@ -9,6 +9,7 @@ import { Textarea } from '@/ui-components/textarea'
 import { Label } from '@/ui-components/label'
 import { DynamicApplicationForm } from './DynamicApplicationForm'
 import { ApplicantDashboard } from './ApplicantDashboard'
+import { AuthPageRenderer } from '@/components/Portal/AuthPageRenderer'
 import { Form } from '@/types/forms'
 import { Field, PortalConfig } from '@/types/portal'
 import { cn } from '@/lib/utils'
@@ -462,7 +463,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F7F5] flex flex-col items-center justify-center p-4 font-sans text-gray-900">
+    <>
       {/* Language Selector - Top Right */}
       {form?.settings?.language?.enabled && supportedLanguages.length > 1 && (
         <StandaloneLanguageSelector
@@ -473,135 +474,22 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         />
       )}
 
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
-      >
-        {/* Notion-like Header */}
-        <div className="mb-8 text-center space-y-4">
-          <div className="w-16 h-16 bg-white rounded-xl shadow-sm border border-gray-200 mx-auto flex items-center justify-center text-3xl">
-            🎓
-          </div>
-          {isFormLoading ? (
-            <div className="h-10 bg-gray-200 rounded-lg w-3/4 mx-auto animate-pulse" />
-          ) : (
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-              {translatedForm?.name || 'Application Portal'}
-            </h1>
-          )}
-          {isFormLoading ? (
-            <div className="h-6 bg-gray-200 rounded-lg w-1/2 mx-auto animate-pulse" />
-          ) : (
-            <p className="text-gray-500 text-lg">
-              {translatedForm?.description || (isLogin ? 'Please log in to continue your application.' : 'Please sign up to continue your application.')}
-            </p>
-          )}
-        </div>
-
-        {/* Auth Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 space-y-6">
-          <form onSubmit={handleAuth} className="space-y-4">
-            {/* Render login fields (always email + password) */}
-            {isLogin ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      placeholder="you@example.com" 
-                      className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input 
-                      id="password" 
-                      type="password" 
-                      placeholder="••••••••" 
-                      className="pl-10 bg-gray-50/50 border-gray-200 focus:bg-white transition-colors"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-              </>
-            ) : (
-              /* Render signup fields from portal config using unified field system */
-              (translatedForm?.settings?.signupFields || []).map((field: Field) => {
-                // Special handling for email field to capture it for auth
-                const handleChange = (value: unknown) => {
-                  setSignupData(prev => ({ ...prev, [field.id]: value }))
-                  // Capture email and password for auth
-                  if (field.type === 'email') {
-                    setEmail(value as string)
-                  }
-                  if (field.type === 'text' && field.label.toLowerCase().includes('password')) {
-                    setPassword(value as string)
-                  }
-                }
-
-                return (
-                  <div key={field.id}>
-                    <PortalFieldAdapter
-                      field={field}
-                      value={signupData[field.id]}
-                      onChange={handleChange}
-                      formData={signupData}
-                    />
-                  </div>
-                )
-              })
-            )}
-
-            <Button 
-              type="submit" 
-              className="w-full h-10 text-base font-medium bg-gray-900 hover:bg-gray-800 text-white transition-all"
-              disabled={isLoading || isFormLoading}
-            >
-              {isLoading ? (
-                <motion.div 
-                  animate={{ rotate: 360 }} 
-                  transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                  className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
-                />
-              ) : (
-                <span className="flex items-center gap-2">
-                  {isLogin ? 'Log In' : 'Create Account'} 
-                  <ArrowRight className="w-4 h-4" />
-                </span>
-              )}
-            </Button>
-          </form>
-        </div>
-
-        <p className="text-center mt-6 text-sm text-gray-500">
-          {isLogin ? "Don't have an account? " : "Already have an account? "}
-          <button 
-            onClick={() => setIsLogin(!isLogin)}
-            className="font-medium text-gray-900 hover:underline underline-offset-4"
-          >
-            {isLogin ? 'Sign up' : 'Log in'}
-          </button>
-        </p>
-      </motion.div>
-      
-      <div className="mt-12 flex items-center gap-2 text-sm text-gray-400">
-        <Sparkles className="w-4 h-4" />
-        <span>Powered by Matic Platform</span>
-      </div>
-    </div>
+      {translatedForm && (
+        <AuthPageRenderer
+          type={isLogin ? 'login' : 'signup'}
+          config={translatedForm as any}
+          email={email}
+          password={password}
+          signupData={signupData}
+          onEmailChange={setEmail}
+          onPasswordChange={setPassword}
+          onSignupDataChange={setSignupData}
+          onSubmit={handleAuth}
+          isLoading={isLoading || isFormLoading}
+          onToggleMode={() => setIsLogin(!isLogin)}
+          isPreview={false}
+        />
+      )}
+    </>
   )
 }

@@ -291,6 +291,7 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
         
         <input
           ref={inputRef}
+          id={field.name}
           type="file"
           accept={acceptTypes}
           multiple={allowMultiple}
