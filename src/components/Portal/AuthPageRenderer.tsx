@@ -210,7 +210,7 @@ export function AuthPageRenderer({
                 isPreview && onUpdateSettings && editingField === 'title' && "ring-2 ring-blue-400 rounded px-2 py-1 bg-white",
                 isPreview && onUpdateSettings && editingField !== 'title' && "cursor-text hover:bg-gray-50 rounded px-2 py-1 transition-all"
               )}
-              contentEditable={isPreview && onUpdateSettings}
+              contentEditable={!!(isPreview && onUpdateSettings)}
               suppressContentEditableWarning
               onFocus={() => isPreview && setEditingField('title')}
               onBlur={(e) => {
@@ -247,7 +247,7 @@ export function AuthPageRenderer({
                 isPreview && onUpdateSettings && editingField === 'description' && "ring-2 ring-blue-400 rounded px-2 py-1 bg-white",
                 isPreview && onUpdateSettings && editingField !== 'description' && "cursor-text hover:bg-gray-50 rounded px-2 py-1 transition-all"
               )}
-              contentEditable={isPreview && onUpdateSettings}
+              contentEditable={!!(isPreview && onUpdateSettings)}
               suppressContentEditableWarning
               onFocus={() => isPreview && setEditingField('description')}
               onBlur={(e) => {
