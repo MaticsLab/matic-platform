@@ -6,6 +6,7 @@ import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui-components/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui-components/tabs'
 import { PortalConfig } from '@/types/portal'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -18,7 +19,8 @@ interface PageThemeSettingsProps {
   formId?: string
 }
 
-export function PageThemeSettings({ pageType, settings, onUpdate, formId }: PageThemeSettingsProps) {
+export function PageThemeSettings({ pageType: initialPageType, settings, onUpdate, formId }: PageThemeSettingsProps) {
+  const [activeTab, setActiveTab] = useState<'login' | 'signup'>(initialPageType === 'sections' ? 'signup' : initialPageType)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
   const [showPositionDialog, setShowPositionDialog] = useState(false)
@@ -27,6 +29,10 @@ export function PageThemeSettings({ pageType, settings, onUpdate, formId }: Page
   const imageInputRef = useRef<HTMLInputElement>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const imageContainerRef = useRef<HTMLDivElement>(null)
+
+  // Use activeTab for auth pages, fall back to initialPageType for sections
+  const pageType = initialPageType === 'sections' ? 'sections' : activeTab
+
 
   const currentImage = pageType === 'login' ? settings.loginPageImage : pageType === 'signup' ? settings.signupPageImage : undefined
   const currentLogo = pageType === 'login' ? settings.loginPageLogo : pageType === 'signup' ? settings.signupPageLogo : settings.logoUrl
@@ -261,17 +267,26 @@ export function PageThemeSettings({ pageType, settings, onUpdate, formId }: Page
 
   // Login/Signup page settings
   return (
-    <div className="p-4 space-y-6">
+    <div className="p-4 space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-gray-900 capitalize">{pageType} Page Theme</h2>
-        <p className="text-xs text-gray-500 mt-1">Customize the {pageType} page appearance.</p>
+        <h2 className="text-base font-semibold text-gray-900">Auth Page Theme</h2>
+        <p className="text-xs text-gray-500 mt-1">Customize login and signup page appearance.</p>
       </div>
 
+      {/* Tabs for Login vs Signup */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'login' | 'signup')} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="login">Login Page</TabsTrigger>
+          <TabsTrigger value="signup">Signup Page</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {/* Auth Page Settings */}
       <div className="space-y-4">
         {/* Logo Upload */}
-        <div className="space-y-2">
-          <Label>Logo</Label>
-          <input
+          <div className="space-y-2">
+            <Label>Logo</Label>
+            <input
             ref={logoInputRef}
             type="file"
             accept="image/*"
