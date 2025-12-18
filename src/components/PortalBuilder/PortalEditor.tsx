@@ -128,7 +128,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatarUrl?: string } | null>(null)
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
   const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
-  const [leftSidebarTab, setLeftSidebarTab] = useState<'structure' | 'elements' | 'theme'>('structure')
+  const [leftSidebarTab, setLeftSidebarTab] = useState<'structure' | 'elements'>('structure')
+  const [showThemeSidebar, setShowThemeSidebar] = useState(false)
   const [themePageType, setThemePageType] = useState<'login' | 'signup' | 'sections'>('signup')
   const [shareTabKey, setShareTabKey] = useState(0)
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
@@ -1132,33 +1133,14 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         <div className="flex-1 flex overflow-hidden">
             {/* Left Sidebar - Navigation */}
             <div className="w-[380px] min-w-[380px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 overflow-y-auto overflow-x-hidden">
-          <Tabs value={leftSidebarTab === 'theme' ? 'structure' : leftSidebarTab} onValueChange={(value) => setLeftSidebarTab(value as any)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <Tabs value={leftSidebarTab} onValueChange={(value) => setLeftSidebarTab(value as any)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">{leftSidebarTab === 'theme' ? 'Theme Settings' : 'Designer'}</h2>
-              {leftSidebarTab !== 'theme' && (
-                <TabsList className="w-full grid grid-cols-2 bg-gray-100 p-1 rounded-full h-auto">
-                  <TabsTrigger value="structure" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Sections</TabsTrigger>
-                  <TabsTrigger value="elements" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Fields</TabsTrigger>
-                </TabsList>
-              )}
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Designer</h2>
+              <TabsList className="w-full grid grid-cols-2 bg-gray-100 p-1 rounded-full h-auto">
+                <TabsTrigger value="structure" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Sections</TabsTrigger>
+                <TabsTrigger value="elements" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Fields</TabsTrigger>
+              </TabsList>
             </div>
-
-            {leftSidebarTab === 'theme' && (
-              <div className="flex-1 overflow-y-auto">
-                <PageThemeSettings
-                  pageType={themePageType}
-                  settings={config.settings}
-                  onUpdate={(updates) => {
-                    setConfig(prev => ({
-                      ...prev,
-                      settings: { ...prev.settings, ...updates }
-                    }))
-                    setHasUnsavedChanges(true)
-                  }}
-                  formId={formId || undefined}
-                />
-              </div>
-            )}
 
             <TabsContent value="structure" className="flex-1 data-[state=active]:flex flex-col mt-0 min-h-0 overflow-hidden w-full">
               <UnifiedSidebar
@@ -1211,9 +1193,30 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
           </Tabs>
             </div>
 
+            {/* Theme Sidebar */}
+            {showThemeSidebar && (
+              <div className="w-[380px] min-w-[380px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 overflow-y-auto">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <h2 className="text-sm font-semibold text-gray-900">Theme Settings</h2>
+                </div>
+                <PageThemeSettings
+                  pageType={themePageType}
+                  settings={config.settings}
+                  onUpdate={(updates) => {
+                    setConfig(prev => ({
+                      ...prev,
+                      settings: { ...prev.settings, ...updates }
+                    }))
+                    setHasUnsavedChanges(true)
+                  }}
+                  formId={formId || undefined}
+                />
+              </div>
+            )}
+
             {/* Canvas */}
             <div className={cn(
-              "flex-1 overflow-y-auto bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative",
+              "flex-1 overflow-y-auto bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative rounded-tl-2xl",
               activeSpecialPage === 'dashboard' ? "p-0" : "p-6"
             )}>
                 {/* Floating Theme Button */}
@@ -1222,17 +1225,15 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      if (leftSidebarTab === 'theme') {
-                        setLeftSidebarTab('structure')
-                      } else {
-                        setLeftSidebarTab('theme')
+                      setShowThemeSidebar(!showThemeSidebar)
+                      if (!showThemeSidebar) {
                         setThemePageType(activeSpecialPage === 'signup' ? 'signup' : 'sections')
                       }
                     }}
-                    className="absolute top-4 left-4 z-50 shadow-lg bg-white gap-1.5"
+                    className="fixed top-4 left-4 z-50 shadow-lg bg-white gap-1.5 opacity-70 hover:opacity-100 transition-opacity backdrop-blur-sm"
                   >
-                    <Palette className="w-4 h-4" />
-                    {leftSidebarTab === 'theme' ? 'Back' : 'Theme'}
+                    {showThemeSidebar ? <X className="w-4 h-4" /> : <Palette className="w-4 h-4" />}
+                    {showThemeSidebar ? 'Close' : 'Theme'}
                   </Button>
                 )}
 
