@@ -1264,7 +1264,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     : activeSpecialPage === 'signup'
                     ? "w-full h-full" // Full width/height for signup page
                     : cn(
-                        "bg-white shadow-xl border border-gray-200/80 rounded-2xl min-h-[800px] w-full overflow-hidden",
+                        "bg-white shadow-xl border border-gray-200/80 rounded-2xl w-full overflow-y-auto max-h-full",
                         viewMode === 'mobile' && "max-w-[375px]"
                       )
                 )}>
