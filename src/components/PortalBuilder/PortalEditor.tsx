@@ -6,7 +6,7 @@ import { HTML5Backend } from 'react-dnd-html5-backend'
 import { 
   Layout, Settings, FileText, Plus, Save, Eye,
   ChevronLeft, Monitor, Smartphone, Palette, Lock, Loader2, X, CheckCircle2,
-  BookOpen, CheckCircle, Eye as EyeIcon, ScrollText, LayoutDashboard
+  BookOpen, CheckCircle, Eye as EyeIcon, ScrollText, LayoutDashboard, ArrowLeft
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -1005,6 +1005,17 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         {/* Top Bar - Full Width */}
         <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm z-20 shrink-0">
             <div className="flex items-center gap-4">
+                {/* Back to Hub Button */}
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => window.location.href = `/${workspaceSlug}/applications`}
+                  className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Hub
+                </Button>
+                <div className="h-6 w-px bg-gray-200" />
                 {/* Presence indicators - click avatars to navigate to their location */}
                 <PresenceHeader onNavigateToUser={handleNavigateToUser} />
                 <div className="h-6 w-px bg-gray-200" />
