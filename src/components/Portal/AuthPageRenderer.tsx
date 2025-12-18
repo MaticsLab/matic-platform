@@ -58,6 +58,8 @@ export function AuthPageRenderer({
   const title = pageSettings?.title || settings.name || 'Application Portal'
   const description = pageSettings?.description || (isSignup ? 'Please sign up to continue your application.' : 'Please log in to continue your application.')
   const buttonText = pageSettings?.buttonText || (isSignup ? 'Create Account' : 'Log In')
+  const titleMargin = pageSettings?.titleMargin || {}
+  const descriptionMargin = pageSettings?.descriptionMargin || {}
   
   const logo = isSignup ? (settings.signupPageLogo || settings.logoUrl) : (settings.loginPageLogo || settings.logoUrl)
   const backgroundImage = isSignup ? settings.signupPageImage : settings.loginPageImage
@@ -73,12 +75,23 @@ export function AuthPageRenderer({
     mediaType === 'video'
   )
 
-  const handleUpdatePageSettings = (key: string, value: string) => {
+  const handleUpdatePageSettings = (key: string, value: string | any) => {
     if (!onUpdateSettings || !isSignup) return
+    
+    // Parse JSON strings for margin objects
+    let parsedValue = value
+    if (key.includes('Margin') && typeof value === 'string') {
+      try {
+        parsedValue = JSON.parse(value)
+      } catch (e) {
+        // If parsing fails, use the value as-is
+      }
+    }
+    
     onUpdateSettings({
       signupPage: {
         ...pageSettings,
-        [key]: value
+        [key]: parsedValue
       }
     })
   }
@@ -181,7 +194,15 @@ export function AuthPageRenderer({
           )}
           
           {/* Title - Editable in preview mode */}
-          <div className={cn(isMobilePreview ? "space-y-1" : "space-y-1 sm:space-y-2")}>
+          <div 
+            className={cn(isMobilePreview ? "space-y-1" : "space-y-1 sm:space-y-2")}
+            style={{
+              marginTop: `${titleMargin.top || 0}px`,
+              marginBottom: `${titleMargin.bottom || 0}px`,
+              marginLeft: `${titleMargin.left || 0}px`,
+              marginRight: `${titleMargin.right || 0}px`,
+            }}
+          >
             {isPreview && editingField === 'title' ? (
               <RichTextEditor
                 value={title}
@@ -191,6 +212,8 @@ export function AuthPageRenderer({
                 minHeight="60px"
                 autoFocus
                 className="border-2 border-blue-500"
+                margin={titleMargin}
+                onMarginChange={(margin) => handleUpdatePageSettings('titleMargin', JSON.stringify(margin))}
               />
             ) : (
               <div
@@ -207,28 +230,39 @@ export function AuthPageRenderer({
           </div>
           
           {/* Description - Editable in preview mode */}
-          {isPreview && editingField === 'description' ? (
-            <RichTextEditor
-              value={description}
-              onChange={(value) => handleUpdatePageSettings('description', value)}
-              onBlur={() => setEditingField(null)}
-              placeholder="Enter description"
-              minHeight="60px"
-              autoFocus
-              className="border-2 border-blue-500"
-            />
-          ) : (
-            <div
-              className={cn(
-                "text-gray-500",
-                isMobilePreview ? "text-xs" : "text-sm",
-                isPreview && onUpdateSettings && "cursor-pointer hover:bg-blue-50 hover:ring-2 hover:ring-blue-200 rounded px-2 py-1 transition-all"
-              )}
-              onClick={() => isPreview && onUpdateSettings && setEditingField('description')}
-            >
-              <RichTextContent content={description} className="text-inherit" />
-            </div>
-          )}
+          <div
+            style={{
+              marginTop: `${descriptionMargin.top || 0}px`,
+              marginBottom: `${descriptionMargin.bottom || 0}px`,
+              marginLeft: `${descriptionMargin.left || 0}px`,
+              marginRight: `${descriptionMargin.right || 0}px`,
+            }}
+          >
+            {isPreview && editingField === 'description' ? (
+              <RichTextEditor
+                value={description}
+                onChange={(value) => handleUpdatePageSettings('description', value)}
+                onBlur={() => setEditingField(null)}
+                placeholder="Enter description"
+                minHeight="60px"
+                autoFocus
+                className="border-2 border-blue-500"
+                margin={descriptionMargin}
+                onMarginChange={(margin) => handleUpdatePageSettings('descriptionMargin', JSON.stringify(margin))}
+              />
+            ) : (
+              <div
+                className={cn(
+                  "text-gray-500",
+                  isMobilePreview ? "text-xs" : "text-sm",
+                  isPreview && onUpdateSettings && "cursor-pointer hover:bg-blue-50 hover:ring-2 hover:ring-blue-200 rounded px-2 py-1 transition-all"
+                )}
+                onClick={() => isPreview && onUpdateSettings && setEditingField('description')}
+              >
+                <RichTextContent content={description} className="text-inherit" />
+              </div>
+            )}
+          </div>
 
           {/* Form Fields */}
           <form onSubmit={onSubmit} className={cn(isMobilePreview ? "space-y-2" : "space-y-3 sm:space-y-4")}>
