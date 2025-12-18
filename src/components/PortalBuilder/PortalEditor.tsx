@@ -29,8 +29,6 @@ import { EndingPagesBuilder } from '@/components/EndingPages/EndingPagesBuilder'
 import { VisualDashboardBuilder } from '@/components/ApplicantDashboard/VisualDashboardBuilder'
 import { UnifiedSidebar } from './UnifiedSidebar'
 import { DashboardPreview } from './DashboardPreview'
-import { DashboardBlockBuilder } from './DashboardBlockBuilder'
-import { DashboardBlockSettings } from './DashboardBlockSettings'
 import { PageThemeSettings } from './PageThemeSettings'
 import type { DashboardSettings } from '@/types/dashboard'
 import { EndingBlocksToolbox } from './EndingBlocksToolbox'
@@ -137,7 +135,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [isCanvasScrolled, setIsCanvasScrolled] = useState(false)
   const [shareTabKey, setShareTabKey] = useState(0)
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
-    blocks: [],
     showStatus: true,
     showTimeline: true,
     showChat: true,
@@ -1318,15 +1315,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       }}
                     />
                   ) : activeSpecialPage === 'dashboard' ? (
-                    <DashboardBlockBuilder
-                      blocks={dashboardSettings.blocks || []}
-                      selectedBlockId={selectedBlockId}
-                      onBlocksChange={(blocks) => {
-                        setDashboardSettings(prev => ({ ...prev, blocks }))
-                        setHasUnsavedChanges(true)
-                        setIsPublished(false)
-                      }}
-                      onSelectBlock={setSelectedBlockId}
+                    <DashboardPreview 
+                      themeColor={config.settings.themeColor}
+                      logoUrl={config.settings.logoUrl}
+                      portalName={config.settings.name}
+                      dashboardSettings={dashboardSettings}
+                      config={displayConfig}
                     />
                   ) : displaySection?.sectionType === 'ending' ? (
                     <ConfirmationPreview 
@@ -1503,24 +1497,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         />
                       </div>
                    )}
-                   {/* Block Settings for Dashboard Blocks */}
-                   {activeSpecialPage === 'dashboard' && selectedBlockId && dashboardSettings.blocks && (
-                      <DashboardBlockSettings
-                        block={dashboardSettings.blocks.find(b => b.id === selectedBlockId)!}
-                        onUpdateBlock={(updates) => {
-                          setDashboardSettings(prev => ({
-                            ...prev,
-                            blocks: prev.blocks?.map(b => 
-                              b.id === selectedBlockId ? { ...b, ...updates } : b
-                            ) || []
-                          }))
-                          setHasUnsavedChanges(true)
-                          setIsPublished(false)
-                        }}
-                      />
-                   )}
                    {/* Field Settings for Block Editor mode - uses selectedBlockId but works with fields directly */}
-                   {useBlockEditor && selectedBlockId && displaySection && !activeSpecialPage && (
+                   {useBlockEditor && selectedBlockId && displaySection && (
                       <FieldSettingsPanel 
                         selectedField={findFieldRecursive(displaySection.fields, selectedBlockId) || null}
                         onUpdate={(fieldId: string, updates: Partial<Field>) => {
