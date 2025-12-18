@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { GraduationCap, FileText, Layout, Plus, Search, MoreVertical, ArrowRight, Loader2, Filter, CheckCircle, Clock, Trash2 } from 'lucide-react'
 import { ApplicationManager } from './Applications/ApplicationManager'
 import { Button } from '@/ui-components/button'
@@ -49,6 +50,7 @@ type View = 'home' | 'scholarships' | 'create'
 export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
   const { registerNavigationHandler, tabs, tabManager, setTabActions, setTabHeaderContent } = useTabContext()
   const { setHubContext, query: searchQuery } = useSearch()
+  const searchParams = useSearchParams()
   const hubUrl = `/workspace/${workspaceId}/applications`
   const hubTab = tabs.find(t => t.url === hubUrl)
   
@@ -58,6 +60,15 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
   const [forms, setForms] = useState<Form[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'draft'>('all')
+
+  // Check URL parameters for formId on mount
+  useEffect(() => {
+    const formIdFromUrl = searchParams.get('formId')
+    if (formIdFromUrl && !selectedFormId) {
+      setSelectedFormId(formIdFromUrl)
+      setCurrentView('scholarships')
+    }
+  }, [searchParams])
 
   // Delete Application State
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)

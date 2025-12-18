@@ -1009,7 +1009,16 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  onClick={() => window.location.href = `/${workspaceSlug}/applications`}
+                  onClick={() => {
+                    // Navigate back to applications hub with the specific form selected
+                    const baseUrl = `/workspace/${workspaceSlug}/applications`
+                    if (formId) {
+                      // Open the applications hub and select this specific form
+                      window.location.href = `${baseUrl}?formId=${formId}`
+                    } else {
+                      window.location.href = baseUrl
+                    }
+                  }}
                   className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
