@@ -1218,7 +1218,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             {/* Canvas */}
             <div 
               className={cn(
-                "flex-1 overflow-y-auto overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative rounded-2xl",
+                "flex-1 overflow-y-auto overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative",
                 activeSpecialPage === 'dashboard' ? "p-0" : "p-3"
               )}
               onScroll={(e) => {
@@ -1264,7 +1264,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     : activeSpecialPage === 'signup'
                     ? "w-full h-full" // Full width/height for signup page
                     : cn(
-                        "bg-white shadow-xl border border-gray-200/80 rounded-2xl min-h-[800px] w-full",
+                        "bg-white shadow-xl border border-gray-200/80 rounded-2xl min-h-[800px] w-full overflow-hidden",
                         viewMode === 'mobile' && "max-w-[375px]"
                       )
                 )}>
