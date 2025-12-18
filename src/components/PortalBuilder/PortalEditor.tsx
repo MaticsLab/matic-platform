@@ -1242,8 +1242,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             {/* Canvas */}
             <div 
               className={cn(
-                "flex-1 overflow-y-auto overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative",
-                activeSpecialPage === 'dashboard' ? "p-0" : "p-3"
+                "flex-1 bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative",
+                activeSpecialPage === 'dashboard' ? "p-0 overflow-y-auto" : "p-3 overflow-y-auto overflow-hidden"
               )}
             >
                 {/* Floating Theme Button */}
@@ -1328,7 +1328,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       }}
                     />
                   ) : activeSpecialPage === 'dashboard' ? (
-                    <div className="h-full overflow-hidden">
+                    <div className="w-full min-h-full">
                       <DashboardPreview 
                         themeColor={config.settings.themeColor}
                         logoUrl={config.settings.logoUrl}
