@@ -58,6 +58,7 @@ export function DashboardV2({
           applicationStatus={applicationStatus}
           welcomeTitle={welcomeTitle}
           welcomeText={welcomeText}
+          submissionData={submissionData}
         />
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">

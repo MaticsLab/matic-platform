@@ -7,6 +7,7 @@ interface WelcomeSectionProps {
   applicationStatus: string
   welcomeTitle?: string
   welcomeText?: string
+  submissionData?: Record<string, any>
 }
 
 const getStatusDisplay = (status: string) => {
@@ -36,23 +37,61 @@ const getUserName = (email: string) => {
   return name.charAt(0).toUpperCase() + name.slice(1).replace(/[._-]/g, ' ')
 }
 
+/**
+ * Parse and replace {{variable}} mentions with actual values
+ */
+const parseText = (text: string, data: Record<string, any>, email: string): string => {
+  if (!text) return text
+  
+  // Extract first name and full name from data or email
+  const firstName = data.firstName || data.first_name || getUserName(email).split(' ')[0]
+  const fullName = data.fullName || data.full_name || data.name || getUserName(email)
+  
+  // Replace built-in variables
+  let parsed = text
+    .replace(/\{\{firstName\}\}/g, firstName)
+    .replace(/\{\{fullName\}\}/g, fullName)
+    .replace(/\{\{email\}\}/g, email)
+  
+  // Replace field-specific variables (by field ID)
+  Object.keys(data).forEach(key => {
+    const value = data[key]
+    if (value !== null && value !== undefined) {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g')
+      parsed = parsed.replace(regex, String(value))
+    }
+  })
+  
+  return parsed
+}
+
 export function WelcomeSection({
   email,
   applicationStatus,
   welcomeTitle,
-  welcomeText
+  welcomeText,
+  submissionData = {}
 }: WelcomeSectionProps) {
   const statusDisplay = getStatusDisplay(applicationStatus)
   const userName = getUserName(email)
+  
+  // Parse custom text or use default with dynamic greeting
+  const displayTitle = welcomeTitle 
+    ? parseText(welcomeTitle, submissionData, email)
+    : `${getGreeting()}, ${userName} 👋`
+    
+  const displayText = welcomeText
+    ? parseText(welcomeText, submissionData, email)
+    : "Here's an overview of your scholarship application."
   
   return (
     <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-6">
       <div className="flex-1">
         <h1 className="text-xl sm:text-2xl text-gray-900 mb-1">
-          {welcomeTitle || `${getGreeting()}, ${userName}`} 👋
+          {displayTitle}
         </h1>
         <p className="text-sm text-gray-600">
-          {welcomeText || "Here's an overview of your scholarship application."}
+          {displayText}
         </p>
       </div>
       

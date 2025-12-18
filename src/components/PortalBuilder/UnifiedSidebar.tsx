@@ -29,6 +29,7 @@ import {
 import { Section } from '@/types/portal'
 import { DashboardSettings } from '@/types/dashboard'
 import { getCollaborationActions } from '@/lib/collaboration/collaboration-store'
+import { MentionInput } from './MentionInput'
 
 interface UnifiedSidebarProps {
   sections: Section[]
@@ -427,23 +428,26 @@ export function UnifiedSidebar({
                   {/* Welcome Message Settings */}
                   <div className="space-y-3">
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wide px-1">Welcome Message</p>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <div>
-                        <Label className="text-xs text-gray-600">Title</Label>
-                        <Input
+                        <Label className="text-xs text-gray-600 mb-1.5 block">Title</Label>
+                        <MentionInput
                           value={dashboardSettings.welcomeTitle || ''}
-                          onChange={(e) => onDashboardSettingsChange({ welcomeTitle: e.target.value })}
-                          placeholder="Welcome to your dashboard"
-                          className="h-8 text-sm"
+                          onChange={(value) => onDashboardSettingsChange({ welcomeTitle: value })}
+                          placeholder="Good morning, @firstName 👋"
+                          className="h-9 text-sm"
+                          availableFields={sections.flatMap(s => s.fields)}
                         />
                       </div>
                       <div>
-                        <Label className="text-xs text-gray-600">Description</Label>
-                        <Textarea
+                        <Label className="text-xs text-gray-600 mb-1.5 block">Description</Label>
+                        <MentionInput
                           value={dashboardSettings.welcomeText || ''}
-                          onChange={(e) => onDashboardSettingsChange({ welcomeText: e.target.value })}
-                          placeholder="Track your application progress..."
-                          className="text-sm min-h-[60px] resize-none"
+                          onChange={(value) => onDashboardSettingsChange({ welcomeText: value })}
+                          placeholder="Here's an overview of your application."
+                          className="text-sm"
+                          availableFields={sections.flatMap(s => s.fields)}
+                          multiline
                         />
                       </div>
                     </div>
