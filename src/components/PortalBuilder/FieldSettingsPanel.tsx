@@ -121,20 +121,23 @@ function OptionEditor({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Options</Label>
+        <Label className="text-sm font-medium text-gray-900 flex items-center gap-2">
+          <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+          Custom Options
+        </Label>
         <Button
           type="button"
           variant="ghost"
           size="sm"
           onClick={handleAddOption}
-          className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+          className="h-8 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
         >
-          <Plus className="w-3 h-3 mr-1" />
+          <Plus className="w-3.5 h-3.5 mr-1.5" />
           Add Option
         </Button>
       </div>
       
-      <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
+      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
         {options.map((option, index) => (
           <div
             key={index}
@@ -143,17 +146,20 @@ function OptionEditor({
             onDragOver={(e) => handleDragOver(e, index)}
             onDragEnd={handleDragEnd}
             className={cn(
-              "flex items-center gap-2 group",
-              draggedIndex === index && "opacity-50"
+              "flex items-center gap-2 group p-2 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-sm transition-all duration-200",
+              draggedIndex === index && "opacity-50 scale-95"
             )}
           >
-            <div className="cursor-grab text-gray-300 hover:text-gray-500 active:cursor-grabbing">
+            <div className="cursor-grab text-gray-300 hover:text-gray-500 active:cursor-grabbing transition-colors">
               <GripVertical className="w-4 h-4" />
+            </div>
+            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center text-xs font-semibold text-gray-700">
+              {index + 1}
             </div>
             <Input
               value={option}
               onChange={(e) => handleUpdateOption(index, e.target.value)}
-              className="flex-1 h-9 text-sm bg-gray-50/50"
+              className="flex-1 h-9 text-sm border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-2"
               placeholder={`Option ${index + 1}`}
             />
             <Button
@@ -161,25 +167,31 @@ function OptionEditor({
               variant="ghost"
               size="sm"
               onClick={() => handleRemoveOption(index)}
-              className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
+              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-4 h-4" />
             </Button>
           </div>
         ))}
       </div>
 
       {options.length === 0 && (
-        <div className="text-center py-4 border border-dashed border-gray-200 rounded-lg">
-          <p className="text-sm text-gray-400">No options yet</p>
+        <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50/30">
+          <div className="w-12 h-12 mx-auto mb-3 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
+            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          </div>
+          <p className="text-sm font-medium text-gray-500 mb-1">No options yet</p>
+          <p className="text-xs text-gray-400 mb-3">Add options for users to choose from</p>
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={handleAddOption}
-            className="mt-2 text-xs text-blue-600"
+            className="text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium"
           >
-            <Plus className="w-3 h-3 mr-1" />
+            <Plus className="w-4 h-4 mr-1.5" />
             Add first option
           </Button>
         </div>
@@ -876,10 +888,15 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
               </AccordionTrigger>
               <AccordionContent className="px-4 pb-4 pt-3">
                 {/* Dynamic Options Toggle */}
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 mb-4">
-                  <div className="space-y-0.5">
-                    <Label className="text-sm font-medium">Dynamic Options</Label>
-                    <p className="text-xs text-gray-500">Load options from another field</p>
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200/50 mb-4 shadow-sm">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      Dynamic Options
+                    </Label>
+                    <p className="text-xs text-gray-600">Automatically populate options from another field</p>
                   </div>
                   <Switch 
                     checked={selectedField.config?.dynamicOptions || false} 
@@ -888,20 +905,37 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                 </div>
 
                 {selectedField.config?.dynamicOptions ? (
-                  <div className="space-y-4">
+                  <div className="space-y-4 p-4 bg-gradient-to-br from-blue-50/30 to-purple-50/30 border border-blue-100/50 rounded-lg">
                     <div className="space-y-2">
-                      <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Source Field</Label>
+                      <Label className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                        Source Field
+                      </Label>
                       <Select 
                         value={selectedField.config?.sourceField || ''} 
                         onValueChange={(v) => handleConfigUpdate('sourceField', v)}
                       >
-                        <SelectTrigger className="bg-gray-50/50">
-                          <SelectValue placeholder="Select source field..." />
+                        <SelectTrigger className="bg-white border-gray-200 hover:border-blue-300 transition-colors shadow-sm">
+                          <SelectValue placeholder="Choose a field with options..." />
                         </SelectTrigger>
-                        <SelectContent className="max-h-[200px]">
-                          {sourceFields.map(f => (
-                            <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
-                          ))}
+                        <SelectContent className="max-h-[300px]">
+                          {sourceFields.length === 0 ? (
+                            <div className="px-3 py-8 text-center text-sm text-gray-500">
+                              <p className="font-medium">No source fields available</p>
+                              <p className="text-xs mt-1">Add a Repeater, Select, Radio, or Multi-Select field first</p>
+                            </div>
+                          ) : (
+                            sourceFields.map(f => (
+                              <SelectItem key={f.id} value={f.id}>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded font-medium">
+                                    {f.type}
+                                  </span>
+                                  <span>{f.label}</span>
+                                </div>
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -912,36 +946,46 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                       const isRepeater = sourceField?.type === 'repeater'
                       
                       return isRepeater && sourceField?.children ? (
-                        <div className="space-y-2 p-3 bg-blue-50/50 border border-blue-100 rounded-lg">
-                          <div className="space-y-1.5">
-                            <Label className="text-xs font-medium text-gray-700">Option Template</Label>
-                            <p className="text-xs text-gray-600">
-                              Use {'{'}subfieldId{'}'} to insert values from repeater items
+                        <div className="space-y-3 p-4 bg-white border border-blue-200 rounded-lg shadow-sm">
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                              Option Template
+                            </Label>
+                            <p className="text-xs text-gray-600 leading-relaxed">
+                              Create custom option labels by combining subfield values. Click a chip below to insert it.
                             </p>
                           </div>
                           <Textarea
                             value={selectedField.config?.optionTemplate || ''}
                             onChange={(e) => handleConfigUpdate('optionTemplate', e.target.value)}
-                            placeholder={`Example: {${sourceField.children[0]?.id || 'name'}} is a {${sourceField.children[1]?.id || 'type'}}`}
-                            className="bg-white font-mono text-xs min-h-[60px]"
+                            placeholder={`Example: ${sourceField.children[0]?.label || 'Name'} - ${sourceField.children[1]?.label || 'Type'}`}
+                            className="bg-gray-50 border-gray-200 focus:border-purple-300 focus:ring-purple-200 font-mono text-sm min-h-[80px] resize-none"
                           />
-                          <div className="space-y-1.5 mt-3">
-                            <Label className="text-xs font-medium text-gray-700">Available Subfields</Label>
-                            <div className="flex flex-wrap gap-1.5">
+                          {selectedField.config?.optionTemplate && (
+                            <div className="text-xs text-gray-600 bg-blue-50 border border-blue-100 rounded p-2">
+                              <span className="font-medium text-blue-700">Preview:</span> {selectedField.config.optionTemplate}
+                            </div>
+                          )}
+                          <div className="space-y-2 pt-2 border-t border-gray-100">
+                            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Click to Insert</Label>
+                            <div className="flex flex-wrap gap-2">
                               {sourceField.children.map(child => (
                                 <button
                                   key={child.id}
                                   type="button"
                                   onClick={() => {
                                     const currentTemplate = selectedField.config?.optionTemplate || ''
-                                    handleConfigUpdate('optionTemplate', `${currentTemplate}{${child.id}}`)
+                                    const insertion = `{${child.id}}`
+                                    handleConfigUpdate('optionTemplate', `${currentTemplate}${insertion}`)
                                   }}
-                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-white border border-blue-200 rounded hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                                  className="group inline-flex items-center gap-2 px-3 py-2 text-sm bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-lg hover:from-purple-50 hover:to-blue-50 hover:border-purple-300 hover:shadow-md active:scale-95 transition-all duration-200"
                                   title={`Insert {${child.id}}`}
                                 >
-                                  <span className="font-mono text-blue-600">{'{'}{ child.id}{'}'}</span>
-                                  <span className="text-gray-600">-</span>
-                                  <span className="text-gray-700">{child.label}</span>
+                                  <span className="font-semibold text-gray-900">{child.label}</span>
+                                  <span className="px-1.5 py-0.5 text-xs font-mono bg-purple-100 text-purple-700 rounded group-hover:bg-purple-200 transition-colors">
+                                    {'{'}...{'}'}
+                                  </span>
                                 </button>
                               ))}
                             </div>
