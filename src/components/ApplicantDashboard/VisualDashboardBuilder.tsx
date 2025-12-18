@@ -973,10 +973,10 @@ export function VisualDashboardBuilder({
 
   // Built-in section states
   const builtInStates = {
-    status: layout.settings.showStatus,
-    timeline: layout.settings.showTimeline,
-    chat: layout.settings.showChat,
-    documents: layout.settings.showDocuments,
+    status: layout.settings.showStatus ?? false,
+    timeline: layout.settings.showTimeline ?? false,
+    chat: layout.settings.showChat ?? false,
+    documents: layout.settings.showDocuments ?? false,
   }
 
   if (isLoading) {
