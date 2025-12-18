@@ -1132,16 +1132,36 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
         {activeTopTab === 'edit' && (
         <div className="flex-1 flex overflow-hidden">
-            {/* Left Sidebar - Navigation */}
-            <div className="w-[380px] min-w-[380px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 overflow-y-auto overflow-x-hidden">
-          <Tabs value={leftSidebarTab} onValueChange={(value) => setLeftSidebarTab(value as any)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">Designer</h2>
-              <TabsList className="w-full grid grid-cols-2 bg-gray-100 p-1 rounded-full h-auto">
-                <TabsTrigger value="structure" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Sections</TabsTrigger>
-                <TabsTrigger value="elements" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Fields</TabsTrigger>
-              </TabsList>
-            </div>
+            {/* Left Sidebar - Navigation or Theme */}
+            {showThemeSidebar ? (
+              <div className="w-[380px] min-w-[380px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <h2 className="text-sm font-semibold text-gray-900">Theme Settings</h2>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <PageThemeSettings
+                    pageType={themePageType}
+                    settings={config.settings}
+                    onUpdate={(updates) => {
+                      setConfig(prev => ({
+                        ...prev,
+                        settings: { ...prev.settings, ...updates }
+                      }))
+                      setHasUnsavedChanges(true)
+                    }}
+                    formId={formId || undefined}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="w-[380px] min-w-[380px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 overflow-y-auto overflow-x-hidden">
+                <Tabs value={leftSidebarTab} onValueChange={(value) => setLeftSidebarTab(value as any)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <TabsList className="w-full grid grid-cols-2 bg-gray-100 p-1 rounded-full h-auto">
+                      <TabsTrigger value="structure" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Sections</TabsTrigger>
+                      <TabsTrigger value="elements" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Fields</TabsTrigger>
+                    </TabsList>
+                  </div>
 
             <TabsContent value="structure" className="flex-1 data-[state=active]:flex flex-col mt-0 min-h-0 overflow-hidden w-full">
               <UnifiedSidebar
@@ -1192,26 +1212,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                )}
             </TabsContent>
           </Tabs>
-            </div>
-
-            {/* Theme Sidebar */}
-            {showThemeSidebar && (
-              <div className="w-[380px] min-w-[380px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 overflow-y-auto">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <h2 className="text-sm font-semibold text-gray-900">Theme Settings</h2>
-                </div>
-                <PageThemeSettings
-                  pageType={themePageType}
-                  settings={config.settings}
-                  onUpdate={(updates) => {
-                    setConfig(prev => ({
-                      ...prev,
-                      settings: { ...prev.settings, ...updates }
-                    }))
-                    setHasUnsavedChanges(true)
-                  }}
-                  formId={formId || undefined}
-                />
               </div>
             )}
 
@@ -1221,12 +1221,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                 "flex-1 overflow-y-auto overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative",
                 activeSpecialPage === 'dashboard' ? "p-0" : "p-3"
               )}
-              onScroll={(e) => {
-                const scrolled = e.currentTarget.scrollTop > 10
-                if (scrolled !== isCanvasScrolled) {
-                  setIsCanvasScrolled(scrolled)
-                }
-              }}
             >
                 {/* Floating Theme Button */}
                 {!isPreview && activeSpecialPage !== 'dashboard' && (
@@ -1240,7 +1234,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       }
                     }}
                     className={cn(
-                      "absolute top-3 left-3 z-50 shadow-lg bg-white gap-1.5 transition-opacity backdrop-blur-sm",
+                      "absolute top-5 left-5 z-50 shadow-lg bg-white gap-1.5 transition-opacity backdrop-blur-sm",
                       isCanvasScrolled ? "opacity-70 hover:opacity-100" : "opacity-100"
                     )}
                   >
@@ -1257,17 +1251,27 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   }} />
                 )}
                 
-                <div className={cn(
-                  "transition-all duration-300 relative z-10",
-                  activeSpecialPage === 'dashboard' 
-                    ? "w-full h-full bg-gray-50" 
-                    : activeSpecialPage === 'signup'
-                    ? "w-full h-full" // Full width/height for signup page
-                    : cn(
-                        "bg-white shadow-xl border border-gray-200/80 rounded-2xl w-full overflow-y-auto max-h-full",
-                        viewMode === 'mobile' && "max-w-[375px]"
-                      )
-                )}>
+                <div 
+                  className={cn(
+                    "transition-all duration-300 relative z-10",
+                    activeSpecialPage === 'dashboard' 
+                      ? "w-full h-full bg-gray-50" 
+                      : activeSpecialPage === 'signup'
+                      ? "w-full h-full" // Full width/height for signup page
+                      : cn(
+                          "bg-white shadow-xl border border-gray-200/80 rounded-2xl w-full overflow-y-auto max-h-full",
+                          viewMode === 'mobile' && "max-w-[375px]"
+                        )
+                  )}
+                  onScroll={(e) => {
+                    if (activeSpecialPage !== 'dashboard' && activeSpecialPage !== 'signup') {
+                      const scrolled = e.currentTarget.scrollTop > 10
+                      if (scrolled !== isCanvasScrolled) {
+                        setIsCanvasScrolled(scrolled)
+                      }
+                    }
+                  }}
+                >
                   {isPreview ? (
                     <div className="h-full">
                       <DynamicApplicationForm 

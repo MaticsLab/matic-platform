@@ -5,6 +5,7 @@ import { Upload, Image as ImageIcon, Loader2, X, Maximize2 } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui-components/dialog'
 import { PortalConfig } from '@/types/portal'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -20,6 +21,8 @@ interface PageThemeSettingsProps {
 export function PageThemeSettings({ pageType, settings, onUpdate, formId }: PageThemeSettingsProps) {
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
+  const [showPositionDialog, setShowPositionDialog] = useState(false)
+  const [tempImagePosition, setTempImagePosition] = useState({ x: 50, y: 50 })
   const imageInputRef = useRef<HTMLInputElement>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
 
@@ -301,7 +304,11 @@ export function PageThemeSettings({ pageType, settings, onUpdate, formId }: Page
                 <img src={currentImage} alt="Background" className="w-full h-full object-cover" />
               </div>
               <button
-                onClick={() => {/* TODO: Open position dialog */}}
+                onClick={() => {
+                  const currentPos = pageType === 'login' ? settings.loginImagePosition : settings.signupImagePosition
+                  setTempImagePosition({ x: 50, y: currentPos === 'left' ? 50 : 50 })
+                  setShowPositionDialog(true)
+                }}
                 className="absolute top-2 left-2 px-3 py-1.5 rounded-md bg-white border border-gray-200 shadow-sm text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50 flex items-center gap-1.5"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
@@ -398,6 +405,78 @@ export function PageThemeSettings({ pageType, settings, onUpdate, formId }: Page
           </div>
         </div>
       </div>
+
+      {/* Image Position Dialog */}
+      <Dialog open={showPositionDialog} onOpenChange={setShowPositionDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Maximize2 className="w-4 h-4" />
+              Change image position
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500">Drag to reposition image</p>
+            <div 
+              className="relative w-full h-96 bg-gray-100 rounded-lg overflow-hidden cursor-move"
+              onMouseDown={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect()
+                const handleMouseMove = (moveEvent: MouseEvent) => {
+                  const x = ((moveEvent.clientX - rect.left) / rect.width) * 100
+                  const y = ((moveEvent.clientY - rect.top) / rect.height) * 100
+                  setTempImagePosition({
+                    x: Math.max(0, Math.min(100, x)),
+                    y: Math.max(0, Math.min(100, y))
+                  })
+                }
+                const handleMouseUp = () => {
+                  document.removeEventListener('mousemove', handleMouseMove)
+                  document.removeEventListener('mouseup', handleMouseUp)
+                }
+                document.addEventListener('mousemove', handleMouseMove)
+                document.addEventListener('mouseup', handleMouseUp)
+              }}
+            >
+              {currentImage && (
+                <img 
+                  src={currentImage} 
+                  alt="Background" 
+                  className="w-full h-full object-cover"
+                  style={{
+                    objectPosition: `${tempImagePosition.x}% ${tempImagePosition.y}%`
+                  }}
+                  draggable={false}
+                />
+              )}
+              <div 
+                className="absolute w-32 h-48 border-2 border-dashed border-white/80 pointer-events-none"
+                style={{
+                  left: '50%',
+                  top: '50%',
+                  transform: 'translate(-50%, -50%)'
+                }}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowPositionDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => {
+                // Save position based on x coordinate - left if < 50, right if >= 50
+                const position = tempImagePosition.x < 50 ? 'left' : 'right'
+                if (pageType === 'login') {
+                  onUpdate({ loginImagePosition: position })
+                } else {
+                  onUpdate({ signupImagePosition: position })
+                }
+                setShowPositionDialog(false)
+              }}>
+                Done
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
