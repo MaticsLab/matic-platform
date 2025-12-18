@@ -1195,7 +1195,7 @@ function CombinedStageSettings({
   const tabs = [
     { id: 'general' as const, label: 'General', icon: FileText, description: 'Basic stage settings' },
     { id: 'reviewers' as const, label: 'Reviewers', icon: Users, description: 'Who reviews applications' },
-    { id: 'actions' as const, label: 'Actions', icon: Sparkles, description: 'Status action buttons' },
+    { id: 'actions' as const, label: 'Actions', icon: Sparkles, description: 'Workflow triggers' },
     { id: 'automation' as const, label: 'Automation', icon: Zap, description: 'Rules & triggers' },
     { id: 'groups' as const, label: 'Groups', icon: Folder, description: 'Organize applications' },
     { id: 'privacy' as const, label: 'Privacy', icon: Shield, description: 'Hide sensitive fields' },
@@ -2707,172 +2707,6 @@ function GeneralStageSettings({
               </SelectContent>
             </Select>
           </div>
-        </div>
-      </div>
-
-      {/* Custom Statuses */}
-      <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-200">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center">
-            <CheckCircle className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h4 className="font-semibold text-gray-900">Action Button Statuses</h4>
-            <p className="text-xs text-gray-500">Define status options for the Actions button</p>
-          </div>
-        </div>
-        
-        {/* Status list */}
-        <div className="space-y-2 mb-3">
-          {customStatuses.map((status, index) => {
-            const colorOptions = [
-              { value: 'gray', label: 'Gray', bg: 'bg-gray-200', text: 'text-gray-700' },
-              { value: 'red', label: 'Red', bg: 'bg-red-200', text: 'text-red-700' },
-              { value: 'orange', label: 'Orange', bg: 'bg-orange-200', text: 'text-orange-700' },
-              { value: 'yellow', label: 'Yellow', bg: 'bg-yellow-200', text: 'text-yellow-700' },
-              { value: 'green', label: 'Green', bg: 'bg-green-200', text: 'text-green-700' },
-              { value: 'blue', label: 'Blue', bg: 'bg-blue-200', text: 'text-blue-700' },
-              { value: 'purple', label: 'Purple', bg: 'bg-purple-200', text: 'text-purple-700' },
-              { value: 'pink', label: 'Pink', bg: 'bg-pink-200', text: 'text-pink-700' },
-            ]
-            const iconOptions = [
-              { value: 'circle', label: 'Circle', icon: Circle },
-              { value: 'check', label: 'Check', icon: Check },
-              { value: 'x', label: 'X', icon: X },
-              { value: 'clock', label: 'Clock', icon: Clock },
-              { value: 'arrow-right', label: 'Arrow', icon: ArrowRight },
-            ]
-            const currentColor = colorOptions.find(c => c.value === status.color) || colorOptions[0]
-            const CurrentIcon = iconOptions.find(i => i.value === status.icon)?.icon || Circle
-            const isEditing = editingStatusIndex === index
-            
-            return (
-              <div key={status.name} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                {/* Status header - clickable to expand */}
-                <div 
-                  className={cn(
-                    "flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 transition-colors",
-                    isEditing && "bg-gray-50"
-                  )}
-                  onClick={() => setEditingStatusIndex(isEditing ? null : index)}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className={cn(
-                      "w-7 h-7 rounded-lg flex items-center justify-center",
-                      currentColor.bg, currentColor.text
-                    )}>
-                      <CurrentIcon className="w-4 h-4" />
-                    </div>
-                    <span className="font-medium text-sm">{status.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      type="button" 
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        removeStatus(status.name)
-                      }} 
-                      className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                    <ChevronDown className={cn(
-                      "w-4 h-4 text-gray-400 transition-transform",
-                      isEditing && "rotate-180"
-                    )} />
-                  </div>
-                </div>
-                
-                {/* Expanded edit panel */}
-                {isEditing && (
-                  <div className="px-3 pb-3 pt-1 border-t border-gray-100 space-y-3">
-                    {/* Color picker */}
-                    <div>
-                      <label className="text-xs font-medium text-gray-600 block mb-2">Button Color</label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {colorOptions.map(color => (
-                          <button
-                            key={color.value}
-                            type="button"
-                            onClick={() => updateStatusColor(index, color.value)}
-                            className={cn(
-                              "w-7 h-7 rounded-lg transition-all flex items-center justify-center",
-                              color.bg,
-                              status.color === color.value 
-                                ? "ring-2 ring-offset-1 ring-gray-800 scale-110" 
-                                : "hover:scale-105 opacity-70 hover:opacity-100"
-                            )}
-                            title={color.label}
-                          >
-                            {status.color === color.value && <Check className="w-3.5 h-3.5 text-gray-800" />}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* Icon picker */}
-                    <div>
-                      <label className="text-xs font-medium text-gray-600 block mb-2">Button Icon</label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {iconOptions.map(iconOpt => {
-                          const IconComp = iconOpt.icon
-                          return (
-                            <button
-                              key={iconOpt.value}
-                              type="button"
-                              onClick={() => updateStatusIcon(index, iconOpt.value)}
-                              className={cn(
-                                "w-8 h-8 rounded-lg border-2 transition-all flex items-center justify-center",
-                                status.icon === iconOpt.value 
-                                  ? "border-gray-800 bg-gray-100" 
-                                  : "border-gray-200 hover:border-gray-400"
-                              )}
-                              title={iconOpt.label}
-                            >
-                              <IconComp className="w-4 h-4" />
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                    
-                    {/* Preview */}
-                    <div className="pt-2 border-t border-gray-100">
-                      <label className="text-xs font-medium text-gray-600 block mb-2">Button Preview</label>
-                      <div className={cn(
-                        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium",
-                        currentColor.bg, currentColor.text,
-                        `border-${status.color}-300`
-                      )}>
-                        <CurrentIcon className="w-4 h-4" />
-                        {status.name}
-                        <ChevronDown className="w-4 h-4" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-          {customStatuses.length === 0 && (
-            <div className="text-center py-4 text-sm text-gray-400 italic">
-              No statuses defined. Add one below.
-            </div>
-          )}
-        </div>
-        
-        {/* Add new status */}
-        <div className="flex gap-2">
-          <Input
-            value={newStatus}
-            onChange={(e) => setNewStatus(e.target.value)}
-            placeholder="Add status (e.g., Pending, Approved, Rejected)..."
-            className="border-2 focus:border-emerald-400"
-            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addStatus())}
-          />
-          <Button type="button" variant="outline" size="icon" onClick={addStatus} className="border-2 hover:border-emerald-400 hover:bg-emerald-50">
-            <Plus className="w-4 h-4" />
-          </Button>
         </div>
       </div>
 
@@ -5527,9 +5361,9 @@ function StatusActionsSettings({
       <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
         <Sparkles className="w-5 h-5 text-amber-600" />
         <div className="flex-1">
-          <h4 className="font-medium text-gray-900 text-sm">Status Action Buttons</h4>
+          <h4 className="font-medium text-gray-900 text-sm">Workflow Triggers</h4>
           <p className="text-xs text-gray-500">
-            Buttons reviewers click to take action on applications
+            Actions reviewers can take that trigger automated workflows
           </p>
         </div>
         {!isCreating && !editingStatus && (
