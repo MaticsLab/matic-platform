@@ -8,6 +8,7 @@ import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { Field, PortalConfig } from '@/types/portal'
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
+import { RichTextEditor, RichTextContent } from '@/components/PortalBuilder/RichTextEditor'
 
 interface AuthPageRendererProps {
   type: 'login' | 'signup'
@@ -182,55 +183,51 @@ export function AuthPageRenderer({
           {/* Title - Editable in preview mode */}
           <div className={cn(isMobilePreview ? "space-y-1" : "space-y-1 sm:space-y-2")}>
             {isPreview && editingField === 'title' ? (
-              <Input
+              <RichTextEditor
                 value={title}
-                onChange={(e) => handleUpdatePageSettings('title', e.target.value)}
+                onChange={(value) => handleUpdatePageSettings('title', value)}
                 onBlur={() => setEditingField(null)}
-                onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+                placeholder="Enter title"
+                minHeight="60px"
                 autoFocus
-                className={cn(
-                  "font-bold text-center border-blue-500",
-                  isMobilePreview ? "text-lg" : "text-xl sm:text-2xl"
-                )}
+                className="border-2 border-blue-500"
               />
             ) : (
-              <h1 
+              <div
                 className={cn(
                   "font-bold tracking-tight text-gray-900",
                   isMobilePreview ? "text-lg" : "text-xl sm:text-2xl",
-                  isPreview && onUpdateSettings && "cursor-pointer hover:bg-blue-50 rounded px-2 py-1 transition-colors"
+                  isPreview && onUpdateSettings && "cursor-pointer hover:bg-blue-50 hover:ring-2 hover:ring-blue-200 rounded px-2 py-1 transition-all"
                 )}
                 onClick={() => isPreview && onUpdateSettings && setEditingField('title')}
               >
-                {title}
-              </h1>
+                <RichTextContent content={title} />
+              </div>
             )}
           </div>
           
           {/* Description - Editable in preview mode */}
           {isPreview && editingField === 'description' ? (
-            <Input
+            <RichTextEditor
               value={description}
-              onChange={(e) => handleUpdatePageSettings('description', e.target.value)}
+              onChange={(value) => handleUpdatePageSettings('description', value)}
               onBlur={() => setEditingField(null)}
-              onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+              placeholder="Enter description"
+              minHeight="60px"
               autoFocus
-              className={cn(
-                "text-center border-blue-500",
-                isMobilePreview ? "text-xs" : "text-sm"
-              )}
+              className="border-2 border-blue-500"
             />
           ) : (
-            <p 
+            <div
               className={cn(
                 "text-gray-500",
                 isMobilePreview ? "text-xs" : "text-sm",
-                isPreview && onUpdateSettings && "cursor-pointer hover:bg-blue-50 rounded px-2 py-1 transition-colors"
+                isPreview && onUpdateSettings && "cursor-pointer hover:bg-blue-50 hover:ring-2 hover:ring-blue-200 rounded px-2 py-1 transition-all"
               )}
               onClick={() => isPreview && onUpdateSettings && setEditingField('description')}
             >
-              {description}
-            </p>
+              <RichTextContent content={description} className="text-inherit" />
+            </div>
           )}
 
           {/* Form Fields */}
