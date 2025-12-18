@@ -131,6 +131,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [leftSidebarTab, setLeftSidebarTab] = useState<'structure' | 'elements'>('structure')
   const [showThemeSidebar, setShowThemeSidebar] = useState(false)
   const [themePageType, setThemePageType] = useState<'login' | 'signup' | 'sections'>('signup')
+  const [isCanvasScrolled, setIsCanvasScrolled] = useState(false)
   const [shareTabKey, setShareTabKey] = useState(0)
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
     showStatus: true,
@@ -1215,10 +1216,18 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             )}
 
             {/* Canvas */}
-            <div className={cn(
-              "flex-1 overflow-y-auto bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative rounded-tl-2xl",
-              activeSpecialPage === 'dashboard' ? "p-0" : "p-6"
-            )}>
+            <div 
+              className={cn(
+                "flex-1 overflow-y-auto overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative rounded-2xl",
+                activeSpecialPage === 'dashboard' ? "p-0" : "p-3"
+              )}
+              onScroll={(e) => {
+                const scrolled = e.currentTarget.scrollTop > 10
+                if (scrolled !== isCanvasScrolled) {
+                  setIsCanvasScrolled(scrolled)
+                }
+              }}
+            >
                 {/* Floating Theme Button */}
                 {!isPreview && activeSpecialPage !== 'dashboard' && (
                   <Button
@@ -1230,7 +1239,10 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         setThemePageType(activeSpecialPage === 'signup' ? 'signup' : 'sections')
                       }
                     }}
-                    className="fixed top-4 left-4 z-50 shadow-lg bg-white gap-1.5 opacity-70 hover:opacity-100 transition-opacity backdrop-blur-sm"
+                    className={cn(
+                      "absolute top-3 left-3 z-50 shadow-lg bg-white gap-1.5 transition-opacity backdrop-blur-sm",
+                      isCanvasScrolled ? "opacity-70 hover:opacity-100" : "opacity-100"
+                    )}
                   >
                     {showThemeSidebar ? <X className="w-4 h-4" /> : <Palette className="w-4 h-4" />}
                     {showThemeSidebar ? 'Close' : 'Theme'}
