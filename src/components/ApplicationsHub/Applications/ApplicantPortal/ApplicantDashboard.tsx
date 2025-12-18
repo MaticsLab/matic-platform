@@ -43,6 +43,11 @@ export function ApplicantDashboard({
   })
   const [isLoading, setIsLoading] = useState(true)
 
+  // Scroll to top when dashboard mounts
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
   // Fetch dashboard layout settings from backend
   useEffect(() => {
     const fetchDashboardLayout = async () => {
