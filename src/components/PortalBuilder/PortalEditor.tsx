@@ -1241,13 +1241,10 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
             {/* Canvas */}
             <div 
-              className={cn(
-                "flex-1 bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative overflow-y-auto",
-                activeSpecialPage === 'dashboard' || activeSpecialPage === 'signup' ? "p-0" : "p-3"
-              )}
+              className="flex-1 bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative overflow-y-auto p-3"
             >
                 {/* Floating Theme Button */}
-                {!isPreview && activeSpecialPage !== 'dashboard' && (
+                {!isPreview && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -1267,30 +1264,21 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   </Button>
                 )}
 
-                {/* Background Pattern (subtle grid) - hide for dashboard and signup */}
-                {activeSpecialPage !== 'dashboard' && activeSpecialPage !== 'signup' && (
-                  <div className="absolute inset-0 opacity-[0.015]" style={{
-                    backgroundImage: `radial-gradient(circle, #000 1px, transparent 1px)`,
-                    backgroundSize: '24px 24px'
-                  }} />
-                )}
+                {/* Background Pattern (subtle grid) */}
+                <div className="absolute inset-0 opacity-[0.015]" style={{
+                  backgroundImage: `radial-gradient(circle, #000 1px, transparent 1px)`,
+                  backgroundSize: '24px 24px'
+                }} />
                 
                 <div 
                   className={cn(
-                    "transition-all duration-300 relative z-10",
-                    activeSpecialPage === 'dashboard' || activeSpecialPage === 'signup'
-                      ? "w-full min-h-full" 
-                      : cn(
-                          "bg-white shadow-xl border border-gray-200/80 rounded-2xl w-full overflow-y-auto max-h-full",
-                          viewMode === 'mobile' && "max-w-[375px]"
-                        )
+                    "transition-all duration-300 relative z-10 bg-white shadow-xl border border-gray-200/80 rounded-2xl w-full overflow-y-auto max-h-full",
+                    viewMode === 'mobile' && "max-w-[375px]"
                   )}
                   onScroll={(e) => {
-                    if (activeSpecialPage !== 'dashboard' && activeSpecialPage !== 'signup') {
-                      const scrolled = e.currentTarget.scrollTop > 10
-                      if (scrolled !== isCanvasScrolled) {
-                        setIsCanvasScrolled(scrolled)
-                      }
+                    const scrolled = e.currentTarget.scrollTop > 10
+                    if (scrolled !== isCanvasScrolled) {
+                      setIsCanvasScrolled(scrolled)
                     }
                   }}
                 >
@@ -1304,20 +1292,18 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       />
                     </div>
                   ) : activeSpecialPage === 'signup' ? (
-                    <div className="w-full min-h-full">
-                      <AuthPageRenderer
-                        type={themePageType === 'login' ? 'login' : 'signup'}
-                        config={displayConfig}
-                        onSelectField={setSelectedFieldId}
-                        selectedFieldId={selectedFieldId}
-                        onUpdateSettings={(updates) => {
-                          setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))
-                          setHasUnsavedChanges(true)
-                          setIsPublished(false)
-                        }}
-                        isPreview={true}
-                      />
-                    </div>
+                    <AuthPageRenderer
+                      type={themePageType === 'login' ? 'login' : 'signup'}
+                      config={displayConfig}
+                      onSelectField={setSelectedFieldId}
+                      selectedFieldId={selectedFieldId}
+                      onUpdateSettings={(updates) => {
+                        setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))
+                        setHasUnsavedChanges(true)
+                        setIsPublished(false)
+                      }}
+                      isPreview={true}
+                    />
                   ) : activeSpecialPage === 'review' ? (
                     <ReviewPreview 
                       config={displayConfig}
@@ -1328,15 +1314,13 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       }}
                     />
                   ) : activeSpecialPage === 'dashboard' ? (
-                    <div className="w-full min-h-full">
-                      <DashboardPreview 
-                        themeColor={config.settings.themeColor}
-                        logoUrl={config.settings.logoUrl}
-                        portalName={config.settings.name}
-                        dashboardSettings={dashboardSettings}
-                        config={displayConfig}
-                      />
-                    </div>
+                    <DashboardPreview 
+                      themeColor={config.settings.themeColor}
+                      logoUrl={config.settings.logoUrl}
+                      portalName={config.settings.name}
+                      dashboardSettings={dashboardSettings}
+                      config={displayConfig}
+                    />
                   ) : displaySection?.sectionType === 'ending' ? (
                     <ConfirmationPreview 
                       config={displayConfig}
