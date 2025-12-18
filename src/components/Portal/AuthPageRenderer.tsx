@@ -101,7 +101,7 @@ export function AuthPageRenderer({
   return (
     <div className={cn(
       "min-h-screen bg-white flex relative",
-      isMobilePreview || backgroundImage ? "flex-col" : "flex-col lg:flex-row"
+      isMobilePreview ? "flex-col" : "flex-col lg:flex-row"
     )}>
       {/* Background Media - Top on Mobile, Left on Desktop */}
       {backgroundImage && imagePosition === 'left' && (
