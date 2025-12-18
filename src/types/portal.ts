@@ -92,6 +92,8 @@ export type PortalConfig = {
       description?: string
       buttonText?: string
       loginLinkText?: string
+      titleMargin?: Record<string, any>
+      descriptionMargin?: Record<string, any>
     }
     reviewPage?: {
       title?: string

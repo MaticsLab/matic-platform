@@ -1351,7 +1351,6 @@ function Block({
             </button>
           ) : (
             <ChildFieldsDndContext 
-              children={children}
               onReorder={handleChildDragEnd}
               field={field}
               onDeleteChild={handleDeleteChild}
@@ -1360,8 +1359,9 @@ function Block({
               selectedChildId={selectedBlockId || null}
               themeColor={themeColor}
               allFields={allFields}
-              onOpenSettings={onOpenSettings}
-            />
+            >
+              {children}
+            </ChildFieldsDndContext>
           )}
 
           {/* Add more button when there are children */}
