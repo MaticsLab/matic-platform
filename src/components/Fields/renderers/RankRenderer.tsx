@@ -54,10 +54,29 @@ function normalizeOptions(config: Record<string, any>, formContext?: Record<stri
     }
     
     if (sourceData && Array.isArray(sourceData)) {
+      const optionTemplate = config.optionTemplate;
       const key = config.sourceKey || '';
+      
       rawOptions = sourceData
         .map((item: any) => {
           if (typeof item === 'object' && item !== null) {
+            // If option template is provided, use it to build the option string
+            if (optionTemplate && typeof optionTemplate === 'string') {
+              let optionString = optionTemplate;
+              // Replace all {fieldId} placeholders with actual values
+              Object.keys(item).forEach(fieldKey => {
+                const placeholder = `{${fieldKey}}`;
+                const value = item[fieldKey];
+                if (optionString.includes(placeholder) && value !== null && value !== undefined) {
+                  optionString = optionString.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), String(value));
+                }
+              });
+              // Only return if at least one placeholder was replaced
+              if (optionString !== optionTemplate) {
+                return optionString;
+              }
+            }
+            
             // If a specific key is configured, try it first
             if (key && item[key]) return item[key];
             

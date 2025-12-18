@@ -898,13 +898,57 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                         <SelectTrigger className="bg-gray-50/50">
                           <SelectValue placeholder="Select source field..." />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="max-h-[200px]">
                           {sourceFields.map(f => (
                             <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Option Template for Repeater Fields */}
+                    {selectedField.config?.sourceField && (() => {
+                      const sourceField = sourceFields.find(f => f.id === selectedField.config?.sourceField)
+                      const isRepeater = sourceField?.type === 'repeater'
+                      
+                      return isRepeater && sourceField?.children ? (
+                        <div className="space-y-2 p-3 bg-blue-50/50 border border-blue-100 rounded-lg">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-gray-700">Option Template</Label>
+                            <p className="text-xs text-gray-600">
+                              Use {'{'}subfieldId{'}'} to insert values from repeater items
+                            </p>
+                          </div>
+                          <Textarea
+                            value={selectedField.config?.optionTemplate || ''}
+                            onChange={(e) => handleConfigUpdate('optionTemplate', e.target.value)}
+                            placeholder={`Example: {${sourceField.children[0]?.id || 'name'}} is a {${sourceField.children[1]?.id || 'type'}}`}
+                            className="bg-white font-mono text-xs min-h-[60px]"
+                          />
+                          <div className="space-y-1.5 mt-3">
+                            <Label className="text-xs font-medium text-gray-700">Available Subfields</Label>
+                            <div className="flex flex-wrap gap-1.5">
+                              {sourceField.children.map(child => (
+                                <button
+                                  key={child.id}
+                                  type="button"
+                                  onClick={() => {
+                                    const currentTemplate = selectedField.config?.optionTemplate || ''
+                                    handleConfigUpdate('optionTemplate', `${currentTemplate}{${child.id}}`)
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-white border border-blue-200 rounded hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                                  title={`Insert {${child.id}}`}
+                                >
+                                  <span className="font-mono text-blue-600">{'{'}{ child.id}{'}'}</span>
+                                  <span className="text-gray-600">-</span>
+                                  <span className="text-gray-700">{child.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null
+                    })()}
                   </div>
                 ) : (
                   <OptionEditor
