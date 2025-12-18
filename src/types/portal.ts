@@ -122,6 +122,7 @@ export type PortalConfig = {
       showDocuments?: boolean
       welcomeTitle?: string
       welcomeText?: string
+      tasks?: import('./tasks').DashboardTask[]
     }
   }
   /** 

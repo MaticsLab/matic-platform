@@ -203,30 +203,32 @@ export function AuthPageRenderer({
               marginRight: `${titleMargin.right || 0}px`,
             }}
           >
-            {isPreview && editingField === 'title' ? (
-              <RichTextEditor
-                value={title}
-                onChange={(value) => handleUpdatePageSettings('title', value)}
-                onBlur={() => setEditingField(null)}
-                placeholder="Enter title"
-                minHeight="60px"
-                autoFocus
-                className="border-2 border-blue-500"
-                margin={titleMargin}
-                onMarginChange={(margin) => handleUpdatePageSettings('titleMargin', JSON.stringify(margin))}
-              />
-            ) : (
-              <div
-                className={cn(
-                  "font-bold tracking-tight text-gray-900",
-                  isMobilePreview ? "text-lg" : "text-xl sm:text-2xl",
-                  isPreview && onUpdateSettings && "cursor-pointer hover:bg-blue-50 hover:ring-2 hover:ring-blue-200 rounded px-2 py-1 transition-all"
-                )}
-                onClick={() => isPreview && onUpdateSettings && setEditingField('title')}
-              >
-                <RichTextContent content={title} />
-              </div>
-            )}
+            <div
+              className={cn(
+                "font-bold tracking-tight text-gray-900 outline-none",
+                isMobilePreview ? "text-lg" : "text-xl sm:text-2xl",
+                isPreview && onUpdateSettings && editingField === 'title' && "ring-2 ring-blue-400 rounded px-2 py-1 bg-white",
+                isPreview && onUpdateSettings && editingField !== 'title' && "cursor-text hover:bg-gray-50 rounded px-2 py-1 transition-all"
+              )}
+              contentEditable={isPreview && onUpdateSettings}
+              suppressContentEditableWarning
+              onFocus={() => isPreview && setEditingField('title')}
+              onBlur={(e) => {
+                if (isPreview && editingField === 'title') {
+                  const newText = e.currentTarget.textContent || ''
+                  handleUpdatePageSettings('title', newText)
+                  setEditingField(null)
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  e.currentTarget.blur()
+                }
+              }}
+            >
+              {title || 'Enter title...'}
+            </div>
           </div>
           
           {/* Description - Editable in preview mode */}
@@ -238,30 +240,32 @@ export function AuthPageRenderer({
               marginRight: `${descriptionMargin.right || 0}px`,
             }}
           >
-            {isPreview && editingField === 'description' ? (
-              <RichTextEditor
-                value={description}
-                onChange={(value) => handleUpdatePageSettings('description', value)}
-                onBlur={() => setEditingField(null)}
-                placeholder="Enter description"
-                minHeight="60px"
-                autoFocus
-                className="border-2 border-blue-500"
-                margin={descriptionMargin}
-                onMarginChange={(margin) => handleUpdatePageSettings('descriptionMargin', JSON.stringify(margin))}
-              />
-            ) : (
-              <div
-                className={cn(
-                  "text-gray-500",
-                  isMobilePreview ? "text-xs" : "text-sm",
-                  isPreview && onUpdateSettings && "cursor-pointer hover:bg-blue-50 hover:ring-2 hover:ring-blue-200 rounded px-2 py-1 transition-all"
-                )}
-                onClick={() => isPreview && onUpdateSettings && setEditingField('description')}
-              >
-                <RichTextContent content={description} className="text-inherit" />
-              </div>
-            )}
+            <div
+              className={cn(
+                "text-gray-500 outline-none",
+                isMobilePreview ? "text-xs" : "text-sm",
+                isPreview && onUpdateSettings && editingField === 'description' && "ring-2 ring-blue-400 rounded px-2 py-1 bg-white",
+                isPreview && onUpdateSettings && editingField !== 'description' && "cursor-text hover:bg-gray-50 rounded px-2 py-1 transition-all"
+              )}
+              contentEditable={isPreview && onUpdateSettings}
+              suppressContentEditableWarning
+              onFocus={() => isPreview && setEditingField('description')}
+              onBlur={(e) => {
+                if (isPreview && editingField === 'description') {
+                  const newText = e.currentTarget.textContent || ''
+                  handleUpdatePageSettings('description', newText)
+                  setEditingField(null)
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  e.currentTarget.blur()
+                }
+              }}
+            >
+              {description || 'Enter description...'}
+            </div>
           </div>
 
           {/* Form Fields */}
