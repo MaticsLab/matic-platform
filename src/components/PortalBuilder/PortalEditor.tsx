@@ -1242,8 +1242,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             {/* Canvas */}
             <div 
               className={cn(
-                "flex-1 bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative",
-                activeSpecialPage === 'dashboard' ? "p-0 overflow-y-auto" : "p-3 overflow-y-auto overflow-hidden"
+                "flex-1 bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative overflow-y-auto",
+                activeSpecialPage === 'dashboard' || activeSpecialPage === 'signup' ? "p-0" : "p-3"
               )}
             >
                 {/* Floating Theme Button */}
@@ -1267,8 +1267,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   </Button>
                 )}
 
-                {/* Background Pattern (subtle grid) - hide for dashboard */}
-                {activeSpecialPage !== 'dashboard' && (
+                {/* Background Pattern (subtle grid) - hide for dashboard and signup */}
+                {activeSpecialPage !== 'dashboard' && activeSpecialPage !== 'signup' && (
                   <div className="absolute inset-0 opacity-[0.015]" style={{
                     backgroundImage: `radial-gradient(circle, #000 1px, transparent 1px)`,
                     backgroundSize: '24px 24px'
@@ -1278,10 +1278,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                 <div 
                   className={cn(
                     "transition-all duration-300 relative z-10",
-                    activeSpecialPage === 'dashboard' 
-                      ? "w-full h-full bg-gray-50" 
-                      : activeSpecialPage === 'signup'
-                      ? "w-full h-full" // Full width/height for signup page
+                    activeSpecialPage === 'dashboard' || activeSpecialPage === 'signup'
+                      ? "w-full min-h-full" 
                       : cn(
                           "bg-white shadow-xl border border-gray-200/80 rounded-2xl w-full overflow-y-auto max-h-full",
                           viewMode === 'mobile' && "max-w-[375px]"
@@ -1306,18 +1304,20 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       />
                     </div>
                   ) : activeSpecialPage === 'signup' ? (
-                    <AuthPageRenderer
-                      type={themePageType === 'login' ? 'login' : 'signup'}
-                      config={displayConfig}
-                      onSelectField={setSelectedFieldId}
-                      selectedFieldId={selectedFieldId}
-                      onUpdateSettings={(updates) => {
-                        setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))
-                        setHasUnsavedChanges(true)
-                        setIsPublished(false)
-                      }}
-                      isPreview={true}
-                    />
+                    <div className="w-full min-h-full">
+                      <AuthPageRenderer
+                        type={themePageType === 'login' ? 'login' : 'signup'}
+                        config={displayConfig}
+                        onSelectField={setSelectedFieldId}
+                        selectedFieldId={selectedFieldId}
+                        onUpdateSettings={(updates) => {
+                          setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))
+                          setHasUnsavedChanges(true)
+                          setIsPublished(false)
+                        }}
+                        isPreview={true}
+                      />
+                    </div>
                   ) : activeSpecialPage === 'review' ? (
                     <ReviewPreview 
                       config={displayConfig}
