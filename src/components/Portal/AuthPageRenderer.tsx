@@ -97,8 +97,36 @@ export function AuthPageRenderer({
   }
 
   return (
-    <div className="min-h-screen bg-white flex relative">
-      {/* Background Media - Left Side */}
+    <div className="min-h-screen bg-white flex flex-col lg:flex-row relative">
+      {/* Background Media - Top on Mobile, Left on Desktop */}
+      {backgroundImage && imagePosition === 'left' && (
+        <div className="w-full h-64 lg:hidden relative overflow-hidden">
+          {isVideo ? (
+            <video 
+              src={backgroundImage} 
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                objectPosition: imageFocalPoint || 'center center'
+              }}
+              autoPlay 
+              loop 
+              muted 
+              playsInline
+            />
+          ) : (
+            <img 
+              src={backgroundImage} 
+              alt="Background" 
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                objectPosition: imageFocalPoint || 'center center'
+              }}
+            />
+          )}
+        </div>
+      )}
+      
+      {/* Background Media - Left Side Desktop Only */}
       {backgroundImage && imagePosition === 'left' && (
         <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
           {isVideo ? (
@@ -128,19 +156,19 @@ export function AuthPageRenderer({
 
       {/* Form Content */}
       <div className={cn(
-        "w-full flex flex-col items-center justify-center p-8 lg:p-16",
-        backgroundImage ? "lg:w-1/2" : "lg:w-full"
+        "w-full flex flex-col items-center justify-center p-4 sm:p-6 lg:p-12",
+        backgroundImage && imagePosition === 'left' ? "lg:w-1/2" : backgroundImage && imagePosition === 'right' ? "lg:w-1/2" : "lg:w-full"
       )}>
-        <div className="w-full max-w-md space-y-8">
+        <div className="w-full max-w-md space-y-4 sm:space-y-6 lg:space-y-8">
           {/* Logo */}
           {logo && (
             <div className="flex items-center gap-3">
-              <img src={logo} alt="Logo" className="h-10 object-contain" />
+              <img src={logo} alt="Logo" className="h-8 sm:h-10 object-contain" />
             </div>
           )}
           
           {/* Title - Editable in preview mode */}
-          <div className="space-y-2">
+          <div className="space-y-1 sm:space-y-2">
             {isPreview && editingField === 'title' ? (
               <Input
                 value={title}
@@ -148,12 +176,12 @@ export function AuthPageRenderer({
                 onBlur={() => setEditingField(null)}
                 onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
                 autoFocus
-                className="text-2xl font-bold text-center border-blue-500"
+                className="text-xl sm:text-2xl font-bold text-center border-blue-500"
               />
             ) : (
               <h1 
                 className={cn(
-                  "text-2xl font-bold tracking-tight text-gray-900",
+                  "text-xl sm:text-2xl font-bold tracking-tight text-gray-900",
                   isPreview && onUpdateSettings && "cursor-pointer hover:bg-blue-50 rounded px-2 py-1 transition-colors"
                 )}
                 onClick={() => isPreview && onUpdateSettings && setEditingField('title')}
@@ -186,7 +214,7 @@ export function AuthPageRenderer({
           )}
 
           {/* Form Fields */}
-          <form onSubmit={onSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} className="space-y-3 sm:space-y-4">
             {type === 'login' ? (
               // Login fields - always email + password
               <>
@@ -263,7 +291,7 @@ export function AuthPageRenderer({
               <Button 
                 type={isPreview ? "button" : "submit"}
                 className={cn(
-                  "w-full h-10 text-base font-medium transition-all",
+                  "w-full h-10 sm:h-11 text-sm sm:text-base font-medium transition-all",
                   isPreview && onUpdateSettings && "cursor-pointer"
                 )}
                 style={{ backgroundColor: themeColor }}
@@ -290,7 +318,7 @@ export function AuthPageRenderer({
 
         {/* Toggle between login/signup */}
         {onToggleMode && (
-          <p className="text-center mt-6 text-sm text-gray-500">
+          <p className="text-center mt-4 sm:mt-6 text-xs sm:text-sm text-gray-500">
             {type === 'login' ? "Don't have an account? " : "Already have an account? "}
             <button 
               onClick={onToggleMode}
@@ -303,7 +331,35 @@ export function AuthPageRenderer({
         )}
       </div>
 
-      {/* Background Media - Right Side */}
+      {/* Background Media - Top on Mobile, Right on Desktop */}
+      {backgroundImage && imagePosition === 'right' && (
+        <div className="w-full h-64 lg:hidden relative overflow-hidden order-first">
+          {isVideo ? (
+            <video 
+              src={backgroundImage} 
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                objectPosition: imageFocalPoint || 'center center'
+              }}
+              autoPlay 
+              loop 
+              muted 
+              playsInline
+            />
+          ) : (
+            <img 
+              src={backgroundImage} 
+              alt="Background" 
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                objectPosition: imageFocalPoint || 'center center'
+              }}
+            />
+          )}
+        </div>
+      )}
+      
+      {/* Background Media - Right Side Desktop Only */}
       {backgroundImage && imagePosition === 'right' && (
         <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
           {isVideo ? (
