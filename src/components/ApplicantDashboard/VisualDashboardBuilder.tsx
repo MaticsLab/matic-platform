@@ -113,6 +113,7 @@ const FIELD_TYPES = [
 ]
 
 const DEFAULT_SETTINGS: DashboardSettings = {
+  blocks: [],
   showStatus: true,
   showTimeline: true,
   showChat: true,
