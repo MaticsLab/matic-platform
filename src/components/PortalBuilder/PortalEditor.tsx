@@ -22,6 +22,7 @@ import { FieldSettingsPanel } from './FieldSettingsPanel'
 import { ConditionBuilder } from './ConditionBuilder'
 import { ShareTab } from './ShareTab'
 import { SignUpPreview } from './SignUpPreview'
+import { AuthPageRenderer } from '@/components/Portal/AuthPageRenderer'
 import { ConfirmationPreview } from './ConfirmationPreview'
 import { ReviewPreview } from './ReviewPreview'
 import { EndingPagesBuilder } from '@/components/EndingPages/EndingPagesBuilder'
@@ -1152,6 +1153,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       setHasUnsavedChanges(true)
                     }}
                     formId={formId || undefined}
+                    onTabChange={(tab) => setThemePageType(tab)}
                   />
                 </div>
               </div>
@@ -1284,16 +1286,17 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       />
                     </div>
                   ) : activeSpecialPage === 'signup' ? (
-                    <SignUpPreview 
-                      config={displayConfig} 
+                    <AuthPageRenderer
+                      type={themePageType === 'login' ? 'login' : 'signup'}
+                      config={displayConfig}
                       onSelectField={setSelectedFieldId}
                       selectedFieldId={selectedFieldId}
-                      formId={formId || undefined}
                       onUpdateSettings={(updates) => {
                         setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))
                         setHasUnsavedChanges(true)
                         setIsPublished(false)
                       }}
+                      isPreview={true}
                     />
                   ) : activeSpecialPage === 'review' ? (
                     <ReviewPreview 

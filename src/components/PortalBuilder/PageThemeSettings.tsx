@@ -17,10 +17,16 @@ interface PageThemeSettingsProps {
   settings: PortalConfig['settings']
   onUpdate: (updates: Partial<PortalConfig['settings']>) => void
   formId?: string
+  onTabChange?: (tab: 'login' | 'signup') => void
 }
 
-export function PageThemeSettings({ pageType: initialPageType, settings, onUpdate, formId }: PageThemeSettingsProps) {
+export function PageThemeSettings({ pageType: initialPageType, settings, onUpdate, formId, onTabChange }: PageThemeSettingsProps) {
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>(initialPageType === 'sections' ? 'signup' : initialPageType)
+
+  const handleTabChange = (tab: 'login' | 'signup') => {
+    setActiveTab(tab)
+    onTabChange?.(tab)
+  }
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
   const [showPositionDialog, setShowPositionDialog] = useState(false)
@@ -274,10 +280,20 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
       </div>
 
       {/* Tabs for Login vs Signup */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'login' | 'signup')} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="login">Login Page</TabsTrigger>
-          <TabsTrigger value="signup">Signup Page</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as 'login' | 'signup')} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 bg-gray-100 p-1">
+          <TabsTrigger 
+            value="login"
+            className="data-[state=active]:bg-white data-[state=active]:shadow-sm"
+          >
+            Login
+          </TabsTrigger>
+          <TabsTrigger 
+            value="signup"
+            className="data-[state=active]:bg-white data-[state=active]:shadow-sm"
+          >
+            Signup
+          </TabsTrigger>
         </TabsList>
       </Tabs>
 
