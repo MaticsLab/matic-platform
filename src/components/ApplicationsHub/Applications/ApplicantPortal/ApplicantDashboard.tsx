@@ -34,6 +34,7 @@ export function ApplicantDashboard({
   themeColor = '#3B82F6'
 }: ApplicantDashboardProps) {
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
+    blocks: [],
     showStatus: true,
     showTimeline: true,
     showChat: true,
