@@ -60,7 +60,6 @@ export function ApplicantDashboard({
         const layout = await dashboardClient.getLayout(formId)
         if (layout?.settings) {
           setDashboardSettings({
-            blocks: layout.settings.blocks || [],
             showStatus: layout.settings.showStatus ?? layout.settings.show_status ?? true,
             showTimeline: layout.settings.showTimeline ?? layout.settings.show_timeline ?? true,
             showChat: layout.settings.showChat ?? layout.settings.show_chat ?? true,
