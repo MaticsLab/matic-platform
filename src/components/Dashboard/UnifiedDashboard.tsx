@@ -406,10 +406,10 @@ export function UnifiedDashboard({
                 size="sm" 
                 onClick={onContinueApplication}
                 style={{ backgroundColor: themeColor }}
-                className="text-white"
+                className="text-white hover:opacity-90 shadow-md font-medium"
               >
                 <FileEdit className="w-4 h-4 mr-2" />
-                {applicationStatus === 'revision_requested' ? 'Edit & Resubmit' : 'Continue Application'}
+                {applicationStatus === 'revision_requested' ? 'Edit & Resubmit Application' : 'Return to Application'}
               </Button>
             )}
             {/* User button / Sign out */}
@@ -726,19 +726,36 @@ export function UnifiedDashboard({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.25 }}
               >
-                <Card className="shadow-sm">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm">Quick Actions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0 space-y-2">
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-between text-sm h-9"
-                      onClick={onContinueApplication}
-                    >
-                      {applicationStatus === 'revision_requested' ? 'Edit & Resubmit' : 'Continue Application'}
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
+                <Card className="shadow-sm border-l-4" style={{ borderLeftColor: themeColor }}>
+                  <CardContent className="pt-6">
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg" style={{ backgroundColor: `${themeColor}15` }}>
+                          <FileEdit className="w-5 h-5" style={{ color: themeColor }} />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900 mb-1">
+                            {applicationStatus === 'revision_requested' 
+                              ? 'Action Required' 
+                              : 'Complete Your Application'}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {applicationStatus === 'revision_requested'
+                              ? 'Please review and address the requested changes to your application.'
+                              : 'Continue where you left off and submit your application.'}
+                          </p>
+                        </div>
+                      </div>
+                      <Button 
+                        className="w-full justify-between font-medium shadow-sm"
+                        size="lg"
+                        onClick={onContinueApplication}
+                        style={{ backgroundColor: themeColor }}
+                      >
+                        <span>{applicationStatus === 'revision_requested' ? 'Edit & Resubmit Application' : 'Return to Application'}</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               </motion.div>
