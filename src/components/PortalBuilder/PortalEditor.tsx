@@ -1325,6 +1325,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         logoUrl={config.settings.logoUrl}
                         portalName={config.settings.name}
                         dashboardSettings={dashboardSettings}
+                        config={displayConfig}
                       />
                     </div>
                   ) : displaySection?.sectionType === 'ending' ? (

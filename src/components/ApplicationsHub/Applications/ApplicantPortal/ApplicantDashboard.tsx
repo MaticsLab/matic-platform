@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { UnifiedDashboard } from '@/components/Dashboard/UnifiedDashboard'
+import { DashboardV2 } from '@/components/Dashboard/DashboardV2'
 import { dashboardClient } from '@/lib/api/dashboard-client'
 import { PortalConfig } from '@/types/portal'
 import type { DashboardSettings } from '@/types/dashboard'
@@ -89,12 +89,7 @@ export function ApplicantDashboard({
   }
 
   return (
-    <UnifiedDashboard
-      mode="live"
-      dashboardSettings={dashboardSettings}
-      portalName={config.settings.name}
-      themeColor={themeColor}
-      logoUrl={config.settings.logoUrl}
+    <DashboardV2
       config={config}
       submissionData={submissionData}
       applicationStatus={applicationStatus}
@@ -103,6 +98,11 @@ export function ApplicantDashboard({
       rowId={rowId}
       onLogout={onLogout}
       onContinueApplication={onContinueApplication}
+      themeColor={themeColor}
+      isPreview={false}
+      dashboardSettings={dashboardSettings}
+      welcomeTitle={dashboardSettings.welcomeTitle}
+      welcomeText={dashboardSettings.welcomeText}
     />
   )
 }
