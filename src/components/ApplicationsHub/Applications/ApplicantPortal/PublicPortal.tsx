@@ -92,8 +92,10 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       name: translatedConfig.settings.name || form.name,
       description: translatedConfig.settings.description || form.description,
       settings: {
-        ...form.settings,
-        // Use the translated sections from the config
+        ...form.settings, // Preserve all settings including images, logos, focal points, etc.
+        // Override with translated content where applicable
+        name: translatedConfig.settings.name || form.settings.name,
+        description: translatedConfig.settings.description || form.settings.description,
         sections: translatedConfig.sections,
         signupFields: translatedConfig.settings.signupFields || form.settings.signupFields
       },
