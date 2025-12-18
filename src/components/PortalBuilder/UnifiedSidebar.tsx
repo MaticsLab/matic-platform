@@ -395,60 +395,16 @@ export function UnifiedSidebar({
                 </CollapsibleTrigger>
                 
                 <CollapsibleContent className="mt-2 ml-2 space-y-3 pb-2">
-                  {/* Dashboard Components Toggles */}
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide px-1">Components</p>
-                    {DASHBOARD_COMPONENTS.map((comp) => {
-                      const Icon = comp.icon
-                      const isEnabled = dashboardSettings[comp.key as keyof DashboardSettings] as boolean
-                      return (
-                        <div 
-                          key={comp.key}
-                          className={cn(
-                            "flex items-center gap-2 p-2 rounded-lg border transition-all",
-                            isEnabled ? "bg-blue-50/50 border-blue-100" : "bg-gray-50 border-gray-100 opacity-70"
-                          )}
-                        >
-                          <Icon className={cn("w-4 h-4", isEnabled ? "text-blue-600" : "text-gray-400")} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-gray-900">{comp.label}</p>
-                          </div>
-                          <Switch
-                            checked={isEnabled}
-                            onCheckedChange={(checked) => onDashboardSettingsChange({ [comp.key]: checked })}
-                            className="scale-75"
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  <Separator />
-
-                  {/* Welcome Message Settings */}
-                  <div className="space-y-3">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide px-1">Welcome Message</p>
-                    <div className="space-y-3">
+                  {/* Dashboard Builder Note */}
+                  <div className="p-3 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg border border-indigo-200">
+                    <div className="flex items-start gap-2">
+                      <LayoutDashboard className="w-4 h-4 text-indigo-600 mt-0.5 shrink-0" />
                       <div>
-                        <Label className="text-xs text-gray-600 mb-1.5 block">Title</Label>
-                        <MentionInput
-                          value={dashboardSettings.welcomeTitle || ''}
-                          onChange={(value) => onDashboardSettingsChange({ welcomeTitle: value })}
-                          placeholder="Good morning, @firstName 👋"
-                          className="h-9 text-sm"
-                          availableFields={sections.flatMap(s => s.fields)}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-gray-600 mb-1.5 block">Description</Label>
-                        <MentionInput
-                          value={dashboardSettings.welcomeText || ''}
-                          onChange={(value) => onDashboardSettingsChange({ welcomeText: value })}
-                          placeholder="Here's an overview of your application."
-                          className="text-sm"
-                          availableFields={sections.flatMap(s => s.fields)}
-                          multiline
-                        />
+                        <p className="text-xs font-medium text-indigo-900 mb-1">Visual Block Builder</p>
+                        <p className="text-xs text-indigo-700 leading-relaxed">
+                          Click "Applicant Dashboard" above to open the visual editor. 
+                          Add blocks, drag to rearrange, and click blocks to configure settings.
+                        </p>
                       </div>
                     </div>
                   </div>

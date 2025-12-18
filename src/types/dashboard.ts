@@ -4,6 +4,20 @@
 
 import type { Field as PortalField } from './portal'
 
+export type DashboardBlockType = 'tasks' | 'status' | 'timeline' | 'messages' | 'documents' | 'recommendations'
+
+export interface DashboardBlock {
+  id: string
+  type: DashboardBlockType
+  // Grid position and size
+  x: number // Grid column (0-11 for 12-column grid)
+  y: number // Grid row
+  width: number // Spans (1-12)
+  height: number // Row spans (1-6)
+  // Block-specific settings
+  settings: Record<string, unknown>
+}
+
 // Dashboard-specific field that can include additional properties
 export interface DashboardField extends Omit<PortalField, 'sectionId'> {
   dashboardOnly?: boolean // Fields added specifically for dashboard data collection
@@ -22,21 +36,24 @@ export interface DashboardSection {
 }
 
 export interface DashboardSettings {
-  showStatus: boolean
-  showTimeline: boolean
-  showChat: boolean
-  showDocuments: boolean
+  // Grid-based block layout
+  blocks: DashboardBlock[]
+  // Welcome message (optional header)
   welcomeTitle?: string
   welcomeText?: string
-  // Snake_case aliases for backend compatibility
+  // Legacy settings for backward compatibility
+  showStatus?: boolean
+  showTimeline?: boolean
+  showChat?: boolean
+  showDocuments?: boolean
   show_status?: boolean
   show_timeline?: boolean
   show_chat?: boolean
   show_documents?: boolean
   welcome_title?: string
   welcome_text?: string
-  show_status_badge?: boolean // Legacy alias
-  allow_messages?: boolean // Legacy alias
+  show_status_badge?: boolean
+  allow_messages?: boolean
 }
 
 export interface DashboardLayout {
