@@ -1303,6 +1303,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         setIsPublished(false)
                       }}
                       isPreview={true}
+                      isMobilePreview={viewMode === 'mobile'}
                     />
                   ) : activeSpecialPage === 'review' ? (
                     <ReviewPreview 

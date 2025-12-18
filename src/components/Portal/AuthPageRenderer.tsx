@@ -25,6 +25,7 @@ interface AuthPageRendererProps {
   onUpdateSettings?: (updates: Partial<PortalConfig['settings']>) => void
   onToggleMode?: () => void
   isPreview?: boolean
+  isMobilePreview?: boolean
 }
 
 export function AuthPageRenderer({
@@ -42,7 +43,8 @@ export function AuthPageRenderer({
   selectedFieldId,
   onUpdateSettings,
   onToggleMode,
-  isPreview = false
+  isPreview = false,
+  isMobilePreview = false
 }: AuthPageRendererProps) {
   const { settings } = config
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -97,10 +99,16 @@ export function AuthPageRenderer({
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col lg:flex-row relative">
+    <div className={cn(
+      "min-h-screen bg-white flex relative",
+      isMobilePreview || backgroundImage ? "flex-col" : "flex-col lg:flex-row"
+    )}>
       {/* Background Media - Top on Mobile, Left on Desktop */}
       {backgroundImage && imagePosition === 'left' && (
-        <div className="w-full h-64 lg:hidden relative overflow-hidden">
+        <div className={cn(
+          "relative overflow-hidden",
+          isMobilePreview ? "w-full h-48" : "w-full h-64 lg:hidden"
+        )}>
           {isVideo ? (
             <video 
               src={backgroundImage} 
@@ -127,7 +135,7 @@ export function AuthPageRenderer({
       )}
       
       {/* Background Media - Left Side Desktop Only */}
-      {backgroundImage && imagePosition === 'left' && (
+      {backgroundImage && imagePosition === 'left' && !isMobilePreview && (
         <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
           {isVideo ? (
             <video 
@@ -156,19 +164,23 @@ export function AuthPageRenderer({
 
       {/* Form Content */}
       <div className={cn(
-        "w-full flex flex-col items-center justify-center p-4 sm:p-6 lg:p-12",
-        backgroundImage && imagePosition === 'left' ? "lg:w-1/2" : backgroundImage && imagePosition === 'right' ? "lg:w-1/2" : "lg:w-full"
+        "w-full flex flex-col items-center justify-center p-4 sm:p-6",
+        !isMobilePreview && "lg:p-12",
+        !isMobilePreview && backgroundImage && (imagePosition === 'left' || imagePosition === 'right') ? "lg:w-1/2" : !isMobilePreview && "lg:w-full"
       )}>
         <div className="w-full max-w-md space-y-4 sm:space-y-6 lg:space-y-8">
           {/* Logo */}
           {logo && (
             <div className="flex items-center gap-3">
-              <img src={logo} alt="Logo" className="h-8 sm:h-10 object-contain" />
+              <img src={logo} alt="Logo" className={cn(
+                "object-contain",
+                isMobilePreview ? "h-6" : "h-8 sm:h-10"
+              )} />
             </div>
           )}
           
           {/* Title - Editable in preview mode */}
-          <div className="space-y-1 sm:space-y-2">
+          <div className={cn(isMobilePreview ? "space-y-1" : "space-y-1 sm:space-y-2")}>
             {isPreview && editingField === 'title' ? (
               <Input
                 value={title}
@@ -176,12 +188,16 @@ export function AuthPageRenderer({
                 onBlur={() => setEditingField(null)}
                 onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
                 autoFocus
-                className="text-xl sm:text-2xl font-bold text-center border-blue-500"
+                className={cn(
+                  "font-bold text-center border-blue-500",
+                  isMobilePreview ? "text-lg" : "text-xl sm:text-2xl"
+                )}
               />
             ) : (
               <h1 
                 className={cn(
-                  "text-xl sm:text-2xl font-bold tracking-tight text-gray-900",
+                  "font-bold tracking-tight text-gray-900",
+                  isMobilePreview ? "text-lg" : "text-xl sm:text-2xl",
                   isPreview && onUpdateSettings && "cursor-pointer hover:bg-blue-50 rounded px-2 py-1 transition-colors"
                 )}
                 onClick={() => isPreview && onUpdateSettings && setEditingField('title')}
@@ -199,12 +215,16 @@ export function AuthPageRenderer({
               onBlur={() => setEditingField(null)}
               onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
               autoFocus
-              className="text-sm text-center border-blue-500"
+              className={cn(
+                "text-center border-blue-500",
+                isMobilePreview ? "text-xs" : "text-sm"
+              )}
             />
           ) : (
             <p 
               className={cn(
-                "text-gray-500 text-sm",
+                "text-gray-500",
+                isMobilePreview ? "text-xs" : "text-sm",
                 isPreview && onUpdateSettings && "cursor-pointer hover:bg-blue-50 rounded px-2 py-1 transition-colors"
               )}
               onClick={() => isPreview && onUpdateSettings && setEditingField('description')}
@@ -214,19 +234,25 @@ export function AuthPageRenderer({
           )}
 
           {/* Form Fields */}
-          <form onSubmit={onSubmit} className="space-y-3 sm:space-y-4">
+          <form onSubmit={onSubmit} className={cn(isMobilePreview ? "space-y-2" : "space-y-3 sm:space-y-4")}>
             {type === 'login' ? (
               // Login fields - always email + password
               <>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
+                <div className={cn(isMobilePreview ? "space-y-1" : "space-y-2")}>
+                  <Label htmlFor="email" className={cn(isMobilePreview && "text-xs")}>Email Address</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Mail className={cn(
+                      "absolute left-3 top-1/2 -translate-y-1/2 text-gray-400",
+                      isMobilePreview ? "w-3 h-3" : "w-4 h-4"
+                    )} />
                     <Input 
                       id="email" 
                       type="email" 
                       placeholder="you@example.com" 
-                      className="pl-10"
+                      className={cn(
+                        "pl-10",
+                        isMobilePreview && "h-8 text-xs"
+                      )}
                       value={email}
                       onChange={(e) => onEmailChange?.(e.target.value)}
                       required
@@ -235,15 +261,21 @@ export function AuthPageRenderer({
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                <div className={cn(isMobilePreview ? "space-y-1" : "space-y-2")}>
+                  <Label htmlFor="password" className={cn(isMobilePreview && "text-xs")}>Password</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Lock className={cn(
+                      "absolute left-3 top-1/2 -translate-y-1/2 text-gray-400",
+                      isMobilePreview ? "w-3 h-3" : "w-4 h-4"
+                    )} />
                     <Input 
                       id="password" 
                       type="password" 
                       placeholder="••••••••" 
-                      className="pl-10"
+                      className={cn(
+                        "pl-10",
+                        isMobilePreview && "h-8 text-xs"
+                      )}
                       value={password}
                       onChange={(e) => onPasswordChange?.(e.target.value)}
                       required
@@ -291,7 +323,8 @@ export function AuthPageRenderer({
               <Button 
                 type={isPreview ? "button" : "submit"}
                 className={cn(
-                  "w-full h-10 sm:h-11 text-sm sm:text-base font-medium transition-all",
+                  "w-full font-medium transition-all",
+                  isMobilePreview ? "h-8 text-xs" : "h-10 sm:h-11 text-sm sm:text-base",
                   isPreview && onUpdateSettings && "cursor-pointer"
                 )}
                 style={{ backgroundColor: themeColor }}
@@ -333,7 +366,10 @@ export function AuthPageRenderer({
 
       {/* Background Media - Top on Mobile, Right on Desktop */}
       {backgroundImage && imagePosition === 'right' && (
-        <div className="w-full h-64 lg:hidden relative overflow-hidden order-first">
+        <div className={cn(
+          "relative overflow-hidden order-first",
+          isMobilePreview ? "w-full h-48" : "w-full h-64 lg:hidden"
+        )}>
           {isVideo ? (
             <video 
               src={backgroundImage} 
@@ -360,7 +396,7 @@ export function AuthPageRenderer({
       )}
       
       {/* Background Media - Right Side Desktop Only */}
-      {backgroundImage && imagePosition === 'right' && (
+      {backgroundImage && imagePosition === 'right' && !isMobilePreview && (
         <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
           {isVideo ? (
             <video 
