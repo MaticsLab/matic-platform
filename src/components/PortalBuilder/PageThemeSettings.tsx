@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Upload, Image as ImageIcon, Loader2, X } from 'lucide-react'
+import { Upload, Image as ImageIcon, Loader2, X, Maximize2 } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
@@ -301,10 +301,11 @@ export function PageThemeSettings({ pageType, settings, onUpdate, formId }: Page
                 <img src={currentImage} alt="Background" className="w-full h-full object-cover" />
               </div>
               <button
-                onClick={handleRemoveImage}
-                className="absolute top-2 right-2 p-1.5 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={() => {/* TODO: Open position dialog */}}
+                className="absolute top-2 left-2 px-3 py-1.5 rounded-md bg-white border border-gray-200 shadow-sm text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50 flex items-center gap-1.5"
               >
-                <X className="w-4 h-4" />
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">Position</span>
               </button>
             </div>
           ) : (

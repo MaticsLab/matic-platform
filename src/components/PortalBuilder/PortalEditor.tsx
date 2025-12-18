@@ -1134,25 +1134,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             <div className="w-[380px] min-w-[380px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 overflow-y-auto overflow-x-hidden">
           <Tabs value={leftSidebarTab === 'theme' ? 'structure' : leftSidebarTab} onValueChange={(value) => setLeftSidebarTab(value as any)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-gray-900">{leftSidebarTab === 'theme' ? 'Theme Settings' : 'Designer'}</h2>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (leftSidebarTab === 'theme') {
-                      setLeftSidebarTab('structure')
-                    } else {
-                      setLeftSidebarTab('theme')
-                      setThemePageType(activeSpecialPage === 'signup' ? 'signup' : 'sections')
-                    }
-                  }}
-                  className="h-8 gap-1.5"
-                >
-                  <Palette className="w-3.5 h-3.5" />
-                  {leftSidebarTab === 'theme' ? 'Back' : 'Theme'}
-                </Button>
-              </div>
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">{leftSidebarTab === 'theme' ? 'Theme Settings' : 'Designer'}</h2>
               {leftSidebarTab !== 'theme' && (
                 <TabsList className="w-full grid grid-cols-2 bg-gray-100 p-1 rounded-full h-auto">
                   <TabsTrigger value="structure" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Sections</TabsTrigger>
@@ -1234,6 +1216,26 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
               "flex-1 overflow-y-auto bg-gradient-to-br from-gray-100 to-gray-50 flex justify-center relative",
               activeSpecialPage === 'dashboard' ? "p-0" : "p-6"
             )}>
+                {/* Floating Theme Button */}
+                {!isPreview && activeSpecialPage !== 'dashboard' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (leftSidebarTab === 'theme') {
+                        setLeftSidebarTab('structure')
+                      } else {
+                        setLeftSidebarTab('theme')
+                        setThemePageType(activeSpecialPage === 'signup' ? 'signup' : 'sections')
+                      }
+                    }}
+                    className="absolute top-4 left-4 z-50 shadow-lg bg-white gap-1.5"
+                  >
+                    <Palette className="w-4 h-4" />
+                    {leftSidebarTab === 'theme' ? 'Back' : 'Theme'}
+                  </Button>
+                )}
+
                 {/* Background Pattern (subtle grid) - hide for dashboard */}
                 {activeSpecialPage !== 'dashboard' && (
                   <div className="absolute inset-0 opacity-[0.015]" style={{
