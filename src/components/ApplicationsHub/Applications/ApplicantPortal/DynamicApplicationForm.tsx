@@ -2,11 +2,12 @@
 
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Check, LayoutDashboard, Save } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, LayoutDashboard, Save, Printer, Send, CheckCircle, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/ui-components/card'
 import { Progress } from '@/ui-components/progress'
+import { Checkbox } from '@/ui-components/checkbox'
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
 import { applyTranslationsToConfig, normalizeTranslations, getUITranslations } from '@/lib/portal-translations'
@@ -52,6 +53,8 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
   const [formData, setFormData] = useState<Record<string, any>>(initialData || {})
   const [isSaving, setIsSaving] = useState(false)
   const [isAutosaving, setIsAutosaving] = useState(false)
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
+  const [agreedToAccuracy, setAgreedToAccuracy] = useState(false)
   const [lastSavedData, setLastSavedData] = useState<string>('')
   
   // Refs for autosave to avoid stale closures
@@ -323,28 +326,48 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
                     )}
                   </CardHeader>
                   <CardContent className={cn("space-y-6", isExternal ? "px-0" : "")}>
-                    {translatedConfig.sections?.filter((s: Section) => s.sectionType === 'form').map((section: Section, idx: number) => (
-                      <div key={section.id} className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold text-gray-900">{section.title}</h3>
+                    {/* Completion Status */}
+                    <div className={cn("border rounded-lg p-4", "bg-green-50 border-green-200")}>
+                      <div className="flex items-start gap-3">
+                        <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <h3 className="font-medium text-green-900">Ready to Submit</h3>
+                          <p className="text-sm mt-1 text-green-700">
+                            Review your information below and submit when ready.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Review Sections */}
+                    {translatedConfig.sections?.filter((s: Section) => s.sectionType === 'form').map((section: Section) => (
+                      <div key={section.id} className="border border-gray-200 rounded-lg p-6">
+                        <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                          <h3 className="font-medium text-gray-900">{section.title}</h3>
                           <Button 
                             variant="ghost" 
                             size="sm"
                             onClick={() => setActiveSectionId(section.id)}
+                            className="text-blue-600 hover:text-blue-700"
                           >
                             Edit
                           </Button>
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                        <div className="space-y-4">
                           {(section.fields || []).map((field: Field) => {
                             const value = formData[field.id]
-                            if (!value || (Array.isArray(value) && value.length === 0)) return null
+                            if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) return null
+                            
+                            const displayValue = Array.isArray(value) 
+                              ? value.join(', ') 
+                              : typeof value === 'object' && value !== null
+                                ? (value.formatted_address || (value.street ? [value.street, value.city, value.state, value.zip].filter(Boolean).join(', ') : JSON.stringify(value)))
+                                : String(value)
+                            
                             return (
-                              <div key={field.id} className="flex justify-between text-sm">
-                                <span className="text-gray-600">{field.label}:</span>
-                                <span className="text-gray-900 font-medium">
-                                  {Array.isArray(value) ? value.join(', ') : String(value)}
-                                </span>
+                              <div key={field.id} className="grid grid-cols-3 gap-4 text-sm">
+                                <dt className="text-gray-600">{field.label}</dt>
+                                <dd className="col-span-2 text-gray-900 break-words">{displayValue}</dd>
                               </div>
                             )
                           })}
@@ -352,10 +375,72 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
                       </div>
                     ))}
                     
-                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-sm text-blue-900">
-                        By submitting this application, I certify that all information provided is accurate and complete to the best of my knowledge.
-                      </p>
+                    {/* Certifications */}
+                    <div className="border border-gray-200 rounded-lg p-6 space-y-4">
+                      <h3 className="font-medium text-gray-900">Certification</h3>
+                      
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id="terms"
+                            checked={agreedToTerms}
+                            onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
+                            className="mt-1"
+                          />
+                          <label htmlFor="terms" className="text-sm text-gray-700 cursor-pointer flex-1">
+                            I certify that I have read and agree to the{' '}
+                            <a href="#" className="text-blue-600 hover:underline">terms and conditions</a>{' '}
+                            of this program.
+                          </label>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id="accuracy"
+                            checked={agreedToAccuracy}
+                            onCheckedChange={(checked) => setAgreedToAccuracy(checked as boolean)}
+                            className="mt-1"
+                          />
+                          <label htmlFor="accuracy" className="text-sm text-gray-700 cursor-pointer flex-1">
+                            I certify that all information provided in this application is true and accurate to the 
+                            best of my knowledge. I understand that providing false information may result in 
+                            disqualification.
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 flex-wrap">
+                      <Button
+                        size="lg"
+                        onClick={handleNext}
+                        disabled={!agreedToTerms || !agreedToAccuracy || isSaving}
+                        className={cn("flex-1 min-w-[200px]", isExternal && "bg-gray-900 hover:bg-gray-800")}
+                        style={!isExternal ? { backgroundColor: config.settings.themeColor || '#000' } : undefined}
+                      >
+                        {isSaving ? (
+                          <>
+                            <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                            Submitting...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4 mr-2" />
+                            Submit Application
+                          </>
+                        )}
+                      </Button>
+
+                      <Button 
+                        variant="outline" 
+                        size="lg" 
+                        onClick={() => window.print()}
+                        className="min-w-[180px]"
+                      >
+                        <Printer className="h-4 w-4 mr-2" />
+                        Download PDF
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -435,34 +520,37 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
           )}
         </AnimatePresence>
 
-        <div className="flex justify-between pt-8 mt-8 border-t border-gray-100">
-          <Button 
-            variant="ghost" 
-            onClick={handlePrevious}
-            disabled={activeSectionIndex === 0}
-            className="text-gray-500"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            {ui.previous}
-          </Button>
-          <Button 
-            onClick={handleNext}
-            disabled={isSaving}
-            style={{ backgroundColor: config.settings.themeColor || '#000' }}
-            className="text-white"
-          >
-            {activeSectionIndex === (translatedConfig.sections?.length || 0) - 1 ? (
-              <>
-                {isSaving ? 'Submitting...' : 'Submit'}
-              </>
-            ) : (
-              <>
-                {ui.nextSection}
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </>
-            )}
-          </Button>
-        </div>
+        {/* Navigation - hide on review page since it has its own submit button */}
+        {activeSection?.sectionType !== 'review' && (
+          <div className="flex justify-between pt-8 mt-8 border-t border-gray-100">
+            <Button 
+              variant="ghost" 
+              onClick={handlePrevious}
+              disabled={activeSectionIndex === 0}
+              className="text-gray-500"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              {ui.previous}
+            </Button>
+            <Button 
+              onClick={handleNext}
+              disabled={isSaving}
+              style={{ backgroundColor: config.settings.themeColor || '#000' }}
+              className="text-white"
+            >
+              {activeSectionIndex === (translatedConfig.sections?.length || 0) - 1 ? (
+                <>
+                  {isSaving ? 'Submitting...' : 'Submit'}
+                </>
+              ) : (
+                <>
+                  {ui.nextSection}
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </>
+              )}
+            </Button>
+          </div>
+        )}
           </div>
         </div>
       </div>
