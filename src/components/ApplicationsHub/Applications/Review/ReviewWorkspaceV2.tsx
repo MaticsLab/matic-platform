@@ -185,52 +185,7 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              {onBack && (
-                <button 
-                  onClick={onBack}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-              )}
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-            <div>
-              <h1 className="text-gray-900 font-semibold">{form?.name || 'Application Review'}</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-gray-500 text-sm">{applications.length} applications</span>
-                <span className="text-gray-300">•</span>
-                <span className="text-gray-500 text-sm">
-                  {applications.filter(a => a.reviewsCompleted < a.reviewsTotal).length} pending review
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link href={`/workspace/${workspaceSlug}/forms/${formId}/reviewers`}>
-              <Button variant="ghost" className="gap-2">
-                <Users className="w-4 h-4" />
-                Team
-              </Button>
-            </Link>
-            <Link href={`/workspace/${workspaceSlug}/forms/${formId}/edit`}>
-              <Button variant="ghost" className="gap-2">
-                <Settings className="w-4 h-4" />
-                Portal Editor
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-
+    <div className="h-full flex bg-gray-50">
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar - Applications List */}
         <div className="w-96 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
@@ -277,10 +232,18 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
                 </SelectContent>
               </Select>
               <div className="flex gap-2">
-                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+                <button 
+                  className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                  onClick={() => showToast('Export coming soon', 'info')}
+                  title="Export applications"
+                >
                   <Download className="w-4 h-4 text-gray-600" />
                 </button>
-                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+                <button 
+                  className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                  onClick={() => showToast('Activity log coming soon', 'info')}
+                  title="View activity"
+                >
                   <Activity className="w-4 h-4 text-gray-600" />
                 </button>
               </div>
@@ -370,10 +333,24 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon">
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => {
+                      // TODO: Open messaging panel
+                      showToast('Messaging coming soon', 'info')
+                    }}
+                  >
                     <MessageSquare className="w-5 h-5" />
                   </Button>
-                  <Button variant="ghost" size="icon">
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => {
+                      // TODO: Open actions menu
+                      showToast('Actions menu coming soon', 'info')
+                    }}
+                  >
                     <MoreVertical className="w-5 h-5" />
                   </Button>
                 </div>
@@ -455,7 +432,10 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
                           <h3 className="text-white mb-1 font-semibold">Ready to Review</h3>
                           <p className="text-blue-100 text-sm">Complete your review to move this application forward</p>
                         </div>
-                        <Button className="bg-white text-blue-600 hover:bg-blue-50">
+                        <Button 
+                          className="bg-white text-blue-600 hover:bg-blue-50"
+                          onClick={() => setActiveTab('reviews')}
+                        >
                           Start Review
                           <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
@@ -497,7 +477,13 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
                             <label className="text-xs text-gray-500 uppercase tracking-wide block">Email</label>
                             <p className="text-gray-900 mt-1">{selectedApp.email}</p>
                           </div>
-                          <Button variant="link" className="p-0 h-auto text-blue-600">
+                          <Button 
+                            variant="link" 
+                            className="p-0 h-auto text-blue-600"
+                            onClick={() => {
+                              window.location.href = `mailto:${selectedApp.email}`
+                            }}
+                          >
                             Send message
                           </Button>
                         </div>
@@ -510,7 +496,12 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
                             <Users className="w-5 h-5 text-blue-500" />
                             <h3 className="text-gray-900 font-semibold">Reviewers</h3>
                           </div>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => showToast('Assign reviewers coming soon', 'info')}
+                          >
                             <Plus className="w-4 h-4" />
                           </Button>
                         </div>
@@ -518,7 +509,11 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
                           <div className="text-center py-4">
                             <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                             <p className="text-sm text-gray-500">Not assigned</p>
-                            <Button variant="link" className="text-blue-600 text-sm mt-2 p-0 h-auto">
+                            <Button 
+                              variant="link" 
+                              className="text-blue-600 text-sm mt-2 p-0 h-auto"
+                              onClick={() => showToast('Assign reviewers coming soon', 'info')}
+                            >
                               Assign reviewers
                             </Button>
                           </div>
@@ -546,7 +541,12 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
                             <Tag className="w-5 h-5 text-blue-500" />
                             <h3 className="text-gray-900 font-semibold">Tags</h3>
                           </div>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => showToast('Add tags coming soon', 'info')}
+                          >
                             <Plus className="w-4 h-4" />
                           </Button>
                         </div>
@@ -554,7 +554,11 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
                           <div className="text-center py-4">
                             <Tag className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                             <p className="text-sm text-gray-500">No tags</p>
-                            <Button variant="link" className="text-blue-600 text-sm mt-2 p-0 h-auto">
+                            <Button 
+                              variant="link" 
+                              className="text-blue-600 text-sm mt-2 p-0 h-auto"
+                              onClick={() => showToast('Add tags coming soon', 'info')}
+                            >
                               Add tags
                             </Button>
                           </div>
