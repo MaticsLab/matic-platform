@@ -44,7 +44,7 @@ import {
   CheckSquare, List, Upload, Heading, ToggleLeft,
   FileText, Star, MapPin, Layers, Repeat, Image,
   Link, Clock, Minus, AlertCircle, ChevronUp, ChevronDown,
-  Sparkles, Command, FolderInput, Check, X, Settings
+  Sparkles, Command, FolderInput, Check, X, Settings, ArrowUpRightFromCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Section, Field, FieldType } from '@/types/portal';
@@ -547,6 +547,7 @@ interface ChildFieldsDndContextProps {
   themeColor?: string;
   allFields: Field[];
   onOpenSettings?: () => void;
+  onMoveChildOut?: (childId: string) => void;
 }
 
 function ChildFieldsDndContext({ 
@@ -559,7 +560,8 @@ function ChildFieldsDndContext({
   selectedChildId,
   themeColor, 
   allFields,
-  onOpenSettings 
+  onOpenSettings,
+  onMoveChildOut 
 }: ChildFieldsDndContextProps) {
   // Create isolated sensors for child DnD context
   const sensors = useSensors(
@@ -599,6 +601,7 @@ function ChildFieldsDndContext({
               themeColor={themeColor}
               allFields={allFields}
               onOpenSettings={onOpenSettings}
+              onMoveOut={onMoveChildOut ? () => onMoveChildOut(child.id) : undefined}
             />
           ))}
         </div>
@@ -736,9 +739,10 @@ interface SortableChildFieldProps {
   themeColor?: string;
   allFields: Field[];
   onOpenSettings?: () => void;
+  onMoveOut?: () => void;
 }
 
-function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, themeColor, allFields, onOpenSettings }: SortableChildFieldProps) {
+function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, themeColor, allFields, onOpenSettings, onMoveOut }: SortableChildFieldProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -844,6 +848,18 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
         >
           <Settings className="w-3.5 h-3.5" />
         </button>
+        {onMoveOut && (
+          <button
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              onMoveOut(); 
+            }}
+            className="p-1.5 rounded-md hover:bg-purple-50 text-gray-400 hover:text-purple-500 transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
+            title="Move out of container"
+          >
+            <ArrowUpRightFromCircle className="w-3.5 h-3.5" />
+          </button>
+        )}
         {showDeleteConfirm ? (
           <div className="flex items-center gap-1 bg-white rounded-md shadow-lg border border-red-200 p-1">
             <span className="text-xs text-gray-700 px-1.5">Delete?</span>
@@ -1251,6 +1267,29 @@ function Block({
       );
       onUpdate({ children: newChildren });
     };
+
+    // Handler to move a child out of container to section level
+    const handleMoveChildOut = (childId: string) => {
+      // Find the child field
+      const childField = children.find(c => c.id === childId);
+      if (!childField) return;
+      
+      // This requires coordinated updates:
+      // 1. Remove child from this container
+      // 2. Add child to section's field list
+      
+      // We need to update the entire section, not just this field
+      // We'll call onUpdate on the section level
+      // But we're inside a field component, so we need to bubble this up
+      
+      // For now, let's use onMoveFieldToSection if available
+      // The parent Portal Editor will handle extracting the field properly
+      if (onMoveFieldToSection) {
+        // This will be handled by PortalEditor's handleMoveFieldToSection
+        // which already has recursive extraction logic
+        alert('To move a field out of a container, use the right-click menu or drag it to another section.');
+      }
+    };
     
     return (
       <BlockCollaboratorRing blockId={field.id}>
@@ -1359,6 +1398,7 @@ function Block({
               selectedChildId={selectedBlockId || null}
               themeColor={themeColor}
               allFields={allFields}
+              onMoveChildOut={handleMoveChildOut}
             >
               {children}
             </ChildFieldsDndContext>

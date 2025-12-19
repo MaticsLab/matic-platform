@@ -123,17 +123,17 @@
   --ring: oklch(0.708 0 0) !important;
 }
 
-/* Ensure inputs and text are visible in light mode */
-.light input,
-.light textarea,
-.light select {
+/* Ensure inputs and text are visible in light mode - only for portal forms, not builder */
+.light:not(.portal-builder) input:not([role="combobox"]):not([type="checkbox"]):not([type="radio"]),
+.light:not(.portal-builder) textarea,
+.light:not(.portal-builder) select {
   background-color: #f3f3f5 !important;
   color: #111827 !important;
   border-color: rgba(0, 0, 0, 0.1) !important;
 }
 
-.light input::placeholder,
-.light textarea::placeholder {
+.light:not(.portal-builder) input::placeholder,
+.light:not(.portal-builder) textarea::placeholder {
   color: #9ca3af !important;
 }
 
