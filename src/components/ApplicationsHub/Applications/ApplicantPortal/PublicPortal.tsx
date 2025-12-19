@@ -278,7 +278,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     // Show custom ending page if available
     if (endingPage) {
       return (
-        <div className="min-h-screen bg-white">
+        <div className="min-h-screen bg-white light">
           <EndingPageRenderer config={endingPage} submissionData={submissionData || {}} />
         </div>
       )
@@ -289,7 +289,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }} 
         animate={{ opacity: 1, scale: 1 }} 
-        className="min-h-screen bg-white flex flex-col items-center justify-center p-4 text-center"
+        className="min-h-screen bg-white light flex flex-col items-center justify-center p-4 text-center"
       >
         <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6">
           <CheckCircle2 className="w-10 h-10" />
@@ -448,7 +448,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       <motion.div 
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
-        className="min-h-screen bg-white"
+        className="min-h-screen bg-white light"
       >
         <DynamicApplicationForm 
           config={portalConfig}

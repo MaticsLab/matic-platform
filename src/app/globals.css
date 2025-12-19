@@ -94,6 +94,49 @@
   border-color: var(--border);
 }
 
+/* Force light mode for public portal - prevent system dark mode from hiding content */
+.light,
+.light * {
+  color-scheme: light !important;
+}
+
+.light {
+  --background: #ffffff !important;
+  --foreground: oklch(0.145 0 0) !important;
+  --card: #ffffff !important;
+  --card-foreground: oklch(0.145 0 0) !important;
+  --popover: oklch(1 0 0) !important;
+  --popover-foreground: oklch(0.145 0 0) !important;
+  --primary: #030213 !important;
+  --primary-foreground: oklch(1 0 0) !important;
+  --secondary: oklch(0.95 0.0058 264.53) !important;
+  --secondary-foreground: #030213 !important;
+  --muted: #ececf0 !important;
+  --muted-foreground: #717182 !important;
+  --accent: #e9ebef !important;
+  --accent-foreground: #030213 !important;
+  --destructive: #d4183d !important;
+  --destructive-foreground: #ffffff !important;
+  --border: rgba(0, 0, 0, 0.1) !important;
+  --input: transparent !important;
+  --input-background: #f3f3f5 !important;
+  --ring: oklch(0.708 0 0) !important;
+}
+
+/* Ensure inputs and text are visible in light mode */
+.light input,
+.light textarea,
+.light select {
+  background-color: #f3f3f5 !important;
+  color: #111827 !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.light input::placeholder,
+.light textarea::placeholder {
+  color: #9ca3af !important;
+}
+
 /* Text selection highlighting */
 ::selection {
   background-color: #3b82f6;

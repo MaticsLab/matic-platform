@@ -877,25 +877,54 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
   const handleMoveFieldToSection = (fieldId: string, targetSectionId: string) => {
     setConfig(prev => {
-      // Find the field in all sections
+      // Find the field in all sections (including nested fields)
       let fieldToMove: Field | null = null
-      const sourceSectionId = prev.sections.find(section => {
-        const found = section.fields?.find(f => f.id === fieldId)
-        if (found) {
-          fieldToMove = found
-          return true
+      let sourceSectionId: string | null = null
+      let parentFieldId: string | null = null
+
+      // Helper to find field recursively and track its parent
+      const findFieldAndParent = (fields: Field[], parent: string | null = null): { field: Field, parent: string | null } | null => {
+        for (const field of fields) {
+          if (field.id === fieldId) {
+            return { field, parent }
+          }
+          if (field.children) {
+            const found = findFieldAndParent(field.children, field.id)
+            if (found) return found
+          }
         }
-        return false
-      })?.id
+        return null
+      }
+
+      // Search all sections
+      for (const section of prev.sections) {
+        const found = findFieldAndParent(section.fields || [])
+        if (found) {
+          fieldToMove = found.field
+          parentFieldId = found.parent
+          sourceSectionId = section.id
+          break
+        }
+      }
 
       if (!fieldToMove || !sourceSectionId) return prev
+
+      // Helper to remove field from nested structure
+      const removeFieldRecursive = (fields: Field[]): Field[] => {
+        return fields.filter(f => f.id !== fieldId).map(f => {
+          if (f.children) {
+            return { ...f, children: removeFieldRecursive(f.children) }
+          }
+          return f
+        })
+      }
 
       // Remove from source section and add to target
       const updatedSections = prev.sections.map(section => {
         if (section.id === sourceSectionId) {
           return {
             ...section,
-            fields: (section.fields || []).filter(f => f.id !== fieldId)
+            fields: removeFieldRecursive(section.fields || [])
           }
         }
         if (section.id === targetSectionId) {
@@ -1387,9 +1416,9 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       ? 'Ending Settings' 
                       : (() => {
                           const selectedField = selectedBlockId 
-                            ? displaySection?.fields.find((f: Field) => f.id === selectedBlockId)
+                            ? findFieldRecursive(displaySection?.fields || [], selectedBlockId)
                             : selectedFieldId 
-                              ? displaySection?.fields.find((f: Field) => f.id === selectedFieldId)
+                              ? findFieldRecursive(displaySection?.fields || [], selectedFieldId)
                               : null;
                           const fieldTypes: Record<string, string> = {
                             text: 'Text Input', textarea: 'Text Area', email: 'Email', phone: 'Phone',

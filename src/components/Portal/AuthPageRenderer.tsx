@@ -114,7 +114,7 @@ export function AuthPageRenderer({
 
   return (
     <div className={cn(
-      "min-h-screen bg-white flex relative",
+      "min-h-screen bg-white light flex relative",
       isMobilePreview ? "flex-col" : "flex-col lg:flex-row"
     )}>
       {/* Background Media - Top on Mobile, Left on Desktop */}
