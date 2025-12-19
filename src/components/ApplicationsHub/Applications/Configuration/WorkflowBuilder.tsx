@@ -2474,16 +2474,13 @@ function GeneralStageSettings({
     setHasChanges(true)
   }, [name, description, stageType, stageColor, startDate, endDate, relativeDeadline, customStatuses, customTags]) // Removed isInitialized from deps
 
-  // Save function that will be called on close
+  // Save function that will be called manually
   const saveStageSettings = useCallback(async () => {
     console.log('saveStageSettings called - hasChanges:', hasChanges, 'name:', name)
-    // Don't save if name is empty or no changes
+    // Don't save if name is empty
     if (!name.trim()) {
       console.log('Skipping save: name is empty')
-      return
-    }
-    if (!hasChanges) {
-      console.log('Skipping save: no changes detected')
+      showToast('Stage name is required', 'error')
       return
     }
     
@@ -2506,22 +2503,23 @@ function GeneralStageSettings({
       await workflowsClient.updateStage(stage.id, stageData)
       console.log('Stage saved successfully')
       setHasChanges(false)
+      showToast('Stage settings saved', 'success')
+      onSave() // Trigger refresh
     } catch (error: any) {
       console.error('Failed to save stage:', error)
       showToast(error.message || 'Failed to save stage', 'error')
-      throw error
     } finally {
       setIsSaving(false)
     }
-  }, [name, description, stageType, stageColor, startDate, endDate, relativeDeadline, customStatuses, customTags, stage.id, hasChanges])
+  }, [name, description, stageType, stageColor, startDate, endDate, relativeDeadline, customStatuses, customTags, stage.id, hasChanges, onSave])
 
-  // Register save function on mount
-  useEffect(() => {
-    registerSaveFunction(saveStageSettings)
-    return () => {
-      unregisterSaveFunction()
-    }
-  }, [saveStageSettings, registerSaveFunction, unregisterSaveFunction])
+  // No longer register for auto-save on close - user must click save button
+  // useEffect(() => {
+  //   registerSaveFunction(saveStageSettings)
+  //   return () => {
+  //     unregisterSaveFunction()
+  //   }
+  // }, [saveStageSettings, registerSaveFunction, unregisterSaveFunction])
 
   const addStatus = () => {
     if (newStatus.trim() && !customStatuses.some(s => s.name === newStatus.trim())) {
@@ -2567,6 +2565,34 @@ function GeneralStageSettings({
 
   return (
     <div className="space-y-6">
+      {/* Save Button */}
+      {hasChanges && (
+        <div className="sticky top-0 z-10 bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-blue-700">
+            <AlertCircle className="w-4 h-4" />
+            <span>You have unsaved changes</span>
+          </div>
+          <Button
+            onClick={saveStageSettings}
+            disabled={isSaving || !name.trim()}
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" />
+                Save Changes
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
       {/* Basic Info Card */}
       <div className="p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-200">
         <div className="flex items-center gap-3 mb-4">
