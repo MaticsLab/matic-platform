@@ -1282,9 +1282,9 @@ function Block({
       // We'll call onUpdate on the section level
       // But we're inside a field component, so we need to bubble this up
       
-      // For now, let's use onMoveFieldToSection if available
+      // For now, let's use onMoveToSection if available
       // The parent Portal Editor will handle extracting the field properly
-      if (onMoveFieldToSection) {
+      if (onMoveToSection) {
         // This will be handled by PortalEditor's handleMoveFieldToSection
         // which already has recursive extraction logic
         alert('To move a field out of a container, use the right-click menu or drag it to another section.');

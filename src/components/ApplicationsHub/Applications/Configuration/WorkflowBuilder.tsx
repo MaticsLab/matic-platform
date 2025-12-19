@@ -2462,16 +2462,21 @@ function GeneralStageSettings({
   const [newTag, setNewTag] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
 
-  // Track changes
+  // Track changes (skip on initial mount)
   useEffect(() => {
+    if (!isInitialized) {
+      setIsInitialized(true)
+      return
+    }
     setHasChanges(true)
-  }, [name, description, stageType, stageColor, startDate, endDate, relativeDeadline, customStatuses, customTags])
+  }, [name, description, stageType, stageColor, startDate, endDate, relativeDeadline, customStatuses, customTags, isInitialized])
 
   // Save function that will be called on close
   const saveStageSettings = useCallback(async () => {
     // Don't save if name is empty or no changes
-    if (!name.trim()) return
+    if (!name.trim() || !hasChanges) return
     
     setIsSaving(true)
     try {
@@ -2496,7 +2501,7 @@ function GeneralStageSettings({
     } finally {
       setIsSaving(false)
     }
-  }, [name, description, stageType, stageColor, startDate, endDate, relativeDeadline, customStatuses, customTags, stage.id])
+  }, [name, description, stageType, stageColor, startDate, endDate, relativeDeadline, customStatuses, customTags, stage.id, hasChanges])
 
   // Register save function on mount
   useEffect(() => {
