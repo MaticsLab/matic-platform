@@ -312,6 +312,15 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     // Get all fields from the form (flat array)
     const allFields = form.fields || []
     
+    console.log('PDF Debug - Total fields:', allFields.length)
+    console.log('PDF Debug - All fields:', allFields.map((f: any) => ({
+      id: f.id,
+      label: f.label,
+      type: f.type,
+      sectionId: (f.config as any)?.section_id || f.section_id,
+      configFields: (f.config as any)?.fields
+    })))
+    
     // Build a map of section_id -> fields with nested structure
     const buildNestedFields = (fields: any[], sectionId: string): any[] => {
       // First, get all fields for this section
