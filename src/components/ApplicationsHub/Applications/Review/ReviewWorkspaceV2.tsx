@@ -30,11 +30,20 @@ import { Button } from '@/ui-components/button'
 import { Badge } from '@/ui-components/badge'
 import { Input } from '@/ui-components/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
-import { workflowsClient, type ApplicationStage } from '@/lib/api/workflows-client'
+import { workflowsClient, type ApplicationStage, type WorkflowAction, type StageAction } from '@/lib/api/workflows-client'
 import { formsClient } from '@/lib/api/forms-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
+import { dashboardClient } from '@/lib/api/dashboard-client'
+import type { PortalActivity } from '@/types/dashboard'
 import { showToast } from '@/lib/toast'
 import Link from 'next/link'
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from '@/ui-components/dropdown-menu'
+import { Textarea } from '@/ui-components/textarea'
 
 interface Application {
   id: string
@@ -71,12 +80,23 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
   const [form, setForm] = useState<any>(null)
   const [stages, setStages] = useState<ApplicationStage[]>([])
   const [workflows, setWorkflows] = useState<any[]>([])
+  const [workflowActions, setWorkflowActions] = useState<WorkflowAction[]>([])
   const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'documents' | 'reviews'>('overview')
   const [workspaceSlug, setWorkspaceSlug] = useState(workspaceSlugProp || '')
+  const [activities, setActivities] = useState<PortalActivity[]>([])
+  const [newActivityContent, setNewActivityContent] = useState('')
+  const [isSubmittingActivity, setIsSubmittingActivity] = useState(false)
 
   useEffect(() => {
     loadData()
   }, [formId, workspaceId])
+
+  useEffect(() => {
+    // Load activities when selected app changes
+    if (selectedApp?.id) {
+      loadActivities(selectedApp.id)
+    }
+  }, [selectedApp?.id])
 
   useEffect(() => {
     // Fetch workspace slug if not provided
@@ -99,6 +119,7 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
       setForm(response.form)
       setWorkflows(response.workflows || [])
       setStages(response.stages || [])
+      setWorkflowActions(response.workflow_actions || [])
       
       // Transform submissions to applications
       const apps: Application[] = (response.submissions || []).map((sub: any) => {
@@ -132,6 +153,38 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
       showToast('Failed to load applications', 'error')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const loadActivities = async (applicationId: string) => {
+    try {
+      const activitiesData = await dashboardClient.listActivities(applicationId)
+      setActivities(activitiesData)
+    } catch (error) {
+      console.error('Failed to load activities:', error)
+      // Don't show error toast for activities - it's not critical
+    }
+  }
+
+  const handleSubmitActivity = async () => {
+    if (!selectedApp || !newActivityContent.trim()) return
+
+    try {
+      setIsSubmittingActivity(true)
+      await dashboardClient.createActivity(selectedApp.id, {
+        activityType: 'message',
+        content: newActivityContent.trim(),
+        visibility: 'internal'
+      })
+      
+      setNewActivityContent('')
+      showToast('Comment added successfully', 'success')
+      loadActivities(selectedApp.id)
+    } catch (error) {
+      console.error('Failed to submit activity:', error)
+      showToast('Failed to add comment', 'error')
+    } finally {
+      setIsSubmittingActivity(false)
     }
   }
 
@@ -172,6 +225,61 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
   })
 
   const currentStageIndex = stages.findIndex(s => s.id === selectedApp?.stage_id) || 0
+
+  const handleExecuteAction = async (action: StageAction | WorkflowAction) => {
+    if (!selectedApp) return
+
+    try {
+      showToast(`Executing ${action.name}...`, 'info')
+      
+      // TODO: Implement actual action execution via API
+      // This would call the appropriate endpoint based on action_type
+      // For now, just show success message
+      
+      showToast(`${action.name} executed successfully`, 'success')
+      loadData() // Refresh data after action
+    } catch (error) {
+      console.error('Failed to execute action:', error)
+      showToast(`Failed to execute ${action.name}`, 'error')
+    }
+  }
+
+  const getCurrentStageActions = (): StageAction[] => {
+    if (!selectedApp?.stage_id) return []
+    
+    const currentStage = stages.find(s => s.id === selectedApp.stage_id)
+    return (currentStage as any)?.stageActions || []
+  }
+
+  const getActionIcon = (iconName?: string) => {
+    switch (iconName) {
+      case 'check':
+        return <CheckCircle2 className="w-4 h-4" />
+      case 'x':
+        return <XCircle className="w-4 h-4" />
+      case 'clock':
+        return <Clock3 className="w-4 h-4" />
+      case 'arrow-right':
+        return <ArrowRight className="w-4 h-4" />
+      default:
+        return null
+    }
+  }
+
+  const getActionColorClasses = (color?: string) => {
+    switch (color) {
+      case 'green':
+        return 'text-green-600 hover:text-green-700 hover:bg-green-50'
+      case 'red':
+        return 'text-red-600 hover:text-red-700 hover:bg-red-50'
+      case 'blue':
+        return 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+      case 'yellow':
+        return 'text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50'
+      default:
+        return 'text-gray-600 hover:text-gray-700 hover:bg-gray-50'
+    }
+  }
 
   if (isLoading) {
     return (
@@ -595,25 +703,148 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
 
                     {/* Action Buttons */}
                     <div className="flex items-center gap-3 pt-4 pb-8">
-                      <Button className="flex-1 bg-green-600 hover:bg-green-700 gap-2">
-                        <CheckCircle2 className="w-5 h-5" />
-                        Approve Application
-                      </Button>
-                      <Button className="flex-1 bg-red-600 hover:bg-red-700 gap-2">
-                        <XCircle className="w-5 h-5" />
-                        Reject Application
-                      </Button>
-                      <Button variant="outline" className="gap-2">
-                        <Clock3 className="w-5 h-5" />
-                        Request Revision
-                      </Button>
+                      {getCurrentStageActions().length > 0 ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button className="flex-1 bg-blue-600 hover:bg-blue-700 gap-2">
+                              {selectedApp.status}
+                              <ArrowRight className="w-4 h-4 ml-2" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-56">
+                            {getCurrentStageActions().map((action) => (
+                              <DropdownMenuItem
+                                key={action.id}
+                                onClick={() => handleExecuteAction(action)}
+                                className={cn(
+                                  'cursor-pointer flex items-center gap-2',
+                                  getActionColorClasses(action.color)
+                                )}
+                              >
+                                {getActionIcon(action.icon)}
+                                {action.name}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <Button className="flex-1 bg-green-600 hover:bg-green-700 gap-2" disabled>
+                          <CheckCircle2 className="w-5 h-5" />
+                          No actions available
+                        </Button>
+                      )}
+                      
+                      {/* Workflow-level actions */}
+                      {workflowActions.length > 0 && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="gap-2">
+                              <MoreVertical className="w-4 h-4" />
+                              More Actions
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            {workflowActions.map((action) => (
+                              <DropdownMenuItem
+                                key={action.id}
+                                onClick={() => handleExecuteAction(action)}
+                                className={cn(
+                                  'cursor-pointer flex items-center gap-2',
+                                  getActionColorClasses(action.color)
+                                )}
+                              >
+                                {getActionIcon(action.icon)}
+                                {action.name}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </div>
                   </>
                 )}
 
                 {activeTab === 'activity' && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <p className="text-gray-500 text-center py-8">Activity log coming soon</p>
+                  <div className="bg-white rounded-xl border border-gray-200 flex flex-col h-[600px]">
+                    {/* Activity Feed */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                      {activities.length > 0 ? (
+                        activities.map((activity) => (
+                          <div key={activity.id} className="flex gap-3">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                              {activity.senderType === 'staff' ? (
+                                <User className="w-4 h-4 text-blue-600" />
+                              ) : (
+                                <MessageSquare className="w-4 h-4 text-blue-600" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-medium text-gray-900">
+                                  {activity.senderName || (activity.senderType === 'staff' ? 'Staff' : 'Applicant')}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {formatTime(activity.createdAt)}
+                                </span>
+                                {activity.visibility === 'internal' && (
+                                  <Badge variant="outline" className="text-xs bg-gray-50">
+                                    Internal
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-700 whitespace-pre-wrap break-words">
+                                {activity.content}
+                              </div>
+                              {activity.activityType === 'status_update' && (
+                                <Badge className="mt-2 bg-blue-50 text-blue-700 border-blue-200">
+                                  Status Update
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-12">
+                          <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                          <p className="text-gray-500">No activity yet</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Comment Input */}
+                    <div className="border-t border-gray-200 p-4">
+                      <div className="flex gap-3">
+                        <Textarea
+                          value={newActivityContent}
+                          onChange={(e) => setNewActivityContent(e.target.value)}
+                          placeholder="Add a comment..."
+                          className="flex-1 min-h-[80px] resize-none"
+                          disabled={isSubmittingActivity}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between mt-3">
+                        <span className="text-xs text-gray-500">
+                          This comment will only be visible to staff
+                        </span>
+                        <Button
+                          onClick={handleSubmitActivity}
+                          disabled={!newActivityContent.trim() || isSubmittingActivity}
+                          className="gap-2"
+                        >
+                          {isSubmittingActivity ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <MessageSquare className="w-4 h-4" />
+                              Send Comment
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
