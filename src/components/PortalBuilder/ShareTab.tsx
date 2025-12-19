@@ -307,18 +307,20 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     const formDescription = form.description || ''
     const logoUrl = (form.settings as any)?.logoUrl || ''
     
-    // Get all fields from the form
-    const fields = form.fields || []
+    // Get sections from settings - they contain the nested field structure
+    const sections = (form.settings as any)?.sections || []
     
     // Helper function to render a field and its subfields
     const renderField = (field: any, indent: number = 0): string => {
-      const isRequired = (field.config as any)?.is_required ? '<span style="color: #dc2626;">*</span>' : ''
-      const description = (field.config as any)?.description || ''
+      const isRequired = (field.config as any)?.is_required || field.required ? '<span style="color: #dc2626;">*</span>' : ''
+      const description = (field.config as any)?.description || field.description || ''
       const indentPadding = indent * 20
       
       // Handle groups - render the group label and all subfields
       if (field.type === 'group') {
         const subfields = field.children || []
+        if (subfields.length === 0) return '' // Skip empty groups
+        
         let groupHtml = `
           <tr>
             <td colspan="2" style="padding: 12px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
@@ -339,6 +341,8 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
       // Handle repeaters - show the repeater label and subfields
       if (field.type === 'repeater') {
         const subfields = field.children || []
+        if (subfields.length === 0) return '' // Skip empty repeaters
+        
         let repeaterHtml = `
           <tr>
             <td colspan="2" style="padding: 12px; background: #fef3c7; border-bottom: 1px solid #fde68a;">
@@ -390,25 +394,13 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
         </tr>
       `
     }
-    
-    // Group fields by section
-    const sections = (form.settings as any)?.sections || []
-    const fieldsBySectionId = new Map()
-    
-    fields.forEach(field => {
-      const sectionId = (field.config as any)?.section_id || 'default'
-      if (!fieldsBySectionId.has(sectionId)) {
-        fieldsBySectionId.set(sectionId, [])
-      }
-      fieldsBySectionId.get(sectionId).push(field)
-    })
 
     // Generate HTML for each section
     let sectionsHtml = ''
     
     if (sections.length > 0) {
       sections.filter((s: any) => s.sectionType === 'form').forEach((section: any) => {
-        const sectionFields = fieldsBySectionId.get(section.id) || []
+        const sectionFields = section.fields || []
         if (sectionFields.length === 0) return
 
         let fieldsHtml = ''
@@ -427,7 +419,8 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
         `
       })
     } else {
-      // No sections - just list all fields
+      // No sections - use flat fields array as fallback
+      const fields = form.fields || []
       let fieldsHtml = ''
       fields.forEach((field: any) => {
         fieldsHtml += renderField(field)
