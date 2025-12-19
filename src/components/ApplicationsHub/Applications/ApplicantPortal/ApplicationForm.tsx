@@ -1425,9 +1425,9 @@ function ReviewSection({
           )}
         </Button>
 
-        <Button variant="outline" size="lg" onClick={handlePrint}>
+        <Button variant="outline" size="lg" onClick={handlePrint} className="min-w-[180px]">
           <Printer className="h-4 w-4 mr-2" />
-          Print Application
+          Download PDF
         </Button>
       </div>
 
