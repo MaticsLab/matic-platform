@@ -530,28 +530,33 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
                   </CardContent>
                 </Card>
               ) : activeSection.sectionType === 'cover' ? (
-                // Render cover page with blocks
-                <div className="space-y-6">
-                  {activeSection.blocks && activeSection.blocks.length > 0 ? (
-                    activeSection.blocks.map((block: any) => (
-                      <div key={block.id}>
-                        <BlockRenderer block={block} />
+                // Render cover page with blocks - Notion-style layout
+                <div className="w-full -mt-8 -mx-8">
+                  {/* Full-width Notion-style container */}
+                  <div className="max-w-[900px] mx-auto px-8">
+                    {activeSection.blocks && activeSection.blocks.length > 0 ? (
+                      <div className="space-y-2 py-12">
+                        {activeSection.blocks.map((block: any) => (
+                          <div key={block.id}>
+                            <BlockRenderer block={block} />
+                          </div>
+                        ))}
                       </div>
-                    ))
-                  ) : (
-                    <Card>
-                      <CardContent className="p-12 text-center">
-                        <CardTitle className="text-3xl mb-4">
-                          {activeSection.title || 'Welcome'}
-                        </CardTitle>
-                        {activeSection.description && (
-                          <CardDescription className="text-base">
-                            {activeSection.description}
-                          </CardDescription>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
+                    ) : (
+                      <div className="py-24">
+                        <div className="text-center">
+                          <h1 className="text-5xl font-bold mb-4">
+                            {activeSection.title || 'Welcome'}
+                          </h1>
+                          {activeSection.description && (
+                            <p className="text-lg text-gray-600">
+                              {activeSection.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : activeSection.sectionType === 'ending' ? (
                 // Render ending page preview

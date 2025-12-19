@@ -34,6 +34,7 @@ import type { DashboardSettings } from '@/types/dashboard'
 import { EndingBlocksToolbox } from './EndingBlocksToolbox'
 import { EndingBlockEditor } from './EndingBlockEditor'
 import { CoverBlockEditor } from './CoverBlockEditor'
+import { NotionStyleCoverEditor } from './NotionStyleCoverEditor'
 import { DEFAULT_ENDING_TEMPLATE } from '@/lib/ending-templates'
 import { BlockRenderer } from '@/components/EndingPages/BlockRenderer'
 import { PropertyInput } from '@/components/EndingPages/PropertyInput'
@@ -1320,9 +1321,15 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             </TabsContent>
 
             <TabsContent value="elements" className="flex-1 mt-0 overflow-hidden data-[state=active]:flex flex-col min-h-0">
-               {/* Show ending blocks if ending/cover section is selected, otherwise show fields */}
-               {(activeSection?.sectionType === 'ending' || activeSection?.sectionType === 'cover') ? (
+               {/* Show ending blocks toolbox only for ending sections - cover uses inline editor */}
+               {activeSection?.sectionType === 'ending' ? (
                  <EndingBlocksToolbox onAddBlock={handleAddBlock} />
+               ) : activeSection?.sectionType === 'cover' ? (
+                 <div className="p-4 text-sm text-gray-500">
+                   <p className="mb-2 font-medium">✨ Notion-style Editor</p>
+                   <p className="text-xs">Click anywhere to add content</p>
+                   <p className="text-xs">Click the + button to add blocks</p>
+                 </div>
                ) : (
                  <FieldToolbox onAddField={handleAddField} />
                )}
@@ -1425,13 +1432,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     />
                   ) : displaySection ? (
                     displaySection.sectionType === 'cover' ? (
-                      // Cover Section - Show cover blocks with drag-and-drop
-                      <CoverBlockEditor
+                      // Cover Section - Notion-style inline editor
+                      <NotionStyleCoverEditor
                         blocks={displaySection.blocks || []}
                         onUpdate={(blocks) => handleUpdateSection(displaySection.id, { blocks })}
                         selectedBlockId={selectedBlockId}
                         onSelectBlock={setSelectedBlockId}
-                        onDeleteBlock={handleDeleteBlock}
                       />
                     ) : displaySection.sectionType === 'ending' ? (
                       // Ending Section - Show ending blocks with drag-and-drop
