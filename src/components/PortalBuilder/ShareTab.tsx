@@ -310,6 +310,14 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     // Get sections from settings - they contain the nested field structure
     const sections = (form.settings as any)?.sections || []
     
+    console.log('PDF Debug - form.settings:', form.settings)
+    console.log('PDF Debug - sections:', sections)
+    console.log('PDF Debug - sections.length:', sections.length)
+    if (sections.length > 0) {
+      console.log('PDF Debug - first section:', sections[0])
+      console.log('PDF Debug - form sections:', sections.filter((s: any) => s.sectionType === 'form'))
+    }
+    
     // Helper function to render a field and its subfields
     const renderField = (field: any, indent: number = 0): string => {
       const isRequired = (field.config as any)?.is_required || field.required ? '<span style="color: #dc2626;">*</span>' : ''
