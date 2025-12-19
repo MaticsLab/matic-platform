@@ -13,6 +13,8 @@ import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
 import { BlockRenderer } from '@/components/EndingPages/BlockRenderer'
 import { applyTranslationsToConfig, normalizeTranslations, getUITranslations } from '@/lib/portal-translations'
 import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector'
+import { generateHTML } from '@tiptap/html'
+import StarterKit from '@tiptap/starter-kit'
 
 interface DynamicApplicationFormProps {
   config: PortalConfig
@@ -530,18 +532,24 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
                   </CardContent>
                 </Card>
               ) : activeSection.sectionType === 'cover' ? (
-                // Render cover page with blocks - Notion-style layout
+                // Render cover page with Novel content
                 <div className="w-full -mt-8 -mx-8">
                   {/* Full-width Notion-style container */}
-                  <div className="max-w-[900px] mx-auto px-8">
-                    {activeSection.blocks && activeSection.blocks.length > 0 ? (
-                      <div className="space-y-2 py-12">
-                        {activeSection.blocks.map((block: any) => (
-                          <div key={block.id}>
-                            <BlockRenderer block={block} />
-                          </div>
-                        ))}
-                      </div>
+                  <div className="max-w-[900px] mx-auto px-8 py-12">
+                    {(activeSection as any).content ? (
+                      <div 
+                        className="prose prose-lg dark:prose-invert max-w-full"
+                        dangerouslySetInnerHTML={{ 
+                          __html: (() => {
+                            try {
+                              const json = JSON.parse((activeSection as any).content)
+                              return generateHTML(json, [StarterKit])
+                            } catch {
+                              return (activeSection as any).content
+                            }
+                          })()
+                        }}
+                      />
                     ) : (
                       <div className="py-24">
                         <div className="text-center">

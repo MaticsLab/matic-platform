@@ -34,7 +34,7 @@ import type { DashboardSettings } from '@/types/dashboard'
 import { EndingBlocksToolbox } from './EndingBlocksToolbox'
 import { EndingBlockEditor } from './EndingBlockEditor'
 import { CoverBlockEditor } from './CoverBlockEditor'
-import { NotionStyleCoverEditor } from './NotionStyleCoverEditor'
+import { NovelCoverEditorV2 } from './NovelCoverEditorV2'
 import { DEFAULT_ENDING_TEMPLATE } from '@/lib/ending-templates'
 import { BlockRenderer } from '@/components/EndingPages/BlockRenderer'
 import { PropertyInput } from '@/components/EndingPages/PropertyInput'
@@ -1432,12 +1432,10 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     />
                   ) : displaySection ? (
                     displaySection.sectionType === 'cover' ? (
-                      // Cover Section - Notion-style inline editor
-                      <NotionStyleCoverEditor
-                        blocks={displaySection.blocks || []}
-                        onUpdate={(blocks) => handleUpdateSection(displaySection.id, { blocks })}
-                        selectedBlockId={selectedBlockId}
-                        onSelectBlock={setSelectedBlockId}
+                      // Cover Section - Novel V2 editor (Notion-like)
+                      <NovelCoverEditorV2
+                        initialContent={(displaySection as any).content || ''}
+                        onUpdate={(content) => handleUpdateSection(displaySection.id, { content } as any)}
                       />
                     ) : displaySection.sectionType === 'ending' ? (
                       // Ending Section - Show ending blocks with drag-and-drop
