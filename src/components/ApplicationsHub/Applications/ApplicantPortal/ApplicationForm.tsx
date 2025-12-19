@@ -1102,32 +1102,50 @@ function ReviewSection({
     if (Array.isArray(value)) {
       if (value.length === 0) return '<span style="color: #9ca3af; font-style: italic;">None</span>'
       
-      // Handle array of objects (repeaters)
-      if (typeof value[0] === 'object') {
+      // Handle array of objects (repeaters/groups)
+      if (typeof value[0] === 'object' && value[0] !== null) {
         return value.map((item, idx) => {
           const entries = Object.entries(item)
-            .map(([k, v]) => `<strong>${k.replace(/_/g, ' ')}:</strong> ${String(v)}`)
-            .join(', ')
-          return `<div style="background: #f9fafb; padding: 8px; border-radius: 4px; margin-top: 4px;">${entries}</div>`
+            .filter(([k, v]) => v !== null && v !== undefined && v !== '')
+            .map(([k, v]) => `<div style="display: flex; gap: 8px; padding: 4px 0;"><span style="color: #6b7280; min-width: 120px; text-transform: capitalize;">${k.replace(/_/g, ' ')}:</span><span style="color: #111827; font-weight: 500;">${String(v)}</span></div>`)
+            .join('')
+          return `<div style="background: #f9fafb; padding: 12px; border-radius: 6px; margin-top: 8px; border: 1px solid #e5e7eb;"><div style="font-size: 11px; color: #6b7280; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Item ${idx + 1}</div>${entries}</div>`
         }).join('')
       }
       
-      return value.join(', ')
+      return value.filter(Boolean).join(', ')
     }
     
     if (typeof value === 'object') {
-      // Handle address object
-      if (value.street || value.city) {
-        const parts = [value.street, value.city, value.state, value.zip].filter(Boolean)
-        return parts.join(', ') || '<span style="color: #9ca3af; font-style: italic;">Not provided</span>'
+      // Handle address object - check multiple formats
+      if (value.full_address) {
+        return value.full_address
       }
-      
-      // Handle formatted address from AddressField
       if (value.formatted_address) {
         return value.formatted_address
       }
+      if (value.street_address || value.street || value.city) {
+        const parts = [
+          value.street_address || value.street,
+          value.city,
+          value.state,
+          value.postal_code || value.zip
+        ].filter(Boolean)
+        return parts.join(', ') || '<span style="color: #9ca3af; font-style: italic;">Not provided</span>'
+      }
       
-      return JSON.stringify(value)
+      // Handle file objects
+      if (value.url || value.name || value.fileName) {
+        const displayName = value.name || value.fileName || value.originalName || 'File'
+        return `<strong>${displayName}</strong>${value.url ? ` <a href="${value.url}" style="color: #2563eb;">(View)</a>` : ''}`
+      }
+      
+      // For other objects, show formatted
+      const entries = Object.entries(value)
+        .filter(([k, v]) => v !== null && v !== undefined && v !== '')
+        .map(([k, v]) => `<div style="padding: 2px 0;"><span style="color: #6b7280; text-transform: capitalize;">${k.replace(/_/g, ' ')}:</span> ${String(v)}</div>`)
+        .join('')
+      return entries || '<span style="color: #9ca3af; font-style: italic;">No data</span>'
     }
     
     // Escape HTML and preserve line breaks
@@ -1205,39 +1223,51 @@ function ReviewSection({
     if (Array.isArray(value)) {
       if (value.length === 0) return <span className="text-gray-400 italic">None</span>
       
-      // Handle array of objects (repeaters)
-      if (typeof value[0] === 'object') {
+      // Handle array of objects (repeaters/groups)
+      if (typeof value[0] === 'object' && value[0] !== null) {
         return (
-          <div className="space-y-2 mt-2">
+          <div className="space-y-3">
             {value.map((item, idx) => (
-              <div key={idx} className="bg-gray-50 p-3 rounded-lg text-sm">
-                {Object.entries(item).map(([k, v]) => (
-                  <div key={k} className="flex gap-2">
-                    <span className="text-gray-500 capitalize">{k.replace(/_/g, ' ')}:</span>
-                    <span className="text-gray-900 break-words">{String(v)}</span>
-                  </div>
-                ))}
+              <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <div className="text-xs text-gray-500 mb-2 uppercase tracking-wide">Item {idx + 1}</div>
+                <div className="space-y-1.5">
+                  {Object.entries(item)
+                    .filter(([k, v]) => v !== null && v !== undefined && v !== '')
+                    .map(([k, v]) => (
+                      <div key={k} className="flex gap-2 text-sm">
+                        <span className="text-gray-500 capitalize min-w-[120px]">{k.replace(/_/g, ' ')}:</span>
+                        <span className="text-gray-900 flex-1 break-words">{String(v)}</span>
+                      </div>
+                    ))}
+                </div>
               </div>
             ))}
           </div>
         )
       }
       
-      return value.join(', ')
+      return value.filter(Boolean).join(', ')
     }
     
     if (typeof value === 'object') {
-      // Handle address object
-      if (value.street || value.city) {
-        const parts = [value.street, value.city, value.state, value.zip].filter(Boolean)
-        return parts.join(', ') || <span className="text-gray-400 italic">Not provided</span>
+      // Handle address object - check multiple formats
+      if (value.full_address) {
+        return value.full_address
       }
-      
-      // Handle formatted address from AddressField
       if (value.formatted_address) {
         return value.formatted_address
       }
+      if (value.street_address || value.street || value.city) {
+        const parts = [
+          value.street_address || value.street,
+          value.city,
+          value.state,
+          value.postal_code || value.zip
+        ].filter(Boolean)
+        return parts.join(', ') || <span className="text-gray-400 italic">Not provided</span>
+      }
       
+      // Handle file objects
       const isFileLike = value.url || value.path || value.signedUrl || value.mime_type || value.name || value.fileName
       if (isFileLike) {
         const displayName = value.name || value.fileName || value.originalName || 'File'
@@ -1252,9 +1282,9 @@ function ReviewSection({
                 href={href}
                 target="_blank"
                 rel="noreferrer"
-                className="text-blue-600 hover:text-blue-700 break-all"
+                className="text-blue-600 hover:text-blue-700 break-all text-xs"
               >
-                {href}
+                View file
               </a>
             )}
             {(value.mime_type || size) && (
@@ -1267,10 +1297,18 @@ function ReviewSection({
         )
       }
 
+      // For other objects, show formatted
       return (
-        <pre className="text-xs bg-gray-50 text-gray-700 rounded-md p-3 border border-gray-200 overflow-x-auto whitespace-pre-wrap break-words">
-          {JSON.stringify(value, null, 2)}
-        </pre>
+        <div className="bg-gray-50 p-2 rounded border border-gray-200 text-xs space-y-1">
+          {Object.entries(value)
+            .filter(([k, v]) => v !== null && v !== undefined && v !== '')
+            .map(([k, v]) => (
+              <div key={k} className="flex gap-2">
+                <span className="text-gray-500 capitalize">{k.replace(/_/g, ' ')}:</span>
+                <span className="text-gray-900">{String(v)}</span>
+              </div>
+            ))}
+        </div>
       )
     }
     

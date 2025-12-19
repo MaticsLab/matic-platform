@@ -31,6 +31,96 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
   const supportedLanguages = Array.from(new Set([defaultLanguage, ...(config.settings.language?.supported || [])])).filter(lang => lang && lang.trim() !== '')
   const [activeLanguage, setActiveLanguage] = useState<string>(defaultLanguage)
   
+  // Helper function to render field values in review section
+  const renderFieldValue = (value: any, field?: Field): React.ReactNode => {
+    if (value === undefined || value === null || value === '') {
+      return <span className="text-gray-400 italic">Not provided</span>
+    }
+    
+    // Handle boolean values
+    if (typeof value === 'boolean') {
+      return <span className={value ? 'text-green-600' : 'text-gray-500'}>{value ? 'Yes' : 'No'}</span>
+    }
+    
+    // Handle arrays (could be repeaters or multi-select)
+    if (Array.isArray(value)) {
+      if (value.length === 0) return <span className="text-gray-400 italic">None</span>
+      
+      // Handle array of objects (repeaters/groups)
+      if (typeof value[0] === 'object' && value[0] !== null) {
+        return (
+          <div className="space-y-3">
+            {value.map((item, idx) => (
+              <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <div className="space-y-1.5">
+                  {Object.entries(item).map(([k, v]) => (
+                    <div key={k} className="flex gap-2 text-sm">
+                      <span className="text-gray-500 capitalize min-w-[120px]">{k.replace(/_/g, ' ')}:</span>
+                      <span className="text-gray-900 flex-1">{v ? String(v) : <span className="text-gray-400 italic">-</span>}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      }
+      
+      // Simple array - join with commas
+      return value.filter(Boolean).join(', ')
+    }
+    
+    // Handle objects (addresses, files, etc.)
+    if (typeof value === 'object' && value !== null) {
+      // Handle address objects - check multiple possible formats
+      if (value.full_address) {
+        return value.full_address
+      }
+      if (value.formatted_address) {
+        return value.formatted_address
+      }
+      if (value.street_address || value.street || value.city) {
+        const parts = [
+          value.street_address || value.street,
+          value.city,
+          value.state,
+          value.postal_code || value.zip
+        ].filter(Boolean)
+        return parts.join(', ') || <span className="text-gray-400 italic">Not provided</span>
+      }
+      
+      // Handle file objects
+      if (value.url || value.name || value.fileName) {
+        const displayName = value.name || value.fileName || value.originalName || 'File'
+        return (
+          <div className="flex items-center gap-2">
+            <span className="text-blue-600">{displayName}</span>
+            {value.url && (
+              <a href={value.url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline">
+                View
+              </a>
+            )}
+          </div>
+        )
+      }
+      
+      // For other objects, show as formatted data
+      return (
+        <div className="bg-gray-50 p-2 rounded border border-gray-200 text-xs">
+          {Object.entries(value).map(([k, v]) => (
+            <div key={k} className="flex gap-2">
+              <span className="text-gray-500 capitalize">{k.replace(/_/g, ' ')}:</span>
+              <span className="text-gray-900">{v ? String(v) : '-'}</span>
+            </div>
+          ))}
+        </div>
+      )
+    }
+    
+    // For strings, just return as is
+    return String(value)
+  }
+  
   // Normalize translations to new format and apply
   const translatedConfig = useMemo(() => {
     if (activeLanguage === defaultLanguage) {
@@ -358,16 +448,10 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
                             const value = formData[field.id]
                             if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) return null
                             
-                            const displayValue = Array.isArray(value) 
-                              ? value.join(', ') 
-                              : typeof value === 'object' && value !== null
-                                ? (value.formatted_address || (value.street ? [value.street, value.city, value.state, value.zip].filter(Boolean).join(', ') : JSON.stringify(value)))
-                                : String(value)
-                            
                             return (
                               <div key={field.id} className="grid grid-cols-3 gap-4 text-sm">
                                 <dt className="text-gray-600">{field.label}</dt>
-                                <dd className="col-span-2 text-gray-900 break-words">{displayValue}</dd>
+                                <dd className="col-span-2 text-gray-900 break-words">{renderFieldValue(value, field)}</dd>
                               </div>
                             )
                           })}
