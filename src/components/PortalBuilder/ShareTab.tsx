@@ -318,7 +318,7 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
       
       // Handle groups - render the group label and all subfields
       if (field.type === 'group') {
-        const subfields = (field.config as any)?.fields || []
+        const subfields = field.children || []
         let groupHtml = `
           <tr>
             <td colspan="2" style="padding: 12px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
@@ -338,7 +338,7 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
       
       // Handle repeaters - show the repeater label and subfields
       if (field.type === 'repeater') {
-        const subfields = (field.config as any)?.fields || []
+        const subfields = field.children || []
         let repeaterHtml = `
           <tr>
             <td colspan="2" style="padding: 12px; background: #fef3c7; border-bottom: 1px solid #fde68a;">
