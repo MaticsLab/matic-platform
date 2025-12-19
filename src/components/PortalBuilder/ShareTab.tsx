@@ -307,15 +307,47 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     const formDescription = form.description || ''
     const logoUrl = (form.settings as any)?.logoUrl || ''
     
-    // Get sections from settings - they contain the nested field structure
+    // Get sections metadata from settings
     const sections = (form.settings as any)?.sections || []
+    // Get all fields from the form (flat array)
+    const allFields = form.fields || []
     
-    console.log('PDF Debug - form.settings:', form.settings)
-    console.log('PDF Debug - sections:', sections)
-    console.log('PDF Debug - sections.length:', sections.length)
-    if (sections.length > 0) {
-      console.log('PDF Debug - first section:', sections[0])
-      console.log('PDF Debug - form sections:', sections.filter((s: any) => s.sectionType === 'form'))
+    // Build a map of section_id -> fields with nested structure
+    const buildNestedFields = (fields: any[], sectionId: string): any[] => {
+      // First, get all fields for this section
+      const sectionFields = fields.filter(f => {
+        const fieldSectionId = (f.config as any)?.section_id || f.section_id
+        return fieldSectionId === sectionId
+      })
+      
+      // Build parent-child relationships
+      // Fields with children store them in config.fields (for groups/repeaters)
+      const fieldMap = new Map()
+      sectionFields.forEach(f => fieldMap.set(f.id, { ...f, children: [] }))
+      
+      // Now check each field's config to see if it has subfields
+      sectionFields.forEach(field => {
+        const configFields = (field.config as any)?.fields
+        if (configFields && Array.isArray(configFields)) {
+          // This field (group or repeater) has children defined in config
+          const parentField = fieldMap.get(field.id)
+          if (parentField) {
+            // Map config field IDs to actual field objects
+            parentField.children = configFields.map((cfId: string) => {
+              const childField = allFields.find((f: any) => f.id === cfId)
+              return childField ? { ...childField, children: [] } : null
+            }).filter((f: any) => f !== null)
+          }
+        }
+      })
+      
+      // Return only top-level fields (those not referenced as children)
+      const allChildIds = new Set()
+      fieldMap.forEach(field => {
+        field.children.forEach((c: any) => allChildIds.add(c.id))
+      })
+      
+      return Array.from(fieldMap.values()).filter(f => !allChildIds.has(f.id))
     }
     
     // Helper function to render a field and its subfields
@@ -408,7 +440,8 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     
     if (sections.length > 0) {
       sections.filter((s: any) => s.sectionType === 'form').forEach((section: any) => {
-        const sectionFields = section.fields || []
+        // Build nested field structure for this section
+        const sectionFields = buildNestedFields(allFields, section.id)
         if (sectionFields.length === 0) return
 
         let fieldsHtml = ''
@@ -428,9 +461,8 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
       })
     } else {
       // No sections - use flat fields array as fallback
-      const fields = form.fields || []
       let fieldsHtml = ''
-      fields.forEach((field: any) => {
+      allFields.forEach((field: any) => {
         fieldsHtml += renderField(field)
       })
       
