@@ -1473,11 +1473,50 @@ function ReviewSectionCard({
 }
 
 // Helper component for info rows
-function InfoRow({ label, value }: { label: string; value?: string }) {
+function InfoRow({ label, value }: { label: string; value?: any }) {
+  const renderValue = () => {
+    if (value === undefined || value === null || value === '') {
+      return <span className="text-gray-400 italic">Not provided</span>
+    }
+    
+    if (typeof value === 'boolean') {
+      return <span className={value ? 'text-green-600' : 'text-gray-500'}>{value ? 'Yes' : 'No'}</span>
+    }
+    
+    if (Array.isArray(value)) {
+      if (value.length === 0) return <span className="text-gray-400 italic">None</span>
+      return value.filter(Boolean).join(', ')
+    }
+    
+    if (typeof value === 'object') {
+      // Handle address object
+      if (value.street || value.city || value.state || value.zip) {
+        const parts = [value.street, value.city, value.state, value.zip].filter(Boolean)
+        return parts.join(', ') || <span className="text-gray-400 italic">Not provided</span>
+      }
+      
+      // Handle formatted address from AddressField
+      if (value.formatted_address) {
+        return value.formatted_address
+      }
+      
+      // Handle file objects
+      if (value.url || value.name || value.fileName) {
+        const displayName = value.name || value.fileName || 'File'
+        return <span className="text-blue-600">{displayName}</span>
+      }
+      
+      // Fallback to JSON string
+      return <span className="text-gray-400 italic text-xs">Complex data</span>
+    }
+    
+    return String(value)
+  }
+
   return (
     <div className="grid grid-cols-3 gap-4 text-sm">
       <dt className="text-gray-600">{label}</dt>
-      <dd className="col-span-2 text-gray-900">{value || <span className="text-gray-400 italic">Not provided</span>}</dd>
+      <dd className="col-span-2 text-gray-900">{renderValue()}</dd>
     </div>
   )
 }
