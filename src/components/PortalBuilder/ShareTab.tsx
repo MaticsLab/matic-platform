@@ -310,6 +310,87 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     // Get all fields from the form
     const fields = form.fields || []
     
+    // Helper function to render a field and its subfields
+    const renderField = (field: any, indent: number = 0): string => {
+      const isRequired = (field.config as any)?.is_required ? '<span style="color: #dc2626;">*</span>' : ''
+      const description = (field.config as any)?.description || ''
+      const indentPadding = indent * 20
+      
+      // Handle groups - render the group label and all subfields
+      if (field.type === 'group') {
+        const subfields = (field.config as any)?.fields || []
+        let groupHtml = `
+          <tr>
+            <td colspan="2" style="padding: 12px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
+              <div style="font-weight: 600; color: #111827; padding-left: ${indentPadding}px;">
+                ${field.label}${isRequired}
+              </div>
+              ${description ? `<div style="font-size: 11px; color: #6b7280; margin-top: 4px; padding-left: ${indentPadding}px;">${description}</div>` : ''}
+            </td>
+          </tr>
+        `
+        // Render all subfields within the group
+        subfields.forEach((subfield: any) => {
+          groupHtml += renderField(subfield, indent + 1)
+        })
+        return groupHtml
+      }
+      
+      // Handle repeaters - show the repeater label and subfields
+      if (field.type === 'repeater') {
+        const subfields = (field.config as any)?.fields || []
+        let repeaterHtml = `
+          <tr>
+            <td colspan="2" style="padding: 12px; background: #fef3c7; border-bottom: 1px solid #fde68a;">
+              <div style="font-weight: 600; color: #92400e; padding-left: ${indentPadding}px;">
+                ${field.label}${isRequired}
+                <span style="font-size: 11px; font-weight: normal; color: #b45309; margin-left: 8px;">(Repeatable section - can add multiple entries)</span>
+              </div>
+              ${description ? `<div style="font-size: 11px; color: #b45309; margin-top: 4px; padding-left: ${indentPadding}px;">${description}</div>` : ''}
+            </td>
+          </tr>
+        `
+        // Show subfields once as template
+        repeaterHtml += `
+          <tr>
+            <td colspan="2" style="padding: 8px 12px; padding-left: ${indentPadding + 20}px; background: #fffbeb; border-bottom: 1px solid #fde68a;">
+              <div style="font-size: 11px; color: #92400e; margin-bottom: 8px;">Entry 1:</div>
+            </td>
+          </tr>
+        `
+        subfields.forEach((subfield: any) => {
+          repeaterHtml += renderField(subfield, indent + 2)
+        })
+        // Add space for additional entries
+        repeaterHtml += `
+          <tr>
+            <td colspan="2" style="padding: 8px 12px; padding-left: ${indentPadding + 20}px; background: #fffbeb; border-bottom: 1px solid #fde68a;">
+              <div style="font-size: 11px; color: #92400e; font-style: italic;">Additional entries can be added...</div>
+            </td>
+          </tr>
+        `
+        return repeaterHtml
+      }
+      
+      // Skip dividers and paragraphs
+      if (field.type === 'divider' || field.type === 'paragraph') {
+        return ''
+      }
+      
+      // Regular field
+      return `
+        <tr>
+          <td style="padding: 10px 12px; padding-left: ${12 + indentPadding}px; border-bottom: 1px solid #e5e7eb; color: #6b7280; width: 35%; vertical-align: top;">
+            ${field.label}${isRequired}
+            ${description ? `<div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">${description}</div>` : ''}
+          </td>
+          <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">
+            <div style="min-height: 20px; color: #9ca3af;">[To be filled]</div>
+          </td>
+        </tr>
+      `
+    }
+    
     // Group fields by section
     const sections = (form.settings as any)?.sections || []
     const fieldsBySectionId = new Map()
@@ -331,23 +412,9 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
         if (sectionFields.length === 0) return
 
         let fieldsHtml = ''
-        sectionFields
-          .filter((f: any) => f.type !== 'group' && f.type !== 'divider' && f.type !== 'paragraph')
-          .forEach((field: any) => {
-            const isRequired = (field.config as any)?.is_required ? '<span style="color: #dc2626;">*</span>' : ''
-            const description = (field.config as any)?.description || ''
-            fieldsHtml += `
-              <tr>
-                <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280; width: 35%; vertical-align: top;">
-                  ${field.label}${isRequired}
-                  ${description ? `<div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">${description}</div>` : ''}
-                </td>
-                <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">
-                  <div style="min-height: 20px; color: #9ca3af;">[To be filled]</div>
-                </td>
-              </tr>
-            `
-          })
+        sectionFields.forEach((field: any) => {
+          fieldsHtml += renderField(field)
+        })
         
         sectionsHtml += `
           <div style="margin-bottom: 24px; break-inside: avoid;">
@@ -362,23 +429,9 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     } else {
       // No sections - just list all fields
       let fieldsHtml = ''
-      fields
-        .filter((f: any) => f.type !== 'group' && f.type !== 'divider' && f.type !== 'paragraph')
-        .forEach((field: any) => {
-          const isRequired = (field.config as any)?.is_required ? '<span style="color: #dc2626;">*</span>' : ''
-          const description = (field.config as any)?.description || ''
-          fieldsHtml += `
-            <tr>
-              <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280; width: 35%; vertical-align: top;">
-                ${field.label}${isRequired}
-                ${description ? `<div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">${description}</div>` : ''}
-              </td>
-              <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">
-                <div style="min-height: 20px; color: #9ca3af;">[To be filled]</div>
-              </td>
-            </tr>
-          `
-        })
+      fields.forEach((field: any) => {
+        fieldsHtml += renderField(field)
+      })
       
       sectionsHtml = `
         <div style="margin-bottom: 24px;">
