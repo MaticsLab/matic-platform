@@ -32,6 +32,7 @@ import { Input } from '@/ui-components/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
 import { workflowsClient, type ApplicationStage } from '@/lib/api/workflows-client'
 import { formsClient } from '@/lib/api/forms-client'
+import { workspacesClient } from '@/lib/api/workspaces-client'
 import { showToast } from '@/lib/toast'
 import Link from 'next/link'
 
@@ -55,10 +56,12 @@ interface Application {
 interface ReviewWorkspaceV2Props {
   formId: string
   workspaceId: string
-  workspaceSlug: string
+  workspaceSlug?: string
+  onBack?: () => void
+  onViewChange?: (view: string) => void
 }
 
-export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug }: ReviewWorkspaceV2Props) {
+export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspaceSlugProp, onBack, onViewChange }: ReviewWorkspaceV2Props) {
   const [applications, setApplications] = useState<Application[]>([])
   const [selectedApp, setSelectedApp] = useState<Application | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -69,10 +72,22 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug }: Review
   const [stages, setStages] = useState<ApplicationStage[]>([])
   const [workflows, setWorkflows] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'documents' | 'reviews'>('overview')
+  const [workspaceSlug, setWorkspaceSlug] = useState(workspaceSlugProp || '')
 
   useEffect(() => {
     loadData()
   }, [formId, workspaceId])
+
+  useEffect(() => {
+    // Fetch workspace slug if not provided
+    if (!workspaceSlug && workspaceId) {
+      workspacesClient.get(workspaceId).then(ws => {
+        setWorkspaceSlug(ws.slug)
+      }).catch(err => {
+        console.error('Failed to fetch workspace:', err)
+      })
+    }
+  }, [workspaceId, workspaceSlug])
 
   const loadData = async () => {
     try {
@@ -176,9 +191,14 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug }: Review
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <ChevronLeft className="w-5 h-5" />
-              </button>
+              {onBack && (
+                <button 
+                  onClick={onBack}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
               <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <ChevronRight className="w-5 h-5" />
               </button>

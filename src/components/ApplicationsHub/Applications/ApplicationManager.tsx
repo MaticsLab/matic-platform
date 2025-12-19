@@ -226,7 +226,8 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
       <div className="flex-1 overflow-hidden relative">
         {activeTab === 'review' && formId && (
           <ReviewWorkspaceV2 
-            workspaceId={workspaceId} 
+            workspaceId={workspaceId}
+            workspaceSlug={workspaceSlug}
             formId={formId} 
             onBack={() => window.history.back()}
             onViewChange={(view) => {
