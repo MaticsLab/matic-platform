@@ -33,6 +33,7 @@ import { PageThemeSettings } from './PageThemeSettings'
 import type { DashboardSettings } from '@/types/dashboard'
 import { EndingBlocksToolbox } from './EndingBlocksToolbox'
 import { EndingBlockEditor } from './EndingBlockEditor'
+import { CoverBlockEditor } from './CoverBlockEditor'
 import { DEFAULT_ENDING_TEMPLATE } from '@/lib/ending-templates'
 import { BlockRenderer } from '@/components/EndingPages/BlockRenderer'
 import { PropertyInput } from '@/components/EndingPages/PropertyInput'
@@ -639,9 +640,17 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         title: 'Cover',
         sectionType: 'cover',
         description: 'Welcome users to your form',
-        fields: [
-          { id: `${Date.now()}-h`, type: 'heading', label: 'Welcome', required: false, width: 'full' },
-          { id: `${Date.now()}-p`, type: 'paragraph', label: 'Use this space to greet applicants and explain what to expect.', required: false, width: 'full', config: { content: '' } }
+        fields: [],
+        blocks: [
+          {
+            id: `block-${Date.now()}-1`,
+            blockType: 'hero',
+            props: {
+              title: 'Welcome',
+              subtitle: 'Use this space to greet applicants and explain what to expect.',
+              alignment: 'center'
+            }
+          }
         ]
       }
     }
@@ -1257,8 +1266,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             </TabsContent>
 
             <TabsContent value="elements" className="flex-1 mt-0 overflow-hidden data-[state=active]:flex flex-col min-h-0">
-               {/* Show ending blocks if ending section is selected, otherwise show fields */}
-               {activeSection?.sectionType === 'ending' ? (
+               {/* Show ending blocks if ending/cover section is selected, otherwise show fields */}
+               {(activeSection?.sectionType === 'ending' || activeSection?.sectionType === 'cover') ? (
                  <EndingBlocksToolbox onAddBlock={handleAddBlock} />
                ) : (
                  <FieldToolbox onAddField={handleAddField} />
@@ -1361,7 +1370,16 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       }}
                     />
                   ) : displaySection ? (
-                    displaySection.sectionType === 'ending' ? (
+                    displaySection.sectionType === 'cover' ? (
+                      // Cover Section - Show cover blocks with drag-and-drop
+                      <CoverBlockEditor
+                        blocks={displaySection.blocks || []}
+                        onUpdate={(blocks) => handleUpdateSection(displaySection.id, { blocks })}
+                        selectedBlockId={selectedBlockId}
+                        onSelectBlock={setSelectedBlockId}
+                        onDeleteBlock={handleDeleteBlock}
+                      />
+                    ) : displaySection.sectionType === 'ending' ? (
                       // Ending Section - Show ending blocks with drag-and-drop
                       <EndingBlockEditor
                         blocks={displaySection.blocks || []}

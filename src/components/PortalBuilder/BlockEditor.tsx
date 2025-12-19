@@ -841,7 +841,8 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
         <button
           onClick={(e) => { 
             e.stopPropagation(); 
-            onOpenSettings?.(); 
+            onSelect(); // Select this field
+            onOpenSettings?.(); // Open settings panel
           }}
           className="p-1.5 rounded-md hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-colors bg-white/80 backdrop-blur-sm shadow-sm border border-gray-200"
           title="Field settings"
@@ -1398,6 +1399,7 @@ function Block({
               selectedChildId={selectedBlockId || null}
               themeColor={themeColor}
               allFields={allFields}
+              onOpenSettings={onOpenSettings}
               onMoveChildOut={handleMoveChildOut}
             >
               {children}

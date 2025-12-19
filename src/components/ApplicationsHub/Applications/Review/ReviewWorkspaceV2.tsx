@@ -94,7 +94,7 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
       setIsLoading(true)
       
       // Load form with submissions and workflow data
-      const response = await formsClient.getFormWithSubmissionsAndWorkflow(formId)
+      const response = await formsClient.getFull(formId)
       
       setForm(response.form)
       setWorkflows(response.workflows || [])

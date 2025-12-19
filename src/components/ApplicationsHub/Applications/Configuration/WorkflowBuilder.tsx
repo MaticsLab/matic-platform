@@ -6,7 +6,7 @@ import {
   GripVertical, Check, Loader2, Sparkles, Settings, Award, 
   Link2, Zap, Target, ClipboardList, ChevronDown, CheckCircle, Search,
   Shield, EyeOff, Folder, Archive, XCircle, Clock, FolderOpen, ArchiveX, Tag,
-  Circle, ArrowRight
+  Circle, ArrowRight, AlertCircle
 } from 'lucide-react'
 import { DndProvider, useDrag, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'

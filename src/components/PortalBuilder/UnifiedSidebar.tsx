@@ -141,6 +141,7 @@ export function UnifiedSidebar({
 
   // Separate sections by type
   const formSections = sections.filter(s => s.sectionType === 'form' || !s.sectionType)
+  const coverSections = sections.filter(s => s.sectionType === 'cover')
   const endingSections = sections.filter(s => s.sectionType === 'ending')
   const dashboardSections = sections.filter(s => s.sectionType === 'dashboard')
 
@@ -253,6 +254,17 @@ export function UnifiedSidebar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onClick={() => onAddSection('cover')}>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <BookOpen className="w-4 h-4 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Cover Page</p>
+                  <p className="text-xs text-gray-500">Welcome users to your form</p>
+                </div>
+              </div>
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onAddSection('form')}>
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
@@ -313,6 +325,31 @@ export function UnifiedSidebar({
           </Collapsible>
 
           <Separator className="my-2" />
+
+          {/* ═══════════════════════════════════════════════════════════════════
+              COVER SECTIONS
+          ═══════════════════════════════════════════════════════════════════ */}
+          {coverSections.length > 0 && (
+            <>
+              <Collapsible open={expandedGroups.has('cover')} onOpenChange={() => toggleGroup('cover')}>
+                <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-2 hover:bg-gray-50 rounded-lg transition-colors">
+                  <ChevronRight className={cn(
+                    "w-4 h-4 text-gray-400 transition-transform",
+                    expandedGroups.has('cover') && "rotate-90"
+                  )} />
+                  <BookOpen className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-semibold text-gray-700 flex-1 text-left">Cover Pages</span>
+                  <span className="text-xs text-gray-400">{coverSections.length}</span>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pl-4 pr-1 py-1 space-y-1">
+                  <AnimatePresence mode="popLayout">
+                    {coverSections.map((section) => renderSectionItem(section, true))}
+                  </AnimatePresence>
+                </CollapsibleContent>
+              </Collapsible>
+              <Separator className="my-2" />
+            </>
+          )}
 
           {/* ═══════════════════════════════════════════════════════════════════
               APPLICATION FORM SECTIONS
