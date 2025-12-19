@@ -320,6 +320,8 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
         return fieldSectionId === sectionId
       })
       
+      console.log(`Building nested fields for section ${sectionId}:`, sectionFields.length, 'fields')
+      
       // Build parent-child relationships
       // Fields with children store them in config.fields (for groups/repeaters)
       const fieldMap = new Map()
@@ -329,14 +331,21 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
       sectionFields.forEach(field => {
         const configFields = (field.config as any)?.fields
         if (configFields && Array.isArray(configFields)) {
+          console.log(`Field ${field.label} (${field.type}) has ${configFields.length} children in config:`, configFields)
           // This field (group or repeater) has children defined in config
           const parentField = fieldMap.get(field.id)
           if (parentField) {
             // Map config field IDs to actual field objects
             parentField.children = configFields.map((cfId: string) => {
               const childField = allFields.find((f: any) => f.id === cfId)
+              if (childField) {
+                console.log(`  - Found child: ${childField.label} (${childField.type})`)
+              } else {
+                console.log(`  - Child ${cfId} NOT FOUND in allFields`)
+              }
               return childField ? { ...childField, children: [] } : null
             }).filter((f: any) => f !== null)
+            console.log(`Field ${field.label} now has ${parentField.children.length} children mapped`)
           }
         }
       })
@@ -347,7 +356,9 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
         field.children.forEach((c: any) => allChildIds.add(c.id))
       })
       
-      return Array.from(fieldMap.values()).filter(f => !allChildIds.has(f.id))
+      const topLevel = Array.from(fieldMap.values()).filter(f => !allChildIds.has(f.id))
+      console.log(`Section ${sectionId} has ${topLevel.length} top-level fields`)
+      return topLevel
     }
     
     // Helper function to render a field and its subfields
@@ -421,6 +432,16 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
         return ''
       }
       
+      // Handle select/dropdown/radio - show options
+      let fieldHint = '[To be filled]'
+      if (field.type === 'select' || field.type === 'dropdown' || field.type === 'radio') {
+        const options = (field.config as any)?.options || []
+        if (options.length > 0) {
+          const optionsList = options.map((opt: any) => typeof opt === 'string' ? opt : opt.label || opt.value).join(', ')
+          fieldHint = `<div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Options: ${optionsList}</div><div style="color: #9ca3af;">[To be filled]</div>`
+        }
+      }
+      
       // Regular field
       return `
         <tr>
@@ -429,7 +450,7 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
             ${description ? `<div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">${description}</div>` : ''}
           </td>
           <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">
-            <div style="min-height: 20px; color: #9ca3af;">[To be filled]</div>
+            <div style="min-height: 20px;">${fieldHint}</div>
           </td>
         </tr>
       `
