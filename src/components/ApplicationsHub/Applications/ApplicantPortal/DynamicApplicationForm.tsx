@@ -10,6 +10,7 @@ import { Progress } from '@/ui-components/progress'
 import { Checkbox } from '@/ui-components/checkbox'
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
+import { BlockRenderer } from '@/components/EndingPages/BlockRenderer'
 import { applyTranslationsToConfig, normalizeTranslations, getUITranslations } from '@/lib/portal-translations'
 import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector'
 
@@ -528,6 +529,30 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
                     </div>
                   </CardContent>
                 </Card>
+              ) : activeSection.sectionType === 'cover' ? (
+                // Render cover page with blocks
+                <div className="space-y-6">
+                  {activeSection.blocks && activeSection.blocks.length > 0 ? (
+                    activeSection.blocks.map((block: any) => (
+                      <div key={block.id}>
+                        <BlockRenderer block={block} />
+                      </div>
+                    ))
+                  ) : (
+                    <Card>
+                      <CardContent className="p-12 text-center">
+                        <CardTitle className="text-3xl mb-4">
+                          {activeSection.title || 'Welcome'}
+                        </CardTitle>
+                        {activeSection.description && (
+                          <CardDescription className="text-base">
+                            {activeSection.description}
+                          </CardDescription>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
               ) : activeSection.sectionType === 'ending' ? (
                 // Render ending page preview
                 <div className="flex items-center justify-center min-h-[600px]">

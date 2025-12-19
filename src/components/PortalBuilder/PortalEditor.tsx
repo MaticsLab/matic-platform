@@ -644,11 +644,65 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         blocks: [
           {
             id: `block-${Date.now()}-1`,
-            blockType: 'hero',
+            blockType: 'image',
             props: {
-              title: 'Welcome',
-              subtitle: 'Use this space to greet applicants and explain what to expect.',
-              alignment: 'center'
+              url: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&h=400&fit=crop',
+              alt: 'Cover image',
+              width: '100%',
+              align: 'center'
+            },
+            metadata: {
+              order: 0,
+              hidden: false
+            },
+            styles: {
+              marginBottom: 32
+            }
+          },
+          {
+            id: `block-${Date.now()}-2`,
+            blockType: 'heading',
+            props: {
+              text: '📝 Application Form',
+              level: 1,
+              align: 'left'
+            },
+            metadata: {
+              order: 1,
+              hidden: false
+            },
+            styles: {
+              marginBottom: 8
+            }
+          },
+          {
+            id: `block-${Date.now()}-3`,
+            blockType: 'paragraph',
+            props: {
+              text: 'Welcome! We\'re excited that you\'re interested in applying. This form should take about 10 minutes to complete. Feel free to save your progress and come back at any time.',
+              align: 'left',
+              size: 'base'
+            },
+            metadata: {
+              order: 2,
+              hidden: false
+            },
+            styles: {
+              marginBottom: 24
+            }
+          },
+          {
+            id: `block-${Date.now()}-4`,
+            blockType: 'callout',
+            props: {
+              type: 'info',
+              title: 'Before you start',
+              text: 'Make sure you have all necessary documents ready. You can save your progress at any time and return later.',
+              icon: true
+            },
+            metadata: {
+              order: 3,
+              hidden: false
             }
           }
         ]
@@ -1426,12 +1480,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             {/* Right Sidebar - Settings */}
             <div className={cn(
                "bg-white border-l border-gray-200 flex flex-col shadow-sm z-10 transition-all duration-300 ease-in-out",
-               (showFieldSettings && (selectedFieldId || selectedBlockId || (displaySection?.sectionType === 'ending' && activeSectionId))) ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
+               (showFieldSettings && (selectedFieldId || selectedBlockId || ((displaySection?.sectionType === 'ending' || displaySection?.sectionType === 'cover') && activeSectionId))) ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
             )}>
                <div className="flex items-center justify-between p-4 border-b border-gray-100">
                   <span className="font-semibold text-sm">
-                    {displaySection?.sectionType === 'ending' 
-                      ? 'Ending Settings' 
+                    {(displaySection?.sectionType === 'ending' || displaySection?.sectionType === 'cover') 
+                      ? `${displaySection.sectionType === 'cover' ? 'Cover' : 'Ending'} Settings` 
                       : (() => {
                           const selectedField = selectedBlockId 
                             ? findFieldRecursive(displaySection?.fields || [], selectedBlockId)
@@ -1462,8 +1516,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   </Button>
                </div>
                <div className="flex-1 overflow-y-auto">
-                   {/* Block Settings - When ending block is selected */}
-                   {selectedBlockId && displaySection?.sectionType === 'ending' && (() => {
+                   {/* Block Settings - When ending/cover block is selected */}
+                   {selectedBlockId && (displaySection?.sectionType === 'ending' || displaySection?.sectionType === 'cover') && (() => {
                      const selectedBlock = displaySection.blocks?.find((b: EndingBlock) => b.id === selectedBlockId)
                      if (!selectedBlock) return null
                      

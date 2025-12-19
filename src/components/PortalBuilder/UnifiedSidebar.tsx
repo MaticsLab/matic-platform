@@ -108,7 +108,7 @@ export function UnifiedSidebar({
   dashboardSettings,
   onDashboardSettingsChange,
 }: UnifiedSidebarProps) {
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['entry', 'form', 'after']))
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['entry', 'cover', 'form', 'after']))
 
   const toggleGroup = (group: string) => {
     setExpandedGroups(prev => {

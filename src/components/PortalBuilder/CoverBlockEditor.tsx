@@ -140,42 +140,45 @@ export function CoverBlockEditor({
   const activeBlock = blocks.find((b) => b.id === activeId)
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-6">
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-4 pl-8">
-            {blocks.map((block) => (
-              <SortableBlock
-                key={block.id}
-                block={block}
-                isSelected={selectedBlockId === block.id}
-                onSelect={() => onSelectBlock(block.id)}
-                onDelete={() => onDeleteBlock(block.id)}
-              />
-            ))}
-          </div>
-        </SortableContext>
-
-        <DragOverlay>
-          {activeBlock ? (
-            <div className="opacity-50">
-              <BlockRenderer block={activeBlock} />
+    <div className="w-full h-full bg-white">
+      {/* Notion-style full-width container */}
+      <div className="max-w-[900px] mx-auto">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2 pl-12 pr-8 pt-24 pb-24">
+              {blocks.map((block) => (
+                <SortableBlock
+                  key={block.id}
+                  block={block}
+                  isSelected={selectedBlockId === block.id}
+                  onSelect={() => onSelectBlock(block.id)}
+                  onDelete={() => onDeleteBlock(block.id)}
+                />
+              ))}
             </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+          </SortableContext>
 
-      {blocks.length === 0 && (
-        <div className="text-center py-12 text-gray-400">
-          <p className="text-sm">No cover blocks yet</p>
-          <p className="text-xs mt-1">Add blocks from the sidebar to build your cover page</p>
-        </div>
-      )}
+          <DragOverlay>
+            {activeBlock ? (
+              <div className="opacity-50">
+                <BlockRenderer block={activeBlock} />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+
+        {blocks.length === 0 && (
+          <div className="text-center py-24 px-8 text-gray-400">
+            <p className="text-lg font-medium mb-2">Empty page</p>
+            <p className="text-sm">Add blocks from the sidebar to build your cover page</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
