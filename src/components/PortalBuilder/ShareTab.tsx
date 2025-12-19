@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Copy, Check, Link2, ExternalLink, AlertCircle, Loader2, Sparkles, X, ChevronRight, Globe, ArrowLeft, Upload, Edit2, Image as ImageIcon } from 'lucide-react'
+import { Copy, Check, Link2, ExternalLink, AlertCircle, Loader2, Sparkles, X, ChevronRight, Globe, ArrowLeft, Upload, Edit2, Image as ImageIcon, FileDown } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
@@ -275,6 +275,190 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     } finally {
       setIsSavingPreview(false)
     }
+  }
+
+  const handleExportPDF = () => {
+    if (!form) return
+
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      window.print()
+      return
+    }
+
+    // Generate PDF content
+    const pdfContent = generatePDFContent()
+    
+    printWindow.document.write(pdfContent)
+    printWindow.document.close()
+    
+    // Wait for content to load then print
+    printWindow.onload = () => {
+      printWindow.print()
+      printWindow.onafterprint = () => printWindow.close()
+    }
+  }
+
+  const generatePDFContent = () => {
+    if (!form) return ''
+
+    const formName = form.name || 'Application Form'
+    const formDescription = form.description || ''
+    const logoUrl = (form.settings as any)?.logoUrl || ''
+    
+    // Get all fields from the form
+    const fields = form.fields || []
+    
+    // Group fields by section
+    const sections = (form.settings as any)?.sections || []
+    const fieldsBySectionId = new Map()
+    
+    fields.forEach(field => {
+      const sectionId = (field.config as any)?.section_id || 'default'
+      if (!fieldsBySectionId.has(sectionId)) {
+        fieldsBySectionId.set(sectionId, [])
+      }
+      fieldsBySectionId.get(sectionId).push(field)
+    })
+
+    // Generate HTML for each section
+    let sectionsHtml = ''
+    
+    if (sections.length > 0) {
+      sections.filter((s: any) => s.sectionType === 'form').forEach((section: any) => {
+        const sectionFields = fieldsBySectionId.get(section.id) || []
+        if (sectionFields.length === 0) return
+
+        let fieldsHtml = ''
+        sectionFields
+          .filter((f: any) => f.type !== 'group' && f.type !== 'divider' && f.type !== 'paragraph')
+          .forEach((field: any) => {
+            const isRequired = (field.config as any)?.is_required ? '<span style="color: #dc2626;">*</span>' : ''
+            const description = (field.config as any)?.description || ''
+            fieldsHtml += `
+              <tr>
+                <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280; width: 35%; vertical-align: top;">
+                  ${field.label}${isRequired}
+                  ${description ? `<div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">${description}</div>` : ''}
+                </td>
+                <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">
+                  <div style="min-height: 20px; color: #9ca3af;">[To be filled]</div>
+                </td>
+              </tr>
+            `
+          })
+        
+        sectionsHtml += `
+          <div style="margin-bottom: 24px; break-inside: avoid;">
+            <h2 style="font-size: 16px; font-weight: 600; color: #111827; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb;">${section.title}</h2>
+            ${section.description ? `<p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">${section.description}</p>` : ''}
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              ${fieldsHtml}
+            </table>
+          </div>
+        `
+      })
+    } else {
+      // No sections - just list all fields
+      let fieldsHtml = ''
+      fields
+        .filter((f: any) => f.type !== 'group' && f.type !== 'divider' && f.type !== 'paragraph')
+        .forEach((field: any) => {
+          const isRequired = (field.config as any)?.is_required ? '<span style="color: #dc2626;">*</span>' : ''
+          const description = (field.config as any)?.description || ''
+          fieldsHtml += `
+            <tr>
+              <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #6b7280; width: 35%; vertical-align: top;">
+                ${field.label}${isRequired}
+                ${description ? `<div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">${description}</div>` : ''}
+              </td>
+              <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">
+                <div style="min-height: 20px; color: #9ca3af;">[To be filled]</div>
+              </td>
+            </tr>
+          `
+        })
+      
+      sectionsHtml = `
+        <div style="margin-bottom: 24px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            ${fieldsHtml}
+          </table>
+        </div>
+      `
+    }
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${formName} - Application Form</title>
+        <style>
+          @page {
+            margin: 0.75in;
+            size: letter;
+          }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color: #111827;
+            line-height: 1.5;
+            margin: 0;
+            padding: 0;
+          }
+          .header {
+            border-bottom: 3px solid #111827;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+          }
+          .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+          }
+          .logo {
+            max-height: 50px;
+            max-width: 150px;
+          }
+          .app-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #111827;
+          }
+          .app-description {
+            font-size: 14px;
+            color: #6b7280;
+            margin-top: 8px;
+            line-height: 1.6;
+          }
+          .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 11px;
+            color: #6b7280;
+            text-align: center;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo-section">
+            ${logoUrl ? `<img src="${logoUrl}" alt="Logo" class="logo" />` : ''}
+            <div class="app-title">${formName}</div>
+          </div>
+          ${formDescription ? `<div class="app-description">${formDescription}</div>` : ''}
+        </div>
+        
+        ${sectionsHtml}
+        
+        <div class="footer">
+          <p>This blank application form was generated on ${new Date().toLocaleString()}</p>
+        </div>
+      </body>
+      </html>
+    `
   }
 
   const handleFileUpload = async (file: File) => {
@@ -569,6 +753,37 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+
+        {/* Export Blank PDF */}
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-sm font-medium text-gray-900">Export Blank Application</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Download a PDF version of your form to print or share</p>
+          </div>
+
+          <div className="border border-gray-200 rounded-lg p-4">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
+                <FileDown className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-medium text-gray-900 mb-1">Blank Application Form</h4>
+                <p className="text-xs text-gray-600 mb-3">
+                  Generate a printable PDF with all form fields, your logo, and application name. Perfect for offline applications or physical submissions.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportPDF}
+                  className="w-full sm:w-auto"
+                >
+                  <FileDown className="w-4 h-4 mr-2" />
+                  Download Blank PDF
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
 
