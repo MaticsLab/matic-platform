@@ -11,7 +11,7 @@ import {
   TiptapUnderline,
   TextStyle,
   Color,
-} from 'novel/extensions'
+} from 'novel'
 
 export const defaultExtensions = [
   StarterKit.configure({
