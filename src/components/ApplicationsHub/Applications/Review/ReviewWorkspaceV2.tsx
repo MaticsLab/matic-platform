@@ -895,12 +895,14 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
                         <div className="flex items-center gap-4">
                           <label className="text-sm text-gray-600 w-16">From</label>
                           <select
-                            value={emailFrom}
-                            onChange={(e) => setEmailFrom(e.target.value)}
+                            value={selectedFromEmail}
+                            onChange={(e) => setSelectedFromEmail(e.target.value)}
                             className="flex-1 text-sm border-0 bg-transparent focus:outline-none focus:ring-0 text-gray-900"
                           >
                             <option value="">Select sender...</option>
-                            <option value="admin@example.com">admin@example.com</option>
+                            {emailAccounts.map((account) => (
+                              <option key={account} value={account}>{account}</option>
+                            ))}
                           </select>
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                             <Settings className="w-4 h-4 text-gray-400" />
