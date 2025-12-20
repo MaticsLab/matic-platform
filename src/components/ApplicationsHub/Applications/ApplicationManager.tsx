@@ -227,7 +227,6 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
         {activeTab === 'review' && formId && (
           <ReviewWorkspaceV2 
             workspaceId={workspaceId}
-            workspaceSlug={workspaceSlug}
             formId={formId} 
             onBack={() => window.history.back()}
             onViewChange={(view) => {
