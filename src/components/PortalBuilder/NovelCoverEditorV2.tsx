@@ -119,8 +119,7 @@ export function NovelCoverEditorV2({
     }
   }, [initialContent])
 
-  const handleUpdate = (editor?: EditorInstance) => {
-    if (!editor) return
+  const handleUpdate = ({ editor }: { editor: EditorInstance }) => {
     const json = editor.getJSON()
     onUpdate(JSON.stringify(json))
   }
@@ -138,7 +137,7 @@ export function NovelCoverEditorV2({
                 class: 'prose prose-lg dark:prose-invert focus:outline-none max-w-full min-h-[400px]',
               },
             }}
-            onUpdate={({ editor }) => handleUpdate(editor)}
+            onUpdate={handleUpdate}
             immediatelyRender={false}
           >
             {/* Slash Command Menu */}

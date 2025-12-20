@@ -41,8 +41,7 @@ export function NovelCoverEditor({
     return initialContent
   }, [initialContent])
 
-  const handleUpdate = (editor?: EditorInstance) => {
-    if (!editor) return
+  const handleUpdate = ({ editor }: { editor: EditorInstance }) => {
     const json = editor.getJSON()
     // Store as JSON string for flexibility
     onUpdate(JSON.stringify(json))
