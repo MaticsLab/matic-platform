@@ -23,7 +23,8 @@ import {
   Plus,
   Loader2,
   FileText,
-  ArrowRight
+  ArrowRight,
+  Lock
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -86,6 +87,13 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
   const [activities, setActivities] = useState<PortalActivity[]>([])
   const [newActivityContent, setNewActivityContent] = useState('')
   const [isSubmittingActivity, setIsSubmittingActivity] = useState(false)
+  
+  // Email composer state
+  const [emailFrom, setEmailFrom] = useState('')
+  const [emailSubject, setEmailSubject] = useState('')
+  const [emailBody, setEmailBody] = useState('')
+  const [isSendingEmail, setIsSendingEmail] = useState(false)
+  const [gmailConnected, setGmailConnected] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -186,6 +194,35 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
     } finally {
       setIsSubmittingActivity(false)
     }
+  }
+
+  const handleSendEmail = async () => {
+    if (!emailSubject.trim() || !emailBody.trim() || !selectedApp?.id) return
+
+    setIsSendingEmail(true)
+    try {
+      // Create activity for email sent
+      await dashboardClient.createActivity(selectedApp.id, {
+        activityType: 'message',
+        content: `Email sent: ${emailSubject}\n\n${emailBody}`,
+        visibility: 'internal'
+      })
+      
+      // Clear form
+      setEmailSubject('')
+      setEmailBody('')
+      showToast('Email sent successfully', 'success')
+      await loadActivities(selectedApp.id)
+    } catch (error) {
+      console.error('Error sending email:', error)
+      showToast('Failed to send email', 'error')
+    } finally {
+      setIsSendingEmail(false)
+    }
+  }
+
+  const insertField = (fieldName: string) => {
+    setEmailBody(prev => prev + `{{${fieldName}}}`)
   }
 
   const formatTime = (dateString: string) => {
@@ -765,84 +802,190 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
                 )}
 
                 {activeTab === 'activity' && (
-                  <div className="bg-white rounded-xl border border-gray-200 flex flex-col h-[600px]">
-                    {/* Activity Feed */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                      {activities.length > 0 ? (
-                        activities.map((activity) => (
-                          <div key={activity.id} className="flex gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                              {activity.senderType === 'staff' ? (
-                                <User className="w-4 h-4 text-blue-600" />
-                              ) : (
-                                <MessageSquare className="w-4 h-4 text-blue-600" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm font-medium text-gray-900">
-                                  {activity.senderName || (activity.senderType === 'staff' ? 'Staff' : 'Applicant')}
-                                </span>
-                                <span className="text-xs text-gray-500">
-                                  {formatTime(activity.createdAt)}
-                                </span>
-                                {activity.visibility === 'internal' && (
-                                  <Badge variant="outline" className="text-xs bg-gray-50">
-                                    Internal
-                                  </Badge>
-                                )}
+                  <div className="space-y-6">
+                    {/* Activity Timeline */}
+                    <div className="bg-white rounded-xl border border-gray-200">
+                      <div className="px-6 py-4 border-b border-gray-200">
+                        <h3 className="text-base font-semibold text-gray-900">Activity</h3>
+                      </div>
+                      
+                      <div className="max-h-[300px] overflow-y-auto p-6">
+                        {activities.length > 0 ? (
+                          <div className="space-y-4">
+                            {activities.map((activity) => (
+                              <div key={activity.id} className="flex gap-3">
+                                <div className={cn(
+                                  "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5",
+                                  activity.activityType === 'status_update' ? "bg-blue-100" :
+                                  activity.senderType === 'staff' ? "bg-purple-100" : "bg-gray-100"
+                                )}>
+                                  {activity.activityType === 'status_update' ? (
+                                    <Activity className="w-4 h-4 text-blue-600" />
+                                  ) : activity.senderType === 'staff' ? (
+                                    <User className="w-4 h-4 text-purple-600" />
+                                  ) : (
+                                    <MessageSquare className="w-4 h-4 text-gray-600" />
+                                  )}
+                                </div>
+                                
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium text-gray-900 mb-1">
+                                    {activity.content.split('\n')[0]}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                                    <span>{activity.senderType === 'staff' ? 'System' : activity.senderName}</span>
+                                    <span>•</span>
+                                    <span>{formatTime(activity.createdAt)}</span>
+                                  </div>
+                                </div>
                               </div>
-                              <div className="text-sm text-gray-700 whitespace-pre-wrap break-words">
-                                {activity.content}
-                              </div>
-                              {activity.activityType === 'status_update' && (
-                                <Badge className="mt-2 bg-blue-50 text-blue-700 border-blue-200">
-                                  Status Update
-                                </Badge>
-                              )}
-                            </div>
+                            ))}
                           </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-12">
-                          <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                          <p className="text-gray-500">No activity yet</p>
-                        </div>
-                      )}
+                        ) : (
+                          <div className="text-center py-8">
+                            <Activity className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                            <p className="text-sm text-gray-500">No activity yet</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Comment Input */}
-                    <div className="border-t border-gray-200 p-4">
-                      <div className="flex gap-3">
-                        <Textarea
-                          value={newActivityContent}
-                          onChange={(e) => setNewActivityContent(e.target.value)}
-                          placeholder="Add a comment..."
-                          className="flex-1 min-h-[80px] resize-none"
-                          disabled={isSubmittingActivity}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between mt-3">
-                        <span className="text-xs text-gray-500">
-                          This comment will only be visible to staff
-                        </span>
-                        <Button
-                          onClick={handleSubmitActivity}
-                          disabled={!newActivityContent.trim() || isSubmittingActivity}
-                          className="gap-2"
-                        >
-                          {isSubmittingActivity ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              Sending...
-                            </>
-                          ) : (
-                            <>
-                              <MessageSquare className="w-4 h-4" />
-                              Send Comment
-                            </>
-                          )}
-                        </Button>
+                    {/* Email Composer */}
+                    <div className="bg-white rounded-xl border border-gray-200">
+                      {!gmailConnected && (
+                        <div className="px-6 py-3 bg-yellow-50 border-b border-yellow-100 flex items-center justify-between">
+                          <span className="text-sm text-yellow-800">Gmail not connected.</span>
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="text-yellow-800 hover:text-yellow-900 h-auto p-0 font-medium"
+                            onClick={() => setGmailConnected(true)}
+                          >
+                            Connect Email
+                          </Button>
+                        </div>
+                      )}
+                      
+                      <div className="p-6 space-y-4">
+                        {/* From */}
+                        <div className="flex items-center gap-4">
+                          <label className="text-sm text-gray-600 w-16">From</label>
+                          <select
+                            value={emailFrom}
+                            onChange={(e) => setEmailFrom(e.target.value)}
+                            className="flex-1 text-sm border-0 bg-transparent focus:outline-none focus:ring-0 text-gray-900"
+                          >
+                            <option value="">Select sender...</option>
+                            <option value="admin@example.com">admin@example.com</option>
+                          </select>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Settings className="w-4 h-4 text-gray-400" />
+                          </Button>
+                        </div>
+
+                        {/* To */}
+                        <div className="flex items-center gap-4 pb-4 border-b border-gray-100">
+                          <label className="text-sm text-gray-600 w-16">To</label>
+                          <input
+                            type="email"
+                            value={selectedApp?.email || ''}
+                            readOnly
+                            className="flex-1 text-sm border-0 bg-transparent focus:outline-none focus:ring-0 text-gray-900"
+                          />
+                          <Button variant="ghost" size="sm" className="text-xs text-gray-500 hover:text-gray-700 h-auto p-0">
+                            Cc Bcc
+                          </Button>
+                        </div>
+
+                        {/* Subject */}
+                        <div className="flex items-center gap-4 pb-4 border-b border-gray-100">
+                          <label className="text-sm text-gray-600 w-16">Subject</label>
+                          <input
+                            type="text"
+                            value={emailSubject}
+                            onChange={(e) => setEmailSubject(e.target.value)}
+                            placeholder="Enter subject..."
+                            className="flex-1 text-sm border-0 bg-transparent focus:outline-none focus:ring-0 text-gray-900 placeholder:text-gray-400"
+                          />
+                        </div>
+
+                        {/* Insert Field Dropdown */}
+                        <div className="flex items-start gap-4">
+                          <div className="w-16"></div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="text-sm text-blue-600 hover:text-blue-700 h-auto p-0 gap-1">
+                                <Plus className="w-3 h-3" />
+                                Insert Field
+                                <ChevronRight className="w-3 h-3 rotate-90" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-48">
+                              <DropdownMenuItem onClick={() => insertField('First Name')}>
+                                First Name
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => insertField('Last Name')}>
+                                Last Name
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => insertField('Email')}>
+                                Email
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => insertField('Application Status')}>
+                                Application Status
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+
+                        {/* Message Body */}
+                        <div className="flex items-start gap-4">
+                          <div className="w-16"></div>
+                          <Textarea
+                            value={emailBody}
+                            onChange={(e) => setEmailBody(e.target.value)}
+                            placeholder="Write your message. Use Insert Field to add personalized content like {{First Name}}"
+                            className="flex-1 min-h-[200px] resize-none border-0 focus-visible:ring-0 text-sm"
+                          />
+                        </div>
+
+                        {/* Email Actions */}
+                        <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                          <div className="flex items-center gap-2">
+                            <Button variant="ghost" size="sm" className="h-8 gap-2 text-gray-600">
+                              <Mail className="w-4 h-4" />
+                              <span className="text-sm">Email</span>
+                              <ChevronRight className="w-3 h-3 rotate-90" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Settings className="w-4 h-4 text-gray-400" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <FileText className="w-4 h-4 text-gray-400" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <User className="w-4 h-4 text-gray-400" />
+                            </Button>
+                          </div>
+                          
+                          <Button
+                            onClick={handleSendEmail}
+                            disabled={!emailSubject.trim() || !emailBody.trim() || isSendingEmail}
+                            className="gap-2"
+                            size="sm"
+                          >
+                            {isSendingEmail ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Sending...
+                              </>
+                            ) : (
+                              <>
+                                <Mail className="w-4 h-4" />
+                                Send
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
