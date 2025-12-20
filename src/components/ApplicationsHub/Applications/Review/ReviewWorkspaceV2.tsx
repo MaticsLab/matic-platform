@@ -876,14 +876,14 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
 
                     {/* Email Composer */}
                     <div className="bg-white rounded-xl border border-gray-200">
-                      {!gmailConnected && (
+                      {!gmailConnection && (
                         <div className="px-6 py-3 bg-yellow-50 border-b border-yellow-100 flex items-center justify-between">
                           <span className="text-sm text-yellow-800">Gmail not connected.</span>
                           <Button
                             variant="link"
                             size="sm"
                             className="text-yellow-800 hover:text-yellow-900 h-auto p-0 font-medium"
-                            onClick={() => setGmailConnected(true)}
+                            onClick={() => refreshConnection()}
                           >
                             Connect Email
                           </Button>
