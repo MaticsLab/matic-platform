@@ -490,40 +490,46 @@ export function ReviewWorkspaceV2({
   return (
     <div className="bg-gray-50 flex flex-col h-full">
       <Toaster position="top-right" richColors />
-      
-      <PipelineHeader 
-        activeTab="Queue"
-        onTabChange={() => {}}
-        applications={applications}
-        stages={stages}
-        filterStatus={filterStatus}
-        onFilterChange={setFilterStatus}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        committee={committee}
-        onCommitteeChange={setCommittee}
-        onOpenPipelineActivity={() => setShowPipelineActivity(true)}
-        workflows={workflows.map(w => ({ id: w.id, name: w.name }))}
-        selectedWorkflowId={selectedWorkflow?.id}
-        onWorkflowChange={handleWorkflowChange}
-      />
 
       <div className={cn(
         "flex-1 min-h-0 overflow-hidden",
         (selectedApp || showPipelineActivity) ? "flex" : ""
       )}>
         <div className={cn(
-          "h-full overflow-y-auto",
-          (selectedApp || showPipelineActivity) ? "hidden md:block md:w-[400px] lg:w-[480px] flex-shrink-0" : "w-full"
+          "h-full overflow-hidden flex flex-col",
+          (selectedApp || showPipelineActivity) ? "hidden md:flex md:w-[400px] lg:w-[480px] flex-shrink-0" : "w-full"
         )}>
-          <ApplicationList 
-            applications={filteredApplications}
-            selectedId={selectedApp?.id}
-            onSelect={setSelectedApp}
-            isLoading={isLoading}
-            sortBy={sortBy}
-            onSortChange={setSortBy}
+          {/* Pipeline Header - only on left side */}
+          <PipelineHeader 
+            activeTab="Queue"
+            onTabChange={() => {}}
+            applications={applications}
+            stages={stages}
+            filterStatus={filterStatus}
+            onFilterChange={setFilterStatus}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            committee={committee}
+            onCommitteeChange={setCommittee}
+            onOpenPipelineActivity={() => setShowPipelineActivity(true)}
+            workflows={workflows.map(w => ({ id: w.id, name: w.name }))}
+            selectedWorkflowId={selectedWorkflow?.id}
+            onWorkflowChange={handleWorkflowChange}
           />
+          
+          <div className="flex-1 overflow-y-auto">
+            <ApplicationList 
+              applications={filteredApplications}
+              selectedId={selectedApp?.id}
+              onSelect={setSelectedApp}
+              isLoading={isLoading}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+              filterStatus={filterStatus}
+              onFilterChange={setFilterStatus}
+              stages={stages}
+            />
+          </div>
         </div>
         
         {selectedApp && !showPipelineActivity && !isReviewMode && (

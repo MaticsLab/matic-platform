@@ -1556,12 +1556,13 @@ func GetFormSubmission(c *gin.Context) {
 // External Review Handlers
 
 type ExternalReviewDTO struct {
-	Form        FormDTO                     `json:"form"`
-	Submissions []models.Row                `json:"submissions"`
-	Reviewer    map[string]interface{}      `json:"reviewer,omitempty"`
-	StageConfig *models.StageReviewerConfig `json:"stage_config,omitempty"`
-	Rubric      *models.Rubric              `json:"rubric,omitempty"`
-	Stage       *models.ApplicationStage    `json:"stage,omitempty"` // ApplicationStage with custom_statuses, custom_tags
+	Form          FormDTO                     `json:"form"`
+	Submissions   []models.Row                `json:"submissions"`
+	Reviewer      map[string]interface{}      `json:"reviewer,omitempty"`
+	StageConfig   *models.StageReviewerConfig `json:"stage_config,omitempty"`
+	Rubric        *models.Rubric              `json:"rubric,omitempty"`
+	Stage         *models.ApplicationStage    `json:"stage,omitempty"`          // ApplicationStage with custom_statuses, custom_tags
+	NoAssignments bool                        `json:"no_assignments,omitempty"` // True if no specific assignments exist for this reviewer
 }
 
 func GetExternalReviewData(c *gin.Context) {
@@ -1622,26 +1623,54 @@ func GetExternalReviewData(c *gin.Context) {
 
 	// Get Submissions
 	var rows []models.Row
-	query := database.DB.Where("table_id = ?", table.ID)
+	noAssignments := false
 
-	// If we have a specific reviewer ID, filter by assignment
-	if reviewerID != "" {
-		// Check if metadata->'assigned_reviewers' contains reviewerID
-		// Postgres JSONB operator: @>
-		// We need to construct a JSON array string: '["reviewerID"]'
-		query = query.Where("metadata->'assigned_reviewers' @> ?", fmt.Sprintf(`["%s"]`, reviewerID))
+	// Check if reviewer has specific assignment or can view all
+	// First check if reviewer has a 'can_view_all_applications' flag set to true
+	canViewAll := false
+	if reviewerInfo != nil {
+		if viewAll, ok := reviewerInfo["can_view_all_applications"].(bool); ok && viewAll {
+			canViewAll = true
+		}
 	}
 
-	if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	if reviewerID != "" && !canViewAll {
+		// Check if metadata->'assigned_reviewers' contains reviewerID
+		// Postgres JSONB operator: @>
+		query := database.DB.Where("table_id = ?", table.ID).
+			Where("metadata->'assigned_reviewers' @> ?", fmt.Sprintf(`["%s"]`, reviewerID))
+
+		if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Fallback: if no assigned applications found, return ALL applications
+		// This handles the case where a reviewer was added but hasn't been assigned applications yet
+		if len(rows) == 0 {
+			noAssignments = true
+			// Get all submissions for the form
+			query = database.DB.Where("table_id = ?", table.ID)
+			if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+		}
+	} else {
+		// No reviewer ID or canViewAll is true - get all submissions
+		query := database.DB.Where("table_id = ?", table.ID)
+		if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	// Build response
 	response := ExternalReviewDTO{
-		Form:        formDTO,
-		Submissions: rows,
-		Reviewer:    reviewerInfo,
+		Form:          formDTO,
+		Submissions:   rows,
+		Reviewer:      reviewerInfo,
+		NoAssignments: noAssignments,
 	}
 
 	// If we have a reviewer_type_id, try to find the stage config

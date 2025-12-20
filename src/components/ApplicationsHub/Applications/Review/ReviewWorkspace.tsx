@@ -740,9 +740,15 @@ export function ReviewWorkspace({
         stage_config: StageReviewerConfig | null
         rubric: Rubric | null
         stage: ApplicationStage | null
+        no_assignments?: boolean
       }>(`/external-review/${token}`)
       
-      const { form: loadedForm, submissions, reviewer, stage_config, rubric, stage } = response
+      const { form: loadedForm, submissions, reviewer, stage_config, rubric, stage, no_assignments } = response
+      
+      // Log if showing all apps due to no assignments
+      if (no_assignments) {
+        console.log('[External Review] No specific assignments for reviewer - showing all applications')
+      }
       
       // Set form and workspace info
       setForm(loadedForm)

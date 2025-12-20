@@ -27,7 +27,9 @@ export interface Application {
   id: string;
   firstName: string;
   lastName: string;
+  name?: string; // Full name if available
   email: string;
+  phone?: string;
   dateOfBirth?: string;
   gender?: string;
   status: ApplicationStatus;
@@ -93,6 +95,9 @@ export interface ApplicationListProps {
   isLoading?: boolean;
   sortBy?: 'recent' | 'oldest' | 'score' | 'name';
   onSortChange?: (sort: 'recent' | 'oldest' | 'score' | 'name') => void;
+  filterStatus?: ApplicationStatus | 'all';
+  onFilterChange?: (status: ApplicationStatus | 'all') => void;
+  stages?: Stage[];
 }
 
 export interface ApplicationDetailProps {

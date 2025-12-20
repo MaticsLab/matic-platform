@@ -1,7 +1,7 @@
 'use client';
 
-import { Application, ApplicationListProps } from './types';
-import { Users, ChevronDown, Star, Clock, AlertCircle } from 'lucide-react';
+import { Application, ApplicationListProps, ApplicationStatus } from './types';
+import { Users, ChevronDown, Star, Clock, AlertCircle, SlidersHorizontal, ChevronUp, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 
@@ -40,18 +40,45 @@ export function ApplicationList({
   onSelect,
   isLoading,
   sortBy = 'recent',
-  onSortChange
+  onSortChange,
+  filterStatus = 'all',
+  onFilterChange,
+  stages = []
 }: ApplicationListProps) {
-  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
-  const sortOptions = [
-    { value: 'recent', label: 'Most Recent' },
-    { value: 'oldest', label: 'Oldest First' },
-    { value: 'score', label: 'Highest Score' },
-    { value: 'name', label: 'Name (A-Z)' },
+  const activeFiltersCount = filterStatus !== 'all' ? 1 : 0;
+
+  // Build filter options from stages
+  const filterOptions: Array<{
+    label: string;
+    value: ApplicationStatus | 'all';
+    count: number;
+    color: string;
+    bgColor: string;
+    dotColor: string;
+  }> = [
+    { label: 'All', value: 'all', count: applications.length, color: 'text-gray-700', bgColor: 'bg-gray-100', dotColor: 'bg-gray-500' },
+    ...stages.map((stage, idx) => {
+      const colors = [
+        { color: 'text-slate-700', bgColor: 'bg-slate-100', dotColor: 'bg-slate-500' },
+        { color: 'text-purple-700', bgColor: 'bg-purple-100', dotColor: 'bg-purple-500' },
+        { color: 'text-blue-700', bgColor: 'bg-blue-100', dotColor: 'bg-blue-500' },
+        { color: 'text-orange-700', bgColor: 'bg-orange-100', dotColor: 'bg-orange-500' },
+        { color: 'text-green-700', bgColor: 'bg-green-100', dotColor: 'bg-green-500' },
+      ];
+      const colorSet = colors[idx % colors.length];
+      const count = applications.filter(a => 
+        a.stageId === stage.id || a.stageName === stage.name || a.status === stage.name
+      ).length;
+      return {
+        label: stage.name,
+        value: stage.name as ApplicationStatus,
+        count,
+        ...colorSet
+      };
+    }),
   ];
-
-  const currentSort = sortOptions.find(s => s.value === sortBy) || sortOptions[0];
 
   return (
     <div className="bg-white border-r overflow-hidden flex flex-col h-full">
@@ -61,36 +88,61 @@ export function ApplicationList({
             <span className="text-gray-900 font-medium">{applications.length}</span>
             <span className="text-gray-500">applications</span>
           </div>
-          <div className="flex items-center gap-2 relative">
-            <span className="text-gray-500 text-sm">Sort by:</span>
-            <button 
-              onClick={() => setShowSortDropdown(!showSortDropdown)}
-              className="flex items-center gap-1 text-gray-700 hover:text-gray-900 text-sm"
-            >
-              <span>{currentSort.label}</span>
-              <ChevronDown className="w-4 h-4" />
-            </button>
-            {showSortDropdown && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-20 min-w-[140px]">
-                {sortOptions.map(option => (
-                  <button
-                    key={option.value}
-                    onClick={() => {
-                      onSortChange?.(option.value as any);
-                      setShowSortDropdown(false);
-                    }}
-                    className={cn(
-                      "w-full text-left px-3 py-2 text-sm hover:bg-gray-50",
-                      sortBy === option.value && "bg-blue-50 text-blue-600"
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-colors text-sm",
+              showFilters || activeFiltersCount > 0
+                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                : 'border-gray-200 text-gray-700 hover:bg-gray-50'
             )}
-          </div>
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Filter</span>
+            {activeFiltersCount > 0 && (
+              <span className="px-1.5 py-0.5 bg-blue-600 text-white rounded-full text-xs">
+                {activeFiltersCount}
+              </span>
+            )}
+            {showFilters ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
         </div>
+        
+        {/* Expandable Filter Panel */}
+        {showFilters && (
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-gray-700 text-sm font-medium">Stage</label>
+              {filterStatus !== 'all' && (
+                <button
+                  onClick={() => onFilterChange?.('all')}
+                  className="text-blue-600 hover:text-blue-700 text-xs flex items-center gap-1"
+                >
+                  <X className="w-3 h-3" />
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {filterOptions.map(option => (
+                <button
+                  key={option.value}
+                  onClick={() => onFilterChange?.(option.value)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors border",
+                    filterStatus === option.value
+                      ? `${option.bgColor} ${option.color} border-current`
+                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                  )}
+                >
+                  <span className={cn("w-1.5 h-1.5 rounded-full", option.dotColor)} />
+                  <span>{option.label}</span>
+                  <span className="text-gray-400">({option.count})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">

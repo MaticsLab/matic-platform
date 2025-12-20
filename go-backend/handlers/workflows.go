@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
 	"github.com/Jsanchez767/matic-platform/models"
@@ -127,7 +128,7 @@ func UpdateApplicationStage(c *gin.Context) {
 		return
 	}
 
-	// Convert hidden_pii_fields to proper JSON format for GORM
+	// Convert JSON fields to proper format for GORM
 	if fields, ok := updates["hidden_pii_fields"]; ok {
 		if fieldsArr, ok := fields.([]interface{}); ok {
 			jsonBytes, _ := json.Marshal(fieldsArr)
@@ -135,14 +136,68 @@ func UpdateApplicationStage(c *gin.Context) {
 		}
 	}
 
-	// Use Updates to properly handle false boolean values and empty arrays
-	if err := database.DB.Model(&stage).Updates(updates).Error; err != nil {
+	if statuses, ok := updates["custom_statuses"]; ok {
+		jsonBytes, _ := json.Marshal(statuses)
+		updates["custom_statuses"] = datatypes.JSON(jsonBytes)
+	}
+
+	if tags, ok := updates["custom_tags"]; ok {
+		jsonBytes, _ := json.Marshal(tags)
+		updates["custom_tags"] = datatypes.JSON(jsonBytes)
+	}
+
+	// Apply updates directly to the stage struct to ensure proper field mapping
+	if name, ok := updates["name"].(string); ok {
+		stage.Name = name
+	}
+	if description, ok := updates["description"].(string); ok {
+		stage.Description = description
+	}
+	if stageType, ok := updates["stage_type"].(string); ok {
+		stage.StageType = stageType
+	}
+	if color, ok := updates["color"].(string); ok {
+		stage.Color = color
+	}
+	if relativeDeadline, ok := updates["relative_deadline"].(string); ok {
+		stage.RelativeDeadline = relativeDeadline
+	}
+	if orderIndex, ok := updates["order_index"].(float64); ok {
+		stage.OrderIndex = int(orderIndex)
+	}
+	if hidePII, ok := updates["hide_pii"].(bool); ok {
+		stage.HidePII = hidePII
+	}
+	if hiddenPIIFields, ok := updates["hidden_pii_fields"].(datatypes.JSON); ok {
+		stage.HiddenPIIFields = hiddenPIIFields
+	}
+	if customStatuses, ok := updates["custom_statuses"].(datatypes.JSON); ok {
+		stage.CustomStatuses = customStatuses
+	}
+	if customTags, ok := updates["custom_tags"].(datatypes.JSON); ok {
+		stage.CustomTags = customTags
+	}
+
+	// Handle date fields
+	if startDate, ok := updates["start_date"].(string); ok && startDate != "" {
+		t, err := time.Parse(time.RFC3339, startDate)
+		if err == nil {
+			stage.StartDate = &t
+		}
+	}
+	if endDate, ok := updates["end_date"].(string); ok && endDate != "" {
+		t, err := time.Parse(time.RFC3339, endDate)
+		if err == nil {
+			stage.EndDate = &t
+		}
+	}
+
+	// Save the updated stage
+	if err := database.DB.Save(&stage).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Reload to get the updated stage
-	database.DB.First(&stage, "id = ?", id)
 	c.JSON(http.StatusOK, stage)
 }
 
