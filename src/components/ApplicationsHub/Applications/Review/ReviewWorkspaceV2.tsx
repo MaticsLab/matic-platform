@@ -901,7 +901,7 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
                           >
                             <option value="">Select sender...</option>
                             {emailAccounts.map((account) => (
-                              <option key={account} value={account}>{account}</option>
+                              <option key={account.id} value={account.email}>{account.email}</option>
                             ))}
                           </select>
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
