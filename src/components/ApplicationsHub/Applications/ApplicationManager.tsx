@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { FileCheck, Mail, Settings, FileText, Users, GitMerge, BarChart3, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search, Plus, Eye, MessageSquare, Workflow, UserPlus, X, Loader2 } from 'lucide-react'
-import { ReviewWorkspaceV2 } from './Review/ReviewWorkspaceV2'
+import { ReviewWorkspaceV2 } from './Review/v2'
 import { CommunicationsCenter } from './Communications/CommunicationsCenter'
 import { ReviewerManagement } from './Reviewers/ReviewerManagement'
 import { WorkflowBuilder } from './Configuration/WorkflowBuilder'

@@ -45,6 +45,14 @@ import {
   DropdownMenuTrigger 
 } from '@/ui-components/dropdown-menu'
 import { Textarea } from '@/ui-components/textarea'
+import { EmailSettingsDialog } from '../Communications/EmailSettingsDialog'
+import { EmailConnectionStatus } from '@/components/Email/EmailConnectionStatus'
+import { useEmailConnection } from '@/hooks/useEmailConnection'
+import { 
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/ui-components/popover"
 
 interface Application {
   id: string
@@ -89,11 +97,27 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
   const [isSubmittingActivity, setIsSubmittingActivity] = useState(false)
   
   // Email composer state
-  const [emailFrom, setEmailFrom] = useState('')
   const [emailSubject, setEmailSubject] = useState('')
   const [emailBody, setEmailBody] = useState('')
   const [isSendingEmail, setIsSendingEmail] = useState(false)
-  const [gmailConnected, setGmailConnected] = useState(false)
+  const [showEmailSettings, setShowEmailSettings] = useState(false)
+  const [activeCommentTab, setActiveCommentTab] = useState<'comment' | 'email'>('comment')
+  const [showCcBcc, setShowCcBcc] = useState(false)
+  const [emailCc, setEmailCc] = useState('')
+  const [emailBcc, setEmailBcc] = useState('')
+  
+  // Gmail connection
+  const { 
+    connection: gmailConnection, 
+    accounts: emailAccounts,
+    isChecking: isCheckingConnection,
+    selectedFromEmail,
+    setSelectedFromEmail,
+    canSendEmail,
+    sendBlockedReason,
+    handleOAuthError,
+    refresh: refreshConnection
+  } = useEmailConnection(workspaceId)
 
   useEffect(() => {
     loadData()
@@ -1014,6 +1038,16 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
           </div>
         )}
       </div>
+      
+      {/* Email Settings Dialog */}
+      {workspaceId && (
+        <EmailSettingsDialog
+          workspaceId={workspaceId}
+          open={showEmailSettings}
+          onOpenChange={setShowEmailSettings}
+          onAccountsUpdated={refreshConnection}
+        />
+      )}
     </div>
   )
 }

@@ -35,6 +35,8 @@ export type Section = {
   description?: string
   sectionType?: 'form' | 'cover' | 'ending' | 'review' | 'dashboard'
   fields: Field[]
+  // Cover section content (Novel editor JSON)
+  content?: string
   // NEW: Ending blocks for ending section type
   blocks?: EndingBlock[]
   translationKey?: string // Stable key for translations

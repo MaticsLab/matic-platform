@@ -34,7 +34,7 @@ import type { DashboardSettings } from '@/types/dashboard'
 import { EndingBlocksToolbox } from './EndingBlocksToolbox'
 import { EndingBlockEditor } from './EndingBlockEditor'
 import { CoverBlockEditor } from './CoverBlockEditor'
-import { NovelCoverEditorV2 } from './NovelCoverEditorV2'
+import { NovelCoverEditorV2 } from '@/components/novel-editor/cover-editor'
 import { DEFAULT_ENDING_TEMPLATE } from '@/lib/ending-templates'
 import { BlockRenderer } from '@/components/EndingPages/BlockRenderer'
 import { PropertyInput } from '@/components/EndingPages/PropertyInput'
@@ -636,11 +636,17 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
   const createSectionTemplate = (type: Section['sectionType']): Section => {
     if (type === 'cover') {
+      // Create unique empty content for each new cover section
+      const emptyContent = JSON.stringify({
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [] }]
+      })
       return {
         id: Date.now().toString(),
         title: 'Cover',
         sectionType: 'cover',
         description: 'Welcome users to your form',
+        content: emptyContent, // Each cover gets its own content
         fields: [],
         blocks: [
           {
@@ -1434,8 +1440,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     displaySection.sectionType === 'cover' ? (
                       // Cover Section - Novel V2 editor (Notion-like)
                       <NovelCoverEditorV2
-                        initialContent={(displaySection as any).content || ''}
-                        onUpdate={(content) => handleUpdateSection(displaySection.id, { content } as any)}
+                        initialContent={displaySection.content || ''}
+                        onUpdate={(content) => handleUpdateSection(displaySection.id, { content })}
                       />
                     ) : displaySection.sectionType === 'ending' ? (
                       // Ending Section - Show ending blocks with drag-and-drop
@@ -1590,6 +1596,33 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                    
 
                    
+                   {/* Cover Settings - Label editing */}
+                   {displaySection?.sectionType === 'cover' && activeSectionId && !selectedBlockId && (
+                      <div className="p-4 space-y-4">
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 block mb-2">Section Label</label>
+                          <input
+                            type="text"
+                            value={displaySection.title || ''}
+                            onChange={(e) => handleUpdateSection(displaySection.id, { title: e.target.value })}
+                            placeholder="Cover"
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">This label appears in the sidebar navigation</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 block mb-2">Description</label>
+                          <textarea
+                            value={displaySection.description || ''}
+                            onChange={(e) => handleUpdateSection(displaySection.id, { description: e.target.value })}
+                            placeholder="Welcome users to your form"
+                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                          />
+                        </div>
+                      </div>
+                   )}
+
                    {/* Ending Settings - Conditions */}
                    {displaySection?.sectionType === 'ending' && activeSectionId && !selectedBlockId && (
                       <div className="p-4">

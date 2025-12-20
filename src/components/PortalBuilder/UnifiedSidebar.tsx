@@ -139,9 +139,8 @@ export function UnifiedSidebar({
     }
   }, [activeSectionId, activeSpecialPage, sections])
 
-  // Separate sections by type
-  const formSections = sections.filter(s => s.sectionType === 'form' || !s.sectionType)
-  const coverSections = sections.filter(s => s.sectionType === 'cover')
+  // Separate sections by type - covers and forms are combined in the Application Form group
+  const applicationSections = sections.filter(s => s.sectionType === 'form' || s.sectionType === 'cover' || !s.sectionType)
   const endingSections = sections.filter(s => s.sectionType === 'ending')
   const dashboardSections = sections.filter(s => s.sectionType === 'dashboard')
 
@@ -327,32 +326,7 @@ export function UnifiedSidebar({
           <Separator className="my-2" />
 
           {/* ═══════════════════════════════════════════════════════════════════
-              COVER SECTIONS
-          ═══════════════════════════════════════════════════════════════════ */}
-          {coverSections.length > 0 && (
-            <>
-              <Collapsible open={expandedGroups.has('cover')} onOpenChange={() => toggleGroup('cover')}>
-                <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-2 hover:bg-gray-50 rounded-lg transition-colors">
-                  <ChevronRight className={cn(
-                    "w-4 h-4 text-gray-400 transition-transform",
-                    expandedGroups.has('cover') && "rotate-90"
-                  )} />
-                  <BookOpen className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-semibold text-gray-700 flex-1 text-left">Cover Pages</span>
-                  <span className="text-xs text-gray-400">{coverSections.length}</span>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pl-4 pr-1 py-1 space-y-1">
-                  <AnimatePresence mode="popLayout">
-                    {coverSections.map((section) => renderSectionItem(section, true))}
-                  </AnimatePresence>
-                </CollapsibleContent>
-              </Collapsible>
-              <Separator className="my-2" />
-            </>
-          )}
-
-          {/* ═══════════════════════════════════════════════════════════════════
-              APPLICATION FORM SECTIONS
+              APPLICATION FORM SECTIONS (includes covers and forms)
           ═══════════════════════════════════════════════════════════════════ */}
           <Collapsible open={expandedGroups.has('form')} onOpenChange={() => toggleGroup('form')}>
             <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-2 hover:bg-gray-50 rounded-lg transition-colors">
@@ -362,11 +336,11 @@ export function UnifiedSidebar({
               )} />
               <ScrollText className="w-4 h-4 text-amber-600" />
               <span className="text-sm font-semibold text-gray-700 flex-1 text-left">Application Form</span>
-              <span className="text-xs text-gray-400">{formSections.length}</span>
+              <span className="text-xs text-gray-400">{applicationSections.length}</span>
             </CollapsibleTrigger>
             <CollapsibleContent className="pl-4 pr-1 py-1 space-y-1">
               <AnimatePresence mode="popLayout">
-                {formSections.map((section) => renderSectionItem(section, true))}
+                {applicationSections.map((section) => renderSectionItem(section, true))}
               </AnimatePresence>
               
               {/* Review & Submit */}

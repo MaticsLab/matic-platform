@@ -1294,6 +1294,8 @@ type SectionInput struct {
 	SectionType string                   `json:"sectionType"`
 	Fields      []FieldInput             `json:"fields"`
 	Conditions  []map[string]interface{} `json:"conditions"`
+	Content     string                   `json:"content"` // Cover section content (Novel editor)
+	Blocks      []map[string]interface{} `json:"blocks"`  // Ending section blocks
 }
 
 type UpdateFormStructureInput struct {
@@ -1350,13 +1352,22 @@ func UpdateFormStructure(c *gin.Context) {
 
 	var sectionMeta []map[string]interface{}
 	for _, s := range input.Sections {
-		sectionMeta = append(sectionMeta, map[string]interface{}{
+		sectionData := map[string]interface{}{
 			"id":          s.ID,
 			"title":       s.Title,
 			"description": s.Description,
 			"sectionType": s.SectionType,
 			"conditions":  s.Conditions,
-		})
+		}
+		// Include content for cover sections
+		if s.Content != "" {
+			sectionData["content"] = s.Content
+		}
+		// Include blocks for ending sections
+		if len(s.Blocks) > 0 {
+			sectionData["blocks"] = s.Blocks
+		}
+		sectionMeta = append(sectionMeta, sectionData)
 	}
 	settings["sections"] = sectionMeta
 
