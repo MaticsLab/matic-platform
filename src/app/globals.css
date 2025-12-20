@@ -132,6 +132,23 @@
   border-color: rgba(0, 0, 0, 0.1) !important;
 }
 
+/* Style shadcn Select component (SelectTrigger) in portal */
+.light:not(.portal-builder) [data-slot="select-trigger"] {
+  background-color: #f3f3f5 !important;
+  color: #111827 !important;
+  border: 1px solid #d1d5db !important;
+}
+
+.light:not(.portal-builder) [data-slot="select-trigger"]:hover {
+  border-color: #9ca3af !important;
+}
+
+.light:not(.portal-builder) [data-slot="select-trigger"]:focus,
+.light:not(.portal-builder) [data-slot="select-trigger"]:focus-visible {
+  border-color: var(--ring) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+
 .light:not(.portal-builder) input::placeholder,
 .light:not(.portal-builder) textarea::placeholder {
   color: #9ca3af !important;
