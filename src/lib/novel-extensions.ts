@@ -1,14 +1,17 @@
 /**
  * Novel Editor Extensions Configuration
+ * Using Novel's bundled extensions to avoid version conflicts
  */
 
-import StarterKit from '@tiptap/starter-kit'
-import Placeholder from '@tiptap/extension-placeholder'
-import TiptapLink from '@tiptap/extension-link'
-import TiptapImage from '@tiptap/extension-image'
-import TiptapUnderline from '@tiptap/extension-underline'
-import { TextStyle } from '@tiptap/extension-text-style'
-import { Color } from '@tiptap/extension-color'
+import { 
+  StarterKit,
+  Placeholder,
+  TiptapLink,
+  TiptapImage,
+  TiptapUnderline,
+  TextStyle,
+  Color,
+} from 'novel/extensions'
 
 export const defaultExtensions = [
   StarterKit.configure({
