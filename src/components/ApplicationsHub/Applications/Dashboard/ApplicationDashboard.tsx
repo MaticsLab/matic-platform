@@ -115,7 +115,7 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
         
         // Fetch workflow stages
         try {
-          const workflows = await workflowsClient.listWorkflows(form.workspace_id || workspaceId)
+          const workflows = await workflowsClient.listWorkflows(form.workspace_id || workspaceId, formId)
           if (workflows && workflows.length > 0) {
             const stagesData = await workflowsClient.listStages(form.workspace_id || workspaceId, workflows[0].id)
             setStages(stagesData.map((s: any) => ({

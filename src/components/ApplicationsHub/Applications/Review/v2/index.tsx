@@ -181,7 +181,7 @@ export function ReviewWorkspaceV2({
       });
       
       // Fetch workflows for this workspace
-      const workflowsData = await workflowsClient.listWorkflows(workspaceId);
+      const workflowsData = await workflowsClient.listWorkflows(workspaceId, formId || undefined);
       setWorkflows(workflowsData);
       
       // Fetch rubrics for this workspace

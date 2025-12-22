@@ -105,6 +105,7 @@ export interface CustomTag {
 export interface ReviewWorkflow {
   id: string;
   workspace_id: string;
+  form_id?: string;
   name: string;
   description?: string;
   application_type?: string;
@@ -285,8 +286,12 @@ export const workflowsClient = {
   },
 
   // Workflows
-  listWorkflows: async (workspaceId: string) => {
-    return goFetch<ReviewWorkflow[]>(`/workflows?workspace_id=${workspaceId}`);
+  listWorkflows: async (workspaceId: string, formId?: string) => {
+    let url = `/workflows?workspace_id=${workspaceId}`;
+    if (formId) {
+      url += `&form_id=${formId}`;
+    }
+    return goFetch<ReviewWorkflow[]>(url);
   },
   createWorkflow: async (data: Partial<ReviewWorkflow>) => {
     return goFetch<ReviewWorkflow>('/workflows', {

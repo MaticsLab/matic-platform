@@ -10,6 +10,7 @@ import (
 type ReviewWorkflow struct {
 	ID                   uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	WorkspaceID          uuid.UUID      `gorm:"type:uuid;not null" json:"workspace_id"`
+	FormID               *uuid.UUID     `gorm:"type:uuid" json:"form_id"`
 	Name                 string         `gorm:"not null" json:"name"`
 	Description          string         `json:"description"`
 	ApplicationType      string         `json:"application_type"`

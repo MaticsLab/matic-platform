@@ -40,6 +40,7 @@ interface UnifiedSidebarProps {
   onReorderSections: (sections: Section[]) => void
   onDeleteSection: (id: string) => void
   onAddSection: (type: string) => void
+  onUpdateSection?: (sectionId: string, updates: Partial<Section>) => void
   dashboardSettings: DashboardSettings
   onDashboardSettingsChange: (settings: Partial<DashboardSettings>) => void
 }
@@ -105,10 +106,13 @@ export function UnifiedSidebar({
   onReorderSections,
   onDeleteSection,
   onAddSection,
+  onUpdateSection,
   dashboardSettings,
   onDashboardSettingsChange,
 }: UnifiedSidebarProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['entry', 'cover', 'form', 'after']))
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState('')
 
   const toggleGroup = (group: string) => {
     setExpandedGroups(prev => {
@@ -175,12 +179,40 @@ export function UnifiedSidebar({
     setDraggedSectionId(null)
   }
 
+  const handleStartEditing = (section: Section, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingSectionId(section.id)
+    setEditingTitle(section.title || '')
+  }
+
+  const handleFinishEditing = () => {
+    if (editingSectionId && onUpdateSection) {
+      const trimmedTitle = editingTitle.trim()
+      if (trimmedTitle) {
+        onUpdateSection(editingSectionId, { title: trimmedTitle })
+      }
+    }
+    setEditingSectionId(null)
+    setEditingTitle('')
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleFinishEditing()
+    } else if (e.key === 'Escape') {
+      setEditingSectionId(null)
+      setEditingTitle('')
+    }
+  }
+
   const renderSectionItem = (section: Section, isDraggable = true) => {
     const type = (section.sectionType || 'form') as keyof typeof SECTION_VARIANTS
     const variant = SECTION_VARIANTS[type] || SECTION_VARIANTS.form
     const Icon = variant.icon
     const isActive = activeSectionId === section.id && !activeSpecialPage
     const isDragging = draggedSectionId === section.id
+    const isEditing = editingSectionId === section.id
 
     return (
       <motion.div
@@ -189,13 +221,15 @@ export function UnifiedSidebar({
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -10 }}
-        draggable={isDraggable}
-        onDragStart={isDraggable ? (e) => handleDragStart(e as any, section.id) : undefined}
+        draggable={isDraggable && !isEditing}
+        onDragStart={isDraggable && !isEditing ? (e) => handleDragStart(e as any, section.id) : undefined}
         onDragOver={isDraggable ? (e) => handleDragOver(e as any, section.id) : undefined}
         onDragEnd={isDraggable ? handleDragEnd : undefined}
         onClick={() => {
-          onSelectSection(section.id)
-          onSelectSpecialPage(null)
+          if (!isEditing) {
+            onSelectSection(section.id)
+            onSelectSpecialPage(null)
+          }
         }}
         className={cn(
           "group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-all w-full max-w-full",
@@ -213,9 +247,26 @@ export function UnifiedSidebar({
         <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0", variant.bg)}>
           <Icon className={cn("w-3.5 h-3.5", variant.fg)} />
         </div>
-        <span className={cn("flex-1 text-sm font-medium truncate min-w-0", isActive ? "text-gray-900" : "text-gray-700")}>
-          {section.title || variant.label}
-        </span>
+        {isEditing ? (
+          <Input
+            value={editingTitle}
+            onChange={(e) => setEditingTitle(e.target.value)}
+            onBlur={handleFinishEditing}
+            onKeyDown={handleKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            autoFocus
+            className="flex-1 h-6 text-sm font-medium py-0 px-1 min-w-0"
+            placeholder={variant.label}
+          />
+        ) : (
+          <span 
+            className={cn("flex-1 text-sm font-medium truncate min-w-0", isActive ? "text-gray-900" : "text-gray-700")}
+            onDoubleClick={(e) => handleStartEditing(section, e)}
+            title="Double-click to edit"
+          >
+            {section.title || variant.label}
+          </span>
+        )}
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>

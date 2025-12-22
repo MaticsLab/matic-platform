@@ -170,7 +170,7 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
   const fetchWorkflows = useCallback(async () => {
     setIsLoading(true)
     try {
-      const data = await workflowsClient.listWorkflows(workspaceId)
+      const data = await workflowsClient.listWorkflows(workspaceId, formId || undefined)
       setWorkflows(data)
       // Auto-select first workflow if exists
       if (data.length > 0) {
@@ -181,7 +181,7 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
     } finally {
       setIsLoading(false)
     }
-  }, [workspaceId])
+  }, [workspaceId, formId])
 
   const fetchWorkflowData = useCallback(async () => {
     if (!selectedWorkflow) return
@@ -257,6 +257,7 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
     try {
       const newWorkflow = await workflowsClient.createWorkflow({
         workspace_id: workspaceId,
+        form_id: formId || undefined,
         name,
         description,
         application_type: applicationType,

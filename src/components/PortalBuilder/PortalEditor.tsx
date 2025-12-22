@@ -1321,6 +1321,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   }
                 }}
                 onAddSection={(type) => handleAddSection(type as Section['sectionType'])}
+                onUpdateSection={handleUpdateSection}
                 dashboardSettings={dashboardSettings}
                 onDashboardSettingsChange={handleDashboardSettingsChange}
               />
