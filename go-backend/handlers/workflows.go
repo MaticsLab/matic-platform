@@ -17,15 +17,18 @@ import (
 func ListReviewWorkflows(c *gin.Context) {
 	workspaceID := c.Query("workspace_id")
 	formID := c.Query("form_id")
-	
+
 	var workflows []models.ReviewWorkflow
 	query := database.DB.Where("workspace_id = ?", workspaceID)
-	
-	// If form_id is provided, filter by it (including NULL form_id for workspace-wide workflows)
+
+	// If form_id is provided, only return workflows specific to that form
 	if formID != "" {
-		query = query.Where("form_id = ? OR form_id IS NULL", formID)
+		query = query.Where("form_id = ?", formID)
+	} else {
+		// If no form_id, only return workspace-wide workflows (NULL form_id)
+		query = query.Where("form_id IS NULL")
 	}
-	
+
 	if err := query.Find(&workflows).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
