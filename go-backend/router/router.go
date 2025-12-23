@@ -528,6 +528,15 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				workflows.DELETE("/:id", handlers.DeleteReviewWorkflow)
 			}
 
+			// Workflow Webhooks (for workflow builder integration)
+			webhooks := protected.Group("/workflow-webhooks")
+			{
+				webhooks.GET("", handlers.ListWorkflowWebhooks)
+				webhooks.POST("", handlers.CreateWorkflowWebhook)
+				webhooks.PATCH("/:id", handlers.UpdateWorkflowWebhook)
+				webhooks.DELETE("/:id", handlers.DeleteWorkflowWebhook)
+			}
+
 			// Review Workspace - Combined data endpoint for fast loading
 			protected.GET("/review-workspace-data", handlers.GetReviewWorkspaceData)
 

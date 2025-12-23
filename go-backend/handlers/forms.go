@@ -1269,6 +1269,10 @@ func SubmitForm(c *gin.Context) {
 		`, row.ID)
 	}()
 
+	// Trigger workflow webhook for new submission (async)
+	formUUID, _ := uuid.Parse(formID)
+	go TriggerNewSubmissionWebhook(formUUID, row.ID, data)
+
 	fmt.Printf("✅ SubmitForm: created new submission row %s for form %s\n", row.ID, formID)
 	c.JSON(http.StatusCreated, row)
 }

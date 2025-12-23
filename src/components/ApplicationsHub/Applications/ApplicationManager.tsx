@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { FileCheck, Mail, Settings, FileText, Users, GitMerge, BarChart3, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search, Plus, Eye, MessageSquare, Workflow, UserPlus, X, Loader2 } from 'lucide-react'
+import { FileCheck, Mail, Settings, FileText, Users, GitMerge, BarChart3, ChevronRight, TrendingUp, Clock, CheckCircle, AlertCircle, Search, Plus, Eye, MessageSquare, Workflow, UserPlus, X, Loader2, Sparkles, Layers } from 'lucide-react'
 import { ReviewWorkspaceV2 } from './Review/v2'
 import { CommunicationsCenter } from './Communications/CommunicationsCenter'
 import { ReviewerManagement } from './Reviewers/ReviewerManagement'
 import { WorkflowBuilder } from './Configuration/WorkflowBuilder'
+import { VisualWorkflowBuilder } from './Configuration/VisualWorkflowBuilder'
 import { ApplicationDashboard } from './Dashboard/ApplicationDashboard'
 import { SettingsModal } from './Configuration/SettingsModal'
 import { useTabContext } from '@/components/WorkspaceTabProvider'
@@ -69,6 +70,9 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
   // Panel State
   const [showReviewersPanel, setShowReviewersPanel] = useState(false)
   const [showCommunicationsPanel, setShowCommunicationsPanel] = useState(false)
+  
+  // Workflow builder mode: 'classic' for form-based builder, 'visual' for visual workflow builder
+  const [workflowMode, setWorkflowMode] = useState<'classic' | 'visual'>('classic')
 
   // Fetch workspace details
   useEffect(() => {
@@ -236,7 +240,56 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
             }}
           />
         )}
-        {activeTab === 'workflows' && <WorkflowBuilder workspaceId={workspaceId} formId={formId} />}
+        {activeTab === 'workflows' && (
+          <div className="h-full flex flex-col">
+            {/* Workflow Mode Toggle */}
+            <div className="flex items-center justify-between px-4 py-2 border-b bg-white">
+              <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-lg">
+                <button
+                  onClick={() => setWorkflowMode('classic')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all",
+                    workflowMode === 'classic'
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  <Layers className="w-4 h-4" />
+                  Classic Builder
+                </button>
+                <button
+                  onClick={() => setWorkflowMode('visual')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all",
+                    workflowMode === 'visual'
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  )}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Visual Builder
+                  <span className="text-xs bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">
+                    Beta
+                  </span>
+                </button>
+              </div>
+              {workflowMode === 'visual' && (
+                <p className="text-xs text-gray-500">
+                  Build automations with AI-powered visual workflows
+                </p>
+              )}
+            </div>
+            
+            {/* Workflow Builder Content */}
+            <div className="flex-1 overflow-hidden">
+              {workflowMode === 'classic' ? (
+                <WorkflowBuilder workspaceId={workspaceId} formId={formId} />
+              ) : (
+                <VisualWorkflowBuilder workspaceId={workspaceId} formId={formId} />
+              )}
+            </div>
+          </div>
+        )}
         {activeTab === 'analytics' && <ApplicationDashboard workspaceId={workspaceId} formId={formId} />}
         {activeTab === 'settings' && (
           <div className="p-8 text-center text-gray-500">
