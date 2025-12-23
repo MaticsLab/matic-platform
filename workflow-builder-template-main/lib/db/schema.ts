@@ -3,8 +3,8 @@ import { boolean, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import type { IntegrationType } from "../types/integration";
 import { generateId } from "../utils/id";
 
-// Better Auth tables
-export const users = pgTable("users", {
+// Better Auth tables (prefixed with wf_ to avoid conflicts with Supabase auth)
+export const users = pgTable("wf_users", {
   id: text("id").primaryKey(),
   name: text("name"),
   email: text("email").unique(),
@@ -16,7 +16,7 @@ export const users = pgTable("users", {
   isAnonymous: boolean("is_anonymous").default(false),
 });
 
-export const sessions = pgTable("sessions", {
+export const sessions = pgTable("wf_sessions", {
   id: text("id").primaryKey(),
   expiresAt: timestamp("expires_at").notNull(),
   token: text("token").notNull().unique(),
@@ -29,7 +29,7 @@ export const sessions = pgTable("sessions", {
     .references(() => users.id),
 });
 
-export const accounts = pgTable("accounts", {
+export const accounts = pgTable("wf_accounts", {
   id: text("id").primaryKey(),
   accountId: text("account_id").notNull(),
   providerId: text("provider_id").notNull(),
@@ -47,7 +47,7 @@ export const accounts = pgTable("accounts", {
   updatedAt: timestamp("updated_at").notNull(),
 });
 
-export const verifications = pgTable("verifications", {
+export const verifications = pgTable("wf_verifications", {
   id: text("id").primaryKey(),
   identifier: text("identifier").notNull(),
   value: text("value").notNull(),
@@ -59,8 +59,8 @@ export const verifications = pgTable("verifications", {
 // Workflow visibility type
 export type WorkflowVisibility = "private" | "public";
 
-// Workflows table with user association
-export const workflows = pgTable("workflows", {
+// Workflows table with user association (prefixed with wf_ to avoid conflicts)
+export const workflows = pgTable("wf_workflows", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => generateId()),
@@ -82,7 +82,7 @@ export const workflows = pgTable("workflows", {
 });
 
 // Integrations table for storing user credentials
-export const integrations = pgTable("integrations", {
+export const integrations = pgTable("wf_integrations", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => generateId()),
@@ -100,7 +100,7 @@ export const integrations = pgTable("integrations", {
 });
 
 // Workflow executions table to track workflow runs
-export const workflowExecutions = pgTable("workflow_executions", {
+export const workflowExecutions = pgTable("wf_executions", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => generateId()),
@@ -124,7 +124,7 @@ export const workflowExecutions = pgTable("workflow_executions", {
 });
 
 // Workflow execution logs to track individual node executions
-export const workflowExecutionLogs = pgTable("workflow_execution_logs", {
+export const workflowExecutionLogs = pgTable("wf_execution_logs", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => generateId()),
@@ -149,7 +149,7 @@ export const workflowExecutionLogs = pgTable("workflow_execution_logs", {
 });
 
 // API Keys table for webhook authentication
-export const apiKeys = pgTable("api_keys", {
+export const apiKeys = pgTable("wf_api_keys", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => generateId()),

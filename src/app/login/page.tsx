@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { authClient } from '@/lib/better-auth-client'
 import { getLastWorkspace } from '@/lib/utils'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { Loader2, Eye, EyeOff, Mail, Lock } from 'lucide-react'
@@ -13,6 +14,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [authMethod, setAuthMethod] = useState<'auto' | 'supabase' | 'better-auth'>('auto')
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -24,32 +26,78 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      // Sign in with Supabase
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      })
+      let user = null
+      let usedBetterAuth = false
 
-      if (signInError) throw signInError
-      if (!data.user) throw new Error('Login failed')
+      // Try Better Auth first (for new users)
+      if (authMethod === 'auto' || authMethod === 'better-auth') {
+        try {
+          const { data, error: betterAuthError } = await authClient.signIn.email({
+            email: formData.email,
+            password: formData.password,
+          })
+
+          if (!betterAuthError && data?.user) {
+            user = data.user
+            usedBetterAuth = true
+            console.log('Logged in with Better Auth')
+          }
+        } catch (err) {
+          console.log('Better Auth login failed, trying Supabase...', err)
+        }
+      }
+
+      // Fall back to Supabase (for legacy users)
+      if (!user && (authMethod === 'auto' || authMethod === 'supabase')) {
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        })
+
+        if (signInError) throw signInError
+        if (!data.user) throw new Error('Login failed')
+        
+        user = data.user
+        console.log('Logged in with Supabase')
+      }
+
+      if (!user) {
+        throw new Error('Invalid email or password')
+      }
 
       // Get user's workspaces to ensure we redirect to one they have access to
-      const workspaces = await workspacesSupabase.getWorkspacesForUser(data.user.id)
-      
-      if (workspaces && workspaces.length > 0) {
-        // Check if last visited workspace is in user's workspaces
-        const lastWorkspace = getLastWorkspace()
-        const hasAccessToLast = lastWorkspace && workspaces.some(w => w.slug === lastWorkspace)
+      // For Supabase users, use existing method
+      if (!usedBetterAuth) {
+        const workspaces = await workspacesSupabase.getWorkspacesForUser(user.id)
         
-        if (hasAccessToLast) {
-          router.push(`/workspace/${lastWorkspace}`)
+        if (workspaces && workspaces.length > 0) {
+          const lastWorkspace = getLastWorkspace()
+          const hasAccessToLast = lastWorkspace && workspaces.some(w => w.slug === lastWorkspace)
+          
+          if (hasAccessToLast) {
+            router.push(`/workspace/${lastWorkspace}`)
+          } else {
+            router.push(`/workspace/${workspaces[0].slug}`)
+          }
         } else {
-          // Redirect to first workspace user has access to
-          router.push(`/workspace/${workspaces[0].slug}`)
+          router.push('/')
         }
       } else {
-        // No workspaces - redirect to home or onboarding
-        router.push('/')
+        // For Better Auth users, check organizations
+        const { data: orgs } = await authClient.organization.list()
+        
+        if (orgs && orgs.length > 0) {
+          // Get the first organization's workspace
+          const lastWorkspace = getLastWorkspace()
+          if (lastWorkspace) {
+            router.push(`/workspace/${lastWorkspace}`)
+          } else {
+            // Redirect to workspace selection or first available
+            router.push('/')
+          }
+        } else {
+          router.push('/')
+        }
       }
     } catch (err: any) {
       console.error('Login error:', err)

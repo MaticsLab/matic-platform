@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { authClient } from '@/lib/better-auth-client'
 import { organizationsClient } from '@/lib/api/organizations-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { Loader2 } from 'lucide-react'
@@ -11,6 +12,7 @@ export default function SignUpPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [useBetterAuth, setUseBetterAuth] = useState(true) // New users use Better Auth by default
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -41,106 +43,182 @@ export default function SignUpPage() {
         throw new Error('Workspace name is required')
       }
 
-      // 1. Create Supabase auth user
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+      const fullName = `${formData.firstName} ${formData.lastName}`.trim()
+
+      if (useBetterAuth) {
+        // ============================================
+        // NEW USER FLOW: Better Auth with Organizations
+        // ============================================
+        
+        // 1. Sign up with Better Auth
+        const { data: authData, error: signUpError } = await authClient.signUp.email({
+          email: formData.email,
+          password: formData.password,
+          name: fullName,
+        })
+
+        if (signUpError) {
+          if (signUpError.message?.includes('already') || signUpError.message?.includes('exists')) {
+            setError('This email is already registered. Please login instead.')
+            setTimeout(() => router.push('/login'), 2000)
+            return
+          }
+          throw signUpError
+        }
+
+        if (!authData?.user) {
+          throw new Error('Failed to create account')
+        }
+
+        console.log('Better Auth user created:', authData.user.id)
+
+        // 2. Create organization in Better Auth
+        const orgSlug = formData.workspaceName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')
+
+        const { data: orgData, error: orgError } = await authClient.organization.create({
+          name: formData.workspaceName,
+          slug: orgSlug,
+        })
+
+        if (orgError) {
+          console.error('Failed to create organization:', orgError)
+          // Continue anyway - organization can be created later
+        } else {
+          console.log('Better Auth organization created:', orgData?.id)
+          
+          // Set as active organization
+          await authClient.organization.setActive({
+            organizationId: orgData!.id,
+          })
+        }
+
+        // 3. Also create workspace in Go backend for data storage
+        // First create organization in backend
+        const backendOrg = await organizationsClient.create({
+          name: `${formData.workspaceName} Organization`,
+          slug: `${orgSlug}-org`,
+          description: `Organization for ${formData.workspaceName}`,
+          ba_organization_id: orgData?.id, // Link to Better Auth org
+        })
+
+        console.log('Backend organization created:', backendOrg.id)
+
+        // 4. Create workspace in backend
+        const workspace = await workspacesClient.create({
+          organization_id: backendOrg.id,
+          name: formData.workspaceName,
+          slug: orgSlug,
+        })
+
+        console.log('Workspace created:', workspace.id)
+
+        // 5. Redirect to new workspace
+        router.push(`/workspace/${workspace.slug}`)
+
+      } else {
+        // ============================================
+        // LEGACY FLOW: Supabase Auth (for migration)
+        // ============================================
+        const { data: authData, error: signUpError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: {
+              first_name: formData.firstName,
+              last_name: formData.lastName
+            }
+          }
+        })
+
+        if (signUpError) {
+          if (signUpError.message.includes('already registered') || signUpError.message.includes('already exists')) {
+            setError('This email is already registered. Please login instead.')
+            setTimeout(() => router.push('/login'), 2000)
+            return
+          }
+          throw signUpError
+        }
+        
+        if (!authData.user) throw new Error('Failed to create account')
+        
+        console.log('Auth data:', authData)
+
+        // Update user metadata with names
+        const { error: updateError } = await supabase.auth.updateUser({
           data: {
             first_name: formData.firstName,
             last_name: formData.lastName
           }
+        })
+
+        if (updateError) {
+          console.warn('Warning: Could not update user metadata:', updateError)
         }
-      })
 
-      if (signUpError) {
-        // Check if user already exists
-        if (signUpError.message.includes('already registered') || signUpError.message.includes('already exists')) {
-          setError('This email is already registered. Please login instead.')
-          setTimeout(() => router.push('/login'), 2000)
-          return
+        // 2. Get the session token from the signup response
+        const token = authData.session?.access_token
+
+        if (!token) {
+          throw new Error('Please check your email to confirm your account before proceeding')
         }
-        throw signUpError
-      }
-      
-      if (!authData.user) throw new Error('Failed to create account')
-      
-      console.log('Auth data:', authData)
 
-      // Update user metadata with names
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: {
-          first_name: formData.firstName,
-          last_name: formData.lastName
+        console.log('Token obtained:', token ? 'Yes' : 'No')
+
+        // 3. Check if user already has workspaces
+        try {
+          const existingWorkspaces = await workspacesClient.list()
+          if (existingWorkspaces && existingWorkspaces.length > 0) {
+            console.log('User already has workspaces, redirecting...')
+            router.push(`/workspace/${existingWorkspaces[0].slug}`)
+            return
+          }
+        } catch (err) {
+          console.log('No existing workspaces found, creating new ones...')
         }
-      })
 
-      if (updateError) {
-        console.warn('Warning: Could not update user metadata:', updateError)
-        // Don't throw - this isn't critical to signup flow
+        // 4. Create organization for the user
+        const legacyOrgSlug = formData.workspaceName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '') + '-org'
+
+        console.log('Creating organization:', { name: `${formData.workspaceName} Organization`, slug: legacyOrgSlug })
+
+        const organization = await organizationsClient.create({
+          name: `${formData.workspaceName} Organization`,
+          slug: legacyOrgSlug,
+          description: `Organization for ${formData.workspaceName}`
+        })
+
+        console.log('Organization created:', organization.id)
+
+        // 5. Create the user's first workspace within the organization
+        const legacyWorkspaceSlug = formData.workspaceName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')
+
+        console.log('Creating workspace:', { 
+          name: formData.workspaceName, 
+          slug: legacyWorkspaceSlug, 
+          organizationId: organization.id 
+        })
+
+        const workspace = await workspacesClient.create({
+          organization_id: organization.id,
+          name: formData.workspaceName,
+          slug: legacyWorkspaceSlug
+        })
+
+        console.log('Workspace created:', workspace.id)
+
+        // 6. Redirect to the new workspace
+        router.push(`/workspace/${workspace.slug}`)
       }
-
-      // 2. Get the session token from the signup response
-      const token = authData.session?.access_token
-
-      if (!token) {
-        // If email confirmation is required, show message
-        throw new Error('Please check your email to confirm your account before proceeding')
-      }
-
-      console.log('Token obtained:', token ? 'Yes' : 'No')
-
-      // 3. Check if user already has workspaces (in case of partial signup)
-      try {
-        const existingWorkspaces = await workspacesClient.list()
-        if (existingWorkspaces && existingWorkspaces.length > 0) {
-          console.log('User already has workspaces, redirecting...')
-          router.push(`/workspace/${existingWorkspaces[0].slug}`)
-          return
-        }
-      } catch (err) {
-        console.log('No existing workspaces found, creating new ones...')
-      }
-
-      // 4. Create organization for the user
-      const orgSlug = formData.workspaceName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '') + '-org'
-
-      console.log('Creating organization:', { name: `${formData.workspaceName} Organization`, slug: orgSlug })
-
-      const organization = await organizationsClient.create({
-        name: `${formData.workspaceName} Organization`,
-        slug: orgSlug,
-        description: `Organization for ${formData.workspaceName}`
-      })
-
-      console.log('Organization created:', organization.id)
-
-      // 5. Create the user's first workspace within the organization
-      const workspaceSlug = formData.workspaceName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '')
-
-      console.log('Creating workspace:', { 
-        name: formData.workspaceName, 
-        slug: workspaceSlug, 
-        organizationId: organization.id 
-      })
-
-      const workspace = await workspacesClient.create({
-        organization_id: organization.id,
-        name: formData.workspaceName,
-        slug: workspaceSlug
-      })
-
-      console.log('Workspace created:', workspace.id)
-
-      // 6. Redirect to the new workspace
-      router.push(`/workspace/${workspace.slug}`)
     } catch (err: any) {
       console.error('Signup error:', err)
       

@@ -144,7 +144,22 @@ export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
     schema,
+    // Use prefixed table names to avoid conflicts with Supabase auth tables
+    usePlural: false,
   }),
+  // Custom table names with wf_ prefix to avoid conflicts with Supabase
+  user: {
+    modelName: "wf_users",
+  },
+  session: {
+    modelName: "wf_sessions",
+  },
+  account: {
+    modelName: "wf_accounts",
+  },
+  verification: {
+    modelName: "wf_verifications",
+  },
   // Allow embedded mode from Matic platform (localhost:3000) and standalone mode (localhost:3001)
   trustedOrigins: [
     "http://localhost:3000",
