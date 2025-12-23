@@ -3,15 +3,19 @@ import { organization, multiSession } from "better-auth/plugins";
 import { Pool } from "pg";
 import { Resend } from "resend";
 
-// Create a connection pool for Better Auth
-// Using the same Supabase PostgreSQL database
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
-});
+// Check if we're in a build environment (no DATABASE_URL)
+const isBuildTime = !process.env.DATABASE_URL;
+
+// Create connection pool only if DATABASE_URL is available
+const pool = isBuildTime
+  ? null
+  : new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+    });
 
 // Initialize Resend for email sending
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 // Determine the base URL for authentication
 function getBaseURL() {
@@ -34,15 +38,19 @@ function getBaseURL() {
   return "http://localhost:3000";
 }
 
+// Create auth instance - during build time, use a minimal config
+// At runtime, the full config with database is used
 export const auth = betterAuth({
   baseURL: getBaseURL(),
-  secret: process.env.BETTER_AUTH_SECRET,
+  secret: process.env.BETTER_AUTH_SECRET || "build-time-secret-placeholder",
   
-  // Use PostgreSQL adapter with custom table names (prefixed with ba_ to avoid conflicts)
-  database: {
-    type: "postgres",
-    pool,
-  },
+  // Use PostgreSQL adapter (or skip during build)
+  database: pool
+    ? {
+        type: "postgres" as const,
+        pool,
+      }
+    : undefined,
 
   // Email configuration with Resend
   emailAndPassword: {
@@ -51,6 +59,10 @@ export const auth = betterAuth({
     autoSignIn: true,
     // Password reset configuration
     sendResetPassword: async ({ user, url }) => {
+      if (!resend) {
+        console.error("[Better Auth] Resend not configured - RESEND_API_KEY missing");
+        return;
+      }
       await resend.emails.send({
         from: process.env.EMAIL_FROM || "Matic <noreply@notifications.maticsapp.com>",
         to: user.email,
