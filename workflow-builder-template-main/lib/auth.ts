@@ -145,6 +145,14 @@ export const auth = betterAuth({
     provider: "pg",
     schema,
   }),
+  // Allow embedded mode from Matic platform (localhost:3000) and standalone mode (localhost:3001)
+  trustedOrigins: [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    // Add production URLs as needed
+    ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
+    ...(process.env.MATIC_PLATFORM_URL ? [process.env.MATIC_PLATFORM_URL] : []),
+  ],
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,

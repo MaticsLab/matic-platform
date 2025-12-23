@@ -7,6 +7,7 @@ interface MaticAuthContext {
   workspaceId: string | null;
   formId: string | null;
   isEmbedded: boolean;
+  hasMounted: boolean;
 }
 
 const defaultContext: MaticAuthContext = {
@@ -14,6 +15,7 @@ const defaultContext: MaticAuthContext = {
   workspaceId: null,
   formId: null,
   isEmbedded: false,
+  hasMounted: false,
 };
 
 export function useMaticAuth(): MaticAuthContext {
@@ -32,14 +34,13 @@ export function useMaticAuth(): MaticAuthContext {
     const hashParams = new URLSearchParams(url.hash.substring(1));
     const token = hashParams.get("token");
 
-    if (embedded || token || workspaceId || formId) {
-      setAuthContext({
-        token,
-        workspaceId,
-        formId,
-        isEmbedded: embedded,
-      });
-    }
+    setAuthContext({
+      token,
+      workspaceId,
+      formId,
+      isEmbedded: embedded,
+      hasMounted: true,
+    });
   }, []);
 
   // Listen for postMessage from parent frame

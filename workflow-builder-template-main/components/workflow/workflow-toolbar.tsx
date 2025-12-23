@@ -1437,7 +1437,7 @@ function WorkflowMenuComponent({
 export const WorkflowToolbar = ({ workflowId }: WorkflowToolbarProps) => {
   const state = useWorkflowState();
   const actions = useWorkflowActions(state);
-  const { isEmbedded } = useAuthContext();
+  const { isEmbedded, hasMounted } = useAuthContext();
 
   return (
     <>
@@ -1473,8 +1473,8 @@ export const WorkflowToolbar = ({ workflowId }: WorkflowToolbarProps) => {
                 onDuplicate={actions.handleDuplicate}
               />
             )}
-            {/* Hide UserMenu when embedded in Matic platform */}
-            {!isEmbedded && <UserMenu />}
+            {/* Hide UserMenu when embedded in Matic platform - only render after mount to avoid hydration mismatch */}
+            {hasMounted && !isEmbedded && <UserMenu />}
           </div>
         </div>
       </div>

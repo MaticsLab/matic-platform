@@ -8,6 +8,7 @@ interface AuthContextValue {
   workspaceId: string | null;
   formId: string | null;
   maticToken: string | null;
+  hasMounted: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -15,6 +16,7 @@ const AuthContext = createContext<AuthContextValue>({
   workspaceId: null,
   formId: null,
   maticToken: null,
+  hasMounted: false,
 });
 
 export function useAuthContext() {
@@ -29,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     workspaceId: maticAuth.workspaceId,
     formId: maticAuth.formId,
     maticToken: maticAuth.token,
+    hasMounted: maticAuth.hasMounted,
   };
 
   return (
