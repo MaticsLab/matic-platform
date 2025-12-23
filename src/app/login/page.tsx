@@ -83,18 +83,10 @@ export default function LoginPage() {
           router.push('/')
         }
       } else {
-        // For Better Auth users, check organizations
-        const { data: orgs } = await authClient.organization.list()
-        
-        if (orgs && orgs.length > 0) {
-          // Get the first organization's workspace
-          const lastWorkspace = getLastWorkspace()
-          if (lastWorkspace) {
-            router.push(`/workspace/${lastWorkspace}`)
-          } else {
-            // Redirect to workspace selection or first available
-            router.push('/')
-          }
+        // For Better Auth users, redirect based on last workspace or home
+        const lastWorkspace = getLastWorkspace()
+        if (lastWorkspace) {
+          router.push(`/workspace/${lastWorkspace}`)
         } else {
           router.push('/')
         }

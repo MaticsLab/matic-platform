@@ -3,7 +3,6 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { authClient } from '@/lib/better-auth-client'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
@@ -20,30 +19,16 @@ function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [isReady, setIsReady] = useState(false)
-  const [authProvider, setAuthProvider] = useState<'supabase' | 'better-auth' | null>(null)
-  const [betterAuthToken, setBetterAuthToken] = useState<string | null>(null)
 
   useEffect(() => {
     async function handleAuth() {
       try {
-        // Check for Better Auth token first
-        const token = searchParams.get('token')
-        if (token) {
-          // This is a Better Auth reset token
-          setBetterAuthToken(token)
-          setAuthProvider('better-auth')
-          setIsReady(true)
-          setIsVerifying(false)
-          return
-        }
-
         // Check for hash params (Supabase implicit flow)
         const hashParams = new URLSearchParams(window.location.hash.substring(1))
         const accessToken = hashParams.get('access_token')
         const refreshToken = hashParams.get('refresh_token')
 
         if (accessToken && refreshToken) {
-          setAuthProvider('supabase')
           const { error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
@@ -67,7 +52,6 @@ function ResetPasswordForm() {
         const queryType = searchParams.get('type')
 
         if (tokenHash && queryType === 'recovery') {
-          setAuthProvider('supabase')
           const { error: verifyError } = await supabase.auth.verifyOtp({
             token_hash: tokenHash,
             type: 'recovery',
@@ -88,7 +72,6 @@ function ResetPasswordForm() {
         // Check if user already has a valid Supabase session
         const { data: { session } } = await supabase.auth.getSession()
         if (session) {
-          setAuthProvider('supabase')
           setIsReady(true)
           setIsVerifying(false)
           return
@@ -107,7 +90,6 @@ function ResetPasswordForm() {
     // Listen for Supabase PASSWORD_RECOVERY event
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
-        setAuthProvider('supabase')
         setIsReady(true)
         setIsVerifying(false)
       }
@@ -137,51 +119,32 @@ function ResetPasswordForm() {
     setIsLoading(true)
 
     try {
-      if (authProvider === 'better-auth' && betterAuthToken) {
-        // Better Auth password reset
-        const { error: resetError } = await authClient.resetPassword({
-          newPassword: password,
-          token: betterAuthToken,
-        })
-
-        if (resetError) {
-          throw new Error(resetError.message || 'Failed to reset password')
-        }
-
-        console.log('Better Auth password reset successful')
-        setSuccess(true)
-        
-        setTimeout(() => {
-          router.push('/login')
-        }, 2000)
-      } else {
-        // Supabase password reset
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) {
-          throw new Error('Session expired. Please request a new password reset.')
-        }
-
-        const { data, error: updateError } = await supabase.auth.updateUser({
-          password: password,
-        })
-
-        if (updateError) {
-          throw updateError
-        }
-
-        if (!data.user) {
-          throw new Error('Password update failed. Please try again.')
-        }
-
-        console.log('Supabase password updated successfully for:', data.user.email)
-        setSuccess(true)
-        
-        await supabase.auth.signOut()
-        
-        setTimeout(() => {
-          router.push('/login')
-        }, 2000)
+      // Supabase password reset
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('Session expired. Please request a new password reset.')
       }
+
+      const { data, error: updateError } = await supabase.auth.updateUser({
+        password: password,
+      })
+
+      if (updateError) {
+        throw updateError
+      }
+
+      if (!data.user) {
+        throw new Error('Password update failed. Please try again.')
+      }
+
+      console.log('Password updated successfully for:', data.user.email)
+      setSuccess(true)
+      
+      await supabase.auth.signOut()
+      
+      setTimeout(() => {
+        router.push('/login')
+      }, 2000)
     } catch (err: unknown) {
       console.error('Password update error:', err)
       setError(err instanceof Error ? err.message : 'Failed to reset password')

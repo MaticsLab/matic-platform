@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
-import { authClient } from '@/lib/better-auth-client'
 import { Loader2, ArrowLeft, Mail, CheckCircle } from 'lucide-react'
 
 // Use a simple client without PKCE for password reset
@@ -29,19 +28,8 @@ export default function ForgotPasswordPage() {
     setLoading(true)
 
     try {
-      // Try Better Auth first (for migrated/new users)
-      const { error: betterAuthError } = await authClient.forgetPassword({
-        email,
-        redirectTo: `${window.location.origin}/auth/reset-password`,
-      })
-
-      if (!betterAuthError) {
-        setSuccess(true)
-        return
-      }
-
-      // Fall back to Supabase (for legacy users)
-      console.log('Better Auth reset failed, trying Supabase...', betterAuthError)
+      // Use Supabase for password reset (works for both legacy and Better Auth users
+      // since they share the same email in the database)
       const { error: resetError } = await supabaseSimple.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/reset-password`
       })

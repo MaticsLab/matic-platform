@@ -29,5 +29,5 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "backend", "activities-hub-reference", "old-app-files", "vitest.config.ts", "novel-main"]
+  "exclude": ["node_modules", "backend", "activities-hub-reference", "old-app-files", "vitest.config.ts", "novel-main", "workflow-builder-template-main"]
 }

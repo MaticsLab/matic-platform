@@ -55,7 +55,7 @@ export async function getHybridSession(): Promise<HybridSession | null> {
           id: betterAuthSession.user.id,
           email: betterAuthSession.user.email,
           name: betterAuthSession.user.name,
-          avatarUrl: betterAuthSession.user.image,
+          avatarUrl: betterAuthSession.user.image ?? null,
           provider: "better-auth",
           betterAuthUserId: betterAuthSession.user.id,
           activeOrganizationId: betterAuthSession.session?.activeOrganizationId,
