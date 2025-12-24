@@ -5,6 +5,69 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Extract a meaningful error message from various error types.
+ * Handles Error instances, objects with message/error properties, strings,
+ * and nested error structures common in AI SDKs.
+ */
+export function getErrorMessage(error: unknown): string {
+  // Handle null/undefined
+  if (error === null || error === undefined) {
+    return "Unknown error";
+  }
+
+  // Handle Error instances (and their subclasses)
+  if (error instanceof Error) {
+    // Some errors have a cause property with more details
+    if (error.cause && error.cause instanceof Error) {
+      return `${error.message}: ${error.cause.message}`;
+    }
+    return error.message;
+  }
+
+  // Handle strings
+  if (typeof error === "string") {
+    return error;
+  }
+
+  // Handle objects with message or error properties
+  if (typeof error === "object") {
+    const obj = error as Record<string, unknown>;
+    
+    if (typeof obj.message === "string") {
+      return obj.message;
+    }
+    
+    if (typeof obj.error === "string") {
+      return obj.error;
+    }
+    
+    // Try to stringify the object
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+
+  return String(error);
+}
+
+/**
+ * Async version of getErrorMessage that handles Promise errors
+ */
+export async function getErrorMessageAsync(error: unknown): Promise<string> {
+  if (error instanceof Promise) {
+    try {
+      const resolved = await error;
+      return getErrorMessage(resolved);
+    } catch (e) {
+      return getErrorMessage(e);
+    }
+  }
+  return getErrorMessage(error);
+}
+
 // Domain utilities for workspace routing
 export function extractSubdomain(hostname: string): string | null {
   const parts = hostname.split('.')

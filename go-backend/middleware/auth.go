@@ -25,7 +25,29 @@ type SupabaseClaims struct {
 	jwt.RegisteredClaims
 }
 
-// AuthMiddleware validates Supabase JWT tokens
+// BetterAuthClaims represents the claims in a Better Auth JWT token
+type BetterAuthClaims struct {
+	Sub   string `json:"sub"`              // User ID
+	Email string `json:"email"`            // User email
+	Name  string `json:"name"`             // User name
+	Iss   string `json:"iss"`              // Issuer
+	Aud   string `json:"aud"`              // Audience
+	Exp   int64  `json:"exp"`              // Expiration
+	Iat   int64  `json:"iat"`              // Issued at
+	Sid   string `json:"sid"`              // Session ID
+	OrgId string `json:"org_id,omitempty"` // Active organization ID
+	jwt.RegisteredClaims
+}
+
+// AuthProvider indicates which auth system was used
+type AuthProvider string
+
+const (
+	AuthProviderSupabase   AuthProvider = "supabase"
+	AuthProviderBetterAuth AuthProvider = "better-auth"
+)
+
+// AuthMiddleware validates both Supabase and Better Auth JWT tokens
 func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get Authorization header
@@ -46,32 +68,65 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 
 		tokenString := parts[1]
 
-		// For ES256 tokens (Supabase default), parse without verification
-		// Supabase has already validated these tokens
-		var token *jwt.Token
-		var err error
-
-		// Try to parse the token to get the algorithm
+		// Try to parse the token to determine the auth provider
 		parser := new(jwt.Parser)
-		unverifiedToken, _, parseErr := parser.ParseUnverified(tokenString, &SupabaseClaims{})
 
-		if parseErr != nil {
-			fmt.Printf("❌ Token parsing error: %v\n", parseErr)
+		// First, try parsing as Better Auth token
+		betterAuthToken, _, betterAuthErr := parser.ParseUnverified(tokenString, &BetterAuthClaims{})
+
+		if betterAuthErr == nil && betterAuthToken != nil {
+			if claims, ok := betterAuthToken.Claims.(*BetterAuthClaims); ok {
+				// Check if this looks like a Better Auth token (has session ID or specific issuer)
+				if claims.Sid != "" || strings.Contains(claims.Iss, "localhost:3000") || strings.Contains(claims.Iss, "maticsapp.com") {
+					// Verify Better Auth token with secret
+					verifiedToken, err := jwt.ParseWithClaims(tokenString, &BetterAuthClaims{}, func(token *jwt.Token) (interface{}, error) {
+						return []byte(cfg.BetterAuthSecret), nil
+					})
+
+					if err == nil && verifiedToken.Valid {
+						if verifiedClaims, ok := verifiedToken.Claims.(*BetterAuthClaims); ok {
+							fmt.Println("✅ Validated Better Auth token")
+							c.Set("user_id", verifiedClaims.Sub)
+							c.Set("userID", verifiedClaims.Sub)
+							c.Set("user_email", verifiedClaims.Email)
+							c.Set("user_name", verifiedClaims.Name)
+							c.Set("auth_provider", AuthProviderBetterAuth)
+							c.Set("session_id", verifiedClaims.Sid)
+							if verifiedClaims.OrgId != "" {
+								c.Set("organization_id", verifiedClaims.OrgId)
+							}
+							c.Next()
+							return
+						}
+					}
+					// If Better Auth verification fails, try Supabase
+					fmt.Printf("⚠️ Better Auth token verification failed: %v, trying Supabase\n", err)
+				}
+			}
+		}
+
+		// Try parsing as Supabase token
+		supabaseToken, _, supabaseErr := parser.ParseUnverified(tokenString, &SupabaseClaims{})
+
+		if supabaseErr != nil {
+			fmt.Printf("❌ Token parsing error: %v\n", supabaseErr)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
 			c.Abort()
 			return
 		}
 
-		// Check the algorithm
-		alg := unverifiedToken.Method.Alg()
+		// Check the algorithm for Supabase tokens
+		alg := supabaseToken.Method.Alg()
 		fmt.Printf("🔐 Token algorithm: '%s'\n", alg)
 
+		var token *jwt.Token
+		var err error
+
 		if alg == "ES256" || alg == "RS256" {
-			// For ES256 (Supabase default), we trust that Supabase validated it
-			// Just extract the claims without signature verification
+			// For ES256/RS256 (Supabase default), trust that Supabase validated it
 			fmt.Println("✅ Accepting ES256/RS256 token from Supabase (trusted issuer)")
-			token = unverifiedToken
-			token.Valid = true // Mark as valid since we trust Supabase
+			token = supabaseToken
+			token.Valid = true
 		} else {
 			// For other algorithms (like HS256), verify with the secret
 			token, err = jwt.ParseWithClaims(tokenString, &SupabaseClaims{}, func(token *jwt.Token) (interface{}, error) {
@@ -85,7 +140,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 			}
 		}
 
-		// Extract claims
+		// Extract Supabase claims
 		claims, ok := token.Claims.(*SupabaseClaims)
 		if !ok || !token.Valid {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
@@ -95,9 +150,11 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 
 		// Store user info in context for handlers to use
 		c.Set("user_id", claims.Sub)
+		c.Set("userID", claims.Sub)
 		c.Set("user_email", claims.Email)
 		c.Set("user_role", claims.Role)
 		c.Set("user_claims", claims)
+		c.Set("auth_provider", AuthProviderSupabase)
 
 		c.Next()
 	}
@@ -121,17 +178,47 @@ func OptionalAuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		tokenString := parts[1]
-
-		// Parse without verification for ES256 tokens (Supabase default)
 		parser := new(jwt.Parser)
+
+		// Try Better Auth token first
+		betterAuthToken, _, betterAuthErr := parser.ParseUnverified(tokenString, &BetterAuthClaims{})
+		if betterAuthErr == nil && betterAuthToken != nil {
+			if claims, ok := betterAuthToken.Claims.(*BetterAuthClaims); ok {
+				if claims.Sid != "" || strings.Contains(claims.Iss, "localhost:3000") || strings.Contains(claims.Iss, "maticsapp.com") {
+					// Try to verify Better Auth token
+					verifiedToken, err := jwt.ParseWithClaims(tokenString, &BetterAuthClaims{}, func(token *jwt.Token) (interface{}, error) {
+						return []byte(cfg.BetterAuthSecret), nil
+					})
+					if err == nil && verifiedToken.Valid {
+						if verifiedClaims, ok := verifiedToken.Claims.(*BetterAuthClaims); ok {
+							c.Set("user_id", verifiedClaims.Sub)
+							c.Set("userID", verifiedClaims.Sub)
+							c.Set("user_email", verifiedClaims.Email)
+							c.Set("user_name", verifiedClaims.Name)
+							c.Set("auth_provider", AuthProviderBetterAuth)
+							c.Set("session_id", verifiedClaims.Sid)
+							if verifiedClaims.OrgId != "" {
+								c.Set("organization_id", verifiedClaims.OrgId)
+							}
+							c.Next()
+							return
+						}
+					}
+				}
+			}
+		}
+
+		// Fall back to Supabase token parsing
 		token, _, err := parser.ParseUnverified(tokenString, &SupabaseClaims{})
 
 		if err == nil && token != nil {
 			if claims, ok := token.Claims.(*SupabaseClaims); ok {
 				c.Set("user_id", claims.Sub)
+				c.Set("userID", claims.Sub)
 				c.Set("user_email", claims.Email)
 				c.Set("user_role", claims.Role)
 				c.Set("user_claims", claims)
+				c.Set("auth_provider", AuthProviderSupabase)
 			}
 		}
 

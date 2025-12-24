@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { 
   Home, Activity, Inbox, BarChart3, Users, Settings, 
-  GraduationCap, ChevronRight, PanelLeftClose, PanelLeftOpen
+  GraduationCap, ChevronRight, PanelLeftClose, PanelLeftOpen, Workflow
 } from 'lucide-react'
 import { useTabContext } from './WorkspaceTabProvider'
 import { cn } from '@/lib/utils'
@@ -32,6 +32,13 @@ export function Sidebar({ workspaceId }: SidebarProps) {
       icon: BarChart3,
       url: `/workspace/${workspaceId}/tables`,
       type: 'table'
+    },
+    {
+      id: 'workflows',
+      label: 'Workflows',
+      icon: Workflow,
+      url: `/workspace/${workspaceId}/workflows`,
+      type: 'custom'
     }
   ]
 

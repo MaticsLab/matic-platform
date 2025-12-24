@@ -104,6 +104,12 @@ func AutoMigrate() error {
 
 		// Portal Documents
 		&models.PortalDocument{},
+
+		// Automation Workflows
+		&models.AutomationWorkflow{},
+		&models.AutomationWorkflowExecution{},
+		&models.AutomationWorkflowExecutionLog{},
+		&models.AutomationIntegration{},
 	)
 
 	if err != nil {

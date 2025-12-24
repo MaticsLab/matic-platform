@@ -11,6 +11,7 @@ type Config struct {
 	GinMode                string
 	AllowedOrigins         []string
 	JWTSecret              string
+	BetterAuthSecret       string
 	SupabaseURL            string
 	SupabaseKey            string
 	SupabaseServiceRoleKey string
@@ -36,6 +37,7 @@ func LoadConfig() *Config {
 		GinMode:                getEnv("GIN_MODE", "debug"),
 		AllowedOrigins:         origins,
 		JWTSecret:              getEnv("JWT_SECRET", "your-secret-key"),
+		BetterAuthSecret:       getEnv("BETTER_AUTH_SECRET", "matic-platform-better-auth-secret-key-2024-production"),
 		SupabaseURL:            os.Getenv("SUPABASE_URL"),
 		SupabaseKey:            os.Getenv("SUPABASE_ANON_KEY"),
 		SupabaseServiceRoleKey: os.Getenv("SUPABASE_SERVICE_ROLE_KEY"),

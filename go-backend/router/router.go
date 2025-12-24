@@ -750,6 +750,21 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			{
 				ai.POST("/translate", handlers.TranslateContent)
 			}
+
+			// ============================================================
+			// AUTOMATION WORKFLOWS
+			// ============================================================
+			automationWorkflows := protected.Group("/automation-workflows")
+			{
+				automationWorkflows.GET("", handlers.GetAutomationWorkflows)    // ?workspace_id=xxx
+				automationWorkflows.POST("", handlers.CreateAutomationWorkflow) // ?workspace_id=xxx
+				automationWorkflows.GET("/:id", handlers.GetAutomationWorkflow)
+				automationWorkflows.PATCH("/:id", handlers.UpdateAutomationWorkflow)
+				automationWorkflows.DELETE("/:id", handlers.DeleteAutomationWorkflow)
+				automationWorkflows.POST("/:id/duplicate", handlers.DuplicateAutomationWorkflow)
+				automationWorkflows.GET("/:id/executions", handlers.GetAutomationWorkflowExecutions)
+				automationWorkflows.GET("/:id/executions/:executionId/logs", handlers.GetAutomationWorkflowExecutionLogs)
+			}
 		}
 	}
 

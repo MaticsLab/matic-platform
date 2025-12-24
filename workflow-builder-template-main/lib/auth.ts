@@ -160,11 +160,16 @@ export const auth = betterAuth({
   verification: {
     modelName: "wf_verifications",
   },
-  // Allow embedded mode from Matic platform (localhost:3000) and standalone mode (localhost:3001)
+  // Allow embedded mode from Matic platform and standalone mode
   trustedOrigins: [
+    // Local development
     "http://localhost:3000",
     "http://localhost:3001",
-    // Add production URLs as needed
+    // Production URLs
+    "https://app.maticsapp.com",
+    "https://workflow-builder.maticsapp.com",
+    "https://maticsapp.com",
+    // Dynamic URLs from env
     ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
     ...(process.env.MATIC_PLATFORM_URL ? [process.env.MATIC_PLATFORM_URL] : []),
   ],
