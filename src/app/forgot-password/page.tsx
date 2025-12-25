@@ -28,6 +28,18 @@ export default function ForgotPasswordPage() {
         })
       })
 
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        // Not JSON - likely a 404 page
+        if (!response.ok) {
+          throw new Error('Password reset service unavailable. Please try again later.')
+        }
+        // Success with non-JSON response
+        setSuccess(true)
+        return
+      }
+
       const result = await response.json()
 
       if (!response.ok) {
@@ -37,12 +49,7 @@ export default function ForgotPasswordPage() {
       setSuccess(true)
     } catch (err: any) {
       console.error('Reset password error:', err)
-      // Try alternate endpoint if this one fails
-      if (err.message?.includes('404') || err.message?.includes('Not Found')) {
-        setError('Password reset is not configured. Please contact support.')
-      } else {
-        setError(err.message || 'Failed to send reset email')
-      }
+      setError(err.message || 'Failed to send reset email. Please try again.')
     } finally {
       setLoading(false)
     }

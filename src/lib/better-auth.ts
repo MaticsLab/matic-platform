@@ -42,6 +42,7 @@ function getBaseURL() {
 // At runtime, the full config with database is used
 export const auth = betterAuth({
   baseURL: getBaseURL(),
+  basePath: "/api/auth",
   secret: process.env.BETTER_AUTH_SECRET || "build-time-secret-placeholder",
   
   // Use PostgreSQL adapter (or skip during build)
