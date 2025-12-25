@@ -28,6 +28,7 @@ import "./resend";
 import "./slack";
 import "./stripe";
 import "./superagent";
+import "./v0";
 import "./webflow";
 
 export type {

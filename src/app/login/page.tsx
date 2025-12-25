@@ -32,23 +32,38 @@ export default function LoginPage() {
       // Try Better Auth first (for new users)
       if (authMethod === 'auto' || authMethod === 'better-auth') {
         try {
-          const { data, error: betterAuthError } = await authClient.signIn.email({
+          console.log('Attempting Better Auth login...')
+          const result = await authClient.signIn.email({
             email: formData.email,
             password: formData.password,
           })
+          
+          console.log('Better Auth result:', result)
 
-          if (!betterAuthError && data?.user) {
-            user = data.user
+          if (result.data?.user) {
+            user = result.data.user
             usedBetterAuth = true
-            console.log('Logged in with Better Auth')
+            console.log('Logged in with Better Auth successfully')
+          } else if (result.error) {
+            console.log('Better Auth error:', result.error)
+            // If it's a credential error, don't try Supabase
+            if (result.error.status === 401) {
+              throw new Error('Invalid email or password')
+            }
           }
-        } catch (err) {
-          console.log('Better Auth login failed, trying Supabase...', err)
+        } catch (err: any) {
+          console.log('Better Auth login exception:', err)
+          // If Better Auth explicitly failed with invalid credentials, throw immediately
+          if (err.message === 'Invalid email or password') {
+            throw err
+          }
+          // Otherwise try Supabase fallback
         }
       }
 
-      // Fall back to Supabase (for legacy users)
-      if (!user && (authMethod === 'auto' || authMethod === 'supabase')) {
+      // Fall back to Supabase (for legacy users) only if Better Auth didn't work
+      if (!user && !usedBetterAuth && (authMethod === 'auto' || authMethod === 'supabase')) {
+        console.log('Trying Supabase fallback...')
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
