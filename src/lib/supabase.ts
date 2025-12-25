@@ -15,8 +15,25 @@ export async function getCurrentUser() {
   return user
 }
 
-// Helper to get the session token
-export async function getSessionToken() {
+// Helper to get the session token - checks both Supabase and Better Auth
+export async function getSessionToken(): Promise<string | null> {
+  // First try Supabase session
   const { data: { session } } = await supabase.auth.getSession()
-  return session?.access_token
+  if (session?.access_token) {
+    return session.access_token
+  }
+  
+  // Fall back to Better Auth session token from cookie
+  // Better Auth stores the session token in a cookie named 'better-auth.session_token'
+  if (typeof document !== 'undefined') {
+    const cookies = document.cookie.split(';')
+    for (const cookie of cookies) {
+      const [name, value] = cookie.trim().split('=')
+      if (name === 'better-auth.session_token' && value) {
+        return decodeURIComponent(value)
+      }
+    }
+  }
+  
+  return null
 }
