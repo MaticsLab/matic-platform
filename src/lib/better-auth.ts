@@ -7,11 +7,12 @@ import { Resend } from "resend";
 const isBuildTime = !process.env.DATABASE_URL;
 
 // Create connection pool only if DATABASE_URL is available
+// Supabase requires SSL for all connections
 const pool = isBuildTime
   ? null
   : new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+      ssl: { rejectUnauthorized: false }, // Required for Supabase
     });
 
 // Initialize Resend for email sending
@@ -45,13 +46,8 @@ export const auth = betterAuth({
   basePath: "/api/auth",
   secret: process.env.BETTER_AUTH_SECRET || "build-time-secret-placeholder",
   
-  // Use PostgreSQL adapter (or skip during build)
-  database: pool
-    ? {
-        type: "postgres" as const,
-        pool,
-      }
-    : undefined,
+  // Use PostgreSQL adapter - pass Pool directly (not wrapped in object)
+  database: pool || undefined,
 
   // Email configuration with Resend
   emailAndPassword: {
@@ -139,14 +135,21 @@ export const auth = betterAuth({
     }),
   ],
 
-  // User schema customization
+  // Custom table names and field mappings for existing ba_* tables with snake_case columns
   user: {
+    modelName: "ba_users",
+    fields: {
+      emailVerified: "email_verified",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+    },
     additionalFields: {
       // Link to Supabase user for migration
       supabaseUserId: {
         type: "string",
         required: false,
-        input: false, // Don't allow setting via API
+        input: false,
+        fieldName: "supabase_user_id",
       },
       // Track if user migrated from Supabase
       migratedFromSupabase: {
@@ -154,21 +157,60 @@ export const auth = betterAuth({
         required: false,
         defaultValue: false,
         input: false,
+        fieldName: "migrated_from_supabase",
       },
       // Store user's full name separately
       fullName: {
         type: "string",
         required: false,
+        fieldName: "full_name",
       },
       // Avatar URL
       avatarUrl: {
         type: "string",
         required: false,
+        fieldName: "avatar_url",
       },
     },
   },
+  
+  session: {
+    modelName: "ba_sessions",
+    fields: {
+      userId: "user_id",
+      expiresAt: "expires_at",
+      ipAddress: "ip_address",
+      userAgent: "user_agent",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+    },
+  },
+  
+  account: {
+    modelName: "ba_accounts",
+    fields: {
+      userId: "user_id",
+      accountId: "account_id",
+      providerId: "provider_id",
+      accessToken: "access_token",
+      refreshToken: "refresh_token",
+      accessTokenExpiresAt: "access_token_expires_at",
+      refreshTokenExpiresAt: "refresh_token_expires_at",
+      idToken: "id_token",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+    },
+  },
+  
+  verification: {
+    modelName: "ba_verifications",
+    fields: {
+      expiresAt: "expires_at",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+    },
+  },
 });
-
 // Export types
 export type Auth = typeof auth;
 export type Session = typeof auth.$Infer.Session;
