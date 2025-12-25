@@ -95,16 +95,6 @@ export const auth = betterAuth({
     ...(process.env.NEXT_PUBLIC_SUPABASE_URL ? [process.env.NEXT_PUBLIC_SUPABASE_URL] : []),
   ],
 
-  // Session configuration
-  session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // Update session every 24 hours
-    cookieCache: {
-      enabled: true,
-      maxAge: 5 * 60, // 5 minutes cache
-    },
-  },
-
   // Social providers (can be enabled later)
   socialProviders: {
     google: {
@@ -176,6 +166,12 @@ export const auth = betterAuth({
   
   session: {
     modelName: "ba_sessions",
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24, // Update session every 24 hours
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60, // 5 minutes cache
+    },
     fields: {
       userId: "user_id",
       expiresAt: "expires_at",
