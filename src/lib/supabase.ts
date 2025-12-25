@@ -24,15 +24,27 @@ export async function getSessionToken(): Promise<string | null> {
   }
   
   // Fall back to Better Auth session token from cookie
-  // Better Auth stores the session token in a cookie named 'better-auth.session_token'
+  // Better Auth can use different cookie names depending on configuration
   if (typeof document !== 'undefined') {
     const cookies = document.cookie.split(';')
+    const betterAuthCookieNames = [
+      'better-auth.session_token',
+      'better-auth_session_token', 
+      '__Secure-better-auth.session_token',
+      'better_auth_session',
+      'session_token'
+    ]
+    
     for (const cookie of cookies) {
       const [name, value] = cookie.trim().split('=')
-      if (name === 'better-auth.session_token' && value) {
+      if (betterAuthCookieNames.includes(name) && value) {
+        console.log('Found Better Auth session cookie:', name)
         return decodeURIComponent(value)
       }
     }
+    
+    // Debug: log all cookies to help identify the right one
+    console.log('Available cookies:', cookies.map(c => c.trim().split('=')[0]))
   }
   
   return null
