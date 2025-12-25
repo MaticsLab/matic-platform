@@ -3,7 +3,9 @@ import { toNextJsHandler } from "better-auth/next-js";
 import { NextRequest, NextResponse } from "next/server";
 
 // Debug: Log when this module is loaded
-console.log("[Better Auth Route] Module loaded");
+console.log("[Better Auth Route] Module loaded, DATABASE_URL exists:", !!process.env.DATABASE_URL);
+console.log("[Better Auth Route] BETTER_AUTH_SECRET exists:", !!process.env.BETTER_AUTH_SECRET);
+console.log("[Better Auth Route] RESEND_API_KEY exists:", !!process.env.RESEND_API_KEY);
 
 // Get the handlers from Better Auth
 const handlers = toNextJsHandler(auth);
@@ -13,9 +15,9 @@ export async function GET(request: NextRequest) {
   console.log("[Better Auth] GET request:", request.nextUrl.pathname);
   try {
     return await handlers.GET(request);
-  } catch (error) {
-    console.error("[Better Auth] GET error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } catch (error: any) {
+    console.error("[Better Auth] GET error:", error?.message || error, error?.stack);
+    return NextResponse.json({ error: "Internal server error", details: error?.message }, { status: 500 });
   }
 }
 
@@ -23,8 +25,8 @@ export async function POST(request: NextRequest) {
   console.log("[Better Auth] POST request:", request.nextUrl.pathname);
   try {
     return await handlers.POST(request);
-  } catch (error) {
-    console.error("[Better Auth] POST error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } catch (error: any) {
+    console.error("[Better Auth] POST error:", error?.message || error, error?.stack);
+    return NextResponse.json({ error: "Internal server error", details: error?.message }, { status: 500 });
   }
 }

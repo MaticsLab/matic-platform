@@ -7,12 +7,15 @@ import { Resend } from "resend";
 const isBuildTime = !process.env.DATABASE_URL;
 
 // Create connection pool only if DATABASE_URL is available
-// Supabase requires SSL for all connections
+// For Vercel serverless, we need specific pool settings
 const pool = isBuildTime
   ? null
   : new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false }, // Required for Supabase
+      max: 1, // Limit connections for serverless
+      idleTimeoutMillis: 20000,
+      connectionTimeoutMillis: 10000,
     });
 
 // Initialize Resend for email sending

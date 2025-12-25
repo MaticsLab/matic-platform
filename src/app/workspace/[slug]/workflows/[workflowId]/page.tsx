@@ -3,16 +3,21 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { ReactFlowProvider } from '@xyflow/react'
 import { Provider as JotaiProvider } from 'jotai'
 
 import { NavigationLayout } from '@/components/NavigationLayout'
+import { OverlayProvider } from '@/components/overlays/overlay-provider'
 import { Button } from '@/ui-components/button'
+import { WorkflowCanvas } from '@/components/workflow/workflow-canvas'
+import { NodeConfigPanel } from '@/components/workflow/node-config-panel'
 import { automationWorkflowsClient } from '@/lib/api/automation-workflows-client'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
+import { integrationsAtom, integrationsLoadedAtom, integrationsVersionAtom } from '@/lib/integrations-store'
+import type { IntegrationType } from '@/lib/types/integration'
 import type { Workspace } from '@/types/workspaces'
 import {
   currentWorkflowIdAtom,
@@ -22,22 +27,82 @@ import {
   edgesAtom,
   hasSidebarBeenShownAtom,
   hasUnsavedChangesAtom,
-  isLoadingAtom,
   isPanelAnimatingAtom,
   isSidebarCollapsedAtom,
   isWorkflowOwnerAtom,
   nodesAtom,
   rightPanelWidthAtom,
-  selectedExecutionIdAtom,
+  updateNodeDataAtom,
   workflowNotFoundAtom,
   type WorkflowNode,
   type WorkflowVisibility,
 } from '@/lib/workflow/workflow-store'
+import { findActionById } from '@/lib/workflow/plugins'
+import { api } from '@/lib/workflow-api-client'
+
+// System actions that need integrations (not in plugin registry)
+const SYSTEM_ACTION_INTEGRATIONS: Record<string, IntegrationType> = {
+  "Database Query": "database",
+};
+
+// Helper to get required integration type for an action
+function getRequiredIntegrationType(
+  actionType: string
+): IntegrationType | undefined {
+  const action = findActionById(actionType);
+  return (
+    (action?.integration as IntegrationType | undefined) ||
+    SYSTEM_ACTION_INTEGRATIONS[actionType]
+  );
+}
+
+// Helper to check and fix a single node's integration
+type IntegrationFixResult = {
+  nodeId: string;
+  newIntegrationId: string | undefined;
+};
+
+function checkNodeIntegration(
+  node: WorkflowNode,
+  allIntegrations: { id: string; type: string }[],
+  validIntegrationIds: Set<string>
+): IntegrationFixResult | null {
+  const actionType = node.data.config?.actionType as string | undefined;
+  if (!actionType) {
+    return null;
+  }
+
+  const integrationType = getRequiredIntegrationType(actionType);
+  if (!integrationType) {
+    return null;
+  }
+
+  const currentIntegrationId = node.data.config?.integrationId as
+    | string
+    | undefined;
+  const hasValidIntegration =
+    currentIntegrationId && validIntegrationIds.has(currentIntegrationId);
+
+  if (hasValidIntegration) {
+    return null;
+  }
+
+  // Find available integrations of this type
+  const available = allIntegrations.filter((i) => i.type === integrationType);
+
+  if (available.length === 1) {
+    return { nodeId: node.id, newIntegrationId: available[0].id };
+  }
+  if (available.length === 0 && currentIntegrationId) {
+    return { nodeId: node.id, newIntegrationId: undefined };
+  }
+  return null;
+}
 
 // Workflow Editor Content Component
 function WorkflowEditorContent() {
   const params = useParams()
-  const router = useRouter()
+  const searchParams = useSearchParams()
   const slug = params.slug as string
   const workflowId = params.workflowId as string
 
@@ -48,10 +113,10 @@ function WorkflowEditorContent() {
   // Jotai atoms
   const [nodes, setNodes] = useAtom(nodesAtom)
   const [edges, setEdges] = useAtom(edgesAtom)
-  const setCurrentWorkflowId = useSetAtom(currentWorkflowIdAtom)
+  const [currentWorkflowId, setCurrentWorkflowId] = useAtom(currentWorkflowIdAtom)
   const setCurrentWorkflowName = useSetAtom(currentWorkflowNameAtom)
   const setCurrentWorkflowVisibility = useSetAtom(currentWorkflowVisibilityAtom)
-  const setIsWorkflowOwner = useSetAtom(isWorkflowOwnerAtom)
+  const [isOwner, setIsWorkflowOwner] = useAtom(isWorkflowOwnerAtom)
   const setCurrentWorkspaceId = useSetAtom(currentWorkspaceIdAtom)
   const setHasUnsavedChanges = useSetAtom(hasUnsavedChangesAtom)
   const [workflowNotFound, setWorkflowNotFound] = useAtom(workflowNotFoundAtom)
@@ -60,6 +125,10 @@ function WorkflowEditorContent() {
   const [hasSidebarBeenShown, setHasSidebarBeenShown] = useAtom(hasSidebarBeenShownAtom)
   const [panelCollapsed, setPanelCollapsed] = useAtom(isSidebarCollapsedAtom)
   const currentWorkflowName = useAtomValue(currentWorkflowNameAtom)
+  const updateNodeData = useSetAtom(updateNodeDataAtom)
+  const setGlobalIntegrations = useSetAtom(integrationsAtom)
+  const setIntegrationsLoaded = useSetAtom(integrationsLoadedAtom)
+  const integrationsVersion = useAtomValue(integrationsVersionAtom)
 
   // Panel state
   const [panelWidth, setPanelWidth] = useState(30)
@@ -67,13 +136,16 @@ function WorkflowEditorContent() {
   const [isDraggingResize, setIsDraggingResize] = useState(false)
   const isResizing = useRef(false)
   const hasReadCookies = useRef(false)
+  const nodesRef = useRef(nodes)
+  const lastAutoFixRef = useRef<{ workflowId: string; version: number } | null>(null)
+
+  // Keep nodes ref up to date
+  useEffect(() => {
+    nodesRef.current = nodes
+  }, [nodes])
 
   // Load workspace and workflow data
-  useEffect(() => {
-    loadData()
-  }, [slug, workflowId])
-
-  async function loadData() {
+  const loadExistingWorkflow = useCallback(async () => {
     try {
       setLoading(true)
 
@@ -104,8 +176,8 @@ function WorkflowEditorContent() {
       setEdges(workflow.edges as any[])
       setCurrentWorkflowId(workflow.id)
       setCurrentWorkflowName(workflow.name)
-      setCurrentWorkflowVisibility(workflow.visibility as WorkflowVisibility)
-      setIsWorkflowOwner(workflow.is_owner)
+      setCurrentWorkflowVisibility((workflow.visibility as WorkflowVisibility) ?? 'private')
+      setIsWorkflowOwner(workflow.is_owner !== false)
       setHasUnsavedChanges(false)
       setWorkflowNotFound(false)
     } catch (err) {
@@ -114,7 +186,85 @@ function WorkflowEditorContent() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [slug, workflowId, setNodes, setEdges, setCurrentWorkflowId, setCurrentWorkflowName, 
+      setCurrentWorkflowVisibility, setIsWorkflowOwner, setCurrentWorkspaceId, 
+      setHasUnsavedChanges, setWorkflowNotFound])
+
+  useEffect(() => {
+    const loadWorkflowData = async () => {
+      // Check if state is already loaded for this workflow
+      if (currentWorkflowId === workflowId && nodes.length > 0) {
+        setLoading(false)
+        return
+      }
+
+      await loadExistingWorkflow()
+    }
+
+    loadWorkflowData()
+  }, [workflowId, currentWorkflowId, nodes.length, loadExistingWorkflow])
+
+  // Auto-fix invalid/missing integrations on workflow load or when integrations change
+  useEffect(() => {
+    // Skip if no nodes or no workflow
+    if (nodes.length === 0 || !currentWorkflowId) {
+      return
+    }
+
+    // Skip for non-owners (they can't modify the workflow)
+    if (!isOwner) {
+      return
+    }
+
+    // Skip if already checked for this workflow+version combination
+    const lastFix = lastAutoFixRef.current
+    if (
+      lastFix &&
+      lastFix.workflowId === currentWorkflowId &&
+      lastFix.version === integrationsVersion
+    ) {
+      return
+    }
+
+    const autoFixIntegrations = async () => {
+      try {
+        const allIntegrations = await api.integration.getAll()
+        setGlobalIntegrations(allIntegrations)
+        setIntegrationsLoaded(true)
+
+        const validIds = new Set(allIntegrations.map((i) => i.id))
+        const fixes = nodes
+          .map((node) => checkNodeIntegration(node, allIntegrations, validIds))
+          .filter((fix): fix is IntegrationFixResult => fix !== null)
+
+        for (const fix of fixes) {
+          const node = nodes.find((n) => n.id === fix.nodeId)
+          if (node) {
+            updateNodeData({
+              id: fix.nodeId,
+              data: {
+                config: {
+                  ...node.data.config,
+                  integrationId: fix.newIntegrationId,
+                },
+              },
+            })
+          }
+        }
+
+        // Mark this workflow+version as checked
+        lastAutoFixRef.current = {
+          workflowId: currentWorkflowId,
+          version: integrationsVersion,
+        }
+      } catch (error) {
+        console.error('Failed to auto-fix integrations:', error)
+      }
+    }
+
+    autoFixIntegrations()
+  }, [nodes, currentWorkflowId, isOwner, integrationsVersion, setGlobalIntegrations, 
+      setIntegrationsLoaded, updateNodeData])
 
   // Read sidebar preferences from cookies on mount
   useEffect(() => {
@@ -210,13 +360,15 @@ function WorkflowEditorContent() {
       document.removeEventListener('mouseup', handleMouseUp)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      // Save width to cookie
+      document.cookie = `sidebar-width=${panelWidth}; path=/; max-age=31536000`
     }
 
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
-  }, [])
+  }, [panelWidth])
 
   if (loading) {
     return (
@@ -253,97 +405,88 @@ function WorkflowEditorContent() {
 
   return (
     <NavigationLayout workspaceSlug={slug}>
-      <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
-        {/* Header */}
-        <header className="h-14 border-b bg-white dark:bg-gray-800 flex items-center px-4 shrink-0">
-          <Link
-            href={`/workspace/${slug}/workflows`}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            <span className="text-sm">Workflows</span>
-          </Link>
-          <div className="mx-4 h-6 w-px bg-gray-200 dark:bg-gray-700" />
-          <h1 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-            {currentWorkflowName || 'Untitled Workflow'}
-          </h1>
-        </header>
+      <div className="h-full flex flex-col overflow-hidden relative">
+        {/* Workflow Canvas - Full screen background */}
+        <div 
+          className="absolute inset-0 z-0"
+          style={{
+            right: panelVisible && !panelCollapsed ? `${panelWidth}%` : 0,
+            transition: isDraggingResize ? 'none' : 'right 300ms ease-in-out',
+          }}
+        >
+          <WorkflowCanvas />
+        </div>
 
-        {/* Main Content */}
-        <div className="flex-1 flex overflow-hidden relative">
-          {/* Canvas Area */}
-          <div
-            className="flex-1 relative"
-            style={{
-              marginRight: panelVisible && !panelCollapsed ? `${panelWidth}%` : 0,
-              transition: isDraggingResize ? 'none' : 'margin-right 300ms ease-in-out',
-            }}
-          >
-            {/* Workflow Canvas will be rendered here */}
-            <div className="absolute inset-0 flex items-center justify-center text-gray-500">
-              <div className="text-center">
-                <p className="mb-2">Workflow Canvas</p>
-                <p className="text-sm text-gray-400">
-                  {nodes.length} nodes, {edges.length} edges
-                </p>
-              </div>
+        {/* Workflow not found overlay */}
+        {workflowNotFound && (
+          <div className="pointer-events-auto absolute inset-0 z-20 flex items-center justify-center">
+            <div className="rounded-lg border bg-background p-8 text-center shadow-lg">
+              <h1 className="mb-2 font-semibold text-2xl">Workflow Not Found</h1>
+              <p className="mb-6 text-muted-foreground">
+                The workflow you&apos;re looking for doesn&apos;t exist or has been deleted.
+              </p>
+              <Button asChild>
+                <Link href={`/workspace/${slug}/workflows`}>Back to Workflows</Link>
+              </Button>
             </div>
           </div>
+        )}
 
-          {/* Sidebar Toggle Button (when collapsed) */}
-          {panelCollapsed && panelVisible && (
-            <button
-              type="button"
-              onClick={() => {
-                setIsPanelAnimating(true)
-                setPanelCollapsed(false)
-                setTimeout(() => setIsPanelAnimating(false), 350)
-              }}
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-white dark:bg-gray-800 border border-r-0 rounded-l-lg p-2 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-          )}
+        {/* Expand button when panel is collapsed */}
+        {panelCollapsed && panelVisible && (
+          <button
+            className="pointer-events-auto absolute top-1/2 right-0 z-20 flex size-6 -translate-y-1/2 items-center justify-center rounded-l-full border border-r-0 bg-background shadow-sm transition-colors hover:bg-muted"
+            onClick={() => {
+              setIsPanelAnimating(true)
+              setPanelCollapsed(false)
+              setTimeout(() => setIsPanelAnimating(false), 350)
+            }}
+            type="button"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+        )}
 
-          {/* Config Panel */}
-          {panelVisible && (
-            <div
-              className="absolute right-0 top-0 bottom-0 bg-white dark:bg-gray-800 border-l shadow-lg overflow-hidden"
-              style={{
-                width: panelCollapsed ? 0 : `${panelWidth}%`,
-                transition: isDraggingResize ? 'none' : 'width 300ms ease-in-out',
-              }}
-            >
-              {/* Resize Handle */}
-              <div
-                className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 z-10"
-                onMouseDown={handleResizeStart}
-              />
-
-              {/* Panel Header */}
-              <div className="h-14 border-b flex items-center justify-between px-4">
-                <span className="font-medium text-sm">Properties</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setIsPanelAnimating(true)
-                    setPanelCollapsed(true)
-                    setTimeout(() => setIsPanelAnimating(false), 350)
-                  }}
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
-
-              {/* Panel Content */}
-              <div className="p-4 overflow-auto h-[calc(100%-3.5rem)]">
-                <p className="text-sm text-gray-500">
-                  Select a node to configure its properties.
-                </p>
-              </div>
-            </div>
-          )}
+        {/* Right panel overlay */}
+        <div
+          className="pointer-events-auto absolute inset-y-0 right-0 z-20 border-l bg-background transition-transform duration-300 ease-out"
+          style={{
+            width: `${panelWidth}%`,
+            transform:
+              panelVisible && !panelCollapsed
+                ? 'translateX(0)'
+                : 'translateX(100%)',
+          }}
+        >
+          {/* Resize handle with collapse button */}
+          <div
+            aria-orientation="vertical"
+            aria-valuenow={panelWidth}
+            className="group absolute inset-y-0 left-0 z-10 w-3 cursor-col-resize"
+            onMouseDown={handleResizeStart}
+            role="separator"
+            tabIndex={0}
+          >
+            {/* Hover indicator */}
+            <div className="absolute inset-y-0 left-0 w-1 bg-transparent transition-colors group-hover:bg-blue-500 group-active:bg-blue-600" />
+            {/* Collapse button - hidden while resizing */}
+            {!(isDraggingResize || panelCollapsed) && (
+              <button
+                className="absolute top-1/2 left-0 flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-background opacity-0 shadow-sm transition-opacity hover:bg-muted group-hover:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsPanelAnimating(true)
+                  setPanelCollapsed(true)
+                  setTimeout(() => setIsPanelAnimating(false), 350)
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                type="button"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            )}
+          </div>
+          <NodeConfigPanel />
         </div>
       </div>
     </NavigationLayout>
@@ -355,7 +498,9 @@ export default function WorkflowEditorPage() {
   return (
     <JotaiProvider>
       <ReactFlowProvider>
-        <WorkflowEditorContent />
+        <OverlayProvider>
+          <WorkflowEditorContent />
+        </OverlayProvider>
       </ReactFlowProvider>
     </JotaiProvider>
   )
