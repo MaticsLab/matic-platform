@@ -26,7 +26,6 @@ import {
   Key
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { authClient } from '@/lib/better-auth-client'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Switch } from '@/ui-components/switch'
@@ -485,14 +484,21 @@ export function ProfileSidebar({ isOpen, onClose }: ProfileSidebarProps) {
                               className="mt-3"
                               onClick={async () => {
                                 try {
-                                  // Use Better Auth's forgetPassword method
-                                  const result = await authClient.forgetPassword({
-                                    email,
-                                    redirectTo: `${window.location.origin}/auth/reset-password`
+                                  // Call Better Auth's request-password-reset endpoint directly
+                                  const response = await fetch('/api/auth/request-password-reset', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      email,
+                                      redirectTo: `${window.location.origin}/auth/reset-password`
+                                    })
                                   })
-                                  if (result.error) {
-                                    throw new Error(result.error.message || 'Failed to send reset email')
+                                  
+                                  if (!response.ok) {
+                                    const data = await response.json().catch(() => ({}))
+                                    throw new Error(data.message || 'Failed to send reset email')
                                   }
+                                  
                                   toast.success('Password reset email sent!')
                                 } catch (error: any) {
                                   console.error('Reset password error:', error)
