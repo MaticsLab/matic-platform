@@ -81,14 +81,15 @@ export function useWorkspaceDiscovery() {
     return null
   }
 
-  const setCurrentWorkspaceBySlug = (slug: string) => {
-    const workspace = workspaces.find(w => w.slug === slug)
+  const setCurrentWorkspaceBySlug = (slugOrId: string) => {
+    // Support both slug (e.g., "BPNC") and ID (UUID)
+    const workspace = workspaces.find(w => w.slug === slugOrId || w.id === slugOrId)
     if (workspace) {
       console.log('✅ Setting current workspace:', workspace)
       setCurrentWorkspace(workspace)
       localStorage.setItem('lastWorkspace', JSON.stringify(workspace))
     } else {
-      console.log('⚠️ Workspace not found with slug:', slug, 'Available workspaces:', workspaces)
+      console.log('⚠️ Workspace not found with slug/id:', slugOrId, 'Available workspaces:', workspaces)
     }
   }
 

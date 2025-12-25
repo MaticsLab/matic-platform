@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Plus, FileText, Calendar, Users, Search, Settings } from 'lucide-react'
+import { X, Plus, FileText, Calendar, Users, Search, Settings, Workflow } from 'lucide-react'
 import { TabManager, TabData } from '@/lib/tab-manager'
 import { useTabContext } from './WorkspaceTabProvider'
 import { cn } from '@/lib/utils'
@@ -18,6 +18,7 @@ const TAB_ICONS = {
   table: FileText,
   calendar: Calendar,
   project: Users,
+  workflow: Workflow,
   custom: Settings
 }
 
