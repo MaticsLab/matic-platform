@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
@@ -18,66 +17,28 @@ function ResetPasswordForm() {
   const [isVerifying, setIsVerifying] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [isReady, setIsReady] = useState(false)
+  const [token, setToken] = useState<string | null>(null)
 
   useEffect(() => {
     async function handleAuth() {
       try {
-        // Check for hash params (Supabase implicit flow)
-        const hashParams = new URLSearchParams(window.location.hash.substring(1))
-        const accessToken = hashParams.get('access_token')
-        const refreshToken = hashParams.get('refresh_token')
+        // Better Auth sends the token as a query parameter
+        const tokenParam = searchParams.get('token')
+        const errorParam = searchParams.get('error')
 
-        if (accessToken && refreshToken) {
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          })
-
-          if (sessionError) {
-            console.error('Session error:', sessionError)
-            setError(sessionError.message)
-            setIsVerifying(false)
-            return
-          }
-
-          setIsReady(true)
-          setIsVerifying(false)
-          window.history.replaceState(null, '', window.location.pathname)
-          return
-        }
-
-        // Check for query params (Supabase token_hash flow)
-        const tokenHash = searchParams.get('token_hash')
-        const queryType = searchParams.get('type')
-
-        if (tokenHash && queryType === 'recovery') {
-          const { error: verifyError } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash,
-            type: 'recovery',
-          })
-
-          if (verifyError) {
-            console.error('Token verification error:', verifyError)
-            setError(verifyError.message)
-            setIsVerifying(false)
-            return
-          }
-
-          setIsReady(true)
+        if (errorParam === 'INVALID_TOKEN') {
+          setError('Invalid or expired reset link. Please request a new password reset.')
           setIsVerifying(false)
           return
         }
 
-        // Check if user already has a valid Supabase session
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session) {
-          setIsReady(true)
+        if (tokenParam) {
+          setToken(tokenParam)
           setIsVerifying(false)
           return
         }
 
-        // No valid tokens found
+        // No valid token found
         setError('Invalid or missing recovery token. Please request a new password reset.')
         setIsVerifying(false)
       } catch (err) {
@@ -87,27 +48,15 @@ function ResetPasswordForm() {
       }
     }
 
-    // Listen for Supabase PASSWORD_RECOVERY event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setIsReady(true)
-        setIsVerifying(false)
-      }
-    })
-
     handleAuth()
-
-    return () => {
-      subscription.unsubscribe()
-    }
   }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters')
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters')
       return
     }
 
@@ -116,31 +65,34 @@ function ResetPasswordForm() {
       return
     }
 
+    if (!token) {
+      setError('Missing reset token. Please request a new password reset.')
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      // Supabase password reset
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        throw new Error('Session expired. Please request a new password reset.')
-      }
-
-      const { data, error: updateError } = await supabase.auth.updateUser({
-        password: password,
+      // Call Better Auth's reset-password endpoint
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          newPassword: password,
+          token: token,
+        })
       })
 
-      if (updateError) {
-        throw updateError
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.message || result.error?.message || 'Failed to reset password')
       }
 
-      if (!data.user) {
-        throw new Error('Password update failed. Please try again.')
-      }
-
-      console.log('Password updated successfully for:', data.user.email)
+      console.log('Password reset successfully')
       setSuccess(true)
-      
-      await supabase.auth.signOut()
       
       setTimeout(() => {
         router.push('/login')
@@ -197,7 +149,7 @@ function ResetPasswordForm() {
             </p>
           </div>
 
-          {error && !isReady && (
+          {error && !token && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
               <div>
@@ -209,7 +161,7 @@ function ResetPasswordForm() {
             </div>
           )}
 
-          {error && isReady && (
+          {error && token && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-800">{error}</p>
@@ -226,11 +178,11 @@ function ResetPasswordForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your new password"
                 required
-                minLength={6}
+                minLength={8}
                 className="mt-1"
-                disabled={!isReady}
+                disabled={!token}
               />
-              <p className="text-xs text-gray-500 mt-1">Must be at least 6 characters</p>
+              <p className="text-xs text-gray-500 mt-1">Must be at least 8 characters</p>
             </div>
 
             <div>
@@ -243,13 +195,13 @@ function ResetPasswordForm() {
                 placeholder="Confirm your new password"
                 required
                 className="mt-1"
-                disabled={!isReady}
+                disabled={!token}
               />
             </div>
 
             <Button
               type="submit"
-              disabled={isLoading || !isReady}
+              disabled={isLoading || !token}
               className="w-full"
             >
               {isLoading ? (

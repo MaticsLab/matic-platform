@@ -2,19 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@supabase/supabase-js'
 import { Loader2, ArrowLeft, Mail, CheckCircle } from 'lucide-react'
-
-// Use a simple client without PKCE for password reset
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const supabaseSimple = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    flowType: 'implicit',
-    autoRefreshToken: false,
-    persistSession: false,
-  }
-})
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -28,17 +16,33 @@ export default function ForgotPasswordPage() {
     setLoading(true)
 
     try {
-      // Use Supabase for password reset (works for both legacy and Better Auth users
-      // since they share the same email in the database)
-      const { error: resetError } = await supabaseSimple.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`
+      // Call Better Auth's request-password-reset endpoint directly
+      const response = await fetch('/api/auth/request-password-reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          redirectTo: `${window.location.origin}/auth/reset-password`
+        })
       })
 
-      if (resetError) throw resetError
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.message || result.error?.message || 'Failed to send reset email')
+      }
+      
       setSuccess(true)
     } catch (err: any) {
       console.error('Reset password error:', err)
-      setError(err.message || 'Failed to send reset email')
+      // Try alternate endpoint if this one fails
+      if (err.message?.includes('404') || err.message?.includes('Not Found')) {
+        setError('Password reset is not configured. Please contact support.')
+      } else {
+        setError(err.message || 'Failed to send reset email')
+      }
     } finally {
       setLoading(false)
     }
