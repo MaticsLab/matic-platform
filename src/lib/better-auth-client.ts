@@ -25,6 +25,10 @@ export const {
   useListOrganizations,
 } = authClient;
 
+// Password management - exposed directly from authClient
+export const changePassword = authClient.changePassword;
+export const resetPassword = authClient.resetPassword;
+
 // Type exports
 export type Session = typeof authClient.$Infer.Session;
 export type User = typeof authClient.$Infer.Session.user;

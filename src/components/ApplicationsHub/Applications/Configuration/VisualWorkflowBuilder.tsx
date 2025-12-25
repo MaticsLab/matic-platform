@@ -1,11 +1,20 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { Loader2, AlertCircle, ExternalLink, Maximize2, Minimize2, RefreshCw } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Loader2, Plus, Play, MoreHorizontal, Trash2, Edit2, Sparkles, ExternalLink, Workflow } from 'lucide-react'
 import { Button } from '@/ui-components/button'
-import { createClient } from '@/lib/supabase'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui-components/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui-components/dropdown-menu'
 import { cn } from '@/lib/utils'
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
+import { toast } from 'sonner'
+import { automationWorkflowsClient, type AutomationWorkflow } from '@/lib/api/automation-workflows-client'
 
 interface VisualWorkflowBuilderProps {
   workspaceId: string
@@ -13,206 +22,225 @@ interface VisualWorkflowBuilderProps {
   className?: string
 }
 
-// The URL of the visual workflow builder service
-const WORKFLOW_BUILDER_URL = process.env.NEXT_PUBLIC_WORKFLOW_BUILDER_URL || 'http://localhost:3001'
-
 export function VisualWorkflowBuilder({ workspaceId, formId, className }: VisualWorkflowBuilderProps) {
-  const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
+  const [workflows, setWorkflows] = useState<AutomationWorkflow[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [authToken, setAuthToken] = useState<string | null>(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-  const supabase = createClient()
 
-  // Get auth token for passing to the workflow builder
   useEffect(() => {
-    const getAuthToken = async () => {
-      try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        
-        if (sessionError) {
-          console.error('Error getting session:', sessionError)
-          setError('Authentication required. Please log in.')
-          return
-        }
+    loadWorkflows()
+  }, [workspaceId])
 
-        if (!session) {
-          setError('Please log in to access the workflow builder.')
-          return
-        }
-
-        setAuthToken(session.access_token)
-        setError(null)
-      } catch (err) {
-        console.error('Error getting auth token:', err)
-        setError('Failed to authenticate. Please refresh and try again.')
-      }
+  async function loadWorkflows() {
+    try {
+      setLoading(true)
+      const wfs = await automationWorkflowsClient.list(workspaceId)
+      // Filter by formId if provided
+      const filteredWorkflows = formId 
+        ? wfs.filter(w => w.trigger_type === 'form_submission' || !w.trigger_type)
+        : wfs
+      setWorkflows(filteredWorkflows)
+    } catch (err) {
+      console.error('Failed to load workflows:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load workflows')
+    } finally {
+      setLoading(false)
     }
+  }
 
-    getAuthToken()
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
-      if (session) {
-        setAuthToken(session.access_token)
-        setError(null)
-      } else {
-        setAuthToken(null)
-        setError('Please log in to access the workflow builder.')
-      }
-    })
-
-    return () => {
-      subscription.unsubscribe()
+  async function handleCreateWorkflow() {
+    try {
+      const workflow = await automationWorkflowsClient.create(workspaceId, {
+        name: formId ? 'Form Submission Workflow' : 'Untitled Workflow',
+        trigger_type: formId ? 'form_submission' : 'manual',
+        nodes: [
+          {
+            id: 'trigger-1',
+            type: 'trigger',
+            position: { x: 250, y: 100 },
+            data: {
+              label: formId ? 'Form Submitted' : 'Manual Trigger',
+              type: formId ? 'form_submission' : 'manual',
+              config: formId ? { formId } : {},
+            },
+          },
+        ],
+        edges: [],
+      })
+      
+      // Navigate to the workflow editor
+      router.push(`/workspace/${workspaceId}/workflows/${workflow.id}`)
+    } catch (err) {
+      toast.error('Failed to create workflow')
     }
-  }, [supabase.auth])
+  }
 
-  // Build the iframe URL with auth context
-  const getIframeUrl = () => {
-    const url = new URL(WORKFLOW_BUILDER_URL)
+  async function handleDeleteWorkflow(workflowId: string) {
+    if (!confirm('Are you sure you want to delete this workflow?')) return
     
-    // Pass context parameters
-    if (workspaceId) {
-      url.searchParams.set('workspace_id', workspaceId)
-    }
-    if (formId) {
-      url.searchParams.set('form_id', formId)
-    }
-    if (authToken) {
-      // Pass token in hash to avoid it appearing in server logs
-      url.hash = `token=${authToken}`
-    }
-    
-    // Mark as embedded mode
-    url.searchParams.set('embedded', 'true')
-    
-    return url.toString()
-  }
-
-  // Handle iframe load
-  const handleIframeLoad = () => {
-    setIsLoading(false)
-    
-    // Post auth token to iframe via postMessage for security
-    if (iframeRef.current?.contentWindow && authToken) {
-      iframeRef.current.contentWindow.postMessage({
-        type: 'MATIC_AUTH',
-        token: authToken,
-        workspaceId,
-        formId
-      }, WORKFLOW_BUILDER_URL)
+    try {
+      await automationWorkflowsClient.delete(workflowId)
+      setWorkflows(workflows.filter(w => w.id !== workflowId))
+      toast.success('Workflow deleted')
+    } catch (err) {
+      toast.error('Failed to delete workflow')
     }
   }
 
-  // Handle iframe errors
-  const handleIframeError = () => {
-    setIsLoading(false)
-    setError('Failed to load workflow builder. Please try again.')
+  function handleEditWorkflow(workflowId: string) {
+    router.push(`/workspace/${workspaceId}/workflows/${workflowId}`)
   }
 
-  // Toggle fullscreen mode
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen)
+  function openFullWorkflowsPage() {
+    router.push(`/workspace/${workspaceId}/workflows`)
   }
 
-  // Refresh the iframe
-  const handleRefresh = () => {
-    setIsLoading(true)
-    if (iframeRef.current) {
-      iframeRef.current.src = getIframeUrl()
-    }
-  }
-
-  // Open in new tab
-  const openInNewTab = () => {
-    window.open(getIframeUrl(), '_blank')
-  }
-
-  // Show error state
-  if (error) {
-    return (
-      <div className={cn("flex flex-col items-center justify-center h-full bg-gray-50 p-8", className)}>
-        <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to Load Workflow Builder</h3>
-        <p className="text-gray-500 text-center mb-4 max-w-md">{error}</p>
-        <Button variant="outline" onClick={() => window.location.reload()}>
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh Page
-        </Button>
-      </div>
-    )
-  }
-
-  // Show loading state while waiting for auth
-  if (!authToken) {
+  if (loading) {
     return (
       <div className={cn("flex items-center justify-center h-full bg-gray-50", className)}>
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-          <p className="text-gray-500">Authenticating...</p>
+          <p className="text-gray-500">Loading workflows...</p>
         </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className={cn("flex flex-col items-center justify-center h-full bg-gray-50 p-8", className)}>
+        <Workflow className="w-12 h-12 text-gray-400 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to Load Workflows</h3>
+        <p className="text-gray-500 text-center mb-4 max-w-md">{error}</p>
+        <Button variant="outline" onClick={loadWorkflows}>
+          Try Again
+        </Button>
       </div>
     )
   }
 
   return (
-    <div className={cn(
-      "relative h-full bg-white",
-      isFullscreen && "fixed inset-0 z-50",
-      className
-    )}>
-      {/* Toolbar */}
-      <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          className="bg-white/90 backdrop-blur-sm"
-        >
-          <RefreshCw className="w-4 h-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={toggleFullscreen}
-          className="bg-white/90 backdrop-blur-sm"
-        >
-          {isFullscreen ? (
-            <Minimize2 className="w-4 h-4" />
-          ) : (
-            <Maximize2 className="w-4 h-4" />
-          )}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={openInNewTab}
-          className="bg-white/90 backdrop-blur-sm"
-        >
-          <ExternalLink className="w-4 h-4" />
-        </Button>
-      </div>
-
-      {/* Loading overlay */}
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-20">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-            <p className="text-gray-500">Loading Visual Workflow Builder...</p>
+    <div className={cn("h-full bg-gray-50 overflow-auto", className)}>
+      <div className="p-6 max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {formId ? 'Form Automations' : 'Automation Workflows'}
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              {formId 
+                ? 'Create workflows that trigger when this form is submitted'
+                : 'Build visual automations to streamline your processes'
+              }
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={openFullWorkflowsPage}>
+              <ExternalLink className="w-4 h-4 mr-2" />
+              All Workflows
+            </Button>
+            <Button onClick={handleCreateWorkflow}>
+              <Plus className="w-4 h-4 mr-2" />
+              New Workflow
+            </Button>
           </div>
         </div>
-      )}
 
-      {/* Iframe */}
-      <iframe
-        ref={iframeRef}
-        src={getIframeUrl()}
-        className="w-full h-full border-0"
-        onLoad={handleIframeLoad}
-        onError={handleIframeError}
-        allow="clipboard-write; clipboard-read"
-        title="Visual Workflow Builder"
-      />
+        {/* Workflows List */}
+        {workflows.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <div className="rounded-full bg-indigo-100 p-3 mb-4">
+                <Sparkles className="w-8 h-8 text-indigo-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No workflows yet
+              </h3>
+              <p className="text-gray-500 text-center mb-6 max-w-sm">
+                {formId 
+                  ? 'Create your first automation to run when this form is submitted'
+                  : 'Create your first visual workflow to automate your processes'
+                }
+              </p>
+              <Button onClick={handleCreateWorkflow}>
+                <Plus className="w-4 h-4 mr-2" />
+                Create Your First Workflow
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4">
+            {workflows.map((workflow) => (
+              <Card 
+                key={workflow.id} 
+                className="hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => handleEditWorkflow(workflow.id)}
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Workflow className="w-4 h-4 text-indigo-500" />
+                        {workflow.name}
+                      </CardTitle>
+                      <CardDescription className="mt-1">
+                        {workflow.description || `Trigger: ${workflow.trigger_type || 'manual'}`}
+                      </CardDescription>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="sm">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation()
+                          handleEditWorkflow(workflow.id)
+                        }}>
+                          <Edit2 className="w-4 h-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          className="text-red-600"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteWorkflow(workflow.id)
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <span className={cn(
+                      "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
+                      workflow.is_active 
+                        ? "bg-green-100 text-green-700" 
+                        : "bg-gray-100 text-gray-600"
+                    )}>
+                      {workflow.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                    <span>
+                      {workflow.nodes?.length || 0} nodes
+                    </span>
+                    <span>
+                      Updated {new Date(workflow.updated_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
