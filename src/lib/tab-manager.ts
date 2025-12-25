@@ -8,7 +8,7 @@ export interface TabData {
   id: string
   title: string
   url: string
-  type: 'form' | 'table' | 'calendar' | 'project' | 'custom'
+  type: 'form' | 'table' | 'calendar' | 'project' | 'workflow' | 'custom'
   icon?: string
   workspaceId: string
   metadata?: Record<string, any>

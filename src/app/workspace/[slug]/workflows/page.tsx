@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Plus, Play, MoreHorizontal, Copy, Trash2, Edit2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { NavigationLayout } from '@/components/NavigationLayout'
+import { useTabContext } from '@/components/WorkspaceTabProvider'
 import { Button } from '@/ui-components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui-components/card'
 import {
@@ -22,6 +23,7 @@ export default function WorkflowsPage() {
   const params = useParams()
   const router = useRouter()
   const slug = params.slug as string
+  const { tabManager } = useTabContext()
   
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [workflows, setWorkflows] = useState<AutomationWorkflow[]>([])
@@ -49,6 +51,23 @@ export default function WorkflowsPage() {
     }
   }
 
+  function openWorkflowInTab(workflow: AutomationWorkflow) {
+    if (!workspace || !tabManager) {
+      // Fallback to router if tab manager not available
+      router.push(`/workspace/${slug}/workflows/${workflow.id}`)
+      return
+    }
+    
+    tabManager.addTab({
+      id: `workflow-${workflow.id}`,
+      title: workflow.name || 'Untitled Workflow',
+      type: 'workflow',
+      url: `/workspace/${slug}/workflows/${workflow.id}`,
+      workspaceId: workspace.id,
+      metadata: { workflowId: workflow.id }
+    })
+  }
+
   async function handleCreateWorkflow() {
     if (!workspace) return
     
@@ -71,7 +90,8 @@ export default function WorkflowsPage() {
         ],
         edges: [],
       })
-      router.push(`/workspace/${slug}/workflows/${workflow.id}`)
+      // Open the new workflow in a tab
+      openWorkflowInTab(workflow)
     } catch (err) {
       toast.error('Failed to create workflow')
     }
@@ -163,7 +183,7 @@ export default function WorkflowsPage() {
               <Card
                 key={workflow.id}
                 className="cursor-pointer hover:border-gray-300 transition-colors"
-                onClick={() => router.push(`/workspace/${slug}/workflows/${workflow.id}`)}
+                onClick={() => openWorkflowInTab(workflow)}
               >
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
@@ -187,7 +207,7 @@ export default function WorkflowsPage() {
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation()
-                            router.push(`/workspace/${slug}/workflows/${workflow.id}`)
+                            openWorkflowInTab(workflow)
                           }}
                         >
                           <Edit2 className="h-4 w-4 mr-2" />

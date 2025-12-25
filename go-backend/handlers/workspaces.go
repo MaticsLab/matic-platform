@@ -73,9 +73,10 @@ func GetWorkspace(c *gin.Context) {
 	c.JSON(http.StatusOK, workspace)
 }
 
-// GetWorkspaceBySlug returns a workspace by its slug
+// GetWorkspaceBySlug returns a workspace by its slug or ID
+// Supports both slug (e.g., "BPNC") and UUID (e.g., "9a13130f-a0ec-47c9-8fe2-8254f9fcfa7e")
 func GetWorkspaceBySlug(c *gin.Context) {
-	slug := c.Param("slug")
+	slugOrID := c.Param("slug")
 
 	// Get authenticated user ID
 	userID, exists := middleware.GetUserID(c)
@@ -85,13 +86,22 @@ func GetWorkspaceBySlug(c *gin.Context) {
 	}
 
 	var workspace models.Workspace
-	// Verify user is an active member of this workspace
-	if err := database.DB.
+	query := database.DB.
 		Joins("JOIN workspace_members ON workspace_members.workspace_id = workspaces.id").
-		Where("workspaces.slug = ? AND workspace_members.user_id = ? AND workspace_members.status = ?", slug, userID, "active").
-		Preload("Members").
-		First(&workspace).Error; err != nil {
-		log.Printf("GetWorkspaceBySlug: Failed to find workspace '%s' for user %s: %v", slug, userID, err)
+		Where("workspace_members.user_id = ? AND workspace_members.status = ?", userID, "active").
+		Preload("Members")
+
+	// Check if the input is a UUID (workspace ID) or a slug
+	if _, err := uuid.Parse(slugOrID); err == nil {
+		// It's a valid UUID, query by ID
+		query = query.Where("workspaces.id = ?", slugOrID)
+	} else {
+		// It's a slug, query by slug
+		query = query.Where("workspaces.slug = ?", slugOrID)
+	}
+
+	if err := query.First(&workspace).Error; err != nil {
+		log.Printf("GetWorkspaceBySlug: Failed to find workspace '%s' for user %s: %v", slugOrID, userID, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Workspace not found or access denied"})
 		return
 	}
