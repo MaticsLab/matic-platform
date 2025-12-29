@@ -339,9 +339,13 @@ func SendEmail(c *gin.Context) {
 		return
 	}
 
-	// Get recipients - prioritize submission_ids (secure server-side lookup)
+	// Get recipients - handle different combinations of inputs
 	var recipients []Recipient
-	if len(req.SubmissionIDs) > 0 {
+	if len(req.RecipientEmails) > 0 && len(req.SubmissionIDs) > 0 {
+		// Both provided: use recipient emails but enrich with submission data for merge tags
+		recipients = getRecipientsWithSubmissionData(req.FormID, req.RecipientEmails, req.SubmissionIDs)
+		fmt.Printf("[Email] Got %d recipients from emails+submissions\n", len(recipients))
+	} else if len(req.SubmissionIDs) > 0 {
 		// Look up submission data server-side (secure - doesn't expose data to frontend)
 		recipients = getRecipientsFromSubmissions(req.FormID, req.SubmissionIDs, req.EmailField)
 		fmt.Printf("[Email] Got %d recipients from submission IDs\n", len(recipients))
@@ -673,6 +677,64 @@ func getRecipientsFromSubmissions(formID string, submissionIDs []string, emailFi
 		})
 
 		fmt.Printf("[Email] Added recipient: %s <%s> with %d data fields\n", name, email, len(rowData))
+	}
+
+	return recipients
+}
+
+// getRecipientsWithSubmissionData combines explicit emails with submission data for merge tags
+func getRecipientsWithSubmissionData(formID string, emails []string, submissionIDs []string) []Recipient {
+	var recipients []Recipient
+
+	fmt.Printf("[Email] getRecipientsWithSubmissionData called with formID=%s, emails=%v, submissionIDs=%v\n", formID, emails, submissionIDs)
+
+	// If we have both emails and submission IDs, pair them together
+	// Typically used when sending to one recipient with their submission data
+	if len(emails) == 1 && len(submissionIDs) == 1 {
+		email := emails[0]
+		submissionID := submissionIDs[0]
+
+		// Look up the submission data
+		var row models.Row
+		if err := database.DB.Where("id = ?", submissionID).First(&row).Error; err != nil {
+			fmt.Printf("[Email] Error finding submission %s: %v\n", submissionID, err)
+			// Still return the recipient even without data
+			return []Recipient{{Email: email, SubmissionID: submissionID}}
+		}
+
+		var rowData map[string]interface{}
+		if err := json.Unmarshal(row.Data, &rowData); err != nil {
+			fmt.Printf("[Email] Error unmarshaling row data: %v\n", err)
+			return []Recipient{{Email: email, SubmissionID: submissionID}}
+		}
+
+		name := findNameInData(rowData)
+		recipients = append(recipients, Recipient{
+			Email:          email,
+			Name:           name,
+			SubmissionID:   submissionID,
+			SubmissionData: rowData,
+		})
+		fmt.Printf("[Email] Added recipient with submission data: %s <%s> with %d fields\n", name, email, len(rowData))
+		return recipients
+	}
+
+	// For multiple emails/submissions, fall back to simpler behavior
+	for i, email := range emails {
+		recipient := Recipient{Email: email}
+		if i < len(submissionIDs) {
+			recipient.SubmissionID = submissionIDs[i]
+			// Try to get submission data
+			var row models.Row
+			if err := database.DB.Where("id = ?", submissionIDs[i]).First(&row).Error; err == nil {
+				var rowData map[string]interface{}
+				if json.Unmarshal(row.Data, &rowData) == nil {
+					recipient.SubmissionData = rowData
+					recipient.Name = findNameInData(rowData)
+				}
+			}
+		}
+		recipients = append(recipients, recipient)
 	}
 
 	return recipients

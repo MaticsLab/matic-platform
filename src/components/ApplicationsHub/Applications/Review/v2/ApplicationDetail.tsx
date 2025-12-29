@@ -294,14 +294,21 @@ export function ApplicationDetail({
       return;
     }
 
+    const recipientEmail = emailTo.trim() || application.email;
+    if (!recipientEmail) {
+      toast.error('No recipient email address');
+      return;
+    }
+
     setIsSending(true);
     try {
       const request: SendEmailRequest = {
         form_id: formId || undefined,
         submission_ids: [application.id],
+        recipient_emails: [recipientEmail], // Explicitly pass the recipient email
         subject: emailSubject,
         body: emailBody,
-        is_html: false,
+        is_html: true, // Rich text editor produces HTML
         merge_tags: true,
         track_opens: true,
       };
