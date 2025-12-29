@@ -260,6 +260,9 @@ export const FIELD_TYPES = {
   CREATED_BY: 'created_by',
   LAST_MODIFIED_TIME: 'last_modified_time',
   LAST_MODIFIED_BY: 'last_modified_by',
+  
+  // Recommendation type
+  RECOMMENDATION: 'recommendation',
 } as const;
 
 export type FieldTypeId = typeof FIELD_TYPES[keyof typeof FIELD_TYPES];

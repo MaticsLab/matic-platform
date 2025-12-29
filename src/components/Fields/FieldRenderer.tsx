@@ -33,6 +33,7 @@ import { SectionRenderer, SECTION_FIELD_TYPES } from './renderers/SectionRendere
 import { AddressRenderer, ADDRESS_FIELD_TYPES } from './renderers/AddressRenderer';
 import { RankRenderer, RANK_FIELD_TYPES } from './renderers/RankRenderer';
 import { LayoutRenderer, LAYOUT_FIELD_TYPES } from './renderers/LayoutRenderer';
+import { RecommendationRenderer, RECOMMENDATION_FIELD_TYPES } from './renderers/RecommendationRenderer';
 
 /**
  * Props for the main FieldRenderer component
@@ -159,6 +160,11 @@ function getRendererForType(fieldTypeId: string): React.ComponentType<FieldRende
     return SectionRenderer;
   }
   
+  // Recommendation types
+  if (RECOMMENDATION_FIELD_TYPES.includes(fieldTypeId as any)) {
+    return RecommendationRenderer;
+  }
+  
   // Fallback: try to match by prefix or known patterns
   const type = fieldTypeId.toLowerCase();
   
@@ -170,6 +176,11 @@ function getRendererForType(fieldTypeId: string): React.ComponentType<FieldRende
   // Rank fallback  
   if (type === 'rank') {
     return RankRenderer;
+  }
+  
+  // Recommendation fallback
+  if (type === 'recommendation') {
+    return RecommendationRenderer;
   }
   
   // Layout fallbacks

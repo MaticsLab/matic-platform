@@ -1,6 +1,6 @@
 module github.com/Jsanchez767/matic-platform
 
-go 1.22
+go 1.23
 
 toolchain go1.23.0
 
@@ -36,6 +36,7 @@ require (
 	github.com/gosimple/unidecode v1.0.1 // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/resend/resend-go/v2 v2.28.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.54.0 // indirect
 	go.opentelemetry.io/otel v1.29.0 // indirect
 	go.opentelemetry.io/otel/metric v1.29.0 // indirect

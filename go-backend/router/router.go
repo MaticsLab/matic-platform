@@ -242,6 +242,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.GET("/external-review/:token", handlers.GetExternalReviewData)
 		api.POST("/external-review/:token/submit/:submission_id", handlers.SubmitExternalReview)
 
+		// Recommendation Routes (Public with Token - for recommenders)
+		api.GET("/recommend/:token", handlers.GetRecommendationByToken)     // Get recommendation request details
+		api.POST("/recommend/:token/submit", handlers.SubmitRecommendation) // Submit recommendation
+
 		// Protected routes - require authentication
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware(cfg))
@@ -749,6 +753,19 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			ai := protected.Group("/ai")
 			{
 				ai.POST("/translate", handlers.TranslateContent)
+			}
+
+			// ============================================================
+			// RECOMMENDATION REQUESTS
+			// ============================================================
+			recommendations := protected.Group("/recommendations")
+			{
+				recommendations.GET("", handlers.GetRecommendationRequests)                            // ?submission_id=xxx
+				recommendations.POST("", handlers.CreateRecommendationRequest)                         // Create & send email
+				recommendations.GET("/:id", handlers.GetRecommendationRequest)                         // Get single request
+				recommendations.POST("/:id/remind", handlers.SendRecommendationReminder)               // Send reminder
+				recommendations.DELETE("/:id", handlers.CancelRecommendationRequest)                   // Cancel request
+				recommendations.GET("/submission/:submissionId", handlers.GetRecommendationsForReview) // For reviewers
 			}
 
 			// ============================================================
