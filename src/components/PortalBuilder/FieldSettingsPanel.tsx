@@ -870,6 +870,98 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                   </div>
                 </div>
               )}
+
+              {/* Recommendation Field Settings */}
+              {selectedField.type === 'recommendation' && (
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Number of Recommenders</Label>
+                    <Select 
+                      value={String(selectedField.config?.numRecommenders || 2)} 
+                      onValueChange={(v) => handleConfigUpdate('numRecommenders', parseInt(v))}
+                    >
+                      <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 Recommender</SelectItem>
+                        <SelectItem value="2">2 Recommenders</SelectItem>
+                        <SelectItem value="3">3 Recommenders</SelectItem>
+                        <SelectItem value="4">4 Recommenders</SelectItem>
+                        <SelectItem value="5">5 Recommenders</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">How many letters of recommendation are required</p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Deadline (Days)</Label>
+                    <Input 
+                      type="number"
+                      min={1}
+                      max={90}
+                      value={selectedField.config?.deadlineDays || 14} 
+                      onChange={(e) => handleConfigUpdate('deadlineDays', parseInt(e.target.value) || 14)} 
+                      className="bg-gray-50/50 border-gray-200"
+                    />
+                    <p className="text-xs text-gray-500">Days recommenders have to submit</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Email Subject</Label>
+                    <Input 
+                      value={selectedField.config?.emailSubject || 'Letter of Recommendation Request'} 
+                      onChange={(e) => handleConfigUpdate('emailSubject', e.target.value)} 
+                      className="bg-gray-50/50 border-gray-200"
+                      placeholder="Letter of Recommendation Request"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Email Message</Label>
+                    <Textarea 
+                      value={selectedField.config?.emailMessage || 'You have been requested to provide a letter of recommendation. Please click the link below to submit your recommendation.'} 
+                      onChange={(e) => handleConfigUpdate('emailMessage', e.target.value)} 
+                      className="bg-gray-50/50 border-gray-200 min-h-[80px]"
+                      placeholder="Enter the email message for recommenders..."
+                    />
+                    <p className="text-xs text-gray-500">Message sent to recommenders via email</p>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Allow Applicant to See Status</Label>
+                      <p className="text-xs text-gray-500">Show pending/completed status</p>
+                    </div>
+                    <Switch 
+                      checked={selectedField.config?.showStatus !== false} 
+                      onCheckedChange={(c) => handleConfigUpdate('showStatus', c)} 
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Send Reminder Emails</Label>
+                      <p className="text-xs text-gray-500">Auto-remind before deadline</p>
+                    </div>
+                    <Switch 
+                      checked={selectedField.config?.sendReminders !== false} 
+                      onCheckedChange={(c) => handleConfigUpdate('sendReminders', c)} 
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Require Relationship</Label>
+                      <p className="text-xs text-gray-500">Ask how recommender knows applicant</p>
+                    </div>
+                    <Switch 
+                      checked={selectedField.config?.requireRelationship || false} 
+                      onCheckedChange={(c) => handleConfigUpdate('requireRelationship', c)} 
+                    />
+                  </div>
+                </div>
+              )}
             </AccordionContent>
           </AccordionItem>
 
