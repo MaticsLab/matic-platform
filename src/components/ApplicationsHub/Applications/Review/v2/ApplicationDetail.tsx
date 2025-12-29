@@ -7,7 +7,8 @@ import {
   User, FileText, Star, MessageSquare,
   CheckCircle2, ArrowRight, AlertCircle, Users, Send,
   Paperclip, Sparkles, AtSign, Plus, Tag, Loader2, FileEdit, Settings,
-  Play, Archive, XCircle, Clock, Folder, ChevronUp
+  Play, Archive, XCircle, Clock, Folder, ChevronUp, Download, ExternalLink,
+  Image, File, FileImage, Bell, Upload, Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -32,6 +33,175 @@ const actionIcons: Record<string, React.ReactNode> = {
   'arrow-right': <ArrowRight className="w-4 h-4" />,
 };
 
+// Helper to parse JSON strings
+function parseValueIfNeeded(value: any): any {
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  return value;
+}
+
+// Helper to check if a value is a file/document
+function isFileValue(value: any): boolean {
+  if (!value) return false;
+  
+  // Check if it's a string URL pointing to a file
+  if (typeof value === 'string') {
+    if (value.includes('storage') && value.includes('object')) return true;
+    if (/\.(pdf|jpg|jpeg|png|gif|doc|docx|xls|xlsx|ppt|pptx)($|\?)/i.test(value)) return true;
+  }
+  
+  // Check if it's an object with file properties
+  if (typeof value === 'object' && value !== null) {
+    const hasUrl = !!(value.url || value.Url || value.URL);
+    const hasMime = !!(value.mimeType || value['Mime Type'] || value.mime_type || value.type);
+    const hasName = !!(value.name || value.Name || value.filename);
+    return hasUrl || (hasMime && hasName);
+  }
+  
+  // Check if it's an array of files
+  if (Array.isArray(value) && value.length > 0) {
+    return isFileValue(value[0]);
+  }
+  
+  return false;
+}
+
+// Get file type from value
+function getFileType(value: any): 'pdf' | 'image' | 'video' | 'other' {
+  const mimeType = (value.mimeType || value.type || value['Mime Type'] || '').toLowerCase();
+  const name = (value.name || value.Name || value.url || '').toLowerCase();
+  
+  if (mimeType.includes('pdf') || name.includes('.pdf')) return 'pdf';
+  if (mimeType.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)/.test(name)) return 'image';
+  if (mimeType.startsWith('video/') || /\.(mp4|webm|mov)/.test(name)) return 'video';
+  return 'other';
+}
+
+// Format file size
+function formatFileSize(bytes?: number): string {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Document preview component for inline display
+function InlineDocumentPreview({ value, fieldLabel }: { value: any; fieldLabel?: string }) {
+  const parsedValue = parseValueIfNeeded(value);
+  const files = Array.isArray(parsedValue) ? parsedValue : [parsedValue];
+  
+  return (
+    <div className="space-y-3">
+      {files.map((file, idx) => {
+        const url = file.url || file.Url || file.URL || (typeof file === 'string' ? file : '');
+        const name = file.name || file.Name || file.filename || url?.split('/').pop() || 'Document';
+        const size = file.size || file.Size;
+        const mimeType = file.mimeType || file.type || file['Mime Type'] || '';
+        const fileType = getFileType(file);
+        const isImage = fileType === 'image';
+        
+        return (
+          <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+            {/* Preview area */}
+            {isImage && url ? (
+              <div className="relative h-40 bg-gray-100 flex items-center justify-center">
+                <img 
+                  src={url} 
+                  alt={name}
+                  className="max-h-full max-w-full object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                    (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+                <div className="hidden flex-col items-center justify-center text-gray-400">
+                  <FileImage className="w-10 h-10 mb-2" />
+                  <span className="text-xs">Preview unavailable</span>
+                </div>
+                <a 
+                  href={url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="absolute top-2 right-2 p-1.5 bg-white/90 rounded-lg shadow hover:bg-white transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4 text-gray-600" />
+                </a>
+              </div>
+            ) : fileType === 'pdf' && url ? (
+              <div className="relative h-40 bg-gray-100">
+                <iframe 
+                  src={`${url}#toolbar=0&navpanes=0`}
+                  className="w-full h-full"
+                  title={name}
+                />
+                <a 
+                  href={url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="absolute top-2 right-2 p-1.5 bg-white/90 rounded-lg shadow hover:bg-white transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4 text-gray-600" />
+                </a>
+              </div>
+            ) : null}
+            
+            {/* File info */}
+            <div className="p-3 flex items-center gap-3">
+              <div className={cn(
+                "w-10 h-10 rounded-lg flex items-center justify-center",
+                fileType === 'pdf' ? 'bg-red-100' : fileType === 'image' ? 'bg-blue-100' : 'bg-gray-100'
+              )}>
+                {fileType === 'pdf' ? (
+                  <FileText className="w-5 h-5 text-red-600" />
+                ) : fileType === 'image' ? (
+                  <FileImage className="w-5 h-5 text-blue-600" />
+                ) : (
+                  <File className="w-5 h-5 text-gray-600" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
+                <p className="text-xs text-gray-500">
+                  {mimeType && <span>{mimeType}</span>}
+                  {size && <span> • {formatFileSize(size)}</span>}
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                {url && (
+                  <>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="Open in new tab"
+                    >
+                      <Eye className="w-4 h-4 text-gray-500" />
+                    </a>
+                    <a
+                      href={url}
+                      download={name}
+                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="Download"
+                    >
+                      <Download className="w-4 h-4 text-gray-500" />
+                    </a>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // Helper to format field labels nicely
 function formatFieldLabel(key: string): string {
   return key
@@ -40,50 +210,67 @@ function formatFieldLabel(key: string): string {
     .replace(/^./, str => str.toUpperCase());
 }
 
-// Helper function to render field values properly (handles arrays, objects, repeaters)
-function renderFieldValue(value: any, depth: number = 0): React.ReactNode {
+// Helper function to render field values properly (handles arrays, objects, repeaters, files)
+function renderFieldValue(value: any, depth: number = 0, fieldLabel?: string): React.ReactNode {
   // Handle null/undefined/empty
   if (value === null || value === undefined || value === '') {
     return <span className="text-gray-400 italic">Not provided</span>;
   }
   
+  // Try to parse JSON strings first
+  const parsedValue = parseValueIfNeeded(value);
+  
+  // Check if this is a file/document - render with preview
+  if (isFileValue(parsedValue)) {
+    return <InlineDocumentPreview value={parsedValue} fieldLabel={fieldLabel} />;
+  }
+  
   // Handle booleans
-  if (typeof value === 'boolean') {
-    return <span className={value ? 'text-green-600' : 'text-gray-500'}>{value ? 'Yes' : 'No'}</span>;
+  if (typeof parsedValue === 'boolean') {
+    return <span className={parsedValue ? 'text-green-600' : 'text-gray-500'}>{parsedValue ? 'Yes' : 'No'}</span>;
   }
   
   // Handle numbers
-  if (typeof value === 'number') {
-    return <span className="font-medium">{value.toLocaleString()}</span>;
+  if (typeof parsedValue === 'number') {
+    return <span className="font-medium">{parsedValue.toLocaleString()}</span>;
   }
   
   // Handle strings
-  if (typeof value === 'string') {
-    // Check if it's a URL
-    if (value.startsWith('http://') || value.startsWith('https://')) {
+  if (typeof parsedValue === 'string') {
+    // Check if it's a URL to a file (but wasn't caught by isFileValue)
+    if (parsedValue.startsWith('http://') || parsedValue.startsWith('https://')) {
+      // Check if it looks like a file URL
+      if (/\.(pdf|jpg|jpeg|png|gif|doc|docx|xls|xlsx)($|\?)/i.test(parsedValue)) {
+        return <InlineDocumentPreview value={{ url: parsedValue, name: parsedValue.split('/').pop() || 'Document' }} />;
+      }
       return (
-        <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
-          {value}
+        <a href={parsedValue} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
+          {parsedValue}
         </a>
       );
     }
     // Long text
-    if (value.length > 200) {
-      return <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{value}</p>;
+    if (parsedValue.length > 200) {
+      return <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{parsedValue}</p>;
     }
-    return <span className="text-gray-900">{value}</span>;
+    return <span className="text-gray-900">{parsedValue}</span>;
   }
   
   // Handle arrays
-  if (Array.isArray(value)) {
-    if (value.length === 0) {
+  if (Array.isArray(parsedValue)) {
+    if (parsedValue.length === 0) {
       return <span className="text-gray-400 italic">None</span>;
     }
     
+    // Check if it's an array of files
+    if (isFileValue(parsedValue)) {
+      return <InlineDocumentPreview value={parsedValue} fieldLabel={fieldLabel} />;
+    }
+    
     // Check if it's an array of primitives (strings, numbers)
-    if (value.every(v => typeof v !== 'object' || v === null)) {
+    if (parsedValue.every(v => typeof v !== 'object' || v === null)) {
       // Filter out empty strings and join
-      const filtered = value.filter(v => v !== null && v !== undefined && v !== '');
+      const filtered = parsedValue.filter(v => v !== null && v !== undefined && v !== '');
       if (filtered.length === 0) {
         return <span className="text-gray-400 italic">None</span>;
       }
@@ -93,7 +280,7 @@ function renderFieldValue(value: any, depth: number = 0): React.ReactNode {
     // Array of objects (repeater items)
     return (
       <div className="space-y-2 mt-1">
-        {value.map((item, idx) => (
+        {parsedValue.map((item, idx) => (
           <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
             <div className="text-xs font-medium text-gray-500 uppercase mb-2">Item {idx + 1}</div>
             <div className="grid gap-2">
@@ -103,7 +290,7 @@ function renderFieldValue(value: any, depth: number = 0): React.ReactNode {
                   .map(([k, v]) => (
                     <div key={k} className="flex flex-wrap gap-x-2">
                       <span className="text-xs font-medium text-gray-500 min-w-[80px]">{formatFieldLabel(k)}:</span>
-                      <span className="text-sm text-gray-900">{renderFieldValue(v, depth + 1)}</span>
+                      <span className="text-sm text-gray-900">{renderFieldValue(v, depth + 1, k)}</span>
                     </div>
                   ))
               ) : (
@@ -117,8 +304,8 @@ function renderFieldValue(value: any, depth: number = 0): React.ReactNode {
   }
   
   // Handle objects
-  if (typeof value === 'object') {
-    const entries = Object.entries(value).filter(([k]) => !k.startsWith('_')); // Skip internal fields
+  if (typeof parsedValue === 'object') {
+    const entries = Object.entries(parsedValue).filter(([k]) => !k.startsWith('_')); // Skip internal fields
     
     if (entries.length === 0) {
       return <span className="text-gray-400 italic">Empty</span>;
@@ -150,7 +337,7 @@ function renderFieldValue(value: any, depth: number = 0): React.ReactNode {
               <div className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">
                 {formatFieldLabel(k)}
               </div>
-              <div className="text-gray-900">{renderFieldValue(v, depth + 1)}</div>
+              <div className="text-gray-900">{renderFieldValue(v, depth + 1, k)}</div>
             </div>
           ))}
         </div>
@@ -276,6 +463,50 @@ export function ApplicationDetail({
     }
     return [];
   })();
+
+  // Count documents and missing documents for tab badge
+  const documentCounts = useMemo(() => {
+    let uploaded = 0;
+    let missing = 0;
+    
+    // Check fields for file/image upload types
+    if (fields && fields.length > 0) {
+      fields.forEach(field => {
+        const isFileField = field.type === 'file_upload' || field.type === 'image_upload' || 
+                           field.type === 'file' || field.type === 'image' ||
+                           field.label?.toLowerCase().includes('upload') ||
+                           field.label?.toLowerCase().includes('document') ||
+                           field.label?.toLowerCase().includes('attachment');
+        
+        if (isFileField) {
+          const value = application.raw_data?.[field.id] || 
+                       application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
+                       application.raw_data?.[field.label];
+          const parsedValue = parseValueIfNeeded(value);
+          
+          if (parsedValue && isFileValue(parsedValue)) {
+            uploaded++;
+          } else {
+            missing++;
+          }
+        }
+      });
+    }
+    
+    // Also scan raw_data for any file values not tracked in fields
+    if (application.raw_data) {
+      const trackedFields = new Set(fields.map(f => f.id));
+      Object.entries(application.raw_data).forEach(([key, value]) => {
+        if (trackedFields.has(key)) return;
+        const parsedValue = parseValueIfNeeded(value);
+        if (isFileValue(parsedValue)) {
+          uploaded++;
+        }
+      });
+    }
+    
+    return { uploaded, missing };
+  }, [fields, application.raw_data]);
 
   // Send email using email client
   const handleSendEmail = async () => {
@@ -433,13 +664,26 @@ export function ApplicationDetail({
           <button
             onClick={() => setActiveTab('documents')}
             className={cn(
-              "pb-3 border-b-2 transition-colors text-sm font-medium",
+              "pb-3 border-b-2 transition-colors text-sm font-medium flex items-center gap-2",
               activeTab === 'documents'
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-600 hover:text-gray-900'
             )}
           >
             Documents
+            {documentCounts.uploaded > 0 && (
+              <span className={cn(
+                "px-1.5 py-0.5 text-xs rounded-full",
+                activeTab === 'documents' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+              )}>
+                {documentCounts.uploaded}
+              </span>
+            )}
+            {documentCounts.missing > 0 && (
+              <span className="px-1.5 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700">
+                {documentCounts.missing} missing
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('reviews')}
@@ -587,11 +831,153 @@ export function ApplicationDetail({
 
         {activeTab === 'documents' && (
           <div className="flex-1 min-h-0 overflow-y-auto p-6">
-            <div className="text-center py-12">
-              <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Documents</h3>
-              <p className="text-gray-500 text-sm">Documents submitted by the applicant will appear here</p>
-            </div>
+            {(() => {
+              // Extract all documents from fields and raw_data
+              const documents: { fieldId: string; fieldLabel: string; value: any; required?: boolean }[] = [];
+              const missingDocuments: { fieldId: string; fieldLabel: string }[] = [];
+              
+              // Check fields for file/image upload types
+              if (fields && fields.length > 0) {
+                fields.forEach(field => {
+                  const isFileField = field.type === 'file_upload' || field.type === 'image_upload' || 
+                                     field.type === 'file' || field.type === 'image' ||
+                                     field.label?.toLowerCase().includes('upload') ||
+                                     field.label?.toLowerCase().includes('document') ||
+                                     field.label?.toLowerCase().includes('attachment');
+                  
+                  if (isFileField) {
+                    const value = application.raw_data?.[field.id] || 
+                                 application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
+                                 application.raw_data?.[field.label];
+                    const parsedValue = parseValueIfNeeded(value);
+                    
+                    if (parsedValue && isFileValue(parsedValue)) {
+                      documents.push({
+                        fieldId: field.id,
+                        fieldLabel: field.label || field.id,
+                        value: parsedValue
+                      });
+                    } else {
+                      // No document uploaded for this field - it's missing
+                      missingDocuments.push({
+                        fieldId: field.id,
+                        fieldLabel: field.label || field.id
+                      });
+                    }
+                  }
+                });
+              }
+              
+              // Also scan raw_data for any file values not in fields
+              if (application.raw_data) {
+                Object.entries(application.raw_data).forEach(([key, value]) => {
+                  const parsedValue = parseValueIfNeeded(value);
+                  if (isFileValue(parsedValue)) {
+                    // Check if we already have this document
+                    const exists = documents.some(d => d.fieldId === key || d.fieldLabel === key);
+                    if (!exists) {
+                      documents.push({
+                        fieldId: key,
+                        fieldLabel: formatFieldLabel(key),
+                        value: parsedValue
+                      });
+                    }
+                  }
+                });
+              }
+              
+              const hasDocuments = documents.length > 0;
+              const hasMissing = missingDocuments.length > 0;
+              
+              return (
+                <div className="space-y-6">
+                  {/* Header with send reminder button */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Documents {hasDocuments && `(${documents.length})`}
+                      </h3>
+                      <p className="text-sm text-gray-500 mt-0.5">
+                        Files and documents uploaded by the applicant
+                      </p>
+                    </div>
+                    {hasMissing && (
+                      <button 
+                        onClick={() => {
+                          setActiveTab('activity');
+                          setActiveCommentTab('email');
+                          setEmailSubject(`Reminder: Missing Documents Required`);
+                          setEmailBody(`Hi ${application.name || 'there'},\n\nWe noticed that your application is still missing the following documents:\n\n${missingDocuments.map(d => `- ${d.fieldLabel}`).join('\n')}\n\nPlease upload these at your earliest convenience to complete your application.\n\nThank you!`);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors text-sm font-medium border border-amber-200"
+                      >
+                        <Bell className="w-4 h-4" />
+                        Send Reminder
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Missing Documents Alert */}
+                  {hasMissing && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                          <AlertCircle className="w-4 h-4 text-amber-600" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-amber-900 mb-1">Missing Documents</h4>
+                          <p className="text-sm text-amber-700 mb-3">
+                            The following required documents have not been uploaded yet:
+                          </p>
+                          <div className="space-y-2">
+                            {missingDocuments.map((doc, idx) => (
+                              <div key={idx} className="flex items-center gap-2 text-sm">
+                                <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center">
+                                  <Upload className="w-3 h-3 text-amber-600" />
+                                </div>
+                                <span className="text-amber-800 font-medium">{doc.fieldLabel}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Uploaded Documents */}
+                  {hasDocuments ? (
+                    <div className="space-y-4">
+                      {documents.map((doc, idx) => (
+                        <div key={idx} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                          <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-sm font-semibold text-gray-800 uppercase tracking-wide flex items-center gap-2">
+                                <Paperclip className="w-4 h-4 text-blue-600" />
+                                {doc.fieldLabel.replace(/_/g, ' ')}
+                              </h4>
+                              <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full font-medium">
+                                Uploaded
+                              </span>
+                            </div>
+                          </div>
+                          <div className="p-4">
+                            <InlineDocumentPreview value={doc.value} fieldLabel={doc.fieldLabel} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : !hasMissing ? (
+                    <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
+                      <Paperclip className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No Documents</h3>
+                      <p className="text-gray-500 text-sm">
+                        This application doesn&apos;t have any file upload fields or documents
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })()}
           </div>
         )}
 

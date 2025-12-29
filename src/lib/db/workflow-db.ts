@@ -267,7 +267,7 @@ export async function getIntegrations(
 ): Promise<DbIntegration[]> {
   const pool = getPool();
   let query = `
-    SELECT id, user_id, name, type, credentials as config, is_active as is_managed, created_at, updated_at
+    SELECT id, user_id, name, integration_type as type, credentials as config, is_active as is_managed, created_at, updated_at
     FROM integration_credentials
     WHERE user_id = $1
   `;

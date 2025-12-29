@@ -486,7 +486,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				endingPages.GET("/:id", handlers.GetEndingPage)
 				endingPages.PUT("/:id", handlers.UpdateEndingPage)
 				endingPages.DELETE("/:id", handlers.DeleteEndingPage)
-				endingPages.POST("/match", handlers.FindMatchingEnding)    // POST to avoid ID collision
 				endingPages.PUT("/:id/default", handlers.SetDefaultEnding) // Set as primary ending
 				endingPages.PUT("/reorder", handlers.ReorderEndings)       // Reorder priorities
 			}

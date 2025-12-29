@@ -24,6 +24,42 @@ import { endingPagesClient } from '@/lib/api/ending-pages-client'
 import { EndingPageRenderer } from '@/components/EndingPages/BlockRenderer'
 import type { EndingPageConfig } from '@/types/ending-blocks'
 
+/**
+ * Recursively strips blob URLs from form data before saving.
+ * Blob URLs (created via URL.createObjectURL) are temporary and origin-specific,
+ * so they should not be persisted to the database.
+ */
+function stripBlobUrls(data: any): any {
+  if (data === null || data === undefined) return data
+  
+  if (Array.isArray(data)) {
+    return data.map(item => stripBlobUrls(item))
+  }
+  
+  if (typeof data === 'object') {
+    const cleaned: Record<string, any> = {}
+    for (const [key, value] of Object.entries(data)) {
+      // Skip preview property entirely (it contains blob URLs)
+      if (key === 'preview') continue
+      
+      // Check if the value itself is a blob URL string
+      if (typeof value === 'string' && value.startsWith('blob:')) {
+        continue // Skip blob URL strings
+      }
+      
+      cleaned[key] = stripBlobUrls(value)
+    }
+    return cleaned
+  }
+  
+  // For primitive values that aren't blob URLs, return as-is
+  if (typeof data === 'string' && data.startsWith('blob:')) {
+    return undefined
+  }
+  
+  return data
+}
+
 interface PublicPortalProps {
   slug: string
   subdomain?: string
@@ -221,7 +257,8 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         throw new Error('Form ID not found')
       }
       
-
+      // Strip blob URLs before saving - they are temporary and won't work when loaded
+      const cleanedFormData = stripBlobUrls(formData)
       
       // Call the backend API to save the submission
       // If saveAndExit is true, mark as draft (don't change status to submitted)
@@ -229,7 +266,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          data: formData, 
+          data: cleanedFormData, 
           email,
           save_draft: options?.saveAndExit === true // Only mark as draft if saveAndExit
         })
@@ -238,7 +275,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         return res.json()
       })
       
-      setSubmissionData(formData)
+      setSubmissionData(cleanedFormData)
       
       // If Save & Exit, skip ending page and go back to login
       if (options?.saveAndExit) {

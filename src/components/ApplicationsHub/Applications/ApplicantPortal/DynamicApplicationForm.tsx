@@ -16,6 +16,42 @@ import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector
 import { generateHTML } from '@tiptap/html'
 import StarterKit from '@tiptap/starter-kit'
 
+/**
+ * Recursively strips blob URLs from form data before saving.
+ * Blob URLs (created via URL.createObjectURL) are temporary and origin-specific,
+ * so they should not be persisted to the database.
+ */
+function stripBlobUrls(data: any): any {
+  if (data === null || data === undefined) return data
+  
+  if (Array.isArray(data)) {
+    return data.map(item => stripBlobUrls(item))
+  }
+  
+  if (typeof data === 'object') {
+    const cleaned: Record<string, any> = {}
+    for (const [key, value] of Object.entries(data)) {
+      // Skip preview property entirely (it contains blob URLs)
+      if (key === 'preview') continue
+      
+      // Check if the value itself is a blob URL string
+      if (typeof value === 'string' && value.startsWith('blob:')) {
+        continue // Skip blob URL strings
+      }
+      
+      cleaned[key] = stripBlobUrls(value)
+    }
+    return cleaned
+  }
+  
+  // For primitive values that aren't blob URLs, return as-is
+  if (typeof data === 'string' && data.startsWith('blob:')) {
+    return undefined
+  }
+  
+  return data
+}
+
 interface DynamicApplicationFormProps {
   config: PortalConfig
   onBack?: () => void
@@ -186,10 +222,12 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
     if (!formId || !email || isAutosavingRef.current) return
     
     const currentData = formDataRef.current
-    const dataString = JSON.stringify(currentData)
+    // Strip blob URLs before saving - they are temporary and won't work when loaded
+    const cleanedData = stripBlobUrls(currentData)
+    const dataString = JSON.stringify(cleanedData)
     
     // Skip if no changes since last save
-    if (dataString === lastSavedData || Object.keys(currentData).length === 0) return
+    if (dataString === lastSavedData || Object.keys(cleanedData).length === 0) return
     
     isAutosavingRef.current = true
     setIsAutosaving(true)
@@ -198,7 +236,7 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
       await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${formId}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: currentData, email, save_draft: true })
+        body: JSON.stringify({ data: cleanedData, email, save_draft: true })
       })
       setLastSavedData(dataString)
     } catch (error) {

@@ -361,10 +361,10 @@ export function FileUploadField({
             
             const FileIcon = getFileIcon(file.type, file.name)
             const isImage = isImageFile(file.type, file.name)
-            // Use preview URL if available, otherwise fall back to url from backend
-            const imageUrl = isImage ? (file.preview || file.url) : undefined
+            // Use permanent url first, preview only as fallback during upload
+            const imageUrl = isImage ? (file.url || file.preview) : undefined
             // Check if file has any viewable URL
-            const hasViewableUrl = !!(file.preview || file.url)
+            const hasViewableUrl = !!(file.url || file.preview)
             
             return (
               <div
@@ -394,8 +394,8 @@ export function FileUploadField({
 
                 {/* Actions */}
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {/* Preview button - show for any file that has a preview or url */}
-                  {(file.preview || file.url) && (
+                  {/* Preview button - show for any file that has a url or preview */}
+                  {(file.url || file.preview) && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -481,7 +481,8 @@ export function FileUploadField({
             </DialogTitle>
           </DialogHeader>
           {(() => {
-            const previewUrl = previewFile?.preview || previewFile?.url
+            // Always prefer permanent URL, preview is only for immediate upload feedback
+            const previewUrl = previewFile?.url || previewFile?.preview
             const fileType = getFileType(previewFile || {})
             const isPdf = fileType?.includes('pdf')
             const isImage = isImageFile(previewFile?.type, previewFile?.name)
