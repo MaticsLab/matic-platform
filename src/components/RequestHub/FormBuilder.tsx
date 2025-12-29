@@ -26,7 +26,7 @@ interface FormBuilderProps {
   workflows?: Array<{ id: string; name: string }>;
 }
 
-const FIELD_TYPES: FieldType[] = ['text', 'textarea', 'number', 'date', 'select', 'checkbox', 'item_list', 'email', 'phone', 'url', 'group', 'repeater'];
+const FIELD_TYPES: FieldType[] = ['text', 'textarea', 'number', 'date', 'select', 'checkbox', 'item_list', 'email', 'phone', 'url', 'group', 'repeater', 'recommendation'];
 
 interface FieldEditorProps {
   field: FormField;
