@@ -68,15 +68,78 @@ export function ReviewWorkspaceV2({
     const data = typeof sub.data === 'string' ? JSON.parse(sub.data) : (sub.data || {});
     const metadata = typeof sub.metadata === 'string' ? JSON.parse(sub.metadata) : (sub.metadata || {});
     
+    // Helper to find a value by checking multiple possible keys (field labels and IDs)
+    const findValue = (possibleKeys: string[]): string => {
+      // First, check direct keys
+      for (const key of possibleKeys) {
+        if (data[key] && typeof data[key] === 'string') return data[key];
+      }
+      
+      // Then, search through all data keys for field labels that match
+      for (const [fieldId, value] of Object.entries(data)) {
+        if (typeof value !== 'string' || !value) continue;
+        const fieldIdLower = fieldId.toLowerCase();
+        for (const key of possibleKeys) {
+          if (fieldIdLower === key.toLowerCase() || fieldIdLower.includes(key.toLowerCase())) {
+            return value;
+          }
+        }
+      }
+      
+      // Finally, check form fields if available and match by field name/label
+      if (form?.fields) {
+        for (const field of form.fields) {
+          const fieldNameLower = (field.name || field.label || '').toLowerCase();
+          for (const key of possibleKeys) {
+            if (fieldNameLower === key.toLowerCase() || fieldNameLower.includes(key.toLowerCase())) {
+              const val = data[field.id] || data[field.name];
+              if (val && typeof val === 'string') return val;
+            }
+          }
+        }
+      }
+      
+      return '';
+    };
+    
     // Try to extract name from different field formats
-    const firstName = data.first_name || data.firstName || data['First Name'] || '';
-    const lastName = data.last_name || data.lastName || data['Last Name'] || '';
-    const fullName = data.name || data.full_name || data['Full Name'] || data.student_name || `${firstName} ${lastName}`.trim();
+    const firstName = findValue(['first_name', 'firstName', 'First Name', 'first name', 'fname']);
+    const lastName = findValue(['last_name', 'lastName', 'Last Name', 'last name', 'lname']);
+    let fullName = findValue(['name', 'full_name', 'Full Name', 'fullName', 'student_name', 'applicant_name']);
     
-    const [fName, ...lNames] = fullName.split(' ');
+    // If no full name found but we have first/last, combine them
+    if (!fullName && (firstName || lastName)) {
+      fullName = `${firstName} ${lastName}`.trim();
+    }
     
-    // Get email
-    const email = data._applicant_email || data.email || data.Email || data.personal_email || '';
+    // If still no name, try to find ANY text field that looks like a name
+    if (!fullName) {
+      for (const [key, value] of Object.entries(data)) {
+        if (typeof value === 'string' && value.length > 0 && value.length < 100) {
+          const keyLower = key.toLowerCase();
+          // Skip known non-name fields
+          if (keyLower.includes('email') || keyLower.includes('phone') || keyLower.includes('address') || 
+              keyLower.includes('date') || keyLower.includes('_') || keyLower.includes('id')) continue;
+          // Check if it looks like a name (contains a space and no @ symbol)
+          if (value.includes(' ') && !value.includes('@') && /^[A-Za-z\s'-]+$/.test(value)) {
+            fullName = value;
+            break;
+          }
+        }
+      }
+    }
+    
+    const [fName, ...lNames] = (fullName || 'Unknown').split(' ');
+    
+    // Get email - check multiple locations
+    let email = data._applicant_email || '';
+    if (!email) {
+      email = findValue(['email', 'Email', 'personal_email', 'personalEmail', 'applicant_email']);
+    }
+    // Also check nested personal object
+    if (!email && data.personal && typeof data.personal === 'object') {
+      email = (data.personal as any).personalEmail || (data.personal as any).email || '';
+    }
     
     // Get stage info
     const stageId = metadata.current_stage_id || (stagesData.length > 0 ? stagesData[0].id : '');
@@ -153,7 +216,7 @@ export function ReviewWorkspaceV2({
         reviewed_at: rh.submitted_at || rh.reviewed_at
       }))
     };
-  }, []);
+  }, [form, selectedWorkflow]);
 
   // Load data
   const loadData = useCallback(async () => {

@@ -155,8 +155,66 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
       
       // Transform submissions to applications
       const apps: Application[] = (response.submissions || []).map((sub: any) => {
-        const applicantName = sub.data?.name || sub.data?.full_name || sub.data?.applicant_name || 'Unknown'
-        const email = sub.data?.email || sub.metadata?.email || 'No email'
+        const data = sub.data || {}
+        
+        // Helper to find a value by checking multiple possible keys
+        const findValue = (possibleKeys: string[]): string => {
+          for (const key of possibleKeys) {
+            if (data[key] && typeof data[key] === 'string') return data[key]
+          }
+          // Search through all data keys for labels that match
+          for (const [fieldId, value] of Object.entries(data)) {
+            if (typeof value !== 'string' || !value) continue
+            const fieldIdLower = fieldId.toLowerCase()
+            for (const key of possibleKeys) {
+              if (fieldIdLower === key.toLowerCase() || fieldIdLower.includes(key.toLowerCase())) {
+                return value as string
+              }
+            }
+          }
+          // Check form fields
+          if (response.form?.fields) {
+            for (const field of response.form.fields) {
+              const fieldNameLower = (field.name || field.label || '').toLowerCase()
+              for (const key of possibleKeys) {
+                if (fieldNameLower === key.toLowerCase() || fieldNameLower.includes(key.toLowerCase())) {
+                  const val = data[field.id] || data[field.name]
+                  if (val && typeof val === 'string') return val
+                }
+              }
+            }
+          }
+          return ''
+        }
+        
+        // Extract name
+        let applicantName = findValue(['name', 'full_name', 'Full Name', 'fullName', 'applicant_name', 'student_name'])
+        if (!applicantName) {
+          const firstName = findValue(['first_name', 'firstName', 'First Name'])
+          const lastName = findValue(['last_name', 'lastName', 'Last Name'])
+          applicantName = `${firstName} ${lastName}`.trim()
+        }
+        // If still no name, search for name-like values
+        if (!applicantName) {
+          for (const [key, value] of Object.entries(data)) {
+            if (typeof value === 'string' && value.length > 0 && value.length < 100) {
+              const keyLower = key.toLowerCase()
+              if (keyLower.includes('email') || keyLower.includes('phone') || keyLower.includes('_')) continue
+              if (value.includes(' ') && !value.includes('@') && /^[A-Za-z\s'-]+$/.test(value)) {
+                applicantName = value
+                break
+              }
+            }
+          }
+        }
+        if (!applicantName) applicantName = 'Unknown'
+        
+        // Extract email
+        let email = data._applicant_email || findValue(['email', 'Email', 'personal_email', 'personalEmail'])
+        if (!email && data.personal && typeof data.personal === 'object') {
+          email = (data.personal as any).personalEmail || (data.personal as any).email || ''
+        }
+        if (!email) email = sub.metadata?.email || 'No email'
         
         return {
           id: sub.id,
