@@ -246,6 +246,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.GET("/recommend/:token", handlers.GetRecommendationByToken)     // Get recommendation request details
 		api.POST("/recommend/:token/submit", handlers.SubmitRecommendation) // Submit recommendation
 
+		// Public Ending Pages Routes (for portal form submissions)
+		// This endpoint is public because it's called after form submission by applicants
+		// who use portal auth (not main auth). It only returns ending page configuration.
+		api.POST("/ending-pages/match", handlers.FindMatchingEnding)
+
 		// Protected routes - require authentication
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware(cfg))

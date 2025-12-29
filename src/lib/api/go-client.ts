@@ -44,7 +44,8 @@ export async function goFetch<T>(
   // Public portal forms and field-types endpoint don't require auth tokens
   const isPublicEndpoint = 
     (endpoint.includes('/forms/') && endpoint.includes('/submit')) ||
-    endpoint.includes('/field-types')
+    endpoint.includes('/field-types') ||
+    endpoint.includes('/ending-pages/match')
   
   if (!token && !isPublicEndpoint) {
     console.warn('⚠️ No auth token available for request:', endpoint)
