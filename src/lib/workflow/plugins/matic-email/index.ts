@@ -18,35 +18,11 @@ const maticEmailPlugin: IntegrationPlugin = {
 
   icon: MaticEmailIcon,
 
-  formFields: [
-    {
-      id: "apiUrl",
-      label: "Matic API URL",
-      type: "url",
-      placeholder: "https://backend.maticslab.com",
-      configKey: "apiUrl",
-      envVar: "MATIC_API_URL",
-      helpText: "The URL of your Matic backend API",
-    },
-    {
-      id: "workspaceId",
-      label: "Workspace ID",
-      type: "text",
-      placeholder: "workspace-uuid",
-      configKey: "workspaceId",
-      envVar: "MATIC_WORKSPACE_ID",
-      helpText: "Your Matic workspace ID",
-    },
-    {
-      id: "formId",
-      label: "Form/Application ID",
-      type: "text",
-      placeholder: "form-uuid",
-      configKey: "formId",
-      envVar: "MATIC_FORM_ID",
-      helpText: "The form/application this workflow is for",
-    },
-  ],
+  // No manual configuration needed - uses current workspace context
+  formFields: [],
+
+  // Auto-connect capability - no credentials needed for internal integrations
+  autoConnect: true,
 
   testConfig: {
     getTestFunction: async () => {

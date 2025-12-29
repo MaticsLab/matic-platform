@@ -180,6 +180,10 @@ export type IntegrationPlugin = {
     envVar?: string; // Environment variable this field maps to (e.g., "RESEND_API_KEY")
   }>;
 
+  // Auto-connect: internal integrations that don't need credentials
+  // When true, integration will be created automatically with workspace context
+  autoConnect?: boolean;
+
   // Testing configuration (lazy-loaded to avoid bundling Node.js packages in client)
   testConfig?: {
     // Returns a promise that resolves to the test function

@@ -782,7 +782,7 @@ export const PanelInner = () => {
           )}
         </TabsList>
         <TabsContent
-          className="flex flex-col overflow-hidden"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
           value="properties"
         >
           {/* Action selection - full height flex layout */}
@@ -810,7 +810,7 @@ export const PanelInner = () => {
             !selectedNode.data.config?.actionType &&
             isOwner
           ) && (
-            <div className="flex-1 space-y-4 overflow-y-auto p-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
               {selectedNode.data.type === "trigger" && (
                 <TriggerConfig
                   config={selectedNode.data.config || {}}

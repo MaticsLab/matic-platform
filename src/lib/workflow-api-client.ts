@@ -42,6 +42,7 @@ export class ApiError extends Error {
 async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const response = await fetch(endpoint, {
     ...options,
+    credentials: "include", // Include cookies for auth
     headers: {
       "Content-Type": "application/json",
       ...options?.headers,

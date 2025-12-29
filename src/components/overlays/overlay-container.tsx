@@ -225,14 +225,14 @@ function DesktopOverlayContainer() {
             {/* Dialog container */}
             <motion.div
               animate="visible"
-              className="fixed top-1/2 left-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 px-4"
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
               exit="exit"
               initial="hidden"
               variants={containerVariants}
             >
               <LayoutGroup>
                 <motion.div
-                  className="relative overflow-hidden rounded-xl border bg-background shadow-2xl ring-1 ring-black/5"
+                  className="relative overflow-hidden rounded-xl border bg-background shadow-2xl ring-1 ring-black/5 w-full max-w-lg my-auto"
                   layout={isOpen}
                   style={{ minHeight: minHeight > 0 ? minHeight : "auto" }}
                   transition={iosSpring}

@@ -10,6 +10,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { ConfigureConnectionOverlay } from "@/components/overlays/add-connection-overlay";
 import { AiGatewayConsentOverlay } from "@/components/overlays/ai-gateway-consent-overlay";
 import { EditConnectionOverlay } from "@/components/overlays/edit-connection-overlay";
@@ -77,9 +78,10 @@ export function IntegrationSelector({
       const all = await api.integration.getAll();
       // Update global store so other components can access it
       setGlobalIntegrations(all);
-      setHasFetched(true);
     } catch (error) {
       console.error("Failed to load integrations:", error);
+    } finally {
+      setHasFetched(true);
     }
   }, [setGlobalIntegrations]);
 
@@ -233,10 +235,37 @@ export function IntegrationSelector({
     setAiGatewayStatus(status);
   }, [loadIntegrations, onChange, setIntegrationsVersion, setAiGatewayStatus]);
 
-  const handleAddConnection = useCallback(() => {
+  const handleAddConnection = useCallback(async () => {
     if (onAddConnection) {
       onAddConnection();
-    } else if (shouldUseManagedKeys) {
+      return;
+    }
+
+    // Check if this is an auto-connect integration (no credentials needed)
+    const plugin = getIntegration(integrationType);
+    if (plugin?.autoConnect) {
+      try {
+        // Auto-create the integration without showing config form
+        const newIntegration = await api.integration.create({
+          name: plugin.label,
+          type: integrationType,
+          config: {},
+        });
+        toast.success(`${plugin.label} connected`);
+        await loadIntegrations();
+        onChange(newIntegration.id);
+        setIntegrationsVersion((v) => v + 1);
+        return;
+      } catch (error) {
+        console.error("Failed to auto-connect:", error);
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        toast.error(`Failed to connect: ${errorMessage}`);
+        // Don't fall back to manual config for auto-connect integrations
+        return;
+      }
+    }
+
+    if (shouldUseManagedKeys) {
       // For AI Gateway with managed keys enabled, show consent overlay
       push(AiGatewayConsentOverlay, {
         onConsent: handleConsentSuccess,
@@ -245,7 +274,7 @@ export function IntegrationSelector({
     } else {
       openNewConnectionOverlay();
     }
-  }, [onAddConnection, shouldUseManagedKeys, push, handleConsentSuccess, openNewConnectionOverlay]);
+  }, [onAddConnection, integrationType, loadIntegrations, onChange, setIntegrationsVersion, shouldUseManagedKeys, push, handleConsentSuccess, openNewConnectionOverlay]);
 
   // Only show loading skeleton if we have no cached data and haven't fetched yet
   if (!hasCachedData && !hasFetched) {

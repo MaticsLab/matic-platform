@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { ChevronDown, Settings, LogOut, Building2, Bell, User, UserPlus } from 'lucide-react'
-import { supabase, getCurrentUser } from '@/lib/supabase'
 import { clearLastWorkspace } from '@/lib/utils'
 import { useWorkspaceDiscovery } from '@/hooks/useWorkspaceDiscovery'
+import { useHybridAuth } from '@/hooks/use-hybrid-auth'
 import { Sidebar } from './Sidebar'
 import { TabNavigation } from './TabNavigation'
 import { WorkspaceSettingsSidebar } from './WorkspaceSettingsSidebar'
@@ -33,23 +33,13 @@ interface NavigationLayoutProps {
 export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const { user: hybridUser, isLoading: authLoading, signOut: hybridSignOut } = useHybridAuth()
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showProfileSidebar, setShowProfileSidebar] = useState(false)
   const [showInviteSidebar, setShowInviteSidebar] = useState(false)
   const [fullWorkspace, setFullWorkspace] = useState<Workspace | null>(null)
   
   const { workspaces, currentWorkspace, setCurrentWorkspaceBySlug } = useWorkspaceDiscovery()
-
-  useEffect(() => {
-    const loadUser = async () => {
-      const currentUser = await getCurrentUser()
-      setUser(currentUser)
-      setLoading(false)
-    }
-    loadUser()
-  }, [])
 
   useEffect(() => {
     if (workspaceSlug && workspaces.length > 0) {
@@ -59,9 +49,8 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
 
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut()
+      await hybridSignOut()
       // Clear any cached data
-      setUser(null)
       clearLastWorkspace()
       // Redirect to login
       window.location.href = '/login'
@@ -117,6 +106,15 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
     const name = email.split('@')[0]
     return name.charAt(0).toUpperCase() + name.slice(1)
   }
+
+  // Convert hybrid user to the format expected by child components
+  const user = hybridUser ? {
+    email: hybridUser.email,
+    user_metadata: {
+      full_name: hybridUser.name,
+      avatar_url: hybridUser.avatarUrl
+    }
+  } : null
 
   return (
     <SearchProvider>

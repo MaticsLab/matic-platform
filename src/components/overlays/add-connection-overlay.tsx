@@ -97,7 +97,30 @@ export function AddConnectionOverlay({
     });
   }, [push, closeAll, onSuccess]);
 
-  const handleSelectType = (type: IntegrationType) => {
+  const handleSelectType = async (type: IntegrationType) => {
+    // Check if this is an auto-connect integration (no credentials needed)
+    const plugin = getIntegration(type);
+    if (plugin?.autoConnect) {
+      try {
+        // Auto-create the integration without showing config form
+        const newIntegration = await api.integration.create({
+          name: plugin.label,
+          type,
+          config: {},
+        });
+        toast.success(`${plugin.label} connected`);
+        onSuccess?.(newIntegration.id);
+        closeAll();
+        return;
+      } catch (error) {
+        console.error("Failed to auto-connect:", error);
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        toast.error(`Failed to connect: ${errorMessage}`);
+        // Don't fall back to manual config for auto-connect integrations
+        return;
+      }
+    }
+
     // If selecting AI Gateway and managed keys are available, show consent modal
     if (type === "ai-gateway" && shouldUseManagedKeys) {
       showConsentModalWithCallbacks();

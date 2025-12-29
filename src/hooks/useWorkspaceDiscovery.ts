@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect } from 'react'
-import { getCurrentUser } from '@/lib/supabase'
+import { useState, useEffect, useCallback } from 'react'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { useRouter } from 'next/navigation'
+import { useHybridAuth } from '@/hooks/use-hybrid-auth'
 import type { Workspace as APIWorkspace } from '@/types/workspaces'
 
 interface Workspace {
@@ -17,31 +17,18 @@ export function useWorkspaceDiscovery() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null)
   const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<any>(null)
   const router = useRouter()
+  const { user: hybridUser, isLoading: authLoading, isAuthenticated } = useHybridAuth()
 
-  useEffect(() => {
-    const getUser = async () => {
-      const user = await getCurrentUser()
-      setUser(user)
-      if (user) {
-        await fetchWorkspaces(user.id)
-      }
-      setLoading(false)
-    }
-
-    getUser()
-  }, [])
-
-  const fetchWorkspaces = async (userId: string) => {
+  const fetchWorkspaces = useCallback(async (userId: string) => {
     try {
-      console.log('🔍 Fetching workspaces from Supabase for user:', userId)
+      console.log('🔍 Fetching workspaces for user:', userId)
       
-      // Fetch from Supabase Direct (uses auth context internally)
+      // Fetch from Go backend (uses auth context internally)
       const apiWorkspaces = await workspacesSupabase.getWorkspacesForUser(userId)
       
       // Convert API response to hook format
-      const formattedWorkspaces: Workspace[] = apiWorkspaces.map((workspace: APIWorkspace) => ({
+      const formattedWorkspaces: Workspace[] = (apiWorkspaces || []).map((workspace: APIWorkspace) => ({
         id: workspace.id,
         name: workspace.name,
         slug: workspace.slug,
@@ -62,7 +49,21 @@ export function useWorkspaceDiscovery() {
       setWorkspaces([])
       return []
     }
-  }
+  }, [currentWorkspace])
+
+  useEffect(() => {
+    const loadWorkspaces = async () => {
+      // Wait for auth to finish loading
+      if (authLoading) return
+      
+      if (isAuthenticated && hybridUser) {
+        await fetchWorkspaces(hybridUser.id)
+      }
+      setLoading(false)
+    }
+
+    loadWorkspaces()
+  }, [authLoading, isAuthenticated, hybridUser, fetchWorkspaces])
 
   const switchToWorkspace = (workspaceSlug: string) => {
     console.log('🔄 Switching to workspace:', workspaceSlug)
@@ -70,9 +71,9 @@ export function useWorkspaceDiscovery() {
   }
 
   const findUserWorkspace = async (): Promise<string | null> => {
-    if (!user) return null
+    if (!hybridUser) return null
     
-    const userWorkspaces = await fetchWorkspaces(user.id)
+    const userWorkspaces = await fetchWorkspaces(hybridUser.id)
     
     if (userWorkspaces.length > 0) {
       return userWorkspaces[0].slug // Return first workspace
@@ -96,9 +97,9 @@ export function useWorkspaceDiscovery() {
   return {
     workspaces,
     currentWorkspace,
-    loading,
-    user,
-    fetchWorkspaces: () => user ? fetchWorkspaces(user.id) : Promise.resolve([]),
+    loading: loading || authLoading,
+    user: hybridUser,
+    fetchWorkspaces: () => hybridUser ? fetchWorkspaces(hybridUser.id) : Promise.resolve([]),
     switchToWorkspace,
     findUserWorkspace,
     setCurrentWorkspaceBySlug

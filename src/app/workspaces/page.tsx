@@ -3,15 +3,18 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
-import { getCurrentUser } from '@/lib/supabase'
 import { getLastWorkspace } from '@/lib/utils'
+import { useHybridAuth } from '@/hooks/use-hybrid-auth'
 
 export default function WorkspacesPage() {
   const router = useRouter()
+  const { user, isLoading, isAuthenticated } = useHybridAuth()
 
   useEffect(() => {
+    if (isLoading) return // Wait for auth to finish loading
+    
     redirectToActivitiesHub()
-  }, [])
+  }, [isLoading, isAuthenticated, user])
 
   async function redirectToActivitiesHub() {
     try {
@@ -25,8 +28,7 @@ export default function WorkspacesPage() {
       }
 
       // Get first workspace and redirect to its activities hub
-      const user = await getCurrentUser()
-      if (!user) {
+      if (!isAuthenticated || !user) {
         router.push('/login')
         return
       }

@@ -2,23 +2,22 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import { getCurrentUser } from '@/lib/supabase'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { getLastWorkspace } from '@/lib/utils'
+import { useHybridAuth } from '@/hooks/use-hybrid-auth'
 
 export default function Home() {
   const router = useRouter()
+  const { user, isLoading, isAuthenticated } = useHybridAuth()
 
   useEffect(() => {
+    if (isLoading) return // Wait for auth to finish loading
+
     checkAuthAndRedirect()
-  }, [])
+  }, [isLoading, isAuthenticated, user])
 
   async function checkAuthAndRedirect() {
-    // Check if user is already logged in
-    const { data: { session } } = await supabase.auth.getSession()
-    
-    if (session) {
+    if (isAuthenticated && user) {
       // User is logged in - redirect to activities hub
       const lastWorkspace = getLastWorkspace()
       
@@ -26,8 +25,7 @@ export default function Home() {
         router.push(`/workspace/${lastWorkspace}`)
       } else {
         // Get first workspace and redirect to it
-        const user = await getCurrentUser()
-        if (user) {
+        try {
           const workspaces = await workspacesSupabase.getWorkspacesForUser(user.id)
           if (workspaces && workspaces.length > 0) {
             router.push(`/workspace/${workspaces[0].slug}`)
@@ -35,11 +33,12 @@ export default function Home() {
             // No workspaces - redirect to login
             router.push('/login')
           }
-        } else {
+        } catch (error) {
+          console.error('Error fetching workspaces:', error)
           router.push('/login')
         }
       }
-    } else {
+    } else if (!isLoading) {
       // User is not logged in - redirect to login page
       router.push('/login')
     }

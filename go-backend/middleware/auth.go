@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/Jsanchez767/matic-platform/config"
+	"github.com/Jsanchez767/matic-platform/database"
+	"github.com/Jsanchez767/matic-platform/models"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -47,6 +49,25 @@ const (
 	AuthProviderBetterAuth AuthProvider = "better-auth"
 )
 
+// validateBetterAuthSessionToken checks if a token is a valid Better Auth session token
+// by looking it up in the ba_sessions table
+func validateBetterAuthSessionToken(token string) (*models.BetterAuthSession, bool) {
+	var session models.BetterAuthSession
+
+	result := database.DB.Preload("User").Where("token = ?", token).First(&session)
+	if result.Error != nil {
+		return nil, false
+	}
+
+	// Check if session is expired
+	if session.IsExpired() {
+		fmt.Println("⚠️ Better Auth session expired")
+		return nil, false
+	}
+
+	return &session, true
+}
+
 // AuthMiddleware validates both Supabase and Better Auth JWT tokens
 func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -68,10 +89,27 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 
 		tokenString := parts[1]
 
-		// Try to parse the token to determine the auth provider
+		// First, try to validate as a Better Auth session token (database lookup)
+		// Better Auth session tokens are not JWTs - they're random strings stored in db
+		if session, valid := validateBetterAuthSessionToken(tokenString); valid {
+			fmt.Println("✅ Validated Better Auth session token via database")
+			c.Set("user_id", session.UserID)
+			c.Set("userID", session.UserID)
+			c.Set("user_email", session.User.Email)
+			c.Set("user_name", session.User.Name)
+			c.Set("auth_provider", AuthProviderBetterAuth)
+			c.Set("session_id", session.ID)
+			if session.ActiveOrganizationID != nil {
+				c.Set("organization_id", *session.ActiveOrganizationID)
+			}
+			c.Next()
+			return
+		}
+
+		// Try to parse the token to determine the auth provider (JWT-based)
 		parser := new(jwt.Parser)
 
-		// First, try parsing as Better Auth token
+		// Try parsing as Better Auth JWT token
 		betterAuthToken, _, betterAuthErr := parser.ParseUnverified(tokenString, &BetterAuthClaims{})
 
 		if betterAuthErr == nil && betterAuthToken != nil {
@@ -85,7 +123,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 
 					if err == nil && verifiedToken.Valid {
 						if verifiedClaims, ok := verifiedToken.Claims.(*BetterAuthClaims); ok {
-							fmt.Println("✅ Validated Better Auth token")
+							fmt.Println("✅ Validated Better Auth JWT token")
 							c.Set("user_id", verifiedClaims.Sub)
 							c.Set("userID", verifiedClaims.Sub)
 							c.Set("user_email", verifiedClaims.Email)
@@ -100,7 +138,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 						}
 					}
 					// If Better Auth verification fails, try Supabase
-					fmt.Printf("⚠️ Better Auth token verification failed: %v, trying Supabase\n", err)
+					fmt.Printf("⚠️ Better Auth JWT verification failed: %v, trying Supabase\n", err)
 				}
 			}
 		}
@@ -178,9 +216,25 @@ func OptionalAuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		tokenString := parts[1]
+
+		// First, try to validate as a Better Auth session token (database lookup)
+		if session, valid := validateBetterAuthSessionToken(tokenString); valid {
+			c.Set("user_id", session.UserID)
+			c.Set("userID", session.UserID)
+			c.Set("user_email", session.User.Email)
+			c.Set("user_name", session.User.Name)
+			c.Set("auth_provider", AuthProviderBetterAuth)
+			c.Set("session_id", session.ID)
+			if session.ActiveOrganizationID != nil {
+				c.Set("organization_id", *session.ActiveOrganizationID)
+			}
+			c.Next()
+			return
+		}
+
 		parser := new(jwt.Parser)
 
-		// Try Better Auth token first
+		// Try Better Auth JWT token
 		betterAuthToken, _, betterAuthErr := parser.ParseUnverified(tokenString, &BetterAuthClaims{})
 		if betterAuthErr == nil && betterAuthToken != nil {
 			if claims, ok := betterAuthToken.Claims.(*BetterAuthClaims); ok {

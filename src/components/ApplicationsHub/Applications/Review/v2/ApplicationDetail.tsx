@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Application, ApplicationStatus, ApplicationDetailProps, Stage, ReviewHistoryEntry } from './types';
 import { 
   X, Mail, Trash2, ChevronRight, ChevronDown, 
@@ -32,6 +32,135 @@ const actionIcons: Record<string, React.ReactNode> = {
   'folder': <Folder className="w-4 h-4" />,
   'arrow-right': <ArrowRight className="w-4 h-4" />,
 };
+
+// Helper to format field labels nicely
+function formatFieldLabel(key: string): string {
+  return key
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/^./, str => str.toUpperCase());
+}
+
+// Helper function to render field values properly (handles arrays, objects, repeaters)
+function renderFieldValue(value: any, depth: number = 0): React.ReactNode {
+  // Handle null/undefined/empty
+  if (value === null || value === undefined || value === '') {
+    return <span className="text-gray-400 italic">Not provided</span>;
+  }
+  
+  // Handle booleans
+  if (typeof value === 'boolean') {
+    return <span className={value ? 'text-green-600' : 'text-gray-500'}>{value ? 'Yes' : 'No'}</span>;
+  }
+  
+  // Handle numbers
+  if (typeof value === 'number') {
+    return <span className="font-medium">{value.toLocaleString()}</span>;
+  }
+  
+  // Handle strings
+  if (typeof value === 'string') {
+    // Check if it's a URL
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return (
+        <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
+          {value}
+        </a>
+      );
+    }
+    // Long text
+    if (value.length > 200) {
+      return <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{value}</p>;
+    }
+    return <span className="text-gray-900">{value}</span>;
+  }
+  
+  // Handle arrays
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return <span className="text-gray-400 italic">None</span>;
+    }
+    
+    // Check if it's an array of primitives (strings, numbers)
+    if (value.every(v => typeof v !== 'object' || v === null)) {
+      // Filter out empty strings and join
+      const filtered = value.filter(v => v !== null && v !== undefined && v !== '');
+      if (filtered.length === 0) {
+        return <span className="text-gray-400 italic">None</span>;
+      }
+      return <span className="text-gray-900">{filtered.join(', ')}</span>;
+    }
+    
+    // Array of objects (repeater items)
+    return (
+      <div className="space-y-2 mt-1">
+        {value.map((item, idx) => (
+          <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div className="text-xs font-medium text-gray-500 uppercase mb-2">Item {idx + 1}</div>
+            <div className="grid gap-2">
+              {typeof item === 'object' && item !== null ? (
+                Object.entries(item)
+                  .filter(([k]) => !k.startsWith('_')) // Skip internal fields like _id
+                  .map(([k, v]) => (
+                    <div key={k} className="flex flex-wrap gap-x-2">
+                      <span className="text-xs font-medium text-gray-500 min-w-[80px]">{formatFieldLabel(k)}:</span>
+                      <span className="text-sm text-gray-900">{renderFieldValue(v, depth + 1)}</span>
+                    </div>
+                  ))
+              ) : (
+                <span className="text-sm text-gray-900">{String(item)}</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  
+  // Handle objects
+  if (typeof value === 'object') {
+    const entries = Object.entries(value).filter(([k]) => !k.startsWith('_')); // Skip internal fields
+    
+    if (entries.length === 0) {
+      return <span className="text-gray-400 italic">Empty</span>;
+    }
+    
+    // Check if all values are simple (no nested objects)
+    const allSimple = entries.every(([, v]) => typeof v !== 'object' || v === null);
+    
+    if (allSimple && entries.length <= 4) {
+      // Render inline for simple groups with few fields
+      return (
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {entries.map(([k, v]) => (
+            <span key={k} className="text-sm">
+              <span className="text-gray-500">{formatFieldLabel(k)}:</span>{' '}
+              <span className="text-gray-900 font-medium">{v === null || v === '' ? '-' : String(v)}</span>
+            </span>
+          ))}
+        </div>
+      );
+    }
+    
+    // Render as nested card for complex groups
+    return (
+      <div className={cn("mt-1 rounded-lg border border-gray-200 overflow-hidden", depth === 0 ? "bg-white" : "bg-gray-50")}>
+        <div className="divide-y divide-gray-100">
+          {entries.map(([k, v]) => (
+            <div key={k} className="px-3 py-2">
+              <div className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">
+                {formatFieldLabel(k)}
+              </div>
+              <div className="text-gray-900">{renderFieldValue(v, depth + 1)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  
+  return <span className="text-gray-900">{String(value)}</span>;
+}
 
 export function ApplicationDetail({
   application,
@@ -402,10 +531,8 @@ export function ApplicationDetail({
                                     {field.label}
                                   </span>
                                 </div>
-                                <div className="flex-1">
-                                  <span className="text-sm text-gray-900">
-                                    {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
-                                  </span>
+                                <div className="flex-1 text-sm">
+                                  {renderFieldValue(value)}
                                 </div>
                               </div>
                             );
@@ -436,10 +563,8 @@ export function ApplicationDetail({
                                       {key.replace(/_/g, ' ')}
                                     </span>
                                   </div>
-                                  <div className="flex-1">
-                                    <span className="text-sm text-gray-900">
-                                      {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
-                                    </span>
+                                  <div className="flex-1 text-sm">
+                                    {renderFieldValue(value)}
                                   </div>
                                 </div>
                               );

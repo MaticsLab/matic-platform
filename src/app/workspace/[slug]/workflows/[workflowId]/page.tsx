@@ -10,6 +10,7 @@ import { ReactFlowProvider } from '@xyflow/react'
 import { Provider as JotaiProvider } from 'jotai'
 
 import { NavigationLayout } from '@/components/NavigationLayout'
+import { OverlayContainer } from '@/components/overlays/overlay-container'
 import { OverlayProvider } from '@/components/overlays/overlay-provider'
 import { Button } from '@/ui-components/button'
 import { WorkflowCanvas } from '@/components/workflow/workflow-canvas'
@@ -405,7 +406,7 @@ function WorkflowEditorContent() {
 
   return (
     <NavigationLayout workspaceSlug={slug}>
-      <div className="h-full flex flex-col overflow-hidden relative">
+      <div className="h-full flex flex-col overflow-hidden relative bg-[var(--sidebar)]">
         {/* Workflow Canvas - Full screen background */}
         <div 
           className="absolute inset-0 z-0"
@@ -500,6 +501,7 @@ export default function WorkflowEditorPage() {
       <ReactFlowProvider>
         <OverlayProvider>
           <WorkflowEditorContent />
+          <OverlayContainer />
         </OverlayProvider>
       </ReactFlowProvider>
     </JotaiProvider>

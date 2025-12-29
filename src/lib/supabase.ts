@@ -23,8 +23,23 @@ export async function getSessionToken(): Promise<string | null> {
     return session.access_token
   }
   
-  // Fall back to Better Auth session token from cookie
-  // Better Auth can use different cookie names depending on configuration
+  // Try Better Auth - get session token from the client
+  if (typeof window !== 'undefined') {
+    try {
+      // Import dynamically to avoid SSR issues
+      const { authClient } = await import('@/lib/better-auth-client')
+      const betterAuthSession = await authClient.getSession()
+      
+      if (betterAuthSession?.data?.session?.token) {
+        console.log('Using Better Auth session token')
+        return betterAuthSession.data.session.token
+      }
+    } catch (error) {
+      console.debug('Better Auth session check failed:', error)
+    }
+  }
+  
+  // Last resort: Check cookies directly for Better Auth
   if (typeof document !== 'undefined') {
     const cookies = document.cookie.split(';')
     const betterAuthCookieNames = [
@@ -42,9 +57,6 @@ export async function getSessionToken(): Promise<string | null> {
         return decodeURIComponent(value)
       }
     }
-    
-    // Debug: log all cookies to help identify the right one
-    console.log('Available cookies:', cookies.map(c => c.trim().split('=')[0]))
   }
   
   return null
