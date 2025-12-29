@@ -197,7 +197,7 @@ function InlineWorkflowEditorContent({
 
       {/* Right panel overlay */}
       <div
-        className="pointer-events-auto absolute inset-y-0 right-0 z-20 border-l bg-background transition-transform duration-300 ease-out"
+        className="pointer-events-auto absolute inset-y-0 right-0 z-20 border-l bg-background transition-transform duration-300 ease-out flex flex-col overflow-hidden"
         style={{
           width: `${panelWidth}%`,
           transform:

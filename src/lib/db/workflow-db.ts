@@ -340,17 +340,48 @@ export async function createIntegration(
   const id = generateId();
   const encryptedConfig = encryptConfig(config);
 
-  const result = await pool.query(
-    `INSERT INTO integration_credentials (id, user_id, workspace_id, name, integration_type, credentials, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-     RETURNING id, user_id, name, integration_type as type, credentials as config, is_active as is_managed, created_at, updated_at`,
-    [id, userId, workspaceId || null, name, type, encryptedConfig]
-  );
+  // Try to insert with workspace_id first, fall back to NULL if it fails
+  // This handles both cases where workspace_id is required or nullable
+  try {
+    const result = await pool.query(
+      `INSERT INTO integration_credentials (id, user_id, workspace_id, name, integration_type, credentials, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+       RETURNING id, user_id, name, integration_type as type, credentials as config, is_active as is_managed, created_at, updated_at`,
+      [id, userId, workspaceId || null, name, type, encryptedConfig]
+    );
 
-  return {
-    ...result.rows[0],
-    config,
-  };
+    return {
+      ...result.rows[0],
+      config,
+    };
+  } catch (error) {
+    // If the error is about NOT NULL constraint on workspace_id, try a user-level table or throw a better error
+    if (error instanceof Error && error.message.includes('null value in column "workspace_id"')) {
+      // Try to get the user's first workspace as a fallback
+      const workspaceResult = await pool.query(
+        `SELECT w.id FROM workspaces w
+         JOIN workspace_members wm ON w.id = wm.workspace_id
+         WHERE wm.user_id = $1
+         LIMIT 1`,
+        [userId]
+      );
+      
+      if (workspaceResult.rows.length > 0) {
+        const result = await pool.query(
+          `INSERT INTO integration_credentials (id, user_id, workspace_id, name, integration_type, credentials, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+           RETURNING id, user_id, name, integration_type as type, credentials as config, is_active as is_managed, created_at, updated_at`,
+          [id, userId, workspaceResult.rows[0].id, name, type, encryptedConfig]
+        );
+
+        return {
+          ...result.rows[0],
+          config,
+        };
+      }
+    }
+    throw error;
+  }
 }
 
 export async function updateIntegration(

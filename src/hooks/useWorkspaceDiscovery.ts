@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { useRouter } from 'next/navigation'
 import { useHybridAuth } from '@/hooks/use-hybrid-auth'
@@ -19,6 +19,9 @@ export function useWorkspaceDiscovery() {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const { user: hybridUser, isLoading: authLoading, isAuthenticated } = useHybridAuth()
+  
+  // Track if we've already fetched to prevent infinite loops
+  const hasFetchedRef = useRef(false)
 
   const fetchWorkspaces = useCallback(async (userId: string) => {
     try {
@@ -38,26 +41,30 @@ export function useWorkspaceDiscovery() {
       console.log('✅ Workspaces loaded:', formattedWorkspaces)
       setWorkspaces(formattedWorkspaces)
       
-      // Set first workspace as current if none selected
-      if (formattedWorkspaces.length > 0 && !currentWorkspace) {
-        setCurrentWorkspace(formattedWorkspaces[0])
-      }
-      
       return formattedWorkspaces
     } catch (error) {
       console.error('❌ Error fetching workspaces:', error)
       setWorkspaces([])
       return []
     }
-  }, [currentWorkspace])
+  }, []) // No dependencies - function doesn't depend on external state
 
   useEffect(() => {
     const loadWorkspaces = async () => {
       // Wait for auth to finish loading
       if (authLoading) return
       
+      // Prevent duplicate fetches
+      if (hasFetchedRef.current) return
+      
       if (isAuthenticated && hybridUser) {
-        await fetchWorkspaces(hybridUser.id)
+        hasFetchedRef.current = true
+        const loaded = await fetchWorkspaces(hybridUser.id)
+        
+        // Set first workspace as current if none selected
+        if (loaded.length > 0) {
+          setCurrentWorkspace(prev => prev || loaded[0])
+        }
       }
       setLoading(false)
     }
