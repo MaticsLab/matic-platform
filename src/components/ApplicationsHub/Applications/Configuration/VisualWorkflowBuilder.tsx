@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Plus, Play, MoreHorizontal, Trash2, Edit2, Sparkles, ExternalLink, Workflow } from 'lucide-react'
+import { Loader2, Plus, Play, MoreHorizontal, Trash2, Edit2, Sparkles, ExternalLink, Workflow, ArrowLeft } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui-components/card'
 import {
@@ -15,6 +15,13 @@ import {
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { automationWorkflowsClient, type AutomationWorkflow } from '@/lib/api/automation-workflows-client'
+import dynamic from 'next/dynamic'
+
+// Dynamically import the inline workflow editor to avoid SSR issues
+const InlineWorkflowEditor = dynamic(
+  () => import('@/components/workflow/inline-workflow-editor').then(mod => mod.InlineWorkflowEditor),
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-indigo-500" /></div> }
+)
 
 interface VisualWorkflowBuilderProps {
   workspaceId: string
@@ -27,18 +34,40 @@ export function VisualWorkflowBuilder({ workspaceId, formId, className }: Visual
   const [workflows, setWorkflows] = useState<AutomationWorkflow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null)
 
   useEffect(() => {
     loadWorkflows()
-  }, [workspaceId])
+  }, [workspaceId, formId])
+
+  // Helper function to check if a workflow is linked to this form
+  function isWorkflowLinkedToForm(workflow: AutomationWorkflow): boolean {
+    if (!formId) return true // If no formId filter, show all
+    
+    // Check if the trigger node has this formId in its config
+    const triggerNode = workflow.nodes?.find(n => n.type === 'trigger')
+    if (triggerNode?.data?.config?.formId === formId) {
+      return true
+    }
+    
+    // Also check if it's a form_submission type with matching formId
+    if (workflow.trigger_type === 'form_submission') {
+      // If no specific formId in config, it might be a general form workflow
+      // Only include if config has our formId or no formId specified
+      const configFormId = triggerNode?.data?.config?.formId
+      return configFormId === formId || !configFormId
+    }
+    
+    return false
+  }
 
   async function loadWorkflows() {
     try {
       setLoading(true)
       const wfs = await automationWorkflowsClient.list(workspaceId)
-      // Filter by formId if provided
+      // Filter by formId - check trigger node config
       const filteredWorkflows = formId 
-        ? wfs.filter(w => w.trigger_type === 'form_submission' || !w.trigger_type)
+        ? wfs.filter(isWorkflowLinkedToForm)
         : wfs
       setWorkflows(filteredWorkflows)
     } catch (err) {
@@ -69,8 +98,10 @@ export function VisualWorkflowBuilder({ workspaceId, formId, className }: Visual
         edges: [],
       })
       
-      // Navigate to the workflow editor
-      router.push(`/workspace/${workspaceId}/workflows/${workflow.id}`)
+      // Open the workflow editor inline
+      setSelectedWorkflowId(workflow.id)
+      // Reload workflows to include the new one
+      loadWorkflows()
     } catch (err) {
       toast.error('Failed to create workflow')
     }
@@ -82,6 +113,9 @@ export function VisualWorkflowBuilder({ workspaceId, formId, className }: Visual
     try {
       await automationWorkflowsClient.delete(workflowId)
       setWorkflows(workflows.filter(w => w.id !== workflowId))
+      if (selectedWorkflowId === workflowId) {
+        setSelectedWorkflowId(null)
+      }
       toast.success('Workflow deleted')
     } catch (err) {
       toast.error('Failed to delete workflow')
@@ -89,11 +123,44 @@ export function VisualWorkflowBuilder({ workspaceId, formId, className }: Visual
   }
 
   function handleEditWorkflow(workflowId: string) {
-    router.push(`/workspace/${workspaceId}/workflows/${workflowId}`)
+    // Open inline instead of navigating
+    setSelectedWorkflowId(workflowId)
+  }
+
+  function handleBackToList() {
+    setSelectedWorkflowId(null)
+    loadWorkflows() // Refresh the list
   }
 
   function openFullWorkflowsPage() {
     router.push(`/workspace/${workspaceId}/workflows`)
+  }
+
+  // If a workflow is selected, show the inline editor
+  if (selectedWorkflowId) {
+    return (
+      <div className={cn("h-full flex flex-col bg-gray-50", className)}>
+        {/* Back button header */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b bg-white">
+          <Button variant="ghost" size="sm" onClick={handleBackToList}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Workflows
+          </Button>
+          <div className="h-4 w-px bg-gray-200" />
+          <span className="text-sm text-gray-600">
+            {workflows.find(w => w.id === selectedWorkflowId)?.name || 'Workflow Editor'}
+          </span>
+        </div>
+        {/* Inline workflow editor */}
+        <div className="flex-1 min-h-0">
+          <InlineWorkflowEditor 
+            workflowId={selectedWorkflowId} 
+            workspaceId={workspaceId}
+            onBack={handleBackToList}
+          />
+        </div>
+      </div>
+    )
   }
 
   if (loading) {

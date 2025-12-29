@@ -70,6 +70,7 @@ const PORTAL_TO_UNIFIED_TYPE: Record<string, string> = {
   // Special
   rating: 'rating',
   address: 'address',
+  recommendation: 'recommendation',
   
   // Layout (map directly to layout types)
   divider: 'divider',
