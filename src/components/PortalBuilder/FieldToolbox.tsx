@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Type, AlignLeft, Hash, Mail, Calendar, CheckSquare, List, Image as ImageIcon,
   Phone, Link, Clock, PenTool, Star, Minus, Heading, Pilcrow, CheckCircle2, Layers, Search, ArrowUpDown,
-  FileUp, CalendarClock, LucideIcon, MapPin, Lightbulb, Repeat, Sparkles, X
+  FileUp, CalendarClock, LucideIcon, MapPin, Lightbulb, Repeat, Sparkles, X, UserPlus
 } from 'lucide-react'
 import { Input } from '@/ui-components/input'
 import { FieldType } from '@/types/portal'
@@ -93,6 +93,14 @@ const STATIC_FIELD_GROUPS: FieldGroup[] = [
       { type: 'group', label: 'Field Group', icon: Layers, description: 'Group related fields together', color: 'cyan' },
       { type: 'repeater', label: 'Repeater', icon: Repeat, description: 'Repeating field set', color: 'cyan' },
     ]
+  },
+  {
+    title: 'Special',
+    icon: Sparkles,
+    color: 'purple',
+    items: [
+      { type: 'recommendation', label: 'Recommendation', icon: UserPlus, description: 'Request letters of recommendation', color: 'purple' },
+    ]
   }
 ]
 
@@ -103,6 +111,7 @@ const colorClasses: Record<string, { bg: string; bgHover: string; text: string; 
   rose: { bg: 'bg-rose-50', bgHover: 'hover:bg-rose-100', text: 'text-rose-600', border: 'border-rose-200' },
   violet: { bg: 'bg-violet-50', bgHover: 'hover:bg-violet-100', text: 'text-violet-600', border: 'border-violet-200' },
   cyan: { bg: 'bg-cyan-50', bgHover: 'hover:bg-cyan-100', text: 'text-cyan-600', border: 'border-cyan-200' },
+  purple: { bg: 'bg-purple-50', bgHover: 'hover:bg-purple-100', text: 'text-purple-600', border: 'border-purple-200' },
 }
 
 interface FieldToolboxProps {

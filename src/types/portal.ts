@@ -5,6 +5,7 @@ export type FieldType =
   | 'file' | 'image' | 'signature' | 'rating' | 'rank'
   | 'divider' | 'heading' | 'paragraph' | 'callout'
   | 'group' | 'repeater'
+  | 'recommendation'
 
 // Import ending block type
 import type { EndingBlock } from './ending-blocks'
