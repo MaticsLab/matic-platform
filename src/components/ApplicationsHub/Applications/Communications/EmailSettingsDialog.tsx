@@ -22,6 +22,9 @@ export function EmailSettingsDialog({ workspaceId, open, onOpenChange, onAccount
   const [expandedAccount, setExpandedAccount] = useState<string | null>(null)
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [editingDisplayNames, setEditingDisplayNames] = useState<Record<string, string>>({})
+  const [pendingChanges, setPendingChanges] = useState<Record<string, boolean>>({})
+  const [isSaving, setIsSaving] = useState<Record<string, boolean>>({})
   
   // Signatures state
   const [signatures, setSignatures] = useState<EmailSignature[]>([])
@@ -110,10 +113,30 @@ export function EmailSettingsDialog({ workspaceId, open, onOpenChange, onAccount
 
   const handleUpdateAccount = async (accountId: string, updates: Partial<GmailAccount>) => {
     try {
+      setIsSaving(prev => ({ ...prev, [accountId]: true }))
       await emailClient.updateAccount(accountId, updates)
+      setPendingChanges(prev => ({ ...prev, [accountId]: false }))
       loadAccounts()
     } catch (error) {
       console.error('Failed to update account:', error)
+    } finally {
+      setIsSaving(prev => ({ ...prev, [accountId]: false }))
+    }
+  }
+
+  const getDisplayName = (account: GmailAccount) => {
+    return editingDisplayNames[account.id] ?? account.display_name ?? ''
+  }
+
+  const handleDisplayNameChange = (accountId: string, value: string) => {
+    setEditingDisplayNames(prev => ({ ...prev, [accountId]: value }))
+    setPendingChanges(prev => ({ ...prev, [accountId]: true }))
+  }
+
+  const handleSaveAccount = async (account: GmailAccount) => {
+    const displayName = editingDisplayNames[account.id]
+    if (displayName !== undefined && displayName !== account.display_name) {
+      await handleUpdateAccount(account.id, { display_name: displayName })
     }
   }
 
@@ -305,8 +328,9 @@ export function EmailSettingsDialog({ workspaceId, open, onOpenChange, onAccount
                         <div className="flex gap-2">
                           <input
                             type="text"
-                            value={account.display_name || ''}
-                            onChange={(e) => handleUpdateAccount(account.id, { display_name: e.target.value })}
+                            value={getDisplayName(account)}
+                            onChange={(e) => handleDisplayNameChange(account.id, e.target.value)}
+                            onBlur={() => handleSaveAccount(account)}
                             placeholder="Display name"
                             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                           />
@@ -336,12 +360,19 @@ export function EmailSettingsDialog({ workspaceId, open, onOpenChange, onAccount
                         </div>
                       </div>
 
-                      <div className="flex justify-end">
+                      <div className="flex justify-between items-center">
                         <button
                           onClick={() => handleDeleteAccount(account.id)}
                           className="text-sm text-red-600 hover:text-red-700"
                         >
                           Remove Account
+                        </button>
+                        <button
+                          onClick={() => handleSaveAccount(account)}
+                          disabled={!pendingChanges[account.id] || isSaving[account.id]}
+                          className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isSaving[account.id] ? 'Saving...' : 'Save'}
                         </button>
                       </div>
                     </div>

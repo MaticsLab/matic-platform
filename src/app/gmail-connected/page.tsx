@@ -10,6 +10,17 @@ function GmailConnectedContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('')
 
+  const handleClose = () => {
+    // Try to close the window first (works if opened as popup)
+    window.close()
+    // If we're still here, go back in history or redirect to home
+    if (window.history.length > 2) {
+      window.history.go(-2) // Go back 2 pages (before OAuth redirect)
+    } else {
+      router.push('/')
+    }
+  }
+
   useEffect(() => {
     const success = searchParams.get('success')
     const error = searchParams.get('error')
@@ -17,12 +28,10 @@ function GmailConnectedContent() {
     if (success === 'true') {
       setStatus('success')
       setMessage('Gmail connected successfully! You can now send emails from the platform.')
-      // Auto-close after 3 seconds
+      // Auto-close after 2 seconds
       setTimeout(() => {
-        window.close()
-        // If window.close() doesn't work (not opened as popup), redirect
-        router.push('/')
-      }, 3000)
+        handleClose()
+      }, 2000)
     } else if (error) {
       setStatus('error')
       const errorMessages: Record<string, string> = {
@@ -39,7 +48,7 @@ function GmailConnectedContent() {
       setStatus('loading')
       setMessage('Processing...')
     }
-  }, [searchParams, router])
+  }, [searchParams])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -57,12 +66,9 @@ function GmailConnectedContent() {
             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
             <h1 className="text-xl font-semibold text-gray-900 mb-2">Gmail Connected!</h1>
             <p className="text-gray-600 mb-4">{message}</p>
-            <p className="text-sm text-gray-500">This window will close automatically...</p>
+            <p className="text-sm text-gray-500">Redirecting you back...</p>
             <button
-              onClick={() => {
-                window.close()
-                router.push('/')
-              }}
+              onClick={handleClose}
               className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
             >
               Close
@@ -77,16 +83,16 @@ function GmailConnectedContent() {
             <p className="text-gray-600 mb-4">{message}</p>
             <div className="flex gap-3 justify-center">
               <button
-                onClick={() => router.push('/')}
+                onClick={handleClose}
                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
               >
-                Go Home
+                Go Back
               </button>
               <button
-                onClick={() => window.close()}
+                onClick={() => window.location.reload()}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
-                Close
+                Retry
               </button>
             </div>
           </>

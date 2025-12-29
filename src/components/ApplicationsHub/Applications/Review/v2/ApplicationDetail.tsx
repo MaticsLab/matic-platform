@@ -18,7 +18,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/ui-components/popover";
-import { EmailConnectionStatus } from '@/components/Email/EmailConnectionStatus';
 import { useEmailConnection } from '@/hooks/useEmailConnection';
 import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
 
@@ -677,14 +676,6 @@ export function ApplicationDetail({
               <div className="bg-gray-50 rounded-xl border border-gray-200 p-3">
                 {activeCommentTab === 'email' ? (
                   <>
-                    {/* Gmail Connection Status */}
-                    <EmailConnectionStatus
-                      connection={gmailConnection}
-                      isChecking={isCheckingConnection}
-                      variant="inline"
-                      onConfigureClick={() => setShowEmailSettings(true)}
-                    />
-
                     {/* From field */}
                     <div className="flex items-center gap-3 py-2 border-b border-gray-200">
                       <span className="text-gray-600 text-sm w-16">From</span>

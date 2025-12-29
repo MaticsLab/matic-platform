@@ -96,21 +96,23 @@ export function CommunicationsCenter({ workspaceId, formId, workflowId }: Commun
   // Settings dialog
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
 
+  // Function to check Gmail connection
+  const checkGmailConnection = async () => {
+    setIsCheckingConnection(true)
+    try {
+      const connection = await emailClient.getConnection(workspaceId)
+      setGmailConnection(connection)
+    } catch (error) {
+      console.error('Failed to check Gmail connection:', error)
+      setGmailConnection({ connected: false })
+    } finally {
+      setIsCheckingConnection(false)
+    }
+  }
+
   // Check Gmail connection on mount
   useEffect(() => {
-    const checkConnection = async () => {
-      setIsCheckingConnection(true)
-      try {
-        const connection = await emailClient.getConnection(workspaceId)
-        setGmailConnection(connection)
-      } catch (error) {
-        console.error('Failed to check Gmail connection:', error)
-        setGmailConnection({ connected: false })
-      } finally {
-        setIsCheckingConnection(false)
-      }
-    }
-    checkConnection()
+    checkGmailConnection()
   }, [workspaceId])
 
   // Fetch form data and build recipients
@@ -252,9 +254,35 @@ export function CommunicationsCenter({ workspaceId, formId, workflowId }: Commun
     try {
       console.log('Requesting Gmail auth URL for workspace:', workspaceId)
       const { auth_url } = await emailClient.getAuthUrl(workspaceId)
-      console.log('Got auth URL, redirecting...')
-      // Open in popup or redirect
-      window.location.href = auth_url
+      console.log('Got auth URL, opening popup...')
+      
+      // Open OAuth in a popup window
+      const width = 600
+      const height = 700
+      const left = window.screenX + (window.outerWidth - width) / 2
+      const top = window.screenY + (window.outerHeight - height) / 2
+      
+      const popup = window.open(
+        auth_url,
+        'gmail-oauth',
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes`
+      )
+      
+      // Poll for popup close and refresh connection status
+      if (popup) {
+        const checkPopup = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(checkPopup)
+            setIsConnecting(false)
+            // Refresh connection status after popup closes
+            checkGmailConnection()
+          }
+        }, 500)
+      } else {
+        // Popup blocked - fall back to redirect
+        console.log('Popup blocked, redirecting...')
+        window.location.href = auth_url
+      }
     } catch (error: any) {
       console.error('Failed to get Gmail auth URL:', error)
       setSendResult({ 
