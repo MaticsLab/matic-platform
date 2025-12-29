@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Settings, ArrowUpDown, Sliders, GitBranch, Code2, ShieldCheck, Plus, Trash2, GripVertical, Type, Hash, Mail, Phone, Link as LinkIcon, List, CheckSquare, Calendar, Clock, Upload, Image, PenTool, Star, Heading2, FileText, AlertCircle, Grid3x3, Repeat2 } from 'lucide-react'
+import { Settings, ArrowUpDown, Sliders, GitBranch, Code2, ShieldCheck, Plus, Trash2, GripVertical, Type, Hash, Mail, Phone, Link as LinkIcon, List, CheckSquare, Calendar, Clock, Upload, Image, PenTool, Star, Heading2, FileText, AlertCircle, Grid3x3, Repeat2, UserPlus } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
@@ -40,6 +40,7 @@ const FIELD_TYPES: { value: string; label: string; icon: React.ReactNode; descri
   { value: 'callout', label: 'Callout Box', icon: <AlertCircle className="w-4 h-4" />, description: 'Highlighted message' },
   { value: 'group', label: 'Group', icon: <Grid3x3 className="w-4 h-4" />, description: 'Field group' },
   { value: 'repeater', label: 'Repeater', icon: <Repeat2 className="w-4 h-4" />, description: 'Repeatable section' },
+  { value: 'recommendation', label: 'Recommendation', icon: <UserPlus className="w-4 h-4" />, description: 'Request letters of recommendation' },
 ]
 
 const CALLOUT_COLORS = [

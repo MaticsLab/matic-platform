@@ -44,7 +44,7 @@ import {
   CheckSquare, List, Upload, Heading, ToggleLeft,
   FileText, Star, MapPin, Layers, Repeat, Image,
   Link, Clock, Minus, AlertCircle, ChevronUp, ChevronDown,
-  Sparkles, Command, FolderInput, Check, X, Settings, ArrowUpRightFromCircle
+  Sparkles, Command, FolderInput, Check, X, Settings, ArrowUpRightFromCircle, UserPlus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Section, Field, FieldType } from '@/types/portal';
@@ -140,6 +140,7 @@ const BLOCK_COMMANDS: BlockCommand[] = [
   { id: 'rating', label: 'Rating', description: 'Star rating (1-5)', icon: <Star className="w-4 h-4" />, fieldType: 'rating', category: 'Advanced', keywords: ['stars', 'score'] },
   { id: 'group', label: 'Group', description: 'Field group', icon: <Layers className="w-4 h-4" />, fieldType: 'group', category: 'Advanced', defaultConfig: { columns: 2 } },
   { id: 'repeater', label: 'Repeater', description: 'Repeatable section', icon: <Repeat className="w-4 h-4" />, fieldType: 'repeater', category: 'Advanced', defaultConfig: { minItems: 0, maxItems: 10 } },
+  { id: 'recommendation', label: 'Recommendation', description: 'Request letters of recommendation', icon: <UserPlus className="w-4 h-4" />, fieldType: 'recommendation', category: 'Advanced', keywords: ['letter', 'reference', 'lor'] },
 ];
 
 const CATEGORIES = ['Basic', 'Selection', 'Date & Time', 'Media', 'Layout', 'Advanced'];
