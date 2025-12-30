@@ -70,6 +70,16 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
   const supportedLanguages = Array.from(new Set([defaultLanguage, ...(config.settings.language?.supported || [])])).filter(lang => lang && lang.trim() !== '')
   const [activeLanguage, setActiveLanguage] = useState<string>(defaultLanguage)
   
+  // Helper function to safely get field label as string (could be object from translations)
+  const getFieldLabel = (field: Field): string => {
+    if (typeof field.label === 'string') return field.label;
+    if (field.label && typeof field.label === 'object') {
+      // Try to get the string representation
+      return String(field.label);
+    }
+    return field.id || 'Field';
+  };
+  
   // Helper function to render field values in review section
   const renderFieldValue = (value: any, field?: Field): React.ReactNode => {
     if (value === undefined || value === null || value === '') {
@@ -491,7 +501,7 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
                             
                             return (
                               <div key={field.id} className="grid grid-cols-3 gap-4 text-sm">
-                                <dt className="text-gray-600">{field.label}</dt>
+                                <dt className="text-gray-600">{getFieldLabel(field)}</dt>
                                 <dd className="col-span-2 text-gray-900 break-words">{renderFieldValue(value, field)}</dd>
                               </div>
                             )
