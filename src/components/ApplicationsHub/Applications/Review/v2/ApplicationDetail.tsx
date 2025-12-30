@@ -1154,9 +1154,9 @@ export function ApplicationDetail({
         )}
 
         {activeTab === 'activity' && (
-          <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
             {/* Activity Feed */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-6">
+            <div className="flex-shrink-0 p-6">
               <div className="space-y-3">
                 {activities.map((activity) => (
                   <div key={activity.id} className="flex items-start gap-2 text-sm">
@@ -1184,7 +1184,7 @@ export function ApplicationDetail({
             </div>
 
             {/* Comment/Email Input */}
-            <div className="border-t bg-white flex-shrink-0 p-4">
+            <div className="border-t bg-white flex-shrink-0 p-4 pb-20">
               <div className="bg-gray-50 rounded-xl border border-gray-200 p-3">
                 {activeCommentTab === 'email' ? (
                   <>
