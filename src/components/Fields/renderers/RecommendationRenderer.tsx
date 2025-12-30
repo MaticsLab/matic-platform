@@ -545,7 +545,9 @@ function ResponseViewer({
     <div className="space-y-3 text-sm">
       {Object.entries(response).map(([key, value]) => {
         const question = questionMap.get(key);
-        const label = question?.label || key;
+        // Safely get label as string
+        const label = typeof question?.label === 'string' ? question.label : 
+                      (question?.label ? String(question.label) : key);
         
         // Rating display
         if (question?.type === 'rating' && typeof value === 'number') {

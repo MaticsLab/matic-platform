@@ -106,7 +106,9 @@ export function AuthPageRenderer({
       if (field?.type === 'email') {
         onEmailChange?.(value as string)
       }
-      if (field?.type === 'text' && field.label.toLowerCase().includes('password')) {
+      // Safely check label for password fields
+      const fieldLabelStr = typeof field?.label === 'string' ? field.label : '';
+      if (field?.type === 'text' && fieldLabelStr.toLowerCase().includes('password')) {
         onPasswordChange?.(value as string)
       }
     }
