@@ -21,6 +21,8 @@ import {
 } from "@/ui-components/popover";
 import { useEmailConnection } from '@/hooks/useEmailConnection';
 import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
+import { filesClient } from '@/lib/api/files-client';
+import type { TableFileResponse } from '@/types/files';
 
 // Icon mapping for actions
 const actionIcons: Record<string, React.ReactNode> = {
@@ -415,6 +417,8 @@ export function ApplicationDetail({
   const [stageActions, setStageActions] = useState<StageAction[]>([]);
   const [workflowActions, setWorkflowActions] = useState<WorkflowAction[]>([]);
   const [isLoadingActions, setIsLoadingActions] = useState(false);
+  const [storageFiles, setStorageFiles] = useState<TableFileResponse[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
 
   // Gmail connection - use shared hook
   const { 
@@ -456,6 +460,32 @@ export function ApplicationDetail({
     
     fetchActions();
   }, [application.stageId, application.workflowId]);
+
+  // Fetch files from table_files (uploaded to Supabase storage)
+  useEffect(() => {
+    const fetchStorageFiles = async () => {
+      if (!formId) return;
+      
+      setIsLoadingFiles(true);
+      try {
+        // Try to fetch files by workspace_id first, then filter by storage_path containing form_id
+        const allFiles = await filesClient.list({ workspace_id: workspaceId });
+        // Filter files that belong to this form's submissions
+        const formFiles = allFiles.filter(f => 
+          f.storage_path?.includes(`submissions/${formId}/`) ||
+          f.storage_path?.includes(`uploads/${formId}/`)
+        );
+        setStorageFiles(formFiles);
+      } catch (error) {
+        console.error('Failed to fetch storage files:', error);
+        setStorageFiles([]);
+      } finally {
+        setIsLoadingFiles(false);
+      }
+    };
+    
+    fetchStorageFiles();
+  }, [formId, workspaceId]);
 
   // Group fields by section
   const fieldSections = useMemo(() => {
@@ -506,6 +536,9 @@ export function ApplicationDetail({
     let uploaded = 0;
     let missing = 0;
     
+    // Count storage files first (these are reliable)
+    uploaded += storageFiles.length;
+    
     // Check fields for file/image upload types
     if (fields && fields.length > 0) {
       fields.forEach(field => {
@@ -522,8 +555,13 @@ export function ApplicationDetail({
           const parsedValue = parseValueIfNeeded(value);
           
           if (parsedValue && isFileValue(parsedValue)) {
-            uploaded++;
-          } else {
+            // Only count if not a blob URL and not already counted from storage
+            const url = parsedValue?.url || parsedValue?.Url || '';
+            if (url && !url.startsWith('blob:') && storageFiles.length === 0) {
+              uploaded++;
+            }
+          } else if (storageFiles.length === 0) {
+            // Only mark as missing if no storage files found
             missing++;
           }
         }
@@ -531,19 +569,22 @@ export function ApplicationDetail({
     }
     
     // Also scan raw_data for any file values not tracked in fields
-    if (application.raw_data) {
+    if (application.raw_data && storageFiles.length === 0) {
       const trackedFields = new Set(fields.map(f => f.id));
       Object.entries(application.raw_data).forEach(([key, value]) => {
         if (trackedFields.has(key)) return;
         const parsedValue = parseValueIfNeeded(value);
         if (isFileValue(parsedValue)) {
-          uploaded++;
+          const url = parsedValue?.url || parsedValue?.Url || '';
+          if (url && !url.startsWith('blob:')) {
+            uploaded++;
+          }
         }
       });
     }
     
     return { uploaded, missing };
-  }, [fields, application.raw_data]);
+  }, [fields, application.raw_data, storageFiles]);
 
   // Send email using email client
   const handleSendEmail = async () => {
@@ -923,36 +964,77 @@ export function ApplicationDetail({
                 });
               }
               
-              const hasDocuments = documents.length > 0;
+              // Add files from storage (table_files) that have proper URLs
+              const storageDocuments = storageFiles.map(file => ({
+                fieldId: file.id,
+                fieldLabel: file.original_filename || file.filename || 'Document',
+                value: {
+                  url: file.public_url,
+                  name: file.original_filename || file.filename,
+                  size: file.size_bytes,
+                  type: file.mime_type,
+                  mimeType: file.mime_type,
+                }
+              }));
+              
+              // Combine documents - prefer storage files with proper URLs
+              const allDocuments = [...storageDocuments];
+              
+              // Add documents from raw_data only if they have non-blob URLs
+              documents.forEach(doc => {
+                const parsedValue = parseValueIfNeeded(doc.value);
+                const url = parsedValue?.url || parsedValue?.Url || parsedValue?.URL || '';
+                // Only add if it's not a blob URL and not already in storage files
+                if (url && !url.startsWith('blob:')) {
+                  const alreadyExists = allDocuments.some(d => 
+                    d.value?.url === url || d.fieldLabel === doc.fieldLabel
+                  );
+                  if (!alreadyExists) {
+                    allDocuments.push(doc);
+                  }
+                }
+              });
+              
+              const hasDocuments = allDocuments.length > 0;
               const hasMissing = missingDocuments.length > 0;
               
               return (
                 <div className="space-y-6">
-                  {/* Header with send reminder button */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Documents {hasDocuments && `(${documents.length})`}
-                      </h3>
-                      <p className="text-sm text-gray-500 mt-0.5">
-                        Files and documents uploaded by the applicant
-                      </p>
+                  {/* Loading state */}
+                  {isLoadingFiles && (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                      <span className="ml-2 text-gray-500">Loading documents...</span>
                     </div>
-                    {hasMissing && (
-                      <button 
-                        onClick={() => {
-                          setActiveTab('activity');
-                          setActiveCommentTab('email');
-                          setEmailSubject(`Reminder: Missing Documents Required`);
-                          setEmailBody(`Hi ${application.name || 'there'},\n\nWe noticed that your application is still missing the following documents:\n\n${missingDocuments.map(d => `- ${d.fieldLabel}`).join('\n')}\n\nPlease upload these at your earliest convenience to complete your application.\n\nThank you!`);
-                        }}
-                        className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors text-sm font-medium border border-amber-200"
-                      >
-                        <Bell className="w-4 h-4" />
-                        Send Reminder
-                      </button>
-                    )}
-                  </div>
+                  )}
+                  
+                  {/* Header with send reminder button */}
+                  {!isLoadingFiles && (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          Documents {hasDocuments && `(${allDocuments.length})`}
+                        </h3>
+                        <p className="text-sm text-gray-500 mt-0.5">
+                          Files and documents uploaded by the applicant
+                        </p>
+                      </div>
+                      {hasMissing && (
+                        <button 
+                          onClick={() => {
+                            setActiveTab('activity');
+                            setActiveCommentTab('email');
+                            setEmailSubject(`Reminder: Missing Documents Required`);
+                            setEmailBody(`Hi ${application.name || 'there'},\n\nWe noticed that your application is still missing the following documents:\n\n${missingDocuments.map(d => `- ${d.fieldLabel}`).join('\n')}\n\nPlease upload these at your earliest convenience to complete your application.\n\nThank you!`);
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors text-sm font-medium border border-amber-200"
+                        >
+                          <Bell className="w-4 h-4" />
+                          Send Reminder
+                        </button>
+                      )}
+                    </div>
+                  )}
                   
                   {/* Missing Documents Alert */}
                   {hasMissing && (
@@ -984,7 +1066,7 @@ export function ApplicationDetail({
                   {/* Uploaded Documents */}
                   {hasDocuments ? (
                     <div className="space-y-4">
-                      {documents.map((doc, idx) => (
+                      {allDocuments.map((doc, idx) => (
                         <div key={idx} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                           <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
                             <div className="flex items-center justify-between">
@@ -1003,7 +1085,7 @@ export function ApplicationDetail({
                         </div>
                       ))}
                     </div>
-                  ) : !hasMissing ? (
+                  ) : !hasMissing && !isLoadingFiles ? (
                     <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
                       <Paperclip className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">No Documents</h3>
