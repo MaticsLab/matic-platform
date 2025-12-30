@@ -366,11 +366,17 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
     const transformFieldForPortal = (f: any) => {
       const config = f.config || {}
       const { section_id, is_required, items, ...restConfig } = config
+      
+      // Ensure label and description are strings (could be objects from translations)
+      const safeLabel = typeof f.label === 'string' ? f.label : (f.label ? String(f.label) : f.id);
+      const safeDescription = typeof f.description === 'string' ? f.description : 
+                              (f.description ? String(f.description) : undefined);
+      
       return {
         id: f.id,
         type: f.type,
-        label: f.label,
-        description: f.description,
+        label: safeLabel,
+        description: safeDescription,
         required: is_required ?? f.required,
         width: config.width || 'full',
         placeholder: config.placeholder,
