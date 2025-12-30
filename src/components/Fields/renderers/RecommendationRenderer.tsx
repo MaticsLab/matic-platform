@@ -99,6 +99,11 @@ export function RecommendationRenderer({
   viewConfig,
 }: FieldRendererProps) {
   const config = (field.config || {}) as RecommendationConfig;
+  
+  // Safely get label and description as strings (could be objects from translations)
+  const fieldLabel = typeof field.label === 'string' ? field.label : String(field.label || 'Recommendations');
+  const fieldDescription = typeof field.description === 'string' ? field.description : 
+                           (field.description ? String(field.description) : undefined);
   const [requests, setRequests] = useState<RecommendationRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -212,7 +217,7 @@ export function RecommendationRenderer({
   if (mode === 'display' || mode === 'compact') {
     return (
       <div className={cn('space-y-2', className)}>
-        <Label className="text-sm text-muted-foreground">{field.label}</Label>
+        <Label className="text-sm text-muted-foreground">{fieldLabel}</Label>
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">
             {submittedCount} / {minRecommenders} recommendations received
@@ -234,11 +239,11 @@ export function RecommendationRenderer({
       <div className={cn('space-y-4', className)}>
         <div>
           <Label className="text-sm font-medium">
-            {field.label}
+            {fieldLabel}
             {required && <span className="text-red-500 ml-1">*</span>}
           </Label>
-          {field.description && (
-            <p className="text-sm text-muted-foreground mt-1">{field.description}</p>
+          {fieldDescription && (
+            <p className="text-sm text-muted-foreground mt-1">{fieldDescription}</p>
           )}
         </div>
         
@@ -261,11 +266,11 @@ export function RecommendationRenderer({
       <div className="flex items-center justify-between">
         <div>
           <Label className="text-sm font-medium">
-            {field.label}
+            {fieldLabel}
             {required && <span className="text-red-500 ml-1">*</span>}
           </Label>
-          {field.description && (
-            <p className="text-sm text-muted-foreground mt-1">{field.description}</p>
+          {fieldDescription && (
+            <p className="text-sm text-muted-foreground mt-1">{fieldDescription}</p>
           )}
         </div>
         
