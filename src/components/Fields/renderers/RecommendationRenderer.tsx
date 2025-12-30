@@ -111,14 +111,13 @@ export function RecommendationRenderer({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
 
-  // Get submission ID and form ID from the value, viewConfig, or context
-  // Try multiple sources: direct value, viewConfig (from form), or nested submissionId
+  // Get submission ID and form ID from the value or config
+  // Try multiple sources: direct value, config, or nested submissionId
   const submissionId = value?.submission_id || 
                        value?.submissionId || 
                        (value as any)?._submission_id ||
-                       (config as any)?._submission_id ||
-                       viewConfig?._formData?._submission_id;
-  const formId = field.table_id || viewConfig?.formId;
+                       (config as any)?._submission_id;
+  const formId = field.table_id || (config as any)?.formId;
 
   // Load existing recommendation requests
   useEffect(() => {
