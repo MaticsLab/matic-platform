@@ -222,6 +222,34 @@ export function RecommendationRenderer({
   }
 
   // Form/Edit mode - Show management UI
+  // If no submission ID yet, show a message to save first
+  if (!submissionId) {
+    return (
+      <div className={cn('space-y-4', className)}>
+        <div>
+          <Label className="text-sm font-medium">
+            {field.label}
+            {required && <span className="text-red-500 ml-1">*</span>}
+          </Label>
+          {field.description && (
+            <p className="text-sm text-muted-foreground mt-1">{field.description}</p>
+          )}
+        </div>
+        
+        <div className="text-center py-8 bg-blue-50/50 rounded-lg border border-blue-200">
+          <Mail className="h-10 w-10 mx-auto text-blue-400 mb-3" />
+          <p className="text-sm font-medium text-gray-700">
+            Letters of Recommendation
+          </p>
+          <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
+            Please save your application first by clicking "Save & Exit" or completing a section. 
+            Then you can add recommenders who will receive an email request.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn('space-y-4', className)}>
       <div className="flex items-center justify-between">
