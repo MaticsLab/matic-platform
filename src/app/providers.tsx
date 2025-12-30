@@ -9,7 +9,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <HybridAuthProvider>
         {children}
-        <Toaster position="top-right" richColors />
+        <Toaster position="top-center" richColors offset={70} />
       </HybridAuthProvider>
     </ThemeProvider>
   )

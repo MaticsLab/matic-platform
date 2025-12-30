@@ -45,13 +45,12 @@ export function DashboardHeader({
           <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end">
             {onContinueApplication && ['draft', 'pending', 'in_progress', 'revision_requested'].includes(applicationStatus) && (
               <Button 
-                variant="outline" 
-                className="gap-2 text-xs sm:text-sm px-2 sm:px-4 h-8 sm:h-9"
+                className="gap-2 text-xs sm:text-sm px-3 sm:px-4 h-8 sm:h-9 text-white"
+                style={{ backgroundColor: themeColor }}
                 onClick={onContinueApplication}
               >
                 <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden xs:inline">My Application</span>
-                <span className="xs:hidden">Application</span>
+                Continue Application
               </Button>
             )}
             

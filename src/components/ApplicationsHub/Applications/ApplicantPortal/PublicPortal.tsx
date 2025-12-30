@@ -493,7 +493,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
           onFormDataChange={setCurrentFormData}
           isExternal={true}
           formId={form?.id}
-          initialData={initialData}
+          initialData={applicationRowId ? { ...initialData, _submission_id: applicationRowId } : initialData}
           onDashboard={handleSaveAndDashboard}
           email={email}
         />
