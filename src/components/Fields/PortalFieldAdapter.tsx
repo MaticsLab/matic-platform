@@ -89,8 +89,14 @@ const PORTAL_TO_UNIFIED_TYPE: Record<string, string> = {
 function portalFieldToDefinition(portalField: PortalField): Field {
   const fieldTypeId = PORTAL_TO_UNIFIED_TYPE[portalField.type] || 'text';
   
+  // Safely get label and description as strings (could be objects from translations)
+  const safeLabel = typeof portalField.label === 'string' ? portalField.label : 
+                    (portalField.label ? String(portalField.label) : portalField.id);
+  
   // Get description from either top-level or config (field settings stores in config.description)
-  const description = portalField.description || portalField.config?.description;
+  const rawDescription = portalField.description || portalField.config?.description;
+  const safeDescription = typeof rawDescription === 'string' ? rawDescription :
+                          (rawDescription ? String(rawDescription) : undefined);
   
   // Collect options from multiple sources: top-level, config.options, or config.items
   const optionsArray = portalField.options || 
@@ -104,8 +110,8 @@ function portalFieldToDefinition(portalField: PortalField): Field {
     field_type_id: fieldTypeId,
     type: portalField.type,  // Keep original for legacy compat
     name: portalField.id,
-    label: portalField.label,
-    description: description,  // Only use actual description, not placeholder
+    label: safeLabel,
+    description: safeDescription,
     position: 0,
     width: 200,
     is_visible: true,
