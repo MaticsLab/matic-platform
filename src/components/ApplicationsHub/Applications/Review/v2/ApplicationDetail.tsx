@@ -98,12 +98,49 @@ function InlineDocumentPreview({ value, fieldLabel }: { value: any; fieldLabel?:
   return (
     <div className="space-y-3">
       {files.map((file, idx) => {
-        const url = file.url || file.Url || file.URL || (typeof file === 'string' ? file : '');
-        const name = file.name || file.Name || file.filename || url?.split('/').pop() || 'Document';
+        // Get the URL - check multiple possible property names
+        // Prioritize non-blob URLs over blob URLs
+        const possibleUrls = [
+          file.url, 
+          file.Url, 
+          file.URL, 
+          file.publicUrl,
+          file.public_url,
+          typeof file === 'string' ? file : ''
+        ].filter(Boolean);
+        
+        // Find a non-blob URL first, fallback to any URL
+        const nonBlobUrl = possibleUrls.find(u => u && !u.startsWith('blob:'));
+        const url = nonBlobUrl || possibleUrls[0] || '';
+        const isBlobUrl = url.startsWith('blob:');
+        
+        const name = file.name || file.Name || file.filename || file.fileName || url?.split('/').pop()?.split('?')[0] || 'Document';
         const size = file.size || file.Size;
-        const mimeType = file.mimeType || file.type || file['Mime Type'] || '';
-        const fileType = getFileType(file);
+        const mimeType = file.mimeType || file.type || file.Type || file['Mime Type'] || file.mime_type || '';
+        const fileType = getFileType({ ...file, url, name });
         const isImage = fileType === 'image';
+        
+        // If it's a blob URL, show a warning and don't try to load it
+        if (isBlobUrl || !url) {
+          return (
+            <div key={idx} className="border border-amber-200 bg-amber-50 rounded-lg overflow-hidden">
+              <div className="p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5 text-amber-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
+                  <p className="text-xs text-amber-600">
+                    {isBlobUrl 
+                      ? 'Temporary preview URL - file may need to be re-uploaded' 
+                      : 'No download URL available'}
+                  </p>
+                  {mimeType && <p className="text-xs text-gray-500">{mimeType}{size ? ` • ${formatFileSize(size)}` : ''}</p>}
+                </div>
+              </div>
+            </div>
+          );
+        }
         
         return (
           <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden bg-white">

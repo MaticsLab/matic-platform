@@ -3,15 +3,17 @@
 /**
  * File Field Renderer
  * Handles: file, image, attachment, signature
+ * Now uploads files to Supabase storage instead of just creating blob URLs
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import { Label } from '@/ui-components/label';
 import { Button } from '@/ui-components/button';
 import { cn } from '@/lib/utils';
-import { Upload, FileText, Image as ImageIcon, X, Download, Eye, Trash2 } from 'lucide-react';
+import { Upload, FileText, Image as ImageIcon, X, Download, Eye, Trash2, Loader2 } from 'lucide-react';
 import type { FieldRendererProps } from '../types';
 import { FIELD_TYPES } from '@/types/field-types';
+import { createClient } from '@/lib/supabase';
 
 const FILE_SUBTYPES = [
   FIELD_TYPES.FILE,
@@ -132,10 +134,13 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
     config,
     error,
     className,
+    viewConfig,
   } = props;
 
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   
   const fieldTypeId = field.field_type_id || field.type || 'file';
   const files = normalizeFileValue(value);
@@ -143,27 +148,75 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
   const isSignature = fieldTypeId === FIELD_TYPES.SIGNATURE || fieldTypeId === 'signature';
   const allowMultiple = config?.multiple ?? false;
   const acceptTypes = config?.accept || (isImage ? 'image/*' : undefined);
-  const maxSize = config?.maxSize; // in bytes
+  const maxSize = config?.maxSize || 10 * 1024 * 1024; // 10MB default
+  
+  // Get storage configuration from viewConfig or use defaults
+  const storageBucket = viewConfig?.storageBucket || 'workspace-assets';
+  const storagePath = viewConfig?.storagePath || `uploads/${viewConfig?.formId || 'general'}/`;
 
-  const handleFileSelect = async (fileList: FileList | null) => {
+  const handleFileSelect = useCallback(async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     
-    // For now, just store file metadata - actual upload handled by parent
-    const newFiles: FileValue[] = Array.from(fileList).map((file) => ({
-      name: file.name,
-      url: URL.createObjectURL(file),
-      size: file.size,
-      type: file.type,
-      // The actual file object could be stored here for upload
-      _file: file,
-    } as FileValue & { _file: File }));
+    setUploadError(null);
+    setIsUploading(true);
     
-    if (allowMultiple) {
-      onChange?.([...files, ...newFiles]);
-    } else {
-      onChange?.(newFiles[0]);
+    const supabase = createClient();
+    const processedFiles: FileValue[] = [];
+    
+    for (const file of Array.from(fileList)) {
+      // Validate file size
+      if (file.size > maxSize) {
+        setUploadError(`File "${file.name}" exceeds maximum size of ${formatFileSize(maxSize)}`);
+        continue;
+      }
+      
+      try {
+        // Generate unique filename
+        const fileExt = file.name.split('.').pop();
+        const uniqueName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `${storagePath}${uniqueName}`;
+        
+        // Upload to Supabase Storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from(storageBucket)
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+        
+        if (uploadError) {
+          console.error('File upload error:', uploadError);
+          setUploadError(`Failed to upload "${file.name}": ${uploadError.message}`);
+          continue;
+        }
+        
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from(storageBucket)
+          .getPublicUrl(filePath);
+        
+        processedFiles.push({
+          name: file.name,
+          url: publicUrl,
+          size: file.size,
+          type: file.type,
+        });
+      } catch (err: any) {
+        console.error('Upload error:', err);
+        setUploadError(`Failed to upload "${file.name}": ${err.message || 'Unknown error'}`);
+      }
     }
-  };
+    
+    setIsUploading(false);
+    
+    if (processedFiles.length > 0) {
+      if (allowMultiple) {
+        onChange?.([...files, ...processedFiles]);
+      } else {
+        onChange?.(processedFiles[0]);
+      }
+    }
+  }, [files, allowMultiple, maxSize, storageBucket, storagePath, onChange]);
 
   const handleRemove = (index: number) => {
     if (allowMultiple) {
@@ -235,10 +288,15 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
           multiple={allowMultiple}
           onChange={(e) => handleFileSelect(e.target.files)}
           className="hidden"
-          disabled={disabled}
+          disabled={disabled || isUploading}
         />
         
-        {files.length > 0 ? (
+        {isUploading ? (
+          <div className="flex items-center gap-2 p-2 border rounded-md bg-blue-50">
+            <Loader2 size={16} className="animate-spin text-blue-500" />
+            <span className="text-sm text-blue-600">Uploading...</span>
+          </div>
+        ) : files.length > 0 ? (
           <div className="space-y-1">
             {files.map((file, i) => (
               <FileThumbnail
@@ -271,6 +329,9 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
             <Upload size={14} className="mr-2" />
             {isImage ? 'Upload image' : 'Upload file'}
           </Button>
+        )}
+        {uploadError && (
+          <p className="text-xs text-red-500 mt-1">{uploadError}</p>
         )}
       </div>
     );
@@ -316,16 +377,25 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
           onDrop={(e) => {
             e.preventDefault();
             setIsDragging(false);
-            if (!disabled) handleFileSelect(e.dataTransfer.files);
+            if (!disabled && !isUploading) handleFileSelect(e.dataTransfer.files);
           }}
         >
-          <Upload className="mx-auto h-8 w-8 text-gray-400" />
-          <p className="mt-2 text-sm text-gray-600">
-            Click to upload or drag and drop
-          </p>
-          <p className="mt-1 text-xs text-gray-400">
-            {isImage ? 'PNG, JPG, GIF up to 10MB' : 'PDF, DOC, XLS up to 10MB'}
-          </p>
+          {isUploading ? (
+            <>
+              <Loader2 className="mx-auto h-8 w-8 text-blue-500 animate-spin" />
+              <p className="mt-2 text-sm text-blue-600">Uploading...</p>
+            </>
+          ) : (
+            <>
+              <Upload className="mx-auto h-8 w-8 text-gray-400" />
+              <p className="mt-2 text-sm text-gray-600">
+                Click to upload or drag and drop
+              </p>
+              <p className="mt-1 text-xs text-gray-400">
+                {isImage ? 'PNG, JPG, GIF up to 10MB' : 'PDF, DOC, XLS up to 10MB'}
+              </p>
+            </>
+          )}
         </div>
         
         {files.length > 0 && (
@@ -340,8 +410,8 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
           </div>
         )}
         
-        {error && (
-          <p className="text-sm text-red-500">{error}</p>
+        {(error || uploadError) && (
+          <p className="text-sm text-red-500">{error || uploadError}</p>
         )}
       </div>
     );
