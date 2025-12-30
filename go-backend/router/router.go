@@ -251,6 +251,16 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		// who use portal auth (not main auth). It only returns ending page configuration.
 		api.POST("/ending-pages/match", handlers.FindMatchingEnding)
 
+		// Public Field Types Registry (needed for portal field rendering)
+		// This is metadata about field types, not sensitive data
+		api.GET("/field-types", handlers.GetFieldTypes)
+		api.GET("/field-types/toolbox", handlers.GetFieldTypesToolbox)
+		api.GET("/field-types/:type_id", handlers.GetFieldType)
+
+		// Public Dashboard Layout (for applicant portal to render their dashboard)
+		// Dashboard config is not sensitive - just layout metadata
+		api.GET("/forms/:id/dashboard", handlers.GetDashboardLayout)
+
 		// Protected routes - require authentication
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware(cfg))
@@ -416,13 +426,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				documents.POST("/redact/base64", handlers.GetRedactedDocumentBase64)
 			}
 
-			// Field Type Registry
-			fieldTypes := protected.Group("/field-types")
-			{
-				fieldTypes.GET("", handlers.GetFieldTypes)
-				fieldTypes.GET("/toolbox", handlers.GetFieldTypesToolbox)
-				fieldTypes.GET("/:type_id", handlers.GetFieldType)
-			}
+			// NOTE: Field Type Registry is now public (moved to public routes above)
 
 			// Workspace Activity Feed
 			protected.GET("/workspaces/:id/activity", handlers.GetWorkspaceActivity)
@@ -456,8 +460,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				forms.PATCH("/:id", handlers.UpdateForm)
 				forms.PUT("/:id/structure", handlers.UpdateFormStructure)    // Add this line
 				forms.PUT("/:id/custom-slug", handlers.UpdateFormCustomSlug) // Update custom URL slug
-				forms.GET("/:id/dashboard", handlers.GetDashboardLayout)     // Get applicant dashboard config
-				forms.PUT("/:id/dashboard", handlers.UpdateDashboardLayout)  // Update applicant dashboard config
+				// NOTE: GET /forms/:id/dashboard is now public (moved above)
+				forms.PUT("/:id/dashboard", handlers.UpdateDashboardLayout) // Update applicant dashboard config (protected)
 				forms.DELETE("/:id", handlers.DeleteForm)
 
 				// Form submissions
