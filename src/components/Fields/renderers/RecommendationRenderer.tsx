@@ -116,7 +116,7 @@ export function RecommendationRenderer({
   const submissionId = value?.submission_id || 
                        value?.submissionId || 
                        (value as any)?._submission_id ||
-                       config?._submission_id ||
+                       (config as any)?._submission_id ||
                        viewConfig?._formData?._submission_id;
   const formId = field.table_id || viewConfig?.formId;
 
