@@ -44,6 +44,7 @@ export async function goFetch<T>(
   // Public portal forms and field-types endpoint don't require auth tokens
   const isPublicEndpoint = 
     (endpoint.includes('/forms/') && endpoint.includes('/submit')) ||
+    (endpoint.includes('/forms/') && endpoint.includes('/dashboard')) ||
     endpoint.includes('/field-types') ||
     endpoint.includes('/ending-pages/match')
   
