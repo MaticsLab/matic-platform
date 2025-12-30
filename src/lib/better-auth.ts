@@ -94,8 +94,16 @@ export const auth = betterAuth({
   trustedOrigins: [
     "http://localhost:3000",
     "http://localhost:3001",
+    "https://maticsapp.com",
+    "https://www.maticsapp.com",
     ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
     ...(process.env.NEXT_PUBLIC_SUPABASE_URL ? [process.env.NEXT_PUBLIC_SUPABASE_URL] : []),
+    // Vercel preview deployments
+    ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+    // Allow any *.vercel.app subdomains for preview deployments
+    "https://*.vercel.app",
+    // Allow any *.maticsapp.com subdomains (custom portal subdomains)
+    "https://*.maticsapp.com",
   ],
 
   // Social providers (can be enabled later)
