@@ -6,11 +6,20 @@
  */
 
 import pg from 'pg';
-import { config } from 'dotenv';
+import * as fs from 'fs';
 import { resolve } from 'path';
 
-// Load environment
-config({ path: resolve(process.cwd(), '.env.local') });
+// Load environment manually
+const envPath = resolve(process.cwd(), '.env.local');
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, 'utf-8');
+  for (const line of envContent.split('\n')) {
+    const [key, ...valueParts] = line.split('=');
+    if (key && valueParts.length > 0) {
+      process.env[key.trim()] = valueParts.join('=').trim();
+    }
+  }
+}
 
 const { Pool } = pg;
 
@@ -24,16 +33,16 @@ const hashConfig = {
 
 // Dynamic import for scrypt
 async function hashPassword(password) {
-  const { scryptAsync } = await import('@noble/hashes/scrypt');
-  const { bytesToHex } = await import('@noble/hashes/utils');
+  const { scrypt } = await import('@noble/hashes/scrypt.js');
+  const { bytesToHex } = await import('@noble/hashes/utils.js');
   
   // Generate random salt (16 bytes = 32 hex chars)
   const saltBytes = new Uint8Array(16);
   crypto.getRandomValues(saltBytes);
   const salt = bytesToHex(saltBytes);
   
-  // Generate key using scrypt
-  const key = await scryptAsync(password.normalize('NFKC'), salt, {
+  // Generate key using scrypt (sync version from noble/hashes v2)
+  const key = scrypt(password.normalize('NFKC'), salt, {
     N: hashConfig.N,
     p: hashConfig.p,
     r: hashConfig.r,
