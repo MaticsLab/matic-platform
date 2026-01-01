@@ -187,12 +187,20 @@ export function ReviewWorkspaceV2({ formId, workspaceId, workspaceSlug: workspac
           return ''
         }
         
-        // Extract name
-        let applicantName = findValue(['name', 'full_name', 'Full Name', 'fullName', 'applicant_name', 'student_name'])
-        if (!applicantName) {
-          const firstName = findValue(['first_name', 'firstName', 'First Name'])
-          const lastName = findValue(['last_name', 'lastName', 'Last Name'])
+        // Extract name - prioritize first_name + last_name from form fields over full_name from signup
+        // This ensures we use actual form data rather than signup metadata
+        const firstName = findValue(['first_name', 'firstName', 'First Name'])
+        const lastName = findValue(['last_name', 'lastName', 'Last Name'])
+        let applicantName = ''
+        
+        // If we have both first and last name from form fields, use those
+        if (firstName || lastName) {
           applicantName = `${firstName} ${lastName}`.trim()
+        }
+        
+        // Only fall back to full_name fields if no first/last name found
+        if (!applicantName) {
+          applicantName = findValue(['name', 'full_name', 'Full Name', 'fullName', 'applicant_name', 'student_name'])
         }
         // If still no name, search for name-like values
         if (!applicantName) {

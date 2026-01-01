@@ -23,6 +23,8 @@ import { useEmailConnection } from '@/hooks/useEmailConnection';
 import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
 import { filesClient } from '@/lib/api/files-client';
 import type { TableFileResponse } from '@/types/files';
+import { recommendationsClient, RecommendationRequest } from '@/lib/api/recommendations-client';
+import { RefreshCw, UserPlus, Clock3 } from 'lucide-react';
 
 // Icon mapping for actions
 const actionIcons: Record<string, React.ReactNode> = {
@@ -419,6 +421,11 @@ export function ApplicationDetail({
   const [isLoadingActions, setIsLoadingActions] = useState(false);
   const [storageFiles, setStorageFiles] = useState<TableFileResponse[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  
+  // Recommendation requests state
+  const [recommendations, setRecommendations] = useState<RecommendationRequest[]>([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState<string | null>(null);
 
   // Gmail connection - use shared hook
   const { 
@@ -486,6 +493,41 @@ export function ApplicationDetail({
     
     fetchStorageFiles();
   }, [formId, workspaceId]);
+
+  // Fetch recommendation requests for this submission
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      if (!application.id) return;
+      setLoadingRecommendations(true);
+      try {
+        const data = await recommendationsClient.getForReview(application.id);
+        setRecommendations(data || []);
+      } catch (err) {
+        console.error('[ApplicationDetail] Failed to fetch recommendations:', err);
+        setRecommendations([]);
+      } finally {
+        setLoadingRecommendations(false);
+      }
+    };
+    fetchRecommendations();
+  }, [application.id]);
+
+  // Send reminder to recommender
+  const handleSendReminder = async (requestId: string) => {
+    setSendingReminder(requestId);
+    try {
+      await recommendationsClient.sendReminder(requestId);
+      toast.success('Reminder sent successfully');
+      // Refresh recommendations list
+      const data = await recommendationsClient.getForReview(application.id);
+      setRecommendations(data || []);
+    } catch (err) {
+      console.error('[ApplicationDetail] Failed to send reminder:', err);
+      toast.error('Failed to send reminder');
+    } finally {
+      setSendingReminder(null);
+    }
+  };
 
   // Group fields by section
   const fieldSections = useMemo(() => {
@@ -999,6 +1041,106 @@ export function ApplicationDetail({
                       </div>
                     </div>
                   )
+                )}
+
+                {/* Letters of Recommendation Section */}
+                {(recommendations.length > 0 || loadingRecommendations) && (
+                  <div className="mt-6 pt-4 border-t">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <UserPlus className="w-4 h-4 text-purple-600" />
+                      Letters of Recommendation
+                      {recommendations.length > 0 && (
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                          {recommendations.filter(r => r.status === 'submitted').length}/{recommendations.length} received
+                        </span>
+                      )}
+                    </h3>
+                    
+                    {loadingRecommendations ? (
+                      <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 rounded-lg p-4">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Loading recommendation requests...
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {recommendations.map((rec) => (
+                          <div 
+                            key={rec.id} 
+                            className={cn(
+                              "p-3 rounded-lg border",
+                              rec.status === 'submitted' ? "bg-green-50 border-green-200" :
+                              rec.status === 'expired' ? "bg-red-50 border-red-200" :
+                              rec.status === 'cancelled' ? "bg-gray-50 border-gray-200" :
+                              "bg-yellow-50 border-yellow-200"
+                            )}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  {rec.status === 'submitted' ? (
+                                    <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                                  ) : rec.status === 'expired' ? (
+                                    <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                                  ) : rec.status === 'cancelled' ? (
+                                    <XCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                  ) : (
+                                    <Clock3 className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+                                  )}
+                                  <span className="font-medium text-sm text-gray-900 truncate">
+                                    {rec.recommender_name}
+                                  </span>
+                                </div>
+                                <div className="mt-1 text-xs text-gray-500 truncate">
+                                  {rec.recommender_email}
+                                  {rec.recommender_relationship && ` • ${rec.recommender_relationship}`}
+                                </div>
+                                <div className="mt-1 flex items-center gap-2 text-xs">
+                                  <span className={cn(
+                                    "px-1.5 py-0.5 rounded",
+                                    rec.status === 'submitted' ? "bg-green-100 text-green-700" :
+                                    rec.status === 'expired' ? "bg-red-100 text-red-700" :
+                                    rec.status === 'cancelled' ? "bg-gray-100 text-gray-500" :
+                                    "bg-yellow-100 text-yellow-700"
+                                  )}>
+                                    {rec.status === 'submitted' ? 'Received' :
+                                     rec.status === 'expired' ? 'Expired' :
+                                     rec.status === 'cancelled' ? 'Cancelled' : 'Pending'}
+                                  </span>
+                                  {rec.submitted_at && (
+                                    <span className="text-gray-400">
+                                      {new Date(rec.submitted_at).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                  {rec.status === 'pending' && rec.reminder_count > 0 && (
+                                    <span className="text-gray-400">
+                                      {rec.reminder_count} reminder{rec.reminder_count > 1 ? 's' : ''} sent
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {rec.status === 'pending' && (
+                                <button
+                                  onClick={() => handleSendReminder(rec.id)}
+                                  disabled={sendingReminder === rec.id}
+                                  className="flex-shrink-0 text-xs px-2 py-1 border rounded hover:bg-gray-100 transition-colors flex items-center gap-1"
+                                >
+                                  {sendingReminder === rec.id ? (
+                                    <RefreshCw className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Mail className="w-3 h-3" />
+                                      Remind
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
