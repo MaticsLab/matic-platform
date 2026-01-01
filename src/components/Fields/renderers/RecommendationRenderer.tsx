@@ -58,7 +58,7 @@ export function RecommendationRenderer({
   const canAddMore = recommenders.length < maxRecommenders;
 
   // Generate unique ID for new recommender
-  const generateId = () => \`rec_\${Date.now()}_\${Math.random().toString(36).substr(2, 9)}\`;
+  const generateId = () => `rec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   const handleAddRecommender = useCallback(() => {
     if (!canAddMore) return;
