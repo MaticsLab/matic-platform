@@ -327,6 +327,37 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
     }
   }
 
+  const handleDashboard = async () => {
+    if (!onDashboard) return
+    
+    // Save the current form data as draft before going to dashboard
+    if (formId && email && Object.keys(formData).length > 0) {
+      try {
+        setIsSaving(true)
+        const cleanedData = stripBlobUrls(formData)
+        const response = await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${formId}/submit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: cleanedData, email, save_draft: true })
+        })
+        if (response.ok) {
+          const savedRow = await response.json()
+          // Store the submission ID if this was a new row
+          if (savedRow.id && !formData._submission_id) {
+            setFormData(prev => ({ ...prev, _submission_id: savedRow.id }))
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to save before dashboard:', error)
+        // Continue to dashboard anyway
+      } finally {
+        setIsSaving(false)
+      }
+    }
+    
+    onDashboard()
+  }
+
   const calculateProgress = () => {
     const sectionsLength = translatedConfig.sections?.length || 0
     if (sectionsLength === 0) return 0
@@ -397,11 +428,12 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
               <Button 
                 variant="outline"
                 size="sm"
-                onClick={onDashboard}
+                onClick={handleDashboard}
+                disabled={isSaving}
                 className="text-gray-600 hover:text-gray-900"
               >
                 <LayoutDashboard className="w-4 h-4 mr-2" />
-                My Dashboard
+                {isSaving ? 'Saving...' : 'My Dashboard'}
               </Button>
             )}
             <Button 
