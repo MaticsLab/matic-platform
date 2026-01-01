@@ -18,12 +18,16 @@ function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [token, setToken] = useState<string | null>(null)
+  const [email, setEmail] = useState<string | null>(null)
+  const [provider, setProvider] = useState<string | null>(null)
 
   useEffect(() => {
     async function handleAuth() {
       try {
-        // Better Auth sends the token as a query parameter
+        // Get params from URL
         const tokenParam = searchParams.get('token')
+        const emailParam = searchParams.get('email')
+        const providerParam = searchParams.get('provider')
         const errorParam = searchParams.get('error')
 
         if (errorParam === 'INVALID_TOKEN') {
@@ -34,6 +38,8 @@ function ResetPasswordForm() {
 
         if (tokenParam) {
           setToken(tokenParam)
+          setEmail(emailParam)
+          setProvider(providerParam)
           setIsVerifying(false)
           return
         }
@@ -73,7 +79,7 @@ function ResetPasswordForm() {
     setIsLoading(true)
 
     try {
-      // Call Better Auth's reset-password endpoint
+      // Call our custom reset-password endpoint
       const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: {
@@ -82,13 +88,15 @@ function ResetPasswordForm() {
         body: JSON.stringify({
           newPassword: password,
           token: token,
+          email: email,
+          provider: provider,
         })
       })
 
       const result = await response.json()
 
       if (!response.ok) {
-        throw new Error(result.message || result.error?.message || 'Failed to reset password')
+        throw new Error(result.error || result.message || 'Failed to reset password')
       }
 
       console.log('Password reset successfully')

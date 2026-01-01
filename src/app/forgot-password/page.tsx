@@ -16,34 +16,19 @@ export default function ForgotPasswordPage() {
     setLoading(true)
 
     try {
-      // Call Better Auth's request-password-reset endpoint directly
-      const response = await fetch('/api/auth/request-password-reset', {
+      // Call our custom password reset endpoint that handles both Better Auth and Supabase
+      const response = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email,
-          redirectTo: `${window.location.origin}/auth/reset-password`
-        })
+        body: JSON.stringify({ email })
       })
-
-      // Check if response is JSON
-      const contentType = response.headers.get('content-type')
-      if (!contentType || !contentType.includes('application/json')) {
-        // Not JSON - likely a 404 page
-        if (!response.ok) {
-          throw new Error('Password reset service unavailable. Please try again later.')
-        }
-        // Success with non-JSON response
-        setSuccess(true)
-        return
-      }
 
       const result = await response.json()
 
       if (!response.ok) {
-        throw new Error(result.message || result.error?.message || 'Failed to send reset email')
+        throw new Error(result.error || 'Failed to send reset email')
       }
       
       setSuccess(true)
