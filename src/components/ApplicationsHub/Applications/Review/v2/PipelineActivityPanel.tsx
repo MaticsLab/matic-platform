@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Application, ActivityItem, PipelineActivityPanelProps } from './types';
 import { 
   X, Mail, ChevronDown, Send, Plus, Sparkles, Paperclip, 
-  AtSign, ArrowRight, Star, MessageSquare, Users, Tag, Loader2, Settings
+  AtSign, ArrowRight, Star, MessageSquare, Users, Tag, Loader2, Settings, File, FileText, Image
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { emailClient, SendEmailRequest, GmailAccount } from '@/lib/api/email-client';
+import { emailClient, SendEmailRequest, GmailAccount, EmailAttachment } from '@/lib/api/email-client';
 import {
   Popover,
   PopoverContent,
@@ -17,6 +17,7 @@ import {
 import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
 import { EmailConnectionStatus } from '@/components/Email/EmailConnectionStatus';
 import { useEmailConnection } from '@/hooks/useEmailConnection';
+import { Checkbox } from '@/ui-components/checkbox';
 
 export function PipelineActivityPanel({ 
   applications, 
@@ -39,6 +40,7 @@ export function PipelineActivityPanel({
   const [comment, setComment] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [showEmailSettings, setShowEmailSettings] = useState(false);
+  const [selectedAttachments, setSelectedAttachments] = useState<EmailAttachment[]>([]);
   
   // Gmail connection - use shared hook
   const { 
@@ -52,6 +54,21 @@ export function PipelineActivityPanel({
     handleOAuthError,
     refresh: refreshConnection
   } = useEmailConnection(workspaceId);
+
+  // Update emailTo when applications change
+  useEffect(() => {
+    if (applications.length === 1) {
+      // Single applicant - show their email in the To field
+      const app = applications[0];
+      const email = app.email || (app.raw_data?.email as string) || (app.raw_data?.Email as string) || '';
+      setEmailTo(email);
+    } else {
+      // Multiple applicants - clear the field (will show placeholder)
+      setEmailTo('');
+    }
+    // Clear attachments when application changes
+    setSelectedAttachments([]);
+  }, [applications]);
 
   // Insert merge tag into email body
   const insertMergeTag = (fieldLabel: string) => {
@@ -73,6 +90,80 @@ export function PipelineActivityPanel({
     }
     return [];
   })();
+
+  // Extract available documents from application(s) for attachment
+  const availableDocuments = useMemo(() => {
+    const docs: { name: string; url: string; contentType: string }[] = [];
+    
+    applications.forEach(app => {
+      const rawData = app.raw_data || {};
+      
+      // Look through raw_data for file URLs (typically from file upload fields)
+      Object.entries(rawData).forEach(([key, value]) => {
+        if (typeof value === 'string' && (
+          value.startsWith('http://') || 
+          value.startsWith('https://') ||
+          value.includes('supabase') ||
+          value.includes('storage')
+        )) {
+          // Check if it looks like a file URL (not just any URL)
+          const lowerKey = key.toLowerCase();
+          const lowerValue = value.toLowerCase();
+          if (
+            lowerKey.includes('file') ||
+            lowerKey.includes('document') ||
+            lowerKey.includes('upload') ||
+            lowerKey.includes('attachment') ||
+            lowerKey.includes('resume') ||
+            lowerKey.includes('transcript') ||
+            lowerKey.includes('essay') ||
+            lowerKey.includes('pdf') ||
+            lowerValue.includes('.pdf') ||
+            lowerValue.includes('.doc') ||
+            lowerValue.includes('.docx') ||
+            lowerValue.includes('.png') ||
+            lowerValue.includes('.jpg') ||
+            lowerValue.includes('.jpeg')
+          ) {
+            // Determine content type from URL
+            let contentType = 'application/octet-stream';
+            if (lowerValue.includes('.pdf')) contentType = 'application/pdf';
+            else if (lowerValue.includes('.doc')) contentType = 'application/msword';
+            else if (lowerValue.includes('.docx')) contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+            else if (lowerValue.includes('.png')) contentType = 'image/png';
+            else if (lowerValue.includes('.jpg') || lowerValue.includes('.jpeg')) contentType = 'image/jpeg';
+            
+            // Extract filename from URL or use field key
+            const urlParts = value.split('/');
+            const filename = urlParts[urlParts.length - 1].split('?')[0] || key;
+            
+            docs.push({
+              name: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+              url: value,
+              contentType
+            });
+          }
+        }
+      });
+    });
+    
+    return docs;
+  }, [applications]);
+
+  // Toggle attachment selection
+  const toggleAttachment = (doc: { name: string; url: string; contentType: string }) => {
+    setSelectedAttachments(prev => {
+      const exists = prev.find(a => a.url === doc.url);
+      if (exists) {
+        return prev.filter(a => a.url !== doc.url);
+      }
+      return [...prev, {
+        filename: doc.name,
+        url: doc.url,
+        content_type: doc.contentType
+      }];
+    });
+  };
 
   const handleSendEmail = async () => {
     if (!workspaceId) {
@@ -102,6 +193,7 @@ export function PipelineActivityPanel({
         is_html: false,
         merge_tags: true,
         track_opens: true,
+        attachments: selectedAttachments.length > 0 ? selectedAttachments : undefined,
       };
 
       const result = await emailClient.send(workspaceId, request);
@@ -113,6 +205,7 @@ export function PipelineActivityPanel({
         setEmailTo('');
         setEmailCc('');
         setEmailBcc('');
+        setSelectedAttachments([]);
         
         // Also call the callback if provided
         onSendEmail?.(
@@ -358,6 +451,71 @@ export function PipelineActivityPanel({
                       </div>
                     </PopoverContent>
                   </Popover>
+                </div>
+              )}
+
+              {/* Attachments Section */}
+              {(availableDocuments.length > 0 || selectedAttachments.length > 0) && (
+                <div className="py-2 border-b border-gray-200">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Attachment picker */}
+                    {availableDocuments.length > 0 && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-800 px-2 py-1 hover:bg-gray-100 rounded transition-colors">
+                            <Paperclip className="w-3 h-3" />
+                            Attach Document
+                            <ChevronDown className="w-3 h-3" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-2 bg-white border border-gray-200 shadow-lg" align="start">
+                          <p className="text-xs text-gray-500 mb-2">Select documents to attach:</p>
+                          <div className="max-h-48 overflow-y-auto space-y-1">
+                            {availableDocuments.map((doc, idx) => {
+                              const isSelected = selectedAttachments.some(a => a.url === doc.url);
+                              return (
+                                <button
+                                  key={idx}
+                                  onClick={() => toggleAttachment(doc)}
+                                  className={cn(
+                                    "w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 transition-colors",
+                                    isSelected ? "bg-blue-50 text-blue-700" : "hover:bg-gray-100 text-gray-700"
+                                  )}
+                                >
+                                  {doc.contentType.includes('pdf') ? (
+                                    <FileText className="w-4 h-4 text-red-500 flex-shrink-0" />
+                                  ) : doc.contentType.includes('image') ? (
+                                    <Image className="w-4 h-4 text-green-500 flex-shrink-0" />
+                                  ) : (
+                                    <File className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                  )}
+                                  <span className="truncate flex-1">{doc.name}</span>
+                                  <Checkbox checked={isSelected} className="flex-shrink-0" />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+
+                    {/* Show selected attachments */}
+                    {selectedAttachments.map((att, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs"
+                      >
+                        <Paperclip className="w-3 h-3" />
+                        <span className="truncate max-w-[120px]">{att.filename}</span>
+                        <button
+                          onClick={() => setSelectedAttachments(prev => prev.filter((_, i) => i !== idx))}
+                          className="ml-1 hover:bg-blue-100 rounded p-0.5"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
               

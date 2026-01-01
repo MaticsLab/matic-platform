@@ -24,6 +24,14 @@ export interface GmailConnection {
   accounts?: GmailAccount[];
 }
 
+// Email attachment structure
+export interface EmailAttachment {
+  filename: string;      // Display name of the file
+  url?: string;          // URL to download the file from (backend will fetch)
+  content_type?: string; // MIME type (e.g., "application/pdf")
+  data?: string;         // Base64 encoded file content (alternative to URL)
+}
+
 export interface SendEmailRequest {
   form_id?: string;
   recipients?: string[];
@@ -40,6 +48,7 @@ export interface SendEmailRequest {
   template_name?: string;
   sender_account_id?: string;
   signature_id?: string;
+  attachments?: EmailAttachment[]; // Optional file attachments
   // Threading support for replies
   thread_id?: string;     // Gmail thread ID to reply to
   in_reply_to?: string;   // Message-ID of the email being replied to

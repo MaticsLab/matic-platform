@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"regexp"
@@ -279,24 +280,95 @@ func DisconnectGmail(c *gin.Context) {
 
 // RecipientWithData represents a recipient with their submission data for merge tags
 // SendEmailRequest represents the request body for sending emails
+// EmailAttachment represents a file to attach to an email
+type EmailAttachment struct {
+	Filename    string `json:"filename"`     // Name to display for the attachment
+	URL         string `json:"url"`          // URL to download the file from
+	ContentType string `json:"content_type"` // MIME type (e.g., "application/pdf")
+	Data        string `json:"data"`         // Base64 encoded file content (alternative to URL)
+}
+
 type SendEmailRequest struct {
-	FormID          string   `json:"form_id"`
-	Recipients      []string `json:"recipients"`       // Can be "all", "submitted", "approved", "rejected"
-	RecipientEmails []string `json:"recipient_emails"` // Direct list of emails to send to
-	SubmissionIDs   []string `json:"submission_ids"`   // List of submission IDs - backend looks up data (secure)
-	EmailField      string   `json:"email_field"`      // Which field to use as the email address
-	Subject         string   `json:"subject" binding:"required"`
-	Body            string   `json:"body" binding:"required"`
-	BodyHTML        string   `json:"body_html"`
-	IsHTML          bool     `json:"is_html"` // If true, Body is HTML content
-	MergeTags       bool     `json:"merge_tags"`
-	TrackOpens      bool     `json:"track_opens"`
-	SaveTemplate    bool     `json:"save_template"`
-	TemplateName    string   `json:"template_name"`
+	FormID          string            `json:"form_id"`
+	Recipients      []string          `json:"recipients"`       // Can be "all", "submitted", "approved", "rejected"
+	RecipientEmails []string          `json:"recipient_emails"` // Direct list of emails to send to
+	SubmissionIDs   []string          `json:"submission_ids"`   // List of submission IDs - backend looks up data (secure)
+	EmailField      string            `json:"email_field"`      // Which field to use as the email address
+	Subject         string            `json:"subject" binding:"required"`
+	Body            string            `json:"body" binding:"required"`
+	BodyHTML        string            `json:"body_html"`
+	IsHTML          bool              `json:"is_html"` // If true, Body is HTML content
+	MergeTags       bool              `json:"merge_tags"`
+	TrackOpens      bool              `json:"track_opens"`
+	SaveTemplate    bool              `json:"save_template"`
+	TemplateName    string            `json:"template_name"`
+	Attachments     []EmailAttachment `json:"attachments"` // Optional file attachments
 	// Threading support for replies
 	ThreadID   string `json:"thread_id"`   // Gmail thread ID to reply to
 	InReplyTo  string `json:"in_reply_to"` // Message-ID of the email being replied to
 	References string `json:"references"`  // References header for threading
+}
+
+// processAttachments downloads files from URLs and prepares them for MIME encoding
+func processAttachments(attachments []EmailAttachment) []EmailAttachment {
+	if len(attachments) == 0 {
+		return nil
+	}
+
+	processed := make([]EmailAttachment, 0, len(attachments))
+	for _, att := range attachments {
+		// If data is already provided (base64 encoded), use it directly
+		if att.Data != "" {
+			processed = append(processed, att)
+			continue
+		}
+
+		// Download file from URL
+		if att.URL != "" {
+			data, err := downloadAndEncode(att.URL)
+			if err != nil {
+				fmt.Printf("[Email] Failed to download attachment %s: %v\n", att.Filename, err)
+				continue
+			}
+			att.Data = data
+			processed = append(processed, att)
+		}
+	}
+	return processed
+}
+
+// downloadAndEncode fetches a file from URL and returns base64 encoded content
+func downloadAndEncode(url string) (string, error) {
+	// Set a timeout for the download
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("failed to download: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("download returned status %d", resp.StatusCode)
+	}
+
+	// Limit file size to 25MB (Gmail's attachment limit)
+	const maxSize = 25 * 1024 * 1024
+	limitedReader := &io.LimitedReader{R: resp.Body, N: maxSize}
+
+	data, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check if we hit the limit
+	if limitedReader.N <= 0 {
+		return "", fmt.Errorf("file too large (max 25MB)")
+	}
+
+	return base64.StdEncoding.EncodeToString(data), nil
 }
 
 // SendEmail sends emails via Gmail API
@@ -452,13 +524,22 @@ func SendEmail(c *gin.Context) {
 			}
 		}
 
-		// Create MIME message with threading support
+		// Process attachments - download from URL if needed and convert to base64
+		processedAttachments := processAttachments(req.Attachments)
+
+		// Create MIME message with threading support and attachments
 		var message gmail.Message
 		mimeOpts := MIMEMessageOptions{
-			InReplyTo:  req.InReplyTo,
-			References: req.References,
+			InReplyTo:   req.InReplyTo,
+			References:  req.References,
+			Attachments: processedAttachments,
 		}
-		rawMessage := createMIMEMessageWithOptions(connection.Email, recipient.Email, recipient.Name, subject, body, bodyHTML, mimeOpts)
+		// Build the From address with display name if available
+		fromAddress := connection.Email
+		if connection.DisplayName != "" {
+			fromAddress = fmt.Sprintf("%s <%s>", connection.DisplayName, connection.Email)
+		}
+		rawMessage := createMIMEMessageWithOptions(fromAddress, recipient.Email, recipient.Name, subject, body, bodyHTML, mimeOpts)
 		message.Raw = base64.URLEncoding.EncodeToString([]byte(rawMessage))
 
 		// Set thread ID if replying to an existing thread
@@ -1005,10 +1086,11 @@ func normalizeFieldName(name string) string {
 	return name
 }
 
-// MIMEMessageOptions contains optional headers for threading
+// MIMEMessageOptions contains optional headers for threading and attachments
 type MIMEMessageOptions struct {
-	InReplyTo  string
-	References string
+	InReplyTo   string
+	References  string
+	Attachments []EmailAttachment
 }
 
 func createMIMEMessage(from, to, toName, subject, textBody, htmlBody string) string {
@@ -1017,6 +1099,7 @@ func createMIMEMessage(from, to, toName, subject, textBody, htmlBody string) str
 
 func createMIMEMessageWithOptions(from, to, toName, subject, textBody, htmlBody string, opts MIMEMessageOptions) string {
 	boundary := "boundary_" + uuid.New().String()
+	hasAttachments := len(opts.Attachments) > 0
 
 	var sb strings.Builder
 
@@ -1036,26 +1119,76 @@ func createMIMEMessageWithOptions(from, to, toName, subject, textBody, htmlBody 
 		sb.WriteString(fmt.Sprintf("References: %s\r\n", opts.References))
 	}
 	sb.WriteString("MIME-Version: 1.0\r\n")
-	sb.WriteString(fmt.Sprintf("Content-Type: multipart/alternative; boundary=%s\r\n", boundary))
-	sb.WriteString("\r\n")
 
-	// Plain text part
-	sb.WriteString(fmt.Sprintf("--%s\r\n", boundary))
-	sb.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
-	sb.WriteString("\r\n")
-	sb.WriteString(textBody)
-	sb.WriteString("\r\n")
+	if hasAttachments {
+		// multipart/mixed for attachments
+		sb.WriteString(fmt.Sprintf("Content-Type: multipart/mixed; boundary=%s\r\n", boundary))
+		sb.WriteString("\r\n")
 
-	// HTML part
-	if htmlBody != "" {
+		// Body part (as multipart/alternative)
+		altBoundary := "altboundary_" + uuid.New().String()
 		sb.WriteString(fmt.Sprintf("--%s\r\n", boundary))
-		sb.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
+		sb.WriteString(fmt.Sprintf("Content-Type: multipart/alternative; boundary=%s\r\n", altBoundary))
 		sb.WriteString("\r\n")
-		sb.WriteString(htmlBody)
-		sb.WriteString("\r\n")
-	}
 
-	sb.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
+		// Plain text
+		sb.WriteString(fmt.Sprintf("--%s\r\n", altBoundary))
+		sb.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+		sb.WriteString("\r\n")
+		sb.WriteString(textBody)
+		sb.WriteString("\r\n")
+
+		// HTML part
+		if htmlBody != "" {
+			sb.WriteString(fmt.Sprintf("--%s\r\n", altBoundary))
+			sb.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
+			sb.WriteString("\r\n")
+			sb.WriteString(htmlBody)
+			sb.WriteString("\r\n")
+		}
+
+		sb.WriteString(fmt.Sprintf("--%s--\r\n", altBoundary))
+
+		// Attachments
+		for _, att := range opts.Attachments {
+			sb.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+			contentType := att.ContentType
+			if contentType == "" {
+				contentType = "application/octet-stream"
+			}
+			sb.WriteString(fmt.Sprintf("Content-Type: %s; name=\"%s\"\r\n", contentType, att.Filename))
+			sb.WriteString("Content-Transfer-Encoding: base64\r\n")
+			sb.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=\"%s\"\r\n", att.Filename))
+			sb.WriteString("\r\n")
+			// Attachment data should already be base64 encoded
+			sb.WriteString(att.Data)
+			sb.WriteString("\r\n")
+		}
+
+		sb.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
+	} else {
+		// No attachments - use simple multipart/alternative
+		sb.WriteString(fmt.Sprintf("Content-Type: multipart/alternative; boundary=%s\r\n", boundary))
+		sb.WriteString("\r\n")
+
+		// Plain text part
+		sb.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+		sb.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+		sb.WriteString("\r\n")
+		sb.WriteString(textBody)
+		sb.WriteString("\r\n")
+
+		// HTML part
+		if htmlBody != "" {
+			sb.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+			sb.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
+			sb.WriteString("\r\n")
+			sb.WriteString(htmlBody)
+			sb.WriteString("\r\n")
+		}
+
+		sb.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
+	}
 
 	return sb.String()
 }
