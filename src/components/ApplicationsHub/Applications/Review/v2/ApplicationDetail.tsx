@@ -403,7 +403,7 @@ export function ApplicationDetail({
   fields = [],
   onActivityCreated
 }: ApplicationDetailProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'documents' | 'reviews'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'documents' | 'reviews' | 'recommendations'>('overview');
   const [selectedStage, setSelectedStage] = useState(application.stageId || application.status);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [activeCommentTab, setActiveCommentTab] = useState<'comment' | 'email'>('comment');
@@ -938,6 +938,29 @@ export function ApplicationDetail({
           >
             Reviews
           </button>
+          <button
+            onClick={() => setActiveTab('recommendations')}
+            className={cn(
+              "pb-3 border-b-2 transition-colors text-sm font-medium flex items-center gap-2",
+              activeTab === 'recommendations'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            )}
+          >
+            Recommendations
+            {recommendations.length > 0 && (
+              <span className={cn(
+                "px-1.5 py-0.5 text-xs rounded-full",
+                recommendations.filter(r => r.status === 'submitted').length === recommendations.length
+                  ? 'bg-green-100 text-green-700'
+                  : recommendations.filter(r => r.status === 'submitted').length > 0
+                    ? 'bg-yellow-100 text-yellow-700'
+                    : 'bg-gray-100 text-gray-600'
+              )}>
+                {recommendations.filter(r => r.status === 'submitted').length}/{recommendations.length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -1411,6 +1434,119 @@ export function ApplicationDetail({
                   <Star className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">No Reviews Yet</h3>
                   <p className="text-gray-500 text-sm">Reviews from assigned reviewers will appear here</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'recommendations' && (
+          <div className="flex-1 min-h-0 overflow-y-auto p-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <UserPlus className="w-4 h-4 text-purple-600" />
+                  Letters of Recommendation
+                  {recommendations.length > 0 && (
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                      {recommendations.filter(r => r.status === 'submitted').length}/{recommendations.length} received
+                    </span>
+                  )}
+                </h3>
+              </div>
+              
+              {loadingRecommendations ? (
+                <div className="flex items-center justify-center gap-2 text-sm text-gray-500 bg-gray-50 rounded-lg p-8">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Loading recommendation requests...
+                </div>
+              ) : recommendations.length > 0 ? (
+                <div className="space-y-3">
+                  {recommendations.map((rec) => (
+                    <div 
+                      key={rec.id} 
+                      className={cn(
+                        "p-4 rounded-lg border",
+                        rec.status === 'submitted' ? "bg-green-50 border-green-200" :
+                        rec.status === 'expired' ? "bg-red-50 border-red-200" :
+                        rec.status === 'cancelled' ? "bg-gray-50 border-gray-200" :
+                        "bg-yellow-50 border-yellow-200"
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            {rec.status === 'submitted' ? (
+                              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                            ) : rec.status === 'expired' ? (
+                              <XCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                            ) : rec.status === 'cancelled' ? (
+                              <XCircle className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                            ) : (
+                              <Clock3 className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+                            )}
+                            <span className="font-semibold text-gray-900">
+                              {rec.recommender_name}
+                            </span>
+                            <span className={cn(
+                              "px-2 py-0.5 rounded text-xs font-medium",
+                              rec.status === 'submitted' ? "bg-green-100 text-green-700" :
+                              rec.status === 'expired' ? "bg-red-100 text-red-700" :
+                              rec.status === 'cancelled' ? "bg-gray-100 text-gray-500" :
+                              "bg-yellow-100 text-yellow-700"
+                            )}>
+                              {rec.status === 'submitted' ? 'Received' :
+                               rec.status === 'expired' ? 'Expired' :
+                               rec.status === 'cancelled' ? 'Cancelled' : 'Pending'}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {rec.recommender_email}
+                          </div>
+                          {rec.recommender_relationship && (
+                            <div className="text-sm text-gray-500 mt-1">
+                              Relationship: {rec.recommender_relationship}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                            {rec.submitted_at ? (
+                              <span>Submitted {new Date(rec.submitted_at).toLocaleDateString()}</span>
+                            ) : (
+                              <span>Requested {new Date(rec.created_at).toLocaleDateString()}</span>
+                            )}
+                            {rec.reminder_count > 0 && (
+                              <span className="flex items-center gap-1">
+                                <Bell className="w-3 h-3" />
+                                {rec.reminder_count} reminder{rec.reminder_count > 1 ? 's' : ''} sent
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {rec.status === 'pending' && (
+                          <button
+                            onClick={() => handleSendReminder(rec.id)}
+                            disabled={sendingReminder === rec.id}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {sendingReminder === rec.id ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Bell className="w-3.5 h-3.5" />
+                            )}
+                            Send Reminder
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <UserPlus className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Recommendations Requested</h3>
+                  <p className="text-gray-500 text-sm">
+                    Letters of recommendation for this applicant will appear here
+                  </p>
                 </div>
               )}
             </div>
