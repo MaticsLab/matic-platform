@@ -275,14 +275,6 @@ export function PipelineActivityPanel({
                     </div>
                   </PopoverContent>
                 </Popover>
-                {/* Settings button - always visible */}
-                <button
-                  onClick={() => setShowEmailSettings(true)}
-                  className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
-                  title="Email Settings"
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
               </div>
               
               {/* To field with recipient suggestion */}
