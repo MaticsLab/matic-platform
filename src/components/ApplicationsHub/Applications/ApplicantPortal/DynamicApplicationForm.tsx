@@ -10,6 +10,7 @@ import { Progress } from '@/ui-components/progress'
 import { Checkbox } from '@/ui-components/checkbox'
 import { PortalConfig, Section, Field } from '@/types/portal'
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
+import { safeFieldString } from '@/components/Fields/types'
 import { BlockRenderer } from '@/components/EndingPages/BlockRenderer'
 import { applyTranslationsToConfig, normalizeTranslations, getUITranslations } from '@/lib/portal-translations'
 import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector'
@@ -478,7 +479,7 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
                           : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                       )}
                     >
-                      <span className="truncate text-left">{section.title}</span>
+                      <span className="truncate text-left">{safeFieldString(section.title)}</span>
                       {isCompleted && <Check className="w-4 h-4" />}
                     </button>
                   )
@@ -501,9 +502,9 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
                 // Render review section
                 <Card className={cn(isExternal ? "border-none shadow-none" : "")}>
                   <CardHeader className={cn(isExternal ? "px-0" : "")}>
-                    <CardTitle className="text-2xl">{activeSection.title}</CardTitle>
+                    <CardTitle className="text-2xl">{safeFieldString(activeSection.title)}</CardTitle>
                     {activeSection.description && (
-                      <CardDescription>{activeSection.description}</CardDescription>
+                      <CardDescription>{safeFieldString(activeSection.description)}</CardDescription>
                     )}
                   </CardHeader>
                   <CardContent className={cn("space-y-6", isExternal ? "px-0" : "")}>
@@ -524,7 +525,7 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
                     {translatedConfig.sections?.filter((s: Section) => s.sectionType === 'form').map((section: Section) => (
                       <div key={section.id} className="border border-gray-200 rounded-lg p-6">
                         <div className="flex items-center justify-between mb-4 pb-2 border-b">
-                          <h3 className="font-medium text-gray-900">{section.title}</h3>
+                          <h3 className="font-medium text-gray-900">{safeFieldString(section.title)}</h3>
                           <Button 
                             variant="ghost" 
                             size="sm"
@@ -642,11 +643,11 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
                       <div className="py-24">
                         <div className="text-center">
                           <h1 className="text-5xl font-bold mb-4">
-                            {activeSection.title || 'Welcome'}
+                            {safeFieldString(activeSection.title) || 'Welcome'}
                           </h1>
                           {activeSection.description && (
                             <p className="text-lg text-gray-600">
-                              {activeSection.description}
+                              {safeFieldString(activeSection.description)}
                             </p>
                           )}
                         </div>
@@ -697,9 +698,9 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
                 // Render normal form section
                 <Card className={cn(isExternal ? "border-none shadow-none" : "")}>
                   <CardHeader className={cn(isExternal ? "px-0" : "")}>
-                    <CardTitle className="text-2xl">{activeSection.title}</CardTitle>
+                    <CardTitle className="text-2xl">{safeFieldString(activeSection.title)}</CardTitle>
                     {activeSection.description && (
-                      <CardDescription>{activeSection.description}</CardDescription>
+                      <CardDescription>{safeFieldString(activeSection.description)}</CardDescription>
                     )}
                   </CardHeader>
                   <CardContent className={cn("space-y-6", isExternal ? "px-0" : "")}>

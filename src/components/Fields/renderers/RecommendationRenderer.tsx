@@ -47,6 +47,7 @@ import {
   Star
 } from 'lucide-react';
 import type { FieldRendererProps } from '../types';
+import { safeFieldString } from '../types';
 import { FIELD_TYPES } from '@/types/field-types';
 import recommendationsClient, { 
   RecommendationRequest,
@@ -101,9 +102,8 @@ export function RecommendationRenderer({
   const config = (field.config || {}) as RecommendationConfig;
   
   // Safely get label and description as strings (could be objects from translations)
-  const fieldLabel = typeof field.label === 'string' ? field.label : String(field.label || 'Recommendations');
-  const fieldDescription = typeof field.description === 'string' ? field.description : 
-                           (field.description ? String(field.description) : undefined);
+  const fieldLabel = safeFieldString(field.label) || 'Recommendations';
+  const fieldDescription = safeFieldString(field.description);
   const [requests, setRequests] = useState<RecommendationRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
