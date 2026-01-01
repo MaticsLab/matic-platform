@@ -46,23 +46,17 @@ export default function LoginPage() {
             console.log('Logged in with Better Auth successfully')
           } else if (result.error) {
             console.log('Better Auth error:', result.error)
-            // If it's a credential error, don't try Supabase
-            if (result.error.status === 401) {
-              throw new Error('Invalid email or password')
-            }
+            // Don't throw here - let Supabase fallback handle it
+            // The user might exist in Supabase but not in Better Auth yet
           }
         } catch (err: any) {
           console.log('Better Auth login exception:', err)
-          // If Better Auth explicitly failed with invalid credentials, throw immediately
-          if (err.message === 'Invalid email or password') {
-            throw err
-          }
-          // Otherwise try Supabase fallback
+          // Don't throw - try Supabase fallback for legacy users
         }
       }
 
-      // Fall back to Supabase (for legacy users) only if Better Auth didn't work
-      if (!user && !usedBetterAuth && (authMethod === 'auto' || authMethod === 'supabase')) {
+      // Fall back to Supabase (for legacy users) if Better Auth didn't work
+      if (!user && (authMethod === 'auto' || authMethod === 'supabase')) {
         console.log('Trying Supabase fallback...')
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
           email: formData.email,
