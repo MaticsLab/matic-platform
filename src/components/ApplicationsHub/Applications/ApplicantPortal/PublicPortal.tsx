@@ -471,7 +471,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
             // Store the submission ID for features like letters of recommendation
             if (savedRow.id) {
               setApplicationRowId(savedRow.id)
-              setInitialData(prev => ({ ...prev, _submission_id: savedRow.id }))
+              setInitialData((prev: Record<string, any> | null) => ({ ...prev, _submission_id: savedRow.id }))
             }
           }
           toast.success('Progress saved!')

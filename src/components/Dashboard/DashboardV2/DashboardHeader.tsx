@@ -43,7 +43,7 @@ export function DashboardHeader({
           </div>
           
           <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end">
-            {onContinueApplication && ['draft', 'pending', 'in_progress', 'revision_requested'].includes(applicationStatus) && (
+            {onContinueApplication && ['draft', 'pending', 'in_progress', 'revision_requested', 'submitted'].includes(applicationStatus) && (
               <Button 
                 className="gap-2 text-xs sm:text-sm px-3 sm:px-4 h-8 sm:h-9 text-white"
                 style={{ backgroundColor: themeColor }}
