@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   X, ChevronLeft, ChevronRight, Save, Clock, Star, 
   FileText, MessageSquare, Check, AlertCircle, 
-  ThumbsUp, ThumbsDown, MinusCircle
+  ThumbsUp, ThumbsDown, MinusCircle, UserPlus, Mail,
+  RefreshCw, CheckCircle2, Clock3, XCircle
 } from 'lucide-react';
 import { Button } from '@/ui-components/button';
 import { Textarea } from '@/ui-components/textarea';
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { Application, Stage } from './types';
 import { Form } from '@/types/forms';
 import { Rubric } from '@/lib/api/workflows-client';
+import { recommendationsClient, RecommendationRequest } from '@/lib/api/recommendations-client';
 
 interface ReviewPanelProps {
   application: Application;
@@ -49,6 +51,44 @@ export function ReviewPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [timer, setTimer] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
+  
+  // Recommendation requests state
+  const [recommendations, setRecommendations] = useState<RecommendationRequest[]>([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+  
+  // Fetch recommendations for this submission
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      if (!application.id) return;
+      setLoadingRecommendations(true);
+      try {
+        const data = await recommendationsClient.getForReview(application.id);
+        setRecommendations(data || []);
+      } catch (err) {
+        console.error('[ReviewPanel] Failed to fetch recommendations:', err);
+        setRecommendations([]);
+      } finally {
+        setLoadingRecommendations(false);
+      }
+    };
+    fetchRecommendations();
+  }, [application.id]);
+  
+  // Send reminder to recommender
+  const handleSendReminder = async (requestId: string) => {
+    setSendingReminder(requestId);
+    try {
+      await recommendationsClient.sendReminder(requestId);
+      // Refresh recommendations list
+      const data = await recommendationsClient.getForReview(application.id);
+      setRecommendations(data || []);
+    } catch (err) {
+      console.error('[ReviewPanel] Failed to send reminder:', err);
+    } finally {
+      setSendingReminder(null);
+    }
+  };
   
   // Get the active rubric (first one for now)
   const activeRubric = rubrics.length > 0 ? rubrics[0] : null;
@@ -233,6 +273,124 @@ export function ReviewPanel({
                     </div>
                   );
                 })}
+              </div>
+            )}
+            
+            {/* Recommendations Section */}
+            {(recommendations.length > 0 || loadingRecommendations) && (
+              <div className="mt-6 pt-4 border-t space-y-3">
+                <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                  <UserPlus className="w-4 h-4" />
+                  Letters of Recommendation
+                  {recommendations.length > 0 && (
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                      {recommendations.filter(r => r.status === 'submitted').length}/{recommendations.length} received
+                    </span>
+                  )}
+                </h3>
+                
+                {loadingRecommendations ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Loading recommendations...
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {recommendations.map((rec) => (
+                      <div 
+                        key={rec.id} 
+                        className={cn(
+                          "p-3 rounded-lg border",
+                          rec.status === 'submitted' ? "bg-green-50 border-green-200" :
+                          rec.status === 'expired' ? "bg-red-50 border-red-200" :
+                          rec.status === 'cancelled' ? "bg-gray-50 border-gray-200" :
+                          "bg-yellow-50 border-yellow-200"
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              {rec.status === 'submitted' ? (
+                                <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                              ) : rec.status === 'expired' ? (
+                                <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                              ) : rec.status === 'cancelled' ? (
+                                <XCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                              ) : (
+                                <Clock3 className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+                              )}
+                              <span className="font-medium text-sm text-gray-900 truncate">
+                                {rec.recommender_name}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-xs text-gray-500 truncate">
+                              {rec.recommender_email}
+                              {rec.recommender_relationship && ` • ${rec.recommender_relationship}`}
+                            </div>
+                            <div className="mt-1 flex items-center gap-2 text-xs">
+                              <span className={cn(
+                                "px-1.5 py-0.5 rounded",
+                                rec.status === 'submitted' ? "bg-green-100 text-green-700" :
+                                rec.status === 'expired' ? "bg-red-100 text-red-700" :
+                                rec.status === 'cancelled' ? "bg-gray-100 text-gray-500" :
+                                "bg-yellow-100 text-yellow-700"
+                              )}>
+                                {rec.status === 'submitted' ? 'Received' :
+                                 rec.status === 'expired' ? 'Expired' :
+                                 rec.status === 'cancelled' ? 'Cancelled' : 'Pending'}
+                              </span>
+                              {rec.submitted_at && (
+                                <span className="text-gray-400">
+                                  {new Date(rec.submitted_at).toLocaleDateString()}
+                                </span>
+                              )}
+                              {rec.status === 'pending' && rec.reminder_count > 0 && (
+                                <span className="text-gray-400">
+                                  {rec.reminder_count} reminder{rec.reminder_count > 1 ? 's' : ''} sent
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {rec.status === 'pending' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSendReminder(rec.id)}
+                              disabled={sendingReminder === rec.id}
+                              className="flex-shrink-0 text-xs h-7"
+                            >
+                              {sendingReminder === rec.id ? (
+                                <RefreshCw className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <>
+                                  <Mail className="w-3 h-3 mr-1" />
+                                  Remind
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                        
+                        {/* Show response preview if submitted */}
+                        {rec.status === 'submitted' && rec.response && (
+                          <div className="mt-2 pt-2 border-t border-green-200">
+                            <button
+                              onClick={() => {
+                                // Could expand to show full response
+                                console.log('Recommendation response:', rec.response);
+                              }}
+                              className="text-xs text-green-700 hover:text-green-800 flex items-center gap-1"
+                            >
+                              <FileText className="w-3 h-3" />
+                              View recommendation
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
