@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowRight, Mail, Lock, Sparkles, CheckCircle2, LayoutDashboard, FileEdit } from 'lucide-react'
 import { Button } from '@/ui-components/button'
@@ -83,6 +83,21 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   const [applicationRowId, setApplicationRowId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'dashboard' | 'form'>('form') // Track if viewing dashboard or filling form
   const [currentFormData, setCurrentFormData] = useState<Record<string, any>>({}) // Track current form data for dashboard save
+
+  // Memoize the form initial data with submission ID to prevent infinite re-renders
+  // This ensures the object reference stays stable unless initialData or applicationRowId actually changes
+  const formInitialData = useMemo(() => {
+    if (!initialData) return null
+    if (applicationRowId) {
+      return { ...initialData, _submission_id: applicationRowId }
+    }
+    return initialData
+  }, [initialData, applicationRowId])
+
+  // Memoize the form data change handler to prevent re-renders
+  const handleFormDataChange = useCallback((data: Record<string, any>) => {
+    setCurrentFormData(data)
+  }, [])
 
   // Language support
   const defaultLanguage = form?.settings?.language?.default || 'en'
@@ -511,10 +526,10 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         <DynamicApplicationForm 
           config={portalConfig}
           onSubmit={handleFormSubmit}
-          onFormDataChange={setCurrentFormData}
+          onFormDataChange={handleFormDataChange}
           isExternal={true}
           formId={form?.id}
-          initialData={applicationRowId ? { ...initialData, _submission_id: applicationRowId } : initialData}
+          initialData={formInitialData}
           onDashboard={handleSaveAndDashboard}
           email={email}
         />

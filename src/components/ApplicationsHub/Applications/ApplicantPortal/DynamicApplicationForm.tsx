@@ -200,6 +200,7 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
   // Refs for autosave to avoid stale closures
   const formDataRef = useRef(formData)
   const isAutosavingRef = useRef(false)
+  const initialDataLoadedRef = useRef(false)
   
   // Keep refs in sync
   useEffect(() => {
@@ -213,16 +214,26 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
     }
   }, [initialSectionId])
 
-  // Load initial data when provided
+  // Load initial data when provided - only on first load or when data actually changes
   useEffect(() => {
     if (initialData) {
-      setFormData(initialData)
-      setLastSavedData(JSON.stringify(initialData))
+      const initialDataString = JSON.stringify(initialData)
+      // Only update if this is first load or if data actually changed
+      if (!initialDataLoadedRef.current || initialDataString !== lastSavedData) {
+        setFormData(initialData)
+        setLastSavedData(initialDataString)
+        initialDataLoadedRef.current = true
+      }
     }
-  }, [initialData])
+  }, [initialData, lastSavedData])
 
-  // Notify parent when form data changes
+  // Notify parent when form data changes - but skip on initial mount to prevent loops
+  const isFirstRender = useRef(true)
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
     if (onFormDataChange) {
       onFormDataChange(formData)
     }
