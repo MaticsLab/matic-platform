@@ -1175,6 +1175,11 @@ func SubmitForm(c *gin.Context) {
 				`, existingRow.ID)
 			}()
 
+			// Process recommendation fields and create recommendation requests (only for non-draft submissions)
+			if !input.SaveDraft {
+				go processRecommendationFields(parsedFormID, existingRow.ID, data)
+			}
+
 			fmt.Printf("✅ SubmitForm: updated submission row %s for form %s\n", existingRow.ID, formID)
 			c.JSON(http.StatusOK, existingRow)
 			return
@@ -1273,8 +1278,153 @@ func SubmitForm(c *gin.Context) {
 	formUUID, _ := uuid.Parse(formID)
 	go TriggerNewSubmissionWebhook(formUUID, row.ID, data)
 
+	// Process recommendation fields and create recommendation requests (only for non-draft submissions)
+	if !input.SaveDraft {
+		go processRecommendationFields(parsedFormID, row.ID, data)
+	}
+
 	fmt.Printf("✅ SubmitForm: created new submission row %s for form %s\n", row.ID, formID)
 	c.JSON(http.StatusCreated, row)
+}
+
+// processRecommendationFields finds recommendation fields in the form and creates recommendation requests
+// for each recommender. This is called asynchronously after form submission.
+func processRecommendationFields(formID uuid.UUID, submissionID uuid.UUID, data map[string]interface{}) {
+	fmt.Printf("📧 processRecommendationFields: Processing recommendations for submission %s\n", submissionID)
+
+	// Get all fields for this form to find recommendation fields
+	var fields []models.Field
+	if err := database.DB.Where("table_id = ?", formID).Find(&fields).Error; err != nil {
+		fmt.Printf("❌ processRecommendationFields: Failed to get fields for form %s: %v\n", formID, err)
+		return
+	}
+
+	// Get the form info for email context
+	var form models.Table
+	if err := database.DB.First(&form, "id = ?", formID).Error; err != nil {
+		fmt.Printf("❌ processRecommendationFields: Failed to get form %s: %v\n", formID, err)
+		return
+	}
+
+	// Get the submission for context
+	var submission models.Row
+	if err := database.DB.First(&submission, "id = ?", submissionID).Error; err != nil {
+		fmt.Printf("❌ processRecommendationFields: Failed to get submission %s: %v\n", submissionID, err)
+		return
+	}
+
+	// Find recommendation fields
+	for _, field := range fields {
+		// Check if this is a recommendation field
+		if field.FieldTypeID != "recommendation" {
+			continue
+		}
+
+		fieldIDStr := field.ID.String()
+		fmt.Printf("📧 processRecommendationFields: Found recommendation field %s\n", fieldIDStr)
+
+		// Get the recommender data from the submission
+		fieldData, exists := data[fieldIDStr]
+		if !exists {
+			fmt.Printf("📧 processRecommendationFields: No data for field %s\n", fieldIDStr)
+			continue
+		}
+
+		// The recommender data should be an array of recommender objects
+		recommenders, ok := fieldData.([]interface{})
+		if !ok {
+			fmt.Printf("📧 processRecommendationFields: Field %s data is not an array\n", fieldIDStr)
+			continue
+		}
+
+		// Get field config for deadline settings
+		var fieldConfig models.RecommendationFieldConfig
+		if field.Config != nil {
+			json.Unmarshal(field.Config, &fieldConfig)
+		}
+
+		// Set defaults
+		if fieldConfig.DeadlineDays == 0 {
+			fieldConfig.DeadlineDays = 14
+		}
+
+		// Process each recommender
+		for _, recData := range recommenders {
+			rec, ok := recData.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			// Note: recommenderID is stored in rec["id"] but we don't need it for the request
+			recommenderName := getStringValue(rec, "name")
+			recommenderEmail := getStringValue(rec, "email")
+			recommenderRelationship := getStringValue(rec, "relationship")
+
+			if recommenderName == "" || recommenderEmail == "" {
+				fmt.Printf("📧 processRecommendationFields: Skipping recommender with missing name/email\n")
+				continue
+			}
+
+			// Check if a recommendation request already exists for this recommender
+			var existingRequest models.RecommendationRequest
+			if err := database.DB.Where(
+				"submission_id = ? AND field_id = ? AND recommender_email = ? AND status != ?",
+				submissionID, fieldIDStr, recommenderEmail, "cancelled",
+			).First(&existingRequest).Error; err == nil {
+				fmt.Printf("📧 processRecommendationFields: Request already exists for %s\n", recommenderEmail)
+				continue
+			}
+
+			// Calculate expiry date
+			var expiresAt *time.Time
+			if fieldConfig.DeadlineDays > 0 {
+				expiry := time.Now().AddDate(0, 0, fieldConfig.DeadlineDays)
+				expiresAt = &expiry
+			}
+
+			// Create the recommendation request
+			request := models.RecommendationRequest{
+				SubmissionID:            submissionID,
+				FormID:                  formID,
+				FieldID:                 fieldIDStr,
+				RecommenderName:         recommenderName,
+				RecommenderEmail:        recommenderEmail,
+				RecommenderRelationship: recommenderRelationship,
+				Token:                   generateRecommendationToken(),
+				Status:                  "pending",
+				ExpiresAt:               expiresAt,
+			}
+
+			if err := database.DB.Create(&request).Error; err != nil {
+				fmt.Printf("❌ processRecommendationFields: Failed to create request for %s: %v\n", recommenderEmail, err)
+				continue
+			}
+
+			fmt.Printf("✅ processRecommendationFields: Created request %s for %s (%s)\n", request.ID, recommenderName, recommenderEmail)
+
+			// Update the recommender data in the submission with the request ID
+			rec["request_id"] = request.ID.String()
+			rec["request_status"] = "pending"
+
+			// Send the email asynchronously
+			go sendRecommendationRequestEmail(&request, &submission, &form, &fieldConfig)
+		}
+
+		// Update the submission data with the request IDs
+		data[fieldIDStr] = recommenders
+		updatedData := mapToJSON(data)
+		database.DB.Model(&models.Row{}).Where("id = ?", submissionID).Update("data", updatedData)
+	}
+}
+
+// getStringValue safely extracts a string value from a map
+func getStringValue(m map[string]interface{}, key string) string {
+	if v, ok := m[key]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
 }
 
 type FieldInput struct {
