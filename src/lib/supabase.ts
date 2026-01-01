@@ -43,18 +43,23 @@ export async function getSessionToken(): Promise<string | null> {
   if (typeof document !== 'undefined') {
     const cookies = document.cookie.split(';')
     const betterAuthCookieNames = [
+      '__Secure-better-auth.session_token',
       'better-auth.session_token',
       'better-auth_session_token', 
-      '__Secure-better-auth.session_token',
       'better_auth_session',
       'session_token'
     ]
     
     for (const cookie of cookies) {
-      const [name, value] = cookie.trim().split('=')
+      const [name, ...valueParts] = cookie.trim().split('=')
+      const value = valueParts.join('=') // Handle values with = in them
+      
       if (betterAuthCookieNames.includes(name) && value) {
         console.log('Found Better Auth session cookie:', name)
-        return decodeURIComponent(value)
+        const decodedValue = decodeURIComponent(value)
+        // If the cookie is signed (contains .), extract just the token part
+        const tokenPart = decodedValue.split('.')[0]
+        return tokenPart
       }
     }
   }

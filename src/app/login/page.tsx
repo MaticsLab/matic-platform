@@ -92,12 +92,18 @@ export default function LoginPage() {
           router.push('/')
         }
       } else {
-        // For Better Auth users, redirect based on last workspace or home
+        // For Better Auth users, use window.location for a full page navigation
+        // This ensures cookies are properly sent with the request
+        console.log('Better Auth login successful, redirecting with full page load...')
+        
+        // Small delay to ensure cookies are set before redirect
+        await new Promise(resolve => setTimeout(resolve, 200))
+        
         const lastWorkspace = getLastWorkspace()
         if (lastWorkspace) {
-          router.push(`/workspace/${lastWorkspace}`)
+          window.location.href = `/workspace/${lastWorkspace}`
         } else {
-          router.push('/')
+          window.location.href = '/'
         }
       }
     } catch (err: any) {
