@@ -201,11 +201,16 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
   const formDataRef = useRef(formData)
   const isAutosavingRef = useRef(false)
   const initialDataLoadedRef = useRef(false)
+  const lastSavedDataRef = useRef(lastSavedData)
   
   // Keep refs in sync
   useEffect(() => {
     formDataRef.current = formData
   }, [formData])
+  
+  useEffect(() => {
+    lastSavedDataRef.current = lastSavedData
+  }, [lastSavedData])
 
   // Update active section when initialSectionId changes (for preview mode navigation)
   useEffect(() => {
@@ -214,18 +219,15 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
     }
   }, [initialSectionId])
 
-  // Load initial data when provided - only on first load or when data actually changes
+  // Load initial data when provided - only on first mount
   useEffect(() => {
-    if (initialData) {
+    if (initialData && !initialDataLoadedRef.current) {
       const initialDataString = JSON.stringify(initialData)
-      // Only update if this is first load or if data actually changed
-      if (!initialDataLoadedRef.current || initialDataString !== lastSavedData) {
-        setFormData(initialData)
-        setLastSavedData(initialDataString)
-        initialDataLoadedRef.current = true
-      }
+      setFormData(initialData)
+      setLastSavedData(initialDataString)
+      initialDataLoadedRef.current = true
     }
-  }, [initialData, lastSavedData])
+  }, [initialData])
 
   // Notify parent when form data changes - but skip on initial mount to prevent loops
   const isFirstRender = useRef(true)
@@ -248,8 +250,8 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
     const cleanedData = stripBlobUrls(currentData)
     const dataString = JSON.stringify(cleanedData)
     
-    // Skip if no changes since last save
-    if (dataString === lastSavedData || Object.keys(cleanedData).length === 0) return
+    // Skip if no changes since last save (use ref for comparison to avoid stale closure)
+    if (dataString === lastSavedDataRef.current || Object.keys(cleanedData).length === 0) return
     
     isAutosavingRef.current = true
     setIsAutosaving(true)
@@ -267,15 +269,15 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
         if (savedRow.id && !currentData._submission_id) {
           setFormData(prev => ({ ...prev, _submission_id: savedRow.id }))
         }
+        setLastSavedData(dataString)
       }
-      setLastSavedData(dataString)
     } catch (error) {
       console.warn('Autosave failed:', error)
     } finally {
       isAutosavingRef.current = false
       setIsAutosaving(false)
     }
-  }, [formId, email, lastSavedData])
+  }, [formId, email])
   
   // Debounced autosave - triggers 3 seconds after last change
   useEffect(() => {
