@@ -262,7 +262,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       
       // Call the backend API to save the submission
       // If saveAndExit is true, mark as draft (don't change status to submitted)
-      await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${form.id}/submit`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${form.id}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -270,10 +270,17 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
           email,
           save_draft: options?.saveAndExit === true // Only mark as draft if saveAndExit
         })
-      }).then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json()
       })
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const savedRow = await response.json()
+      
+      // Store the submission ID for features like letters of recommendation
+      if (savedRow.id) {
+        setApplicationRowId(savedRow.id)
+        // Also update initialData so the form has access to the submission ID
+        setInitialData(prev => ({ ...prev, _submission_id: savedRow.id }))
+      }
       
       setSubmissionData(cleanedFormData)
       
@@ -454,11 +461,19 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       // Save current form data as draft (doesn't change status to submitted)
       if (form?.id && dataToSave && Object.keys(dataToSave).length > 0) {
         try {
-          await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${form.id}/submit`, {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${form.id}/submit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: dataToSave, email, save_draft: true })
           })
+          if (response.ok) {
+            const savedRow = await response.json()
+            // Store the submission ID for features like letters of recommendation
+            if (savedRow.id) {
+              setApplicationRowId(savedRow.id)
+              setInitialData(prev => ({ ...prev, _submission_id: savedRow.id }))
+            }
+          }
           toast.success('Progress saved!')
         } catch (error) {
           console.warn('Failed to save progress:', error)

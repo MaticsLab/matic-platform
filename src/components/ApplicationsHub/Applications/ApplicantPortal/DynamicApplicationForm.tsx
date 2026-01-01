@@ -243,11 +243,19 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
     setIsAutosaving(true)
     
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${formId}/submit`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${formId}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ data: cleanedData, email, save_draft: true })
       })
+      if (response.ok) {
+        const savedRow = await response.json()
+        // If this is the first save (new row created), store the submission ID
+        // so that features like letters of recommendation can work
+        if (savedRow.id && !currentData._submission_id) {
+          setFormData(prev => ({ ...prev, _submission_id: savedRow.id }))
+        }
+      }
       setLastSavedData(dataString)
     } catch (error) {
       console.warn('Autosave failed:', error)
