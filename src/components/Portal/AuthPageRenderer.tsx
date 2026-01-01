@@ -307,7 +307,8 @@ export function AuthPageRenderer({
                     )} />
                     <Input 
                       id="password" 
-                      type="password" 
+                      type="password"
+                      autoComplete="current-password"
                       className={cn(
                         "pl-10",
                         isMobilePreview && "h-8 text-xs"

@@ -127,7 +127,7 @@ export default function LoginFormBlock({
                 <Input
                   id="password"
                   type="password"
-                  placeholder="••••••••"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10"

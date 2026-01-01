@@ -3,6 +3,7 @@
 import { Check, ChevronRight, Menu, X, HelpCircle, Mail } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { cn } from '@/lib/utils'
+import { safeFieldString } from '@/components/Fields/types'
 
 interface Section {
   id: string
@@ -137,7 +138,7 @@ export function ApplicationSidebar({
                     {/* Section Info */}
                     <div className="flex-1 min-w-0 overflow-hidden">
                       <div className="font-medium truncate overflow-hidden text-ellipsis whitespace-nowrap">
-                        {section.title}
+                        {safeFieldString(section.title)}
                       </div>
                       {!isComplete && !isReviewSection && (
                         <div className="flex items-center gap-2 mt-1 min-w-0">

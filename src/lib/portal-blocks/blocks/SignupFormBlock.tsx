@@ -194,7 +194,7 @@ export default function SignupFormBlock({
               <Input
                 id="signup-password"
                 type="password"
-                placeholder="••••••••"
+                autoComplete="new-password"
                 value={formData.password}
                 onChange={(e) => updateField('password', e.target.value)}
                 className={cn('pl-10', errors.password && 'border-red-500')}
@@ -214,7 +214,7 @@ export default function SignupFormBlock({
                 <Input
                   id="confirm-password"
                   type="password"
-                  placeholder="••••••••"
+                  autoComplete="new-password"
                   value={formData.confirmPassword}
                   onChange={(e) => updateField('confirmPassword', e.target.value)}
                   className={cn('pl-10', errors.confirmPassword && 'border-red-500')}
