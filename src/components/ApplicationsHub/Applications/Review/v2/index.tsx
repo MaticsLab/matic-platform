@@ -181,6 +181,7 @@ export function ReviewWorkspaceV2({
       id: sub.id,
       firstName: fName || 'Unknown',
       lastName: lNames.join(' ') || '',
+      name: fullName || `${fName || ''} ${lNames.join(' ')}`.trim() || 'Unknown',
       email,
       dateOfBirth: data.date_of_birth || data.dob || data['Date of Birth'],
       gender: data.gender || data.Gender,
@@ -214,7 +215,8 @@ export function ReviewWorkspaceV2({
         notes: rh.notes,
         comments: rh.comments,
         reviewed_at: rh.submitted_at || rh.reviewed_at
-      }))
+      })),
+      stageHistory: metadata.stage_history || [],
     };
   }, [form, selectedWorkflow]);
 

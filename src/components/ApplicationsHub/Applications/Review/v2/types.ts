@@ -52,6 +52,19 @@ export interface Application {
   flagged?: boolean;
   workflowId?: string;
   reviewHistory?: ReviewHistoryEntry[];
+  stageHistory?: StageHistoryEntry[];
+}
+
+export interface StageHistoryEntry {
+  from_stage_id?: string;
+  to_stage_id?: string;
+  from_stage?: string;
+  to_stage?: string;
+  moved_at?: string;
+  timestamp?: string;
+  reason?: string;
+  action?: string;
+  condition?: string;
 }
 
 export interface Stage {

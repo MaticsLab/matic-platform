@@ -677,16 +677,114 @@ export function ApplicationDetail({
     return reviewersMap[reviewerId]?.name || 'Reviewer';
   };
 
-  const statusMessage = application.stageName || application.status;
-  const activities = [
-    { 
-      id: 1, 
-      type: 'status' as const, 
-      message: `Moved to ${statusMessage}`, 
-      user: 'System', 
-      time: application.lastActivity || 'Recently' 
-    },
-  ];
+  // Format relative time
+  const formatRelativeTime = (dateString?: string) => {
+    if (!dateString) return 'Recently';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 30) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
+  };
+
+  // Get stage name by ID
+  const getStageName = (stageId?: string) => {
+    if (!stageId) return 'Unknown';
+    const stage = stages.find(s => s.id === stageId);
+    return stage?.name || stageId;
+  };
+
+  // Build activities from real data (stageHistory and reviewHistory)
+  const activities = useMemo(() => {
+    const items: Array<{
+      id: string | number;
+      type: 'status' | 'review' | 'comment' | 'email';
+      message: string;
+      user: string;
+      time: string;
+      timestamp: number;
+    }> = [];
+
+    // Add stage history items
+    if (application.stageHistory && Array.isArray(application.stageHistory)) {
+      application.stageHistory.forEach((entry, idx) => {
+        const timestamp = entry.moved_at || entry.timestamp;
+        const toStage = entry.to_stage_id ? getStageName(entry.to_stage_id) : (entry.to_stage || 'Unknown');
+        const action = entry.action || 'moved';
+        
+        let message = '';
+        if (action === 'auto_advanced') {
+          message = `Auto-advanced to ${toStage}`;
+        } else if (action === 'auto_rejected') {
+          message = 'Application auto-rejected';
+        } else {
+          message = `Moved to ${toStage}`;
+        }
+
+        items.push({
+          id: `stage-${idx}`,
+          type: 'status',
+          message,
+          user: 'System',
+          time: formatRelativeTime(timestamp),
+          timestamp: timestamp ? new Date(timestamp).getTime() : 0,
+        });
+      });
+    }
+
+    // Add review history items
+    if (application.reviewHistory && Array.isArray(application.reviewHistory)) {
+      application.reviewHistory.forEach((review, idx) => {
+        items.push({
+          id: `review-${idx}`,
+          type: 'review',
+          message: `Review submitted${review.total_score ? ` (Score: ${review.total_score})` : ''}`,
+          user: review.reviewer_name || getReviewerName(review.reviewer_id) || 'Reviewer',
+          time: formatRelativeTime(review.reviewed_at),
+          timestamp: review.reviewed_at ? new Date(review.reviewed_at).getTime() : 0,
+        });
+      });
+    }
+
+    // Add submission as first activity if no other activities
+    if (items.length === 0) {
+      items.push({
+        id: 'submitted',
+        type: 'status',
+        message: 'Application submitted',
+        user: application.name || application.email || 'Applicant',
+        time: formatRelativeTime(application.submittedDate),
+        timestamp: application.submittedDate ? new Date(application.submittedDate).getTime() : 0,
+      });
+    }
+
+    // Also add current status if not in history
+    const currentStageInHistory = application.stageHistory?.some(
+      h => (h.to_stage_id === application.stageId) || (h.to_stage === application.stageName)
+    );
+    if (!currentStageInHistory && application.stageName) {
+      items.push({
+        id: 'current-status',
+        type: 'status',
+        message: `Moved to ${application.stageName}`,
+        user: 'System',
+        time: application.lastActivity || 'Recently',
+        timestamp: Date.now() - 1000, // Recent but not newest
+      });
+    }
+
+    // Sort by timestamp descending (newest first)
+    items.sort((a, b) => b.timestamp - a.timestamp);
+
+    return items;
+  }, [application.stageHistory, application.reviewHistory, application.stageName, application.stageId, application.lastActivity, application.submittedDate, application.name, application.email, stages]);
 
   return (
     <div className="bg-white flex flex-col h-full">
