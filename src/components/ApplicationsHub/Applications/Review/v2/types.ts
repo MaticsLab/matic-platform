@@ -124,6 +124,7 @@ export interface ApplicationDetailProps {
   workspaceId?: string;
   formId?: string;
   fields?: { id: string; label: string; type: string }[];
+  onActivityCreated?: () => void;
 }
 
 export interface PipelineHeaderProps {

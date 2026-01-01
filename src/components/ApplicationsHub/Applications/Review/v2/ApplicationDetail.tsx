@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { emailClient, SendEmailRequest } from '@/lib/api/email-client';
 import { workflowsClient, StageAction, WorkflowAction } from '@/lib/api/workflows-client';
+import { dashboardClient } from '@/lib/api/dashboard-client';
 import {
   Popover,
   PopoverContent,
@@ -399,7 +400,8 @@ export function ApplicationDetail({
   onDelete,
   workspaceId,
   formId,
-  fields = []
+  fields = [],
+  onActivityCreated
 }: ApplicationDetailProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'documents' | 'reviews'>('overview');
   const [selectedStage, setSelectedStage] = useState(application.stageId || application.status);
@@ -667,6 +669,28 @@ export function ApplicationDetail({
       const result = await emailClient.send(workspaceId, request);
 
       if (result.success) {
+        // Log activity for the email sent
+        try {
+          await dashboardClient.createActivity(application.id, {
+            activityType: 'message',
+            content: `Email sent to ${recipientEmail}\n\nSubject: ${emailSubject}\n\n${emailBody.replace(/<[^>]*>/g, '')}`,
+            visibility: 'internal',
+            metadata: {
+              type: 'email_sent',
+              to: recipientEmail,
+              subject: emailSubject,
+              from: selectedFromEmail || gmailConnection?.email
+            }
+          });
+          // Trigger refresh of activities if callback exists
+          if (onActivityCreated) {
+            onActivityCreated();
+          }
+        } catch (activityError) {
+          console.error('Failed to log email activity:', activityError);
+          // Don't fail the email send if activity logging fails
+        }
+        
         toast.success('Email sent successfully!');
         setEmailSubject('');
         setEmailBody('');
@@ -1667,17 +1691,10 @@ export function ApplicationDetail({
           </div>
         )}
 
-        {/* Action Buttons - Fixed at bottom for all tabs */}
+        {/* Action Buttons - Fixed at bottom for overview tab only */}
+        {activeTab === 'overview' && (
         <div className="p-4 border-t bg-white flex-shrink-0">
           <div className="flex items-center gap-3">
-            <button 
-              onClick={handleReview}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors text-white shadow-sm font-medium text-sm"
-            >
-              <Play className="w-4 h-4" />
-              <span>Start Review</span>
-            </button>
-
             {/* Dynamic Action Button with Dropdown */}
             <div className="relative flex-1 max-w-sm">
               <button
@@ -1876,6 +1893,7 @@ export function ApplicationDetail({
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Click outside to close dropdown */}
