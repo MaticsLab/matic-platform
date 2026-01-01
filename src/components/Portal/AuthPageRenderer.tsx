@@ -308,7 +308,6 @@ export function AuthPageRenderer({
                     <Input 
                       id="password" 
                       type="password" 
-                      placeholder="••••••••" 
                       className={cn(
                         "pl-10",
                         isMobilePreview && "h-8 text-xs"
