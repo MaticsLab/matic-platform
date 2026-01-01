@@ -279,7 +279,7 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       if (savedRow.id) {
         setApplicationRowId(savedRow.id)
         // Also update initialData so the form has access to the submission ID
-        setInitialData(prev => ({ ...prev, _submission_id: savedRow.id }))
+        setInitialData((prev: Record<string, any> | null) => ({ ...prev, _submission_id: savedRow.id }))
       }
       
       setSubmissionData(cleanedFormData)
