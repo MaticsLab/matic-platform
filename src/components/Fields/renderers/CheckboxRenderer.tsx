@@ -12,6 +12,7 @@ import { Switch } from '@/ui-components/switch';
 import { cn } from '@/lib/utils';
 import { Check, X } from 'lucide-react';
 import type { FieldRendererProps } from '../types';
+import { safeFieldString } from '../types';
 import { FIELD_TYPES } from '@/types/field-types';
 
 const CHECKBOX_SUBTYPES = [
@@ -105,6 +106,8 @@ export function CheckboxRenderer(props: FieldRendererProps): React.ReactElement 
 
   // Form mode
   if (mode === 'form') {
+    const label = safeFieldString(field.label);
+    const description = safeFieldString(field.description);
     return (
       <div className={cn('space-y-2', className)}>
         <div className="flex items-center gap-3">
@@ -125,13 +128,13 @@ export function CheckboxRenderer(props: FieldRendererProps): React.ReactElement 
           )}
           
           <Label htmlFor={field.name} className="cursor-pointer">
-            {field.label}
+            {label}
             {required && <span className="text-red-500 ml-1">*</span>}
           </Label>
         </div>
         
-        {field.description && (
-          <p className="text-sm text-gray-500 ml-7">{field.description}</p>
+        {description && (
+          <p className="text-sm text-gray-500 ml-7">{description}</p>
         )}
         
         {error && (
@@ -143,6 +146,7 @@ export function CheckboxRenderer(props: FieldRendererProps): React.ReactElement 
 
   // Preview mode
   if (mode === 'preview') {
+    const label = safeFieldString(field.label);
     return (
       <div className={cn('flex items-center gap-3', className)}>
         {useSwitch ? (
@@ -151,7 +155,7 @@ export function CheckboxRenderer(props: FieldRendererProps): React.ReactElement 
           <Checkbox disabled className="opacity-50" />
         )}
         <Label className="text-gray-500">
-          {field.label}
+          {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </Label>
       </div>

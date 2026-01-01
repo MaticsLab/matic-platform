@@ -13,6 +13,7 @@ import { Label } from '@/ui-components/label';
 import { cn } from '@/lib/utils';
 import { FunctionSquare, AlertCircle } from 'lucide-react';
 import type { FieldRendererProps } from '../types';
+import { safeFieldString } from '../types';
 import { FIELD_TYPES } from '@/types/field-types';
 
 const FORMULA_SUBTYPES = [
@@ -104,15 +105,17 @@ export function FormulaRenderer(props: FieldRendererProps): React.ReactElement |
 
   // Form mode - show as read-only info
   if (mode === 'form') {
+    const label = safeFieldString(field.label);
+    const description = safeFieldString(field.description);
     return (
       <div className={cn('space-y-2', className)}>
         <Label className="flex items-center gap-1.5">
           <FunctionSquare size={14} className="text-orange-500" />
-          {field.label}
+          {label}
         </Label>
         
-        {field.description && (
-          <p className="text-sm text-gray-500">{field.description}</p>
+        {description && (
+          <p className="text-sm text-gray-500">{description}</p>
         )}
         
         <div className={cn(
@@ -146,11 +149,12 @@ export function FormulaRenderer(props: FieldRendererProps): React.ReactElement |
 
   // Preview mode
   if (mode === 'preview') {
+    const label = safeFieldString(field.label);
     return (
       <div className={cn('space-y-2', className)}>
         <Label className="text-gray-500 flex items-center gap-1.5">
           <FunctionSquare size={14} />
-          {field.label}
+          {label}
         </Label>
         
         <div className="px-3 py-2 bg-orange-50 border border-dashed border-orange-200 rounded-md">

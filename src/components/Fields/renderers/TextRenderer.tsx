@@ -11,6 +11,7 @@ import { Textarea } from '@/ui-components/textarea';
 import { Label } from '@/ui-components/label';
 import { cn } from '@/lib/utils';
 import type { FieldRendererProps } from '../types';
+import { safeFieldString } from '../types';
 import { FIELD_TYPES } from '@/types/field-types';
 
 // Sub-types that this renderer handles
@@ -161,15 +162,17 @@ export function TextRenderer(props: FieldRendererProps): React.ReactElement | nu
 
   // Form mode - full form input with label
   if (mode === 'form') {
+    const label = safeFieldString(field.label);
+    const description = safeFieldString(field.description);
     return (
       <div className={cn('space-y-2', className)}>
         <Label htmlFor={field.name}>
-          {field.label}
+          {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </Label>
         
-        {field.description && (
-          <p className="text-sm text-gray-500">{field.description}</p>
+        {description && (
+          <p className="text-sm text-gray-500">{description}</p>
         )}
         
         {isTextarea ? (
@@ -215,10 +218,11 @@ export function TextRenderer(props: FieldRendererProps): React.ReactElement | nu
 
   // Preview mode - for builder
   if (mode === 'preview') {
+    const label = safeFieldString(field.label);
     return (
       <div className={cn('space-y-2', className)}>
         <Label className="text-gray-500 flex items-center gap-1">
-          {field.label}
+          {label}
           {required && <span className="text-red-500">*</span>}
         </Label>
         

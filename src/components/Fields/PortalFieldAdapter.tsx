@@ -10,6 +10,7 @@
 import React from 'react';
 import { FieldRenderer } from '@/components/Fields';
 import type { FieldRendererProps, FieldRenderMode } from '@/components/Fields/types';
+import { safeFieldString } from '@/components/Fields/types';
 import type { Field } from '@/types/field-types';
 import type { Field as PortalField } from '@/types/portal';
 
@@ -190,10 +191,10 @@ export function PortalFieldAdapter({
     return (
       <div className="rounded-lg border border-gray-200 p-4">
         {field.label && (
-          <h4 className="font-medium text-gray-900 mb-3">{field.label}</h4>
+          <h4 className="font-medium text-gray-900 mb-3">{safeFieldString(field.label)}</h4>
         )}
         {field.description && (
-          <p className="text-sm text-gray-500 mb-4">{field.description}</p>
+          <p className="text-sm text-gray-500 mb-4">{safeFieldString(field.description)}</p>
         )}
         <div className={`grid gap-4 grid-cols-${columns}`} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
           {groupChildren.map((child) => (
@@ -252,12 +253,12 @@ export function PortalFieldAdapter({
       <div className="rounded-lg border border-gray-200 p-4 space-y-4">
         {field.label && (
           <div className="flex items-center justify-between">
-            <h4 className="font-medium text-gray-900">{field.label}</h4>
+            <h4 className="font-medium text-gray-900">{safeFieldString(field.label)}</h4>
             <span className="text-xs text-gray-400">{items.length} / {maxItems}</span>
           </div>
         )}
         {field.description && (
-          <p className="text-sm text-gray-500">{field.description}</p>
+          <p className="text-sm text-gray-500">{safeFieldString(field.description)}</p>
         )}
         
         {items.map((item, index) => (

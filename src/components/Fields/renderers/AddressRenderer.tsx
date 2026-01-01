@@ -9,6 +9,7 @@ import React from 'react';
 import { Label } from '@/ui-components/label';
 import { cn } from '@/lib/utils';
 import type { FieldRendererProps } from '../types';
+import { safeFieldString } from '../types';
 import { AddressField, AddressValue } from '@/components/Tables/AddressField';
 import { MapPin } from 'lucide-react';
 
@@ -87,12 +88,12 @@ export function AddressRenderer(props: FieldRendererProps): React.ReactElement |
     return (
       <div className={cn('space-y-2', className)}>
         <Label>
-          {field.label}
+          {safeFieldString(field.label)}
           {required && <span className="text-red-500 ml-1">*</span>}
         </Label>
         
         {field.description && (
-          <p className="text-sm text-gray-500">{field.description}</p>
+          <p className="text-sm text-gray-500">{safeFieldString(field.description)}</p>
         )}
         
         <AddressField
@@ -114,7 +115,7 @@ export function AddressRenderer(props: FieldRendererProps): React.ReactElement |
     return (
       <div className={cn('space-y-2', className)}>
         <Label className="text-gray-500">
-          {field.label}
+          {safeFieldString(field.label)}
           {required && <span className="text-red-500 ml-1">*</span>}
         </Label>
         <div className="relative">

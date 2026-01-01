@@ -19,6 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Check, ChevronDown, X } from 'lucide-react';
 import type { FieldRendererProps } from '../types';
+import { safeFieldString } from '../types';
 import { FIELD_TYPES } from '@/types/field-types';
 
 const SELECT_SUBTYPES = [
@@ -140,11 +141,12 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
   // Early return for disabled state in form mode - show simple placeholder instead of Radix Select
   // This avoids Radix UI issues when the component is just being used for preview
   if (disabled && (mode === 'form' || mode === 'edit') && !value) {
+    const label = safeFieldString(field.label);
     return (
       <div className={cn('space-y-2', className)}>
-        {mode === 'form' && field.label && (
+        {mode === 'form' && label && (
           <Label className="text-gray-500">
-            {field.label}
+            {label}
             {required && <span className="text-red-500 ml-1">*</span>}
           </Label>
         )}
@@ -285,15 +287,17 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
 
   // Form mode
   if (mode === 'form') {
+    const label = safeFieldString(field.label);
+    const description = safeFieldString(field.description);
     return (
       <div className={cn('space-y-2', className)}>
         <Label htmlFor={field.name}>
-          {field.label}
+          {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </Label>
         
-        {field.description && (
-          <p className="text-sm text-gray-500">{field.description}</p>
+        {description && (
+          <p className="text-sm text-gray-500">{description}</p>
         )}
         
         {isMulti ? (
@@ -358,10 +362,11 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
 
   // Preview mode
   if (mode === 'preview') {
+    const label = safeFieldString(field.label);
     return (
       <div className={cn('space-y-2', className)}>
         <Label className="text-gray-500">
-          {field.label}
+          {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </Label>
         

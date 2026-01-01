@@ -12,6 +12,7 @@ import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { ChevronDown, ChevronUp, Folder, LayoutGrid } from 'lucide-react';
 import type { FieldRendererProps } from '../types';
+import { safeFieldString } from '../types';
 import { FIELD_TYPES } from '@/types/field-types';
 
 const SECTION_SUBTYPES = [
@@ -56,7 +57,7 @@ export function SectionRenderer(props: FieldRendererProps): React.ReactElement |
       return (
         <div className={cn('flex items-center gap-1 text-gray-500', className)}>
           <Folder size={14} />
-          <span className="text-sm">{field.label}</span>
+          <span className="text-sm">{safeFieldString(field.label)}</span>
         </div>
       );
     }
@@ -65,10 +66,10 @@ export function SectionRenderer(props: FieldRendererProps): React.ReactElement |
       <div className={cn('space-y-2', className)}>
         <div className="font-medium text-gray-700 flex items-center gap-2">
           <Folder size={16} className="text-gray-400" />
-          {field.label}
+          {safeFieldString(field.label)}
         </div>
         {field.description && (
-          <p className="text-sm text-gray-500">{field.description}</p>
+          <p className="text-sm text-gray-500">{safeFieldString(field.description)}</p>
         )}
         {childFields.length > 0 && (
           <p className="text-xs text-gray-400">
@@ -84,7 +85,7 @@ export function SectionRenderer(props: FieldRendererProps): React.ReactElement |
     return (
       <div className={cn('text-gray-500 text-sm', className)}>
         <Folder size={14} className="inline mr-1" />
-        {field.label}
+        {safeFieldString(field.label)}
       </div>
     );
   }
@@ -110,10 +111,10 @@ export function SectionRenderer(props: FieldRendererProps): React.ReactElement |
             <div>
               <h3 className="font-medium text-gray-900 flex items-center gap-2">
                 <LayoutGrid size={18} className="text-gray-400" />
-                {field.label}
+                {safeFieldString(field.label)}
               </h3>
               {field.description && (
-                <p className="text-sm text-gray-500 mt-0.5">{field.description}</p>
+                <p className="text-sm text-gray-500 mt-0.5">{safeFieldString(field.description)}</p>
               )}
             </div>
             
@@ -163,13 +164,13 @@ export function SectionRenderer(props: FieldRendererProps): React.ReactElement |
         <div className="px-4 py-3 bg-gray-50 border-b border-dashed">
           <div className="flex items-center gap-2 text-gray-500">
             <LayoutGrid size={16} />
-            <span className="font-medium">{field.label || 'Section'}</span>
+            <span className="font-medium">{safeFieldString(field.label) || 'Section'}</span>
             {collapsible && (
               <span className="text-xs text-gray-400">(collapsible)</span>
             )}
           </div>
           {field.description && (
-            <p className="text-xs text-gray-400 mt-1">{field.description}</p>
+            <p className="text-xs text-gray-400 mt-1">{safeFieldString(field.description)}</p>
           )}
         </div>
         

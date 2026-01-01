@@ -14,6 +14,7 @@ import {
   Lightbulb, Info, AlertTriangle, AlertCircle, CheckCircle, HelpCircle 
 } from 'lucide-react';
 import type { FieldRendererProps } from '../types';
+import { safeFieldString } from '../types';
 
 const LAYOUT_SUBTYPES = [
   'divider',
@@ -143,12 +144,12 @@ export function LayoutRenderer(props: FieldRendererProps): React.ReactElement | 
       return <DividerRenderer className={className} />;
       
     case 'heading':
-      return <HeadingRenderer label={field.label} className={className} />;
+      return <HeadingRenderer label={safeFieldString(field.label)} className={className} />;
       
     case 'paragraph':
       return (
         <ParagraphRenderer 
-          content={config?.content || field.label || ''} 
+          content={config?.content || safeFieldString(field.label) || ''} 
           className={className} 
         />
       );
@@ -156,8 +157,8 @@ export function LayoutRenderer(props: FieldRendererProps): React.ReactElement | 
     case 'callout':
       return (
         <CalloutRenderer
-          label={field.label}
-          description={config?.description || field.description}
+          label={safeFieldString(field.label)}
+          description={safeFieldString(config?.description || field.description)}
           color={config?.color}
           icon={config?.icon}
           className={className}

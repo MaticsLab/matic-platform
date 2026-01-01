@@ -11,6 +11,25 @@
 import type { Field, FieldTypeRegistry, EffectiveFieldConfig } from '@/types/field-types';
 
 /**
+ * Safely convert a field label or description to a string.
+ * Handles cases where the value might be an object (from translations)
+ * to prevent React error #185 (Objects are not valid as a React child).
+ */
+export function safeFieldString(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') {
+    // Handle translation objects with 'en' key or first available key
+    const obj = value as Record<string, unknown>;
+    if ('en' in obj && typeof obj.en === 'string') return obj.en;
+    const firstKey = Object.keys(obj)[0];
+    if (firstKey && typeof obj[firstKey] === 'string') return obj[firstKey] as string;
+    return '';
+  }
+  return String(value);
+}
+
+/**
  * The rendering mode determines how a field is displayed
  */
 export type FieldRenderMode = 

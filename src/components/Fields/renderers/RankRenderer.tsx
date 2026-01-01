@@ -18,6 +18,7 @@ import {
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
 import type { FieldRendererProps } from '../types';
+import { safeFieldString } from '../types';
 import { FIELD_TYPES } from '@/types/field-types';
 
 const RANK_SUBTYPES = [
@@ -251,12 +252,12 @@ export function RankRenderer(props: FieldRendererProps): React.ReactElement | nu
       return (
         <div className={cn('space-y-2', className)}>
           <Label>
-            {field.label}
+            {safeFieldString(field.label)}
             {required && <span className="text-red-500 ml-1">*</span>}
           </Label>
           
           {field.description && (
-            <p className="text-sm text-gray-500">{field.description}</p>
+            <p className="text-sm text-gray-500">{safeFieldString(field.description)}</p>
           )}
           
           {content}
@@ -276,7 +277,7 @@ export function RankRenderer(props: FieldRendererProps): React.ReactElement | nu
     return (
       <div className={cn('space-y-2', className)}>
         <Label className="text-gray-500">
-          {field.label}
+          {safeFieldString(field.label)}
           {required && <span className="text-red-500 ml-1">*</span>}
         </Label>
         
