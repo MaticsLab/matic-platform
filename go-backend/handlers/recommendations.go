@@ -64,11 +64,17 @@ func GetRecommendationRequest(c *gin.Context) {
 func GetRecommendationByToken(c *gin.Context) {
 	token := c.Param("token")
 
+	fmt.Printf("[Recommendations] GetByToken called with token: %s\n", token)
+
 	var request models.RecommendationRequest
 	if err := database.DB.First(&request, "token = ?", token).Error; err != nil {
+		fmt.Printf("[Recommendations] Token not found in database: %s\n", token)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Recommendation request not found or link has expired"})
 		return
 	}
+
+	fmt.Printf("[Recommendations] Found request ID: %s, Status: %s, SubmissionID: %s\n",
+		request.ID.String(), request.Status, request.SubmissionID.String())
 
 	// Check if expired
 	if request.ExpiresAt != nil && time.Now().After(*request.ExpiresAt) {
@@ -76,9 +82,40 @@ func GetRecommendationByToken(c *gin.Context) {
 		return
 	}
 
-	// Check if already submitted
+	// Check if already submitted - but provide helpful context
 	if request.Status == "submitted" {
-		c.JSON(http.StatusGone, gin.H{"error": "This recommendation has already been submitted"})
+		// Get applicant info to help user understand which submission this was for
+		var submission models.Row
+		database.DB.First(&submission, "id = ?", request.SubmissionID)
+
+		applicantName := "the applicant"
+		if submission.Data != nil {
+			var data map[string]interface{}
+			json.Unmarshal(submission.Data, &data)
+
+			// Try to get applicant name from common fields
+			for key, value := range data {
+				keyLower := strings.ToLower(key)
+				if str, ok := value.(string); ok && str != "" {
+					if keyLower == "full_name" || keyLower == "fullname" || keyLower == "name" ||
+						keyLower == "first_name" || keyLower == "firstname" {
+						applicantName = str
+						break
+					}
+				}
+			}
+		}
+
+		submittedAt := ""
+		if request.SubmittedAt != nil {
+			submittedAt = request.SubmittedAt.Format("January 2, 2006")
+		}
+
+		fmt.Printf("[Recommendations] Request already submitted for applicant: %s on %s\n", applicantName, submittedAt)
+		c.JSON(http.StatusGone, gin.H{
+			"error":   "This recommendation has already been submitted",
+			"details": fmt.Sprintf("You submitted a recommendation for %s on %s. If you received a new request for a different applicant, please check your email for the correct link.", applicantName, submittedAt),
+		})
 		return
 	}
 
@@ -599,12 +636,32 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 `, request.RecommenderName, applicantName, form.Name, recommendationLink, recommendationLink, recommendationLink, deadline)
 	}
 
-	// Build sender name from form name
+	// Build sender name - check for custom emailSettings first
 	senderName := form.Name
+	var formSettings map[string]interface{}
+	if err := json.Unmarshal(form.Settings, &formSettings); err == nil {
+		if emailSettings, ok := formSettings["emailSettings"].(map[string]interface{}); ok {
+			if customSenderName, ok := emailSettings["senderName"].(string); ok && customSenderName != "" {
+				senderName = customSenderName
+				fmt.Printf("[Recommendations] Using custom sender name from settings: %s\n", senderName)
+			}
+		}
+	}
 	if senderName == "" {
 		senderName = "Matic"
 	}
 	fromEmail := fmt.Sprintf("%s <noreply@notifications.maticsapp.com>", senderName)
+
+	// Check for reply-to email in settings
+	var replyTo string
+	if err := json.Unmarshal(form.Settings, &formSettings); err == nil {
+		if emailSettings, ok := formSettings["emailSettings"].(map[string]interface{}); ok {
+			if replyToEmail, ok := emailSettings["replyToEmail"].(string); ok && replyToEmail != "" {
+				replyTo = replyToEmail
+				fmt.Printf("[Recommendations] Using reply-to from settings: %s\n", replyTo)
+			}
+		}
+	}
 
 	fmt.Printf("[Recommendations] Sending email from: %s to: %s, subject: %s\n", fromEmail, request.RecommenderEmail, subject)
 
@@ -613,6 +670,11 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 		To:      []string{request.RecommenderEmail},
 		Subject: subject,
 		Html:    body,
+	}
+
+	// Add reply-to if configured
+	if replyTo != "" {
+		params.ReplyTo = replyTo
 	}
 
 	fmt.Printf("[Recommendations] Calling Resend API...\n")
@@ -886,9 +948,29 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 		subject = strings.ReplaceAll(subject, "{{form_title}}", form.Name)
 	}
 
-	fromEmail := os.Getenv("RESEND_FROM_EMAIL")
-	if fromEmail == "" {
-		fromEmail = "Matic <noreply@notifications.maticsapp.com>"
+	// Build sender name - check for custom emailSettings first
+	senderName := form.Name
+	var formSettings map[string]interface{}
+	if err := json.Unmarshal(form.Settings, &formSettings); err == nil {
+		if emailSettings, ok := formSettings["emailSettings"].(map[string]interface{}); ok {
+			if customSenderName, ok := emailSettings["senderName"].(string); ok && customSenderName != "" {
+				senderName = customSenderName
+			}
+		}
+	}
+	if senderName == "" {
+		senderName = "Matic"
+	}
+	fromEmail := fmt.Sprintf("%s <noreply@notifications.maticsapp.com>", senderName)
+
+	// Check for reply-to email in settings
+	var replyTo string
+	if err := json.Unmarshal(form.Settings, &formSettings); err == nil {
+		if emailSettings, ok := formSettings["emailSettings"].(map[string]interface{}); ok {
+			if replyToEmail, ok := emailSettings["replyToEmail"].(string); ok && replyToEmail != "" {
+				replyTo = replyToEmail
+			}
+		}
 	}
 
 	params := &resend.SendEmailRequest{
@@ -896,6 +978,11 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 		To:      []string{request.RecommenderEmail},
 		Subject: subject,
 		Html:    body,
+	}
+
+	// Add reply-to if configured
+	if replyTo != "" {
+		params.ReplyTo = replyTo
 	}
 
 	_, err := client.Emails.Send(params)

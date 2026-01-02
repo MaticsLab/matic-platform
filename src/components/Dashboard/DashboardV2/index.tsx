@@ -24,6 +24,9 @@ interface DashboardV2Props {
   dashboardSettings?: DashboardSettings
   welcomeTitle?: string
   welcomeText?: string
+  applicantId?: string
+  applicantName?: string
+  onNameUpdate?: (newName: string) => void
 }
 
 export function DashboardV2({
@@ -39,7 +42,10 @@ export function DashboardV2({
   isPreview = false,
   dashboardSettings,
   welcomeTitle,
-  welcomeText
+  welcomeText,
+  applicantId,
+  applicantName,
+  onNameUpdate
 }: DashboardV2Props) {
   return (
     <div className="min-h-screen bg-gray-50">
@@ -50,6 +56,10 @@ export function DashboardV2({
         themeColor={themeColor}
         applicationStatus={applicationStatus}
         isPreview={isPreview}
+        email={email}
+        applicantId={applicantId}
+        applicantName={applicantName}
+        onNameUpdate={onNameUpdate}
       />
       
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">

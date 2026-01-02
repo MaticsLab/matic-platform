@@ -127,6 +127,11 @@ export type PortalConfig = {
       welcomeText?: string
       tasks?: import('./tasks').DashboardTask[]
     }
+    // Email settings for outbound emails (recommendations, notifications)
+    emailSettings?: {
+      senderName?: string          // Custom sender name (e.g., "Scholarship Office")
+      replyToEmail?: string        // Optional reply-to email address
+    }
   }
   /** 
    * Translations in new i18next format

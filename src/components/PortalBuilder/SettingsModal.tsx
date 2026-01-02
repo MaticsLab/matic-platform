@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { 
   X, Bell, Link as LinkIcon, Settings, Lock, Languages, 
-  GraduationCap, Code, BarChart3, Loader2, Plus, Trash2
+  GraduationCap, Code, BarChart3, Loader2, Plus, Trash2, Mail
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/ui-components/dialog'
 import { Button } from '@/ui-components/button'
@@ -28,6 +28,7 @@ interface SettingsModalProps {
 }
 
 const TABS = [
+  { id: 'email', label: 'Email', icon: Mail },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'url', label: 'URL parameters', icon: LinkIcon },
   { id: 'behavior', label: 'Form behavior', icon: Settings },
@@ -39,7 +40,7 @@ const TABS = [
 ]
 
 export function SettingsModal({ open, onOpenChange, config, onUpdate }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState('language')
+  const [activeTab, setActiveTab] = useState('email')
   const [isTranslating, setIsTranslating] = useState(false)
   const [lastLanguage, setLastLanguage] = useState<string | null>(null)
 
@@ -214,6 +215,92 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
              <div className="max-w-3xl mx-auto pt-2">
                 <h3 className="font-bold text-3xl mb-3 text-gray-900">{TABS.find(t => t.id === activeTab)?.label}</h3>
                 
+                {activeTab === 'email' && (
+                  <div className="space-y-8">
+                    <p className="text-gray-500 text-lg leading-relaxed">Configure how outbound emails appear to applicants and recommenders.</p>
+                    
+                    <div className="border border-gray-200 rounded-2xl p-8 space-y-8 bg-white shadow-sm">
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <Mail className="w-5 h-5 text-gray-400" />
+                          <Label className="text-base font-medium text-gray-900">Sender Name</Label>
+                        </div>
+                        <Input
+                          value={config.settings.emailSettings?.senderName || ''}
+                          onChange={(e) => onUpdate({
+                            settings: {
+                              ...config.settings,
+                              emailSettings: {
+                                ...config.settings.emailSettings,
+                                senderName: e.target.value
+                              }
+                            }
+                          })}
+                          placeholder={config.settings.name || 'Your organization name'}
+                          className="h-11"
+                        />
+                        <p className="text-sm text-gray-500">
+                          This name will appear in the "From" field of emails sent to recommenders and applicants. 
+                          If left blank, your portal name will be used.
+                        </p>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <Mail className="w-5 h-5 text-gray-400" />
+                          <Label className="text-base font-medium text-gray-900">Reply-To Email</Label>
+                        </div>
+                        <Input
+                          type="email"
+                          value={config.settings.emailSettings?.replyToEmail || ''}
+                          onChange={(e) => onUpdate({
+                            settings: {
+                              ...config.settings,
+                              emailSettings: {
+                                ...config.settings.emailSettings,
+                                replyToEmail: e.target.value
+                              }
+                            }
+                          })}
+                          placeholder="replies@yourorganization.com"
+                          className="h-11"
+                        />
+                        <p className="text-sm text-gray-500">
+                          When recipients reply to emails, their responses will be sent to this address.
+                          Leave blank to disable replies.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50 rounded-2xl p-8 space-y-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 shrink-0">
+                          <Mail className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-blue-900">Email Preview</h4>
+                          <p className="text-blue-700 text-sm mt-1">This is how your emails will appear:</p>
+                        </div>
+                      </div>
+                      <div className="bg-white rounded-lg p-4 border border-blue-200 font-mono text-sm">
+                        <div className="text-gray-600">
+                          <span className="text-gray-400">From: </span>
+                          <span className="text-gray-900 font-medium">
+                            {config.settings.emailSettings?.senderName || config.settings.name || 'Your Portal Name'}
+                          </span>
+                          <span className="text-gray-500"> &lt;noreply@notifications.maticsapp.com&gt;</span>
+                        </div>
+                        {config.settings.emailSettings?.replyToEmail && (
+                          <div className="text-gray-600 mt-1">
+                            <span className="text-gray-400">Reply-To: </span>
+                            <span className="text-gray-900">{config.settings.emailSettings.replyToEmail}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {activeTab === 'language' && (
                   <div className="space-y-8">
                     <p className="text-gray-500 text-lg leading-relaxed">Allow your form to be translated into multiple languages.</p>
@@ -386,7 +473,7 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
                   </div>
                 )}
                 
-                {activeTab !== 'language' && (
+                {activeTab !== 'language' && activeTab !== 'email' && (
                     <div className="flex flex-col items-center justify-center h-[500px] text-gray-400">
                         <Settings className="w-16 h-16 mb-6 opacity-20" />
                         <p className="text-lg">Settings for {TABS.find(t => t.id === activeTab)?.label} coming soon.</p>

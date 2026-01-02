@@ -101,4 +101,43 @@ export const portalAuthClient = {
 
     return response.json()
   },
+
+  /**
+   * Update applicant profile (name)
+   */
+  updateProfile: async (applicantId: string, data: { full_name: string }): Promise<PortalApplicant> => {
+    const response = await fetch(`${API_BASE}/portal/profile/${applicantId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to update profile')
+    }
+
+    return response.json()
+  },
+
+  /**
+   * Change applicant password (requires current password)
+   */
+  changePassword: async (applicantId: string, currentPassword: string, newPassword: string): Promise<{ message: string }> => {
+    const response = await fetch(`${API_BASE}/portal/profile/${applicantId}/password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        current_password: currentPassword, 
+        new_password: newPassword 
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to change password')
+    }
+
+    return response.json()
+  },
 }

@@ -293,3 +293,87 @@ func PortalResetPassword(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Password reset successfully"})
 }
+
+// PortalUpdateProfileRequest for updating applicant profile
+type PortalUpdateProfileRequest struct {
+	FullName string `json:"full_name"`
+}
+
+// PortalChangePasswordRequest for changing password (requires current password)
+type PortalChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required,min=8"`
+}
+
+// PUT /api/v1/portal/profile/:applicant_id
+func PortalUpdateProfile(c *gin.Context) {
+	applicantID := c.Param("applicant_id")
+
+	var req PortalUpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Find applicant
+	var applicant models.PortalApplicant
+	if err := database.DB.Where("id = ?", applicantID).First(&applicant).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Applicant not found"})
+		return
+	}
+
+	// Update name
+	applicant.FullName = req.FullName
+
+	if err := database.DB.Save(&applicant).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":    applicant.ID,
+		"email": applicant.Email,
+		"name":  applicant.FullName,
+	})
+}
+
+// PUT /api/v1/portal/profile/:applicant_id/password
+func PortalChangePassword(c *gin.Context) {
+	applicantID := c.Param("applicant_id")
+
+	var req PortalChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Find applicant
+	var applicant models.PortalApplicant
+	if err := database.DB.Where("id = ?", applicantID).First(&applicant).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Applicant not found"})
+		return
+	}
+
+	// Verify current password
+	if err := bcrypt.CompareHashAndPassword([]byte(applicant.PasswordHash), []byte(req.CurrentPassword)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Current password is incorrect"})
+		return
+	}
+
+	// Hash new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+
+	// Update password
+	applicant.PasswordHash = string(hashedPassword)
+
+	if err := database.DB.Save(&applicant).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully"})
+}

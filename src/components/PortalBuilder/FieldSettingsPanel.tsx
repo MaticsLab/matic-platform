@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 import { Settings, ArrowUpDown, Sliders, GitBranch, Code2, ShieldCheck, Plus, Trash2, GripVertical, Type, Hash, Mail, Phone, Link as LinkIcon, List, CheckSquare, Calendar, Clock, Upload, Image, PenTool, Star, Heading2, FileText, AlertCircle, Grid3x3, Repeat2, UserPlus } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
@@ -231,7 +232,7 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
   const handleAddLogicRule = () => {
     const currentLogic = selectedField.config?.logic || []
     const newRule: LogicRule = {
-      id: Date.now().toString(),
+      id: uuidv4(),
       action: 'show',
       fieldId: '',
       operator: 'equals',
@@ -1082,7 +1083,7 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                         onClick={() => {
                           const questions = selectedField.config?.questions || []
                           const newQuestion = {
-                            id: `q_${Date.now()}`,
+                            id: uuidv4(),
                             type: 'textarea',
                             label: 'New Question',
                             description: '',

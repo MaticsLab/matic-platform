@@ -16,6 +16,9 @@ interface ApplicantDashboardProps {
   onLogout: () => void
   onContinueApplication?: () => void
   themeColor?: string
+  applicantId?: string
+  applicantName?: string
+  onNameUpdate?: (newName: string) => void
 }
 
 /**
@@ -31,7 +34,10 @@ export function ApplicantDashboard({
   rowId,
   onLogout,
   onContinueApplication,
-  themeColor = '#3B82F6'
+  themeColor = '#3B82F6',
+  applicantId,
+  applicantName,
+  onNameUpdate
 }: ApplicantDashboardProps) {
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
     showStatus: true,
@@ -103,6 +109,9 @@ export function ApplicantDashboard({
       dashboardSettings={dashboardSettings}
       welcomeTitle={dashboardSettings.welcomeTitle}
       welcomeText={dashboardSettings.welcomeText}
+      applicantId={applicantId}
+      applicantName={applicantName}
+      onNameUpdate={onNameUpdate}
     />
   )
 }

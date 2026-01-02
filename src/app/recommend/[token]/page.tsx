@@ -135,6 +135,7 @@ export default function RecommendPage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorDetails, setErrorDetails] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [data, setData] = useState<RecommendationByTokenResponse | null>(null)
   const [responses, setResponses] = useState<Record<string, any>>({})
@@ -155,6 +156,10 @@ export default function RecommendPage() {
         setResponses(initialResponses)
       } catch (err: any) {
         setError(err.message || 'Failed to load recommendation request')
+        // Check for details in the error response
+        if (err.response?.details) {
+          setErrorDetails(err.response.details)
+        }
       } finally {
         setLoading(false)
       }
@@ -228,7 +233,12 @@ export default function RecommendPage() {
             <div className="text-center">
               <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
               <h2 className="text-xl font-semibold text-slate-900 mb-2">Unable to Load</h2>
-              <p className="text-slate-600">{error}</p>
+              <p className="text-slate-600 mb-2">{error}</p>
+              {errorDetails && (
+                <p className="text-sm text-slate-500 mt-4 p-3 bg-slate-100 rounded-lg">
+                  {errorDetails}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -83,6 +83,8 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
   const [applicationRowId, setApplicationRowId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'dashboard' | 'form'>('form') // Track if viewing dashboard or filling form
   const [currentFormData, setCurrentFormData] = useState<Record<string, any>>({}) // Track current form data for dashboard save
+  const [applicantId, setApplicantId] = useState<string | null>(null) // Store applicant ID for settings
+  const [applicantName, setApplicantName] = useState<string>('') // Store applicant name for settings
 
   // Memoize the form initial data with submission ID to prevent infinite re-renders
   // This ensures the object reference stays stable unless initialData or applicationRowId actually changes
@@ -200,6 +202,10 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
           password
         })
 
+        // Store applicant info for settings
+        setApplicantId(applicant.id)
+        setApplicantName(applicant.name || '')
+
         // Use row_id and status from login response
         if (applicant.row_id) {
           setApplicationRowId(applicant.row_id)
@@ -253,6 +259,10 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
           full_name: signupData.name || '',
           data: signupData
         })
+
+        // Store applicant info for settings
+        setApplicantId(applicant.id)
+        setApplicantName(applicant.name || signupData.name || '')
 
         setIsAuthenticated(true)
         toast.success('Account created successfully')
@@ -512,6 +522,9 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
           onLogout={handleLogout}
           onContinueApplication={() => setViewMode('form')}
           themeColor={(translatedForm?.settings as any)?.themeColor}
+          applicantId={applicantId || undefined}
+          applicantName={applicantName}
+          onNameUpdate={(newName) => setApplicantName(newName)}
         />
       )
     }

@@ -48,6 +48,7 @@ import { PortalConfigSyncBridge } from './PortalConfigSyncBridge'
 import { PresenceHeader, SectionCollaboratorIndicator, CursorOverlay, type Collaborator } from './PresenceIndicators'
 import { formsClient } from '@/lib/api/forms-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
+import { v4 as uuidv4 } from 'uuid'
 import { dashboardClient } from '@/lib/api/dashboard-client'
 import { toast } from 'sonner'
 import { SettingsModal } from './SettingsModal'
@@ -365,7 +366,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                // Add password field if missing
                signupFields = [
                  ...signupFields,
-                 { id: `pwd-${Date.now()}`, type: 'text', label: 'Password', required: true, width: 'full' }
+                 { id: uuidv4(), type: 'text', label: 'Password', required: true, width: 'full' }
                ]
              }
 
@@ -449,7 +450,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                 // Add password field if missing
                 signupFieldsFallback = [
                   ...signupFieldsFallback,
-                  { id: `pwd-${Date.now()}`, type: 'text', label: 'Password', required: true, width: 'full' }
+                  { id: uuidv4(), type: 'text', label: 'Password', required: true, width: 'full' }
                 ]
               }
               
@@ -642,7 +643,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         content: [{ type: 'paragraph', content: [] }]
       })
       return {
-        id: Date.now().toString(),
+        id: uuidv4(),
         title: 'Cover',
         sectionType: 'cover',
         description: 'Welcome users to your form',
@@ -650,7 +651,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         fields: [],
         blocks: [
           {
-            id: `block-${Date.now()}-1`,
+            id: uuidv4(),
             blockType: 'image',
             props: {
               url: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&h=400&fit=crop',
@@ -667,7 +668,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             }
           },
           {
-            id: `block-${Date.now()}-2`,
+            id: uuidv4(),
             blockType: 'heading',
             props: {
               text: '📝 Application Form',
@@ -683,7 +684,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             }
           },
           {
-            id: `block-${Date.now()}-3`,
+            id: uuidv4(),
             blockType: 'paragraph',
             props: {
               text: 'Welcome! We\'re excited that you\'re interested in applying. This form should take about 10 minutes to complete. Feel free to save your progress and come back at any time.',
@@ -699,7 +700,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             }
           },
           {
-            id: `block-${Date.now()}-4`,
+            id: uuidv4(),
             blockType: 'callout',
             props: {
               type: 'info',
@@ -717,7 +718,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     }
     if (type === 'ending') {
       return {
-        id: Date.now().toString(),
+        id: uuidv4(),
         title: 'Thank You Page',
         sectionType: 'ending',
         description: 'Customizable ending page shown after form submission',
@@ -727,19 +728,19 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     }
     if (type === 'review') {
       return {
-        id: Date.now().toString(),
+        id: uuidv4(),
         title: 'Review',
         sectionType: 'review',
         description: 'Let users review their submission',
         fields: [
-          { id: `${Date.now()}-h`, type: 'heading', label: 'Review your answers', required: false, width: 'full' },
-          { id: `${Date.now()}-p`, type: 'paragraph', label: 'Double-check your responses before submitting.', required: false, width: 'full', config: { content: '' } }
+          { id: uuidv4(), type: 'heading', label: 'Review your answers', required: false, width: 'full' },
+          { id: uuidv4(), type: 'paragraph', label: 'Double-check your responses before submitting.', required: false, width: 'full', config: { content: '' } }
         ]
       }
     }
     if (type === 'dashboard') {
       return {
-        id: Date.now().toString(),
+        id: uuidv4(),
         title: 'Additional Information',
         sectionType: 'dashboard',
         description: 'Collect additional data after submission',
@@ -748,7 +749,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     }
 
     return {
-      id: Date.now().toString(),
+      id: uuidv4(),
       title: 'Form',
       sectionType: 'form',
       description: 'Page to collect user input',
@@ -857,7 +858,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     }
     
     const newField: Field = {
-      id: Date.now().toString(),
+      id: uuidv4(),
       type,
       label: type === 'callout' ? 'Important Notice' : 
              type === 'heading' ? 'Section Heading' :
@@ -911,7 +912,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     const defaultProps = blockDef?.defaultProps || {}
     
     const newBlock: EndingBlock = {
-      id: `block-${Date.now()}`,
+      id: uuidv4(),
       blockType,
       props: defaultProps,
       metadata: {
