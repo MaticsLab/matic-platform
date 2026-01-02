@@ -116,5 +116,3 @@ export function DashboardHeader({
     </>
   )
 }
-  )
-}
