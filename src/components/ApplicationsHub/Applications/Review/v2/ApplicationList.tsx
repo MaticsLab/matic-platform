@@ -178,7 +178,7 @@ export function ApplicationList({
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <h3 className="text-gray-900 font-medium truncate">
-                        {app.firstName} {app.lastName}
+                        {app.name || `${app.firstName} ${app.lastName}`.trim() || 'Unknown'}
                       </h3>
                       {getPriorityIcon(app.priority)}
                     </div>

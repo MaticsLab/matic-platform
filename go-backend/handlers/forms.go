@@ -907,15 +907,85 @@ func ListFormSubmissions(c *gin.Context) {
 	formID := c.Param("id")
 	fmt.Printf("Listing submissions for form: %s\n", formID)
 
+	// Get the table_id - formID might be a view_id
+	var tableID uuid.UUID
+	var view models.View
+	if err := database.DB.Where("id = ?", formID).First(&view).Error; err == nil {
+		tableID = view.TableID
+	} else {
+		// formID is the table_id itself
+		parsedFormID, err := uuid.Parse(formID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid form ID"})
+			return
+		}
+		tableID = parsedFormID
+	}
+
 	var rows []models.Row
-	if err := database.DB.Where("table_id = ?", formID).Order("created_at DESC").Find(&rows).Error; err != nil {
+	if err := database.DB.Where("table_id = ?", tableID).Order("created_at DESC").Find(&rows).Error; err != nil {
 		fmt.Printf("Error fetching submissions: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	fmt.Printf("Found %d submissions for form %s\n", len(rows), formID)
 
-	c.JSON(http.StatusOK, rows)
+	// Get all portal applicants for this form to map emails to full_names
+	// portal_applicants.form_id can be either the table_id or any view_id for this table
+	var viewIDs []uuid.UUID
+	var views []models.View
+	database.DB.Where("table_id = ? AND type = ?", tableID, "form").Find(&views)
+	viewIDs = append(viewIDs, tableID) // Include table_id itself
+	for _, v := range views {
+		viewIDs = append(viewIDs, v.ID)
+	}
+
+	var applicants []models.PortalApplicant
+	database.DB.Where("form_id IN ?", viewIDs).Find(&applicants)
+
+	// Create a map of email -> full_name
+	emailToFullName := make(map[string]string)
+	for _, applicant := range applicants {
+		if applicant.Email != "" && applicant.FullName != "" {
+			emailToFullName[applicant.Email] = applicant.FullName
+		}
+	}
+
+	// Enhance rows with portal applicant full_name by modifying the Data JSONB field
+	result := make([]map[string]interface{}, len(rows))
+	for i, row := range rows {
+		// Convert row to map for JSON response
+		rowMap := make(map[string]interface{})
+		rowBytes, _ := json.Marshal(row)
+		json.Unmarshal(rowBytes, &rowMap)
+
+		// Extract email from row data
+		var rowData map[string]interface{}
+		if err := json.Unmarshal(row.Data, &rowData); err == nil {
+			// Try multiple locations for email
+			var email string
+			if e, ok := rowData["_applicant_email"].(string); ok && e != "" {
+				email = e
+			} else if e, ok := rowData["email"].(string); ok && e != "" {
+				email = e
+			} else if personal, ok := rowData["personal"].(map[string]interface{}); ok {
+				if e, ok := personal["personalEmail"].(string); ok && e != "" {
+					email = e
+				}
+			}
+
+			// Look up full_name from portal applicants and add to response
+			if email != "" {
+				if fullName, exists := emailToFullName[email]; exists {
+					rowMap["applicant_full_name"] = fullName
+				}
+			}
+		}
+
+		result[i] = rowMap
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // DeleteFormSubmission deletes a single form submission (row) by its ID

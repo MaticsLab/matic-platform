@@ -68,77 +68,28 @@ export function ReviewWorkspaceV2({
     const data = typeof sub.data === 'string' ? JSON.parse(sub.data) : (sub.data || {});
     const metadata = typeof sub.metadata === 'string' ? JSON.parse(sub.metadata) : (sub.metadata || {});
     
-    // Helper to find a value by checking multiple possible keys (field labels and IDs)
-    const findValue = (possibleKeys: string[]): string => {
-      // First, check direct keys
-      for (const key of possibleKeys) {
-        if (data[key] && typeof data[key] === 'string') return data[key];
-      }
-      
-      // Then, search through all data keys for field labels that match
-      for (const [fieldId, value] of Object.entries(data)) {
-        if (typeof value !== 'string' || !value) continue;
-        const fieldIdLower = fieldId.toLowerCase();
-        for (const key of possibleKeys) {
-          if (fieldIdLower === key.toLowerCase() || fieldIdLower.includes(key.toLowerCase())) {
-            return value;
-          }
-        }
-      }
-      
-      // Finally, check form fields if available and match by field name/label
-      if (form?.fields) {
-        for (const field of form.fields) {
-          const fieldNameLower = (field.name || field.label || '').toLowerCase();
-          for (const key of possibleKeys) {
-            if (fieldNameLower === key.toLowerCase() || fieldNameLower.includes(key.toLowerCase())) {
-              const val = data[field.id] || data[field.name];
-              if (val && typeof val === 'string') return val;
-            }
-          }
-        }
-      }
-      
-      return '';
-    };
-    
-    // Try to extract name from different field formats
-    const firstName = findValue(['first_name', 'firstName', 'First Name', 'first name', 'fname']);
-    const lastName = findValue(['last_name', 'lastName', 'Last Name', 'last name', 'lname']);
-    let fullName = findValue(['name', 'full_name', 'Full Name', 'fullName', 'student_name', 'applicant_name']);
-    
-    // If no full name found but we have first/last, combine them
-    if (!fullName && (firstName || lastName)) {
-      fullName = `${firstName} ${lastName}`.trim();
-    }
-    
-    // If still no name, try to find ANY text field that looks like a name
-    if (!fullName) {
-      for (const [key, value] of Object.entries(data)) {
-        if (typeof value === 'string' && value.length > 0 && value.length < 100) {
-          const keyLower = key.toLowerCase();
-          // Skip known non-name fields
-          if (keyLower.includes('email') || keyLower.includes('phone') || keyLower.includes('address') || 
-              keyLower.includes('date') || keyLower.includes('_') || keyLower.includes('id')) continue;
-          // Check if it looks like a name (contains a space and no @ symbol)
-          if (value.includes(' ') && !value.includes('@') && /^[A-Za-z\s'-]+$/.test(value)) {
-            fullName = value;
-            break;
-          }
-        }
-      }
-    }
-    
-    const [fName, ...lNames] = (fullName || 'Unknown').split(' ');
+    // Use the full_name from portal_applicants table (from portal signup)
+    // This is the primary source of truth for applicant names
+    const fullName = sub.applicant_full_name || 'Unknown';
+    const nameParts = fullName.trim().split(/\s+/);
+    const fName = nameParts[0] || 'Unknown';
+    const lName = nameParts.slice(1).join(' ') || '';
     
     // Get email - check multiple locations
     let email = data._applicant_email || '';
     if (!email) {
-      email = findValue(['email', 'Email', 'personal_email', 'personalEmail', 'applicant_email']);
-    }
-    // Also check nested personal object
-    if (!email && data.personal && typeof data.personal === 'object') {
-      email = (data.personal as any).personalEmail || (data.personal as any).email || '';
+      // Helper function to find email
+      const findEmail = (keys: string[]): string => {
+        for (const key of keys) {
+          if (data[key] && typeof data[key] === 'string') return data[key];
+        }
+        return '';
+      };
+      email = findEmail(['email', 'Email', 'personal_email', 'personalEmail', 'applicant_email']);
+      // Also check nested personal object
+      if (!email && data.personal && typeof data.personal === 'object') {
+        email = (data.personal as any).personalEmail || (data.personal as any).email || '';
+      }
     }
     
     // Get stage info
@@ -179,9 +130,9 @@ export function ReviewWorkspaceV2({
     
     return {
       id: sub.id,
-      firstName: fName || 'Unknown',
-      lastName: lNames.join(' ') || '',
-      name: fullName || `${fName || ''} ${lNames.join(' ')}`.trim() || 'Unknown',
+      firstName: fName,
+      lastName: lName,
+      name: fullName,
       email,
       dateOfBirth: data.date_of_birth || data.dob || data['Date of Birth'],
       gender: data.gender || data.Gender,
@@ -331,7 +282,7 @@ export function ReviewWorkspaceV2({
         allActivities.push({
           id: `submit-${app.id}`,
           type: 'system',
-          message: `${app.firstName} ${app.lastName} submitted application`,
+          message: `${app.name || `${app.firstName} ${app.lastName}`.trim()} submitted application`,
           user: 'System',
           time: app.lastActivity || 'Recently',
           applicationId: app.id
@@ -342,7 +293,7 @@ export function ReviewWorkspaceV2({
           allActivities.push({
             id: `review-${app.id}-${idx}`,
             type: 'review',
-            message: `Review submitted for ${app.firstName} ${app.lastName} (Score: ${review.total_score || 0})`,
+            message: `Review submitted for ${app.name || `${app.firstName} ${app.lastName}`.trim()} (Score: ${review.total_score || 0})`,
             user: review.reviewer_name || 'Reviewer',
             time: review.reviewed_at ? new Date(review.reviewed_at).toLocaleDateString() : 'Unknown',
             applicationId: app.id
@@ -394,7 +345,7 @@ export function ReviewWorkspaceV2({
     } as FormSubmission, stages, reviewersMap);
     
     setApplications(prev => [newApp, ...prev]);
-    toast.success(`New application from ${newApp.firstName} ${newApp.lastName}`);
+    toast.success(`New application from ${newApp.name || `${newApp.firstName} ${newApp.lastName}`.trim()}`);
   }, [formId, stages, reviewersMap, mapSubmissionToApplication]);
 
   const handleRealtimeUpdate = useCallback((app: RealtimeApplication) => {
@@ -454,7 +405,7 @@ export function ReviewWorkspaceV2({
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(app =>
-        `${app.firstName} ${app.lastName}`.toLowerCase().includes(query) ||
+        (app.name || `${app.firstName} ${app.lastName}`.trim()).toLowerCase().includes(query) ||
         app.email.toLowerCase().includes(query)
       );
     }
@@ -469,7 +420,7 @@ export function ReviewWorkspaceV2({
         case 'score':
           return (b.score || 0) - (a.score || 0);
         case 'name':
-          return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+          return (a.name || `${a.firstName} ${a.lastName}`.trim()).localeCompare(b.name || `${b.firstName} ${b.lastName}`.trim());
         default:
           return 0;
       }
@@ -694,7 +645,7 @@ export function ReviewWorkspaceV2({
                   setActivities(prev => [{
                     id: `review-${Date.now()}`,
                     type: 'review',
-                    message: `Review submitted for ${selectedApp.firstName} ${selectedApp.lastName}`,
+                    message: `Review submitted for ${selectedApp.name || `${selectedApp.firstName} ${selectedApp.lastName}`.trim()}`,
                     user: 'You',
                     time: 'Just now',
                     applicationId: selectedApp.id

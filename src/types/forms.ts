@@ -114,6 +114,7 @@ export interface FormSubmission {
   submitted_at: string
   reviewed_at?: string
   reviewed_by?: string
+  applicant_full_name?: string // Full name from portal_applicants table (from portal signup)
 }
 
 export interface FormCreate {
