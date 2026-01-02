@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
 import { goClient } from '@/lib/api/go-client';
 import { workflowsClient, ReviewWorkflow, ApplicationStage, Rubric } from '@/lib/api/workflows-client';
 import { Form, FormSubmission } from '@/types/forms';
@@ -554,8 +554,6 @@ export function ReviewWorkspaceV2({
 
   return (
     <div className="bg-gray-50 flex flex-col h-full">
-      <Toaster position="top-right" richColors />
-
       <div className={cn(
         "flex-1 min-h-0 overflow-hidden",
         (selectedApp || showPipelineActivity) ? "flex" : ""
