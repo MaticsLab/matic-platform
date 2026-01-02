@@ -168,15 +168,20 @@ export default function RecommendPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Validate required fields
+    // Validate required custom questions
     const missingFields = data?.questions?.filter(q => {
       if (!q.required) return false
       const value = responses[q.id]
       if (q.type === 'checkbox') return !value
       return !value || (typeof value === 'string' && value.trim() === '')
-    })
+    }) || []
 
-    if (missingFields && missingFields.length > 0) {
+    // Validate relationship if required
+    if (data?.require_relationship && (!responses['relationship'] || responses['relationship'].trim() === '')) {
+      missingFields.push({ label: 'How do you know the applicant' } as any)
+    }
+
+    if (missingFields.length > 0) {
       setError(`Please fill in all required fields: ${missingFields.map(f => f.label).join(', ')}`)
       return
     }
@@ -356,49 +361,43 @@ export default function RecommendPage() {
                 />
               ))}
 
-              {/* Default questions if none configured */}
-              {(!data?.questions || data.questions.length === 0) && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="relationship">
-                      How do you know {data?.applicant_name || 'the applicant'}? *
-                    </Label>
-                    <Input
-                      id="relationship"
-                      placeholder="e.g., Professor, Supervisor, Colleague"
-                      value={responses['relationship'] || ''}
-                      onChange={(e) => updateResponse('relationship', e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="recommendation">
-                      Recommendation Letter *
-                    </Label>
-                    <Textarea
-                      id="recommendation"
-                      placeholder="Please provide your recommendation..."
-                      value={responses['recommendation'] || ''}
-                      onChange={(e) => updateResponse('recommendation', e.target.value)}
-                      rows={10}
-                      required
-                    />
-                  </div>
-                  
-                  {/* File Upload Option */}
-                  <div className="space-y-2">
-                    <Label htmlFor="document">
-                      Upload Letter Document (Optional)
-                    </Label>
-                    <p className="text-sm text-slate-500 mb-2">
-                      You can also upload a PDF or Word document with your letter of recommendation.
-                    </p>
-                    <FileUpload 
-                      value={responses['document']}
-                      onChange={(file) => updateResponse('document', file)}
-                    />
-                  </div>
-                </>
+              {/* Relationship question - only if enabled in settings */}
+              {data?.require_relationship && (
+                <div className="space-y-2">
+                  <Label htmlFor="relationship">
+                    How do you know {data?.applicant_name || 'the applicant'}? *
+                  </Label>
+                  <Input
+                    id="relationship"
+                    placeholder="e.g., Professor, Supervisor, Colleague"
+                    value={responses['relationship'] || ''}
+                    onChange={(e) => updateResponse('relationship', e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
+              {/* File Upload - only if enabled in settings or no questions configured (legacy support) */}
+              {(data?.show_file_upload || (!data?.questions || data.questions.length === 0)) && (
+                <div className="space-y-2">
+                  <Label htmlFor="document">
+                    Upload Letter Document {data?.show_file_upload ? '(Optional)' : ''}
+                  </Label>
+                  <p className="text-sm text-slate-500 mb-2">
+                    You can upload a PDF or Word document with your letter of recommendation.
+                  </p>
+                  <FileUpload 
+                    value={responses['document']}
+                    onChange={(file) => updateResponse('document', file)}
+                  />
+                </div>
+              )}
+
+              {/* Show message if no questions configured */}
+              {(!data?.questions || data.questions.length === 0) && !data?.require_relationship && (
+                <div className="text-center py-8 text-slate-500">
+                  <p>Please upload your letter of recommendation using the file upload above.</p>
+                </div>
               )}
 
               <Button 

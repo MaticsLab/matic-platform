@@ -58,6 +58,8 @@ export interface RecommendationByTokenResponse {
   form_title: string
   questions: RecommendationQuestion[]
   instructions?: string
+  require_relationship?: boolean
+  show_file_upload?: boolean
 }
 
 // Client

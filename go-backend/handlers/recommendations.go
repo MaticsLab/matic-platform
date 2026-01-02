@@ -179,12 +179,14 @@ func GetRecommendationByToken(c *gin.Context) {
 	}
 
 	response := gin.H{
-		"request":         request,
-		"applicant_name":  applicantName,
-		"applicant_email": applicantEmail,
-		"form_title":      form.Name,
-		"questions":       fieldConfig.Questions,
-		"instructions":    fieldConfig.Instructions,
+		"request":              request,
+		"applicant_name":       applicantName,
+		"applicant_email":      applicantEmail,
+		"form_title":           form.Name,
+		"questions":            fieldConfig.Questions,
+		"instructions":         fieldConfig.Instructions,
+		"require_relationship": fieldConfig.RequireRelationship,
+		"show_file_upload":     fieldConfig.ShowFileUpload,
 	}
 
 	c.JSON(http.StatusOK, response)

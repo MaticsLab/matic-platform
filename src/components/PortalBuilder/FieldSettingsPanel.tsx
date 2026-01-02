@@ -1054,6 +1054,17 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                     />
                   </div>
 
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Allow File Upload</Label>
+                      <p className="text-xs text-gray-500">Let recommender upload PDF/Word document</p>
+                    </div>
+                    <Switch 
+                      checked={selectedField.config?.showFileUpload !== false} 
+                      onCheckedChange={(c) => handleConfigUpdate('showFileUpload', c)} 
+                    />
+                  </div>
+
                   {/* Recommendation Questions Editor */}
                   <div className="space-y-3 pt-4 border-t border-gray-200">
                     <div className="flex items-center justify-between">
