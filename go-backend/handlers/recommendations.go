@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -342,14 +341,67 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 		deadline = request.ExpiresAt.Format("January 2, 2006")
 	}
 
-	// Use custom template or default
+	// Use custom template or default - check both backend and frontend field names
 	subject := config.EmailTemplate.Subject
+	if subject == "" {
+		subject = config.EmailSubject // Frontend field name
+	}
 	if subject == "" {
 		subject = fmt.Sprintf("Recommendation Request for %s", applicantName)
 	}
 
-	body := config.EmailTemplate.Body
-	if body == "" {
+	// Check for custom email body
+	customBody := config.EmailTemplate.Body
+	if customBody == "" {
+		customBody = config.EmailMessage // Frontend field name
+	}
+
+	var body string
+	if customBody != "" {
+		// Use custom body with merge tags
+		body = customBody
+		body = strings.ReplaceAll(body, "{{recommender_name}}", request.RecommenderName)
+		body = strings.ReplaceAll(body, "{{applicant_name}}", applicantName)
+		body = strings.ReplaceAll(body, "{{form_title}}", form.Name)
+		body = strings.ReplaceAll(body, "{{link}}", recommendationLink)
+		body = strings.ReplaceAll(body, "{{deadline}}", deadline)
+
+		// Wrap plain text in HTML if it doesn't contain HTML tags
+		if !strings.Contains(body, "<") {
+			body = fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; border-radius: 10px 10px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">Recommendation Request</h1>
+    </div>
+    <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+        <p style="font-size: 16px;">Dear %s,</p>
+        <p>%s</p>
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="%s" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Submit Recommendation</a>
+        </div>
+        <p style="font-size: 14px; color: #6b7280;">Or copy this link: <a href="%s" style="color: #667eea;">%s</a></p>
+        <div style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; margin-top: 20px;">
+            <p style="margin: 0; font-size: 14px;"><strong>Deadline:</strong> %s</p>
+        </div>
+        <p style="margin-top: 30px; color: #6b7280; font-size: 14px;">Thank you for taking the time to support this applicant.</p>
+    </div>
+</body>
+</html>
+`, request.RecommenderName, body, recommendationLink, recommendationLink, recommendationLink, deadline)
+		}
+
+		// Also process subject merge tags
+		subject = strings.ReplaceAll(subject, "{{recommender_name}}", request.RecommenderName)
+		subject = strings.ReplaceAll(subject, "{{applicant_name}}", applicantName)
+		subject = strings.ReplaceAll(subject, "{{form_title}}", form.Name)
+	} else {
+		// Default template
 		body = fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
@@ -377,17 +429,6 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 </body>
 </html>
 `, request.RecommenderName, applicantName, form.Name, recommendationLink, recommendationLink, recommendationLink, deadline)
-	} else {
-		// Replace merge tags
-		body = strings.ReplaceAll(body, "{{recommender_name}}", request.RecommenderName)
-		body = strings.ReplaceAll(body, "{{applicant_name}}", applicantName)
-		body = strings.ReplaceAll(body, "{{form_title}}", form.Name)
-		body = strings.ReplaceAll(body, "{{link}}", recommendationLink)
-		body = strings.ReplaceAll(body, "{{deadline}}", deadline)
-
-		subject = strings.ReplaceAll(subject, "{{recommender_name}}", request.RecommenderName)
-		subject = strings.ReplaceAll(subject, "{{applicant_name}}", applicantName)
-		subject = strings.ReplaceAll(subject, "{{form_title}}", form.Name)
 	}
 
 	// Build sender name from form name

@@ -960,6 +960,124 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                       onCheckedChange={(c) => handleConfigUpdate('requireRelationship', c)} 
                     />
                   </div>
+
+                  {/* Recommendation Questions Editor */}
+                  <div className="space-y-3 pt-4 border-t border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Questions for Recommender</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const questions = selectedField.config?.questions || []
+                          const newQuestion = {
+                            id: `q_${Date.now()}`,
+                            type: 'textarea',
+                            label: 'New Question',
+                            description: '',
+                            required: false,
+                            options: []
+                          }
+                          handleConfigUpdate('questions', [...questions, newQuestion])
+                        }}
+                        className="h-7 text-xs"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Question
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Customize the questions recommenders will answer. Leave empty to use default questions.
+                    </p>
+                    
+                    {(selectedField.config?.questions || []).length === 0 ? (
+                      <div className="text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                        <p className="text-sm text-gray-500">No custom questions</p>
+                        <p className="text-xs text-gray-400 mt-1">Default questions will be used</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {(selectedField.config?.questions || []).map((question: any, index: number) => (
+                          <div key={question.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
+                            <div className="flex items-start gap-2">
+                              <div className="flex-1 space-y-2">
+                                <Input
+                                  value={question.label}
+                                  onChange={(e) => {
+                                    const questions = [...(selectedField.config?.questions || [])]
+                                    questions[index] = { ...question, label: e.target.value }
+                                    handleConfigUpdate('questions', questions)
+                                  }}
+                                  placeholder="Question text"
+                                  className="text-sm"
+                                />
+                                <div className="flex gap-2">
+                                  <Select
+                                    value={question.type}
+                                    onValueChange={(v) => {
+                                      const questions = [...(selectedField.config?.questions || [])]
+                                      questions[index] = { ...question, type: v }
+                                      handleConfigUpdate('questions', questions)
+                                    }}
+                                  >
+                                    <SelectTrigger className="w-32 h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="text">Short Text</SelectItem>
+                                      <SelectItem value="textarea">Long Text</SelectItem>
+                                      <SelectItem value="rating">Rating (1-5)</SelectItem>
+                                      <SelectItem value="select">Dropdown</SelectItem>
+                                      <SelectItem value="checkbox">Checkbox</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <div className="flex items-center gap-1">
+                                    <Switch
+                                      checked={question.required}
+                                      onCheckedChange={(c) => {
+                                        const questions = [...(selectedField.config?.questions || [])]
+                                        questions[index] = { ...question, required: c }
+                                        handleConfigUpdate('questions', questions)
+                                      }}
+                                    />
+                                    <span className="text-xs text-gray-500">Required</span>
+                                  </div>
+                                </div>
+                                {question.type === 'select' && (
+                                  <Input
+                                    value={(question.options || []).join(', ')}
+                                    onChange={(e) => {
+                                      const questions = [...(selectedField.config?.questions || [])]
+                                      questions[index] = { 
+                                        ...question, 
+                                        options: e.target.value.split(',').map((o: string) => o.trim()).filter(Boolean)
+                                      }
+                                      handleConfigUpdate('questions', questions)
+                                    }}
+                                    placeholder="Options (comma separated)"
+                                    className="text-xs"
+                                  />
+                                )}
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const questions = (selectedField.config?.questions || []).filter((_: any, i: number) => i !== index)
+                                  handleConfigUpdate('questions', questions)
+                                }}
+                                className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </AccordionContent>

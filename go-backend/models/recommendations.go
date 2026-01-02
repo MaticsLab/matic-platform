@@ -47,10 +47,14 @@ func (RecommendationRequest) TableName() string {
 type RecommendationFieldConfig struct {
 	MinRecommenders int                      `json:"min_recommenders"`
 	MaxRecommenders int                      `json:"max_recommenders"`
-	DeadlineDays    int                      `json:"deadline_days"` // Days after request to expire
-	AllowWaiver     bool                     `json:"allow_waiver"`  // Allow applicant to waive right to see
+	NumRecommenders int                      `json:"numRecommenders"` // Frontend uses this name
+	DeadlineDays    int                      `json:"deadline_days"`   // Days after request to expire
+	DeadlineDaysFE  int                      `json:"deadlineDays"`    // Frontend uses this name
+	AllowWaiver     bool                     `json:"allow_waiver"`    // Allow applicant to waive right to see
 	Questions       []RecommendationQuestion `json:"questions"`
 	EmailTemplate   RecommendationEmail      `json:"email_template"`
+	EmailSubject    string                   `json:"emailSubject"`  // Frontend uses this name
+	EmailMessage    string                   `json:"emailMessage"`  // Frontend uses this name
 	ReminderDays    []int                    `json:"reminder_days"` // Days after request to send reminders
 	Instructions    string                   `json:"instructions"`  // Instructions shown to applicant
 }
