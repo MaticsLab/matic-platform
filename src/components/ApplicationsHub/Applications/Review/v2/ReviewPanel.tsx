@@ -5,7 +5,7 @@ import {
   X, ChevronLeft, ChevronRight, Save, Clock, Star, 
   FileText, MessageSquare, Check, AlertCircle, 
   ThumbsUp, ThumbsDown, MinusCircle, UserPlus, Mail,
-  RefreshCw, CheckCircle2, Clock3, XCircle
+  RefreshCw, CheckCircle2, Clock3, XCircle, ChevronUp
 } from 'lucide-react';
 import { Button } from '@/ui-components/button';
 import { Textarea } from '@/ui-components/textarea';
@@ -56,6 +56,7 @@ export function ReviewPanel({
   const [recommendations, setRecommendations] = useState<RecommendationRequest[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+  const [expandedRecommendations, setExpandedRecommendations] = useState<Set<string>>(new Set());
   
   // Fetch recommendations for this submission
   useEffect(() => {
@@ -373,20 +374,95 @@ export function ReviewPanel({
                         </div>
                         
                         {/* Show response preview if submitted */}
-                        {rec.status === 'submitted' && rec.response && (
-                          <div className="mt-2 pt-2 border-t border-green-200">
-                            <button
-                              onClick={() => {
-                                // Could expand to show full response
-                                console.log('Recommendation response:', rec.response);
-                              }}
-                              className="text-xs text-green-700 hover:text-green-800 flex items-center gap-1"
-                            >
-                              <FileText className="w-3 h-3" />
-                              View recommendation
-                            </button>
-                          </div>
-                        )}
+                        {rec.status === 'submitted' && rec.response && (() => {
+                          const isExpanded = expandedRecommendations.has(rec.id);
+                          const responseKeys = Object.keys(rec.response || {}).filter(k => !k.startsWith('_'));
+                          
+                          return (
+                            <div className="mt-2 pt-2 border-t border-green-200">
+                              <button
+                                onClick={() => {
+                                  const newExpanded = new Set(expandedRecommendations);
+                                  if (isExpanded) {
+                                    newExpanded.delete(rec.id);
+                                  } else {
+                                    newExpanded.add(rec.id);
+                                  }
+                                  setExpandedRecommendations(newExpanded);
+                                }}
+                                className="text-xs text-green-700 hover:text-green-800 flex items-center gap-1"
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    <ChevronUp className="w-3 h-3" />
+                                    Hide recommendation
+                                  </>
+                                ) : (
+                                  <>
+                                    <FileText className="w-3 h-3" />
+                                    View recommendation
+                                  </>
+                                )}
+                              </button>
+                              
+                              {isExpanded && responseKeys.length > 0 && (
+                                <div className="mt-2 space-y-2 bg-white rounded border p-3">
+                                  {responseKeys.map((key) => {
+                                    const value = rec.response?.[key];
+                                    
+                                    // Handle uploaded document
+                                    if (key === 'uploaded_document' || key === 'document') {
+                                      const doc = typeof value === 'object' ? value : {};
+                                      const docUrl = doc.url || doc.URL || doc.Url || (typeof value === 'string' ? value : '');
+                                      const docName = doc.filename || doc.name || doc.Name || 'Document';
+                                      
+                                      if (!docUrl) return null;
+                                      
+                                      return (
+                                        <div key={key} className="space-y-1">
+                                          <label className="text-xs font-medium text-gray-700">Uploaded Document</label>
+                                          <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                                            <FileText className="w-4 h-4 text-gray-400" />
+                                            <span className="text-sm text-gray-900 flex-1">{docName}</span>
+                                            <a
+                                              href={docUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-xs text-blue-600 hover:text-blue-700"
+                                            >
+                                              Open
+                                            </a>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                    
+                                    // Handle relationship
+                                    if (key === 'relationship') {
+                                      return (
+                                        <div key={key} className="space-y-1">
+                                          <label className="text-xs font-medium text-gray-700">How do you know the applicant?</label>
+                                          <p className="text-sm text-gray-900">{String(value)}</p>
+                                        </div>
+                                      );
+                                    }
+                                    
+                                    // Handle other question responses
+                                    const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                                    const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+                                    
+                                    return (
+                                      <div key={key} className="space-y-1">
+                                        <label className="text-xs font-medium text-gray-700">{displayKey}</label>
+                                        <div className="text-sm text-gray-900 whitespace-pre-wrap">{displayValue}</div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>

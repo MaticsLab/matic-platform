@@ -430,6 +430,7 @@ export function ApplicationDetail({
   const [recommendations, setRecommendations] = useState<RecommendationRequest[]>([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+  const [expandedRecommendations, setExpandedRecommendations] = useState<Set<string>>(new Set());
 
   // Gmail connection - use shared hook
   const { 
@@ -1171,81 +1172,184 @@ export function ApplicationDetail({
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {recommendations.map((rec) => (
-                          <div 
-                            key={rec.id} 
-                            className={cn(
-                              "p-3 rounded-lg border",
-                              rec.status === 'submitted' ? "bg-green-50 border-green-200" :
-                              rec.status === 'expired' ? "bg-red-50 border-red-200" :
-                              rec.status === 'cancelled' ? "bg-gray-50 border-gray-200" :
-                              "bg-yellow-50 border-yellow-200"
-                            )}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  {rec.status === 'submitted' ? (
-                                    <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
-                                  ) : rec.status === 'expired' ? (
-                                    <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
-                                  ) : rec.status === 'cancelled' ? (
-                                    <XCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                  ) : (
-                                    <Clock3 className="w-4 h-4 text-yellow-600 flex-shrink-0" />
-                                  )}
-                                  <span className="font-medium text-sm text-gray-900 truncate">
-                                    {rec.recommender_name}
-                                  </span>
-                                </div>
-                                <div className="mt-1 text-xs text-gray-500 truncate">
-                                  {rec.recommender_email}
-                                  {rec.recommender_relationship && ` • ${rec.recommender_relationship}`}
-                                </div>
-                                <div className="mt-1 flex items-center gap-2 text-xs">
-                                  <span className={cn(
-                                    "px-1.5 py-0.5 rounded",
-                                    rec.status === 'submitted' ? "bg-green-100 text-green-700" :
-                                    rec.status === 'expired' ? "bg-red-100 text-red-700" :
-                                    rec.status === 'cancelled' ? "bg-gray-100 text-gray-500" :
-                                    "bg-yellow-100 text-yellow-700"
-                                  )}>
-                                    {rec.status === 'submitted' ? 'Received' :
-                                     rec.status === 'expired' ? 'Expired' :
-                                     rec.status === 'cancelled' ? 'Cancelled' : 'Pending'}
-                                  </span>
-                                  {rec.submitted_at && (
-                                    <span className="text-gray-400">
-                                      {new Date(rec.submitted_at).toLocaleDateString()}
-                                    </span>
-                                  )}
-                                  {rec.status === 'pending' && rec.reminder_count > 0 && (
-                                    <span className="text-gray-400">
-                                      {rec.reminder_count} reminder{rec.reminder_count > 1 ? 's' : ''} sent
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              {rec.status === 'pending' && (
-                                <button
-                                  onClick={() => handleSendReminder(rec.id)}
-                                  disabled={sendingReminder === rec.id}
-                                  className="flex-shrink-0 text-xs px-2 py-1 border rounded hover:bg-gray-100 transition-colors flex items-center gap-1"
-                                >
-                                  {sendingReminder === rec.id ? (
-                                    <RefreshCw className="w-3 h-3 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <Mail className="w-3 h-3" />
-                                      Remind
-                                    </>
-                                  )}
-                                </button>
+                        {recommendations.map((rec) => {
+                          const isExpanded = expandedRecommendations.has(rec.id);
+                          const hasResponse = rec.status === 'submitted' && rec.response && Object.keys(rec.response).length > 0;
+                          
+                          return (
+                            <div 
+                              key={rec.id} 
+                              className={cn(
+                                "rounded-lg border",
+                                rec.status === 'submitted' ? "bg-green-50 border-green-200" :
+                                rec.status === 'expired' ? "bg-red-50 border-red-200" :
+                                rec.status === 'cancelled' ? "bg-gray-50 border-gray-200" :
+                                "bg-yellow-50 border-yellow-200"
                               )}
+                            >
+                              <div className="p-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      {rec.status === 'submitted' ? (
+                                        <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                                      ) : rec.status === 'expired' ? (
+                                        <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                                      ) : rec.status === 'cancelled' ? (
+                                        <XCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                      ) : (
+                                        <Clock3 className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+                                      )}
+                                      <span className="font-medium text-sm text-gray-900 truncate">
+                                        {rec.recommender_name}
+                                      </span>
+                                    </div>
+                                    <div className="mt-1 text-xs text-gray-500 truncate">
+                                      {rec.recommender_email}
+                                      {rec.recommender_relationship && ` • ${rec.recommender_relationship}`}
+                                    </div>
+                                    <div className="mt-1 flex items-center gap-2 text-xs">
+                                      <span className={cn(
+                                        "px-1.5 py-0.5 rounded",
+                                        rec.status === 'submitted' ? "bg-green-100 text-green-700" :
+                                        rec.status === 'expired' ? "bg-red-100 text-red-700" :
+                                        rec.status === 'cancelled' ? "bg-gray-100 text-gray-500" :
+                                        "bg-yellow-100 text-yellow-700"
+                                      )}>
+                                        {rec.status === 'submitted' ? 'Received' :
+                                         rec.status === 'expired' ? 'Expired' :
+                                         rec.status === 'cancelled' ? 'Cancelled' : 'Pending'}
+                                      </span>
+                                      {rec.submitted_at && (
+                                        <span className="text-gray-400">
+                                          Submitted {new Date(rec.submitted_at).toLocaleDateString()}
+                                        </span>
+                                      )}
+                                      {rec.status === 'pending' && rec.reminder_count > 0 && (
+                                        <span className="text-gray-400">
+                                          {rec.reminder_count} reminder{rec.reminder_count > 1 ? 's' : ''} sent
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-2">
+                                    {hasResponse && (
+                                      <button
+                                        onClick={() => {
+                                          const newExpanded = new Set(expandedRecommendations);
+                                          if (isExpanded) {
+                                            newExpanded.delete(rec.id);
+                                          } else {
+                                            newExpanded.add(rec.id);
+                                          }
+                                          setExpandedRecommendations(newExpanded);
+                                        }}
+                                        className="flex-shrink-0 text-xs px-2 py-1 border rounded hover:bg-white transition-colors flex items-center gap-1"
+                                      >
+                                        {isExpanded ? (
+                                          <>
+                                            <ChevronUp className="w-3 h-3" />
+                                            Hide
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Eye className="w-3 h-3" />
+                                            View
+                                          </>
+                                        )}
+                                      </button>
+                                    )}
+                                    {rec.status === 'pending' && (
+                                      <button
+                                        onClick={() => handleSendReminder(rec.id)}
+                                        disabled={sendingReminder === rec.id}
+                                        className="flex-shrink-0 text-xs px-2 py-1 border rounded hover:bg-white transition-colors flex items-center gap-1"
+                                      >
+                                        {sendingReminder === rec.id ? (
+                                          <RefreshCw className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                          <>
+                                            <Mail className="w-3 h-3" />
+                                            Remind
+                                          </>
+                                        )}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                {/* Expanded response content */}
+                                {isExpanded && hasResponse && (
+                                  <div className="mt-3 pt-3 border-t border-green-200 space-y-3">
+                                    <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                                      Recommendation Content
+                                    </h4>
+                                    <div className="space-y-3 bg-white rounded border p-3">
+                                      {Object.entries(rec.response || {}).map(([key, value]) => {
+                                        // Skip internal fields
+                                        if (key.startsWith('_')) return null;
+                                        
+                                        // Handle uploaded document
+                                        if (key === 'uploaded_document' || key === 'document') {
+                                          const doc = typeof value === 'object' ? value : {};
+                                          const docUrl = doc.url || doc.URL || doc.Url || (typeof value === 'string' ? value : '');
+                                          const docName = doc.filename || doc.name || doc.Name || 'Document';
+                                          
+                                          if (!docUrl) return null;
+                                          
+                                          return (
+                                            <div key={key} className="space-y-1">
+                                              <label className="text-xs font-medium text-gray-700">Uploaded Document</label>
+                                              <div className="flex items-center gap-2 p-2 bg-gray-50 rounded border">
+                                                <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                                <span className="text-sm text-gray-900 flex-1 truncate">{docName}</span>
+                                                <a
+                                                  href={docUrl}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                                >
+                                                  <ExternalLink className="w-3 h-3" />
+                                                  Open
+                                                </a>
+                                              </div>
+                                            </div>
+                                          );
+                                        }
+                                        
+                                        // Handle relationship field
+                                        if (key === 'relationship') {
+                                          return (
+                                            <div key={key} className="space-y-1">
+                                              <label className="text-xs font-medium text-gray-700">How do you know the applicant?</label>
+                                              <p className="text-sm text-gray-900">{String(value)}</p>
+                                            </div>
+                                          );
+                                        }
+                                        
+                                        // Handle question responses (by question ID)
+                                        // For now, display as key-value pairs
+                                        // In the future, we could fetch field config to get question labels
+                                        const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                                        const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+                                        
+                                        return (
+                                          <div key={key} className="space-y-1">
+                                            <label className="text-xs font-medium text-gray-700">{displayKey}</label>
+                                            <div className="text-sm text-gray-900 whitespace-pre-wrap">
+                                              {displayValue}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
