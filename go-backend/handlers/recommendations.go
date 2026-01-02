@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -477,6 +478,41 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 		body = strings.ReplaceAll(body, "{{form_title}}", form.Name)
 		body = strings.ReplaceAll(body, "{{link}}", recommendationLink)
 		body = strings.ReplaceAll(body, "{{deadline}}", deadline)
+
+		// Replace dynamic field references like {{field_id}} with submission data
+		if submission.Data != nil {
+			var submissionData map[string]interface{}
+			json.Unmarshal(submission.Data, &submissionData)
+
+			// Find all {{field_id}} patterns and replace with actual values
+			re := regexp.MustCompile(`\{\{([^}]+)\}\}`)
+			body = re.ReplaceAllStringFunc(body, func(match string) string {
+				fieldId := strings.Trim(match, "{}")
+				// Skip standard merge tags (already handled above)
+				if fieldId == "recommender_name" || fieldId == "applicant_name" ||
+					fieldId == "applicant_email" || fieldId == "form_title" ||
+					fieldId == "link" || fieldId == "deadline" {
+					return match // These are already replaced
+				}
+				// Look up field value in submission data
+				if val, ok := submissionData[fieldId]; ok {
+					switch v := val.(type) {
+					case string:
+						return v
+					case float64:
+						return fmt.Sprintf("%.0f", v)
+					case bool:
+						if v {
+							return "Yes"
+						}
+						return "No"
+					default:
+						return fmt.Sprintf("%v", v)
+					}
+				}
+				return match // Keep original if not found
+			})
+		}
 
 		// Wrap plain text in HTML if it doesn't contain HTML tags
 		if !strings.Contains(body, "<") {

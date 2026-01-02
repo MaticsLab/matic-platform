@@ -13,6 +13,7 @@ import { Textarea } from '@/ui-components/textarea'
 import { cn } from '@/lib/utils'
 import { RichTextEditor } from './RichTextEditor'
 import { MentionableInput } from './MentionableInput'
+import { MergeTagTextarea } from './MergeTagTextarea'
 
 const FIELD_TYPES: { value: string; label: string; icon: React.ReactNode; description: string }[] = [
   { value: 'text', label: 'Text Input', icon: <Type className="w-4 h-4" />, description: 'Single line text field' },
@@ -948,13 +949,18 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
 
                   <div className="space-y-2">
                     <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Email Message</Label>
-                    <Textarea 
+                    <MergeTagTextarea 
                       value={selectedField.config?.emailMessage || 'You have been requested to provide a letter of recommendation. Please click the link below to submit your recommendation.'} 
-                      onChange={(e) => handleConfigUpdate('emailMessage', e.target.value)} 
-                      className="bg-gray-50/50 border-gray-200 min-h-[80px]"
+                      onChange={(v) => handleConfigUpdate('emailMessage', v)} 
                       placeholder="Enter the email message for recommenders..."
+                      fields={allFields.filter(f => f.id !== selectedField.id).map(f => ({
+                        id: f.id,
+                        label: f.label || f.id,
+                        type: f.type
+                      }))}
+                      rows={3}
                     />
-                    <p className="text-xs text-gray-500">Message sent to recommenders via email</p>
+                    <p className="text-xs text-gray-500">Message sent to recommenders via email. Click + to insert field values.</p>
                   </div>
 
                   {/* Merge Tag Field Mappings */}
