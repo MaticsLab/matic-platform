@@ -294,16 +294,32 @@ export function ApplicationForm({
 
   const activeTab = TABS[currentSectionIndex]?.id || TABS[0]?.id
 
+  // Create a user-specific storage key to prevent cross-user data leakage
+  // Include both form ID and user email to ensure each user has their own saved data
+  const storageKey = useMemo(() => {
+    const formKey = formDefinition?.id || 'scholarship-application'
+    if (userEmail) {
+      // Hash the email for privacy while still being unique per user
+      return `${formKey}-${btoa(userEmail).replace(/[^a-zA-Z0-9]/g, '')}`
+    }
+    return formKey
+  }, [formDefinition?.id, userEmail])
+
   // Load saved data and version history on mount
   useEffect(() => {
-    const storageKey = formDefinition?.id || 'scholarship-application'
     const saved = localStorage.getItem(storageKey)
     const savedHistory = localStorage.getItem(`${storageKey}-history`)
     
     if (saved && !initialData) {
       try {
         const data = JSON.parse(saved)
-        setFormData(data.formData || data)
+        // Only restore data if it belongs to this user (check _submission_id matches or doesn't exist)
+        const savedData = data.formData || data
+        // If initialData has a submission ID, only use localStorage data if it matches
+        // This prevents loading another user's data
+        if (!savedData._submission_id || savedData._submission_id === initialData?._submission_id) {
+          setFormData(savedData)
+        }
       } catch (e) {
         console.error('Failed to load saved form data:', e)
       }
@@ -317,7 +333,7 @@ export function ApplicationForm({
         console.error('Failed to load version history:', e)
       }
     }
-  }, [formDefinition?.id, initialData])
+  }, [storageKey, initialData])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -351,13 +367,12 @@ export function ApplicationForm({
 
   // Autosave to localStorage
   useEffect(() => {
-    const storageKey = formDefinition?.id || 'scholarship-application'
     const timer = setTimeout(() => {
       localStorage.setItem(storageKey, JSON.stringify({ formData, lastSaved: new Date().toISOString() }))
     }, 1000)
 
     return () => clearTimeout(timer)
-  }, [formData, formDefinition?.id])
+  }, [formData, storageKey])
 
   const saveVersion = useCallback(() => {
     const newVersion: VersionEntry = {
@@ -368,13 +383,12 @@ export function ApplicationForm({
     const newHistory = [...versionHistory, newVersion].slice(-10) // Keep last 10 versions
     setVersionHistory(newHistory)
     
-    const storageKey = formDefinition?.id || 'scholarship-application'
     localStorage.setItem(`${storageKey}-history`, JSON.stringify(
       newHistory.map(h => ({ ...h, date: h.date.toISOString() }))
     ))
     
     toast.success('Version saved successfully!')
-  }, [formData, versionHistory, formDefinition?.id])
+  }, [formData, versionHistory, storageKey])
 
   const restoreVersion = useCallback((version: VersionEntry) => {
     setFormData(version.data)

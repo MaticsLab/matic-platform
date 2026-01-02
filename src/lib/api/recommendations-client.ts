@@ -127,17 +127,22 @@ export const recommendationsClient = {
   },
 
   /**
-   * List recommendation requests for a submission from portal (no main auth required)
+   * List recommendation requests for a submission from portal (uses portal auth cookie)
    */
   listFromPortal: async (submissionId: string): Promise<RecommendationRequest[]> => {
     const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
-    const response = await fetch(`${API_BASE}/portal/recommendations?submission_id=${submissionId}`, {
+    const response = await fetch(`${API_BASE}/portal/dashboard/recommendations?submission_id=${submissionId}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // Include portal auth cookie
     })
     
     if (!response.ok) {
-      const error = await response.json()
+      // Return empty array if no recommendations found or not authorized
+      if (response.status === 404 || response.status === 401) {
+        return []
+      }
+      const error = await response.json().catch(() => ({ error: 'Failed to fetch recommendation requests' }))
       throw new Error(error.error || 'Failed to fetch recommendation requests')
     }
     

@@ -749,7 +749,7 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 	// Build the recommendation link
 	baseURL := os.Getenv("NEXT_PUBLIC_APP_URL")
 	if baseURL == "" {
-		baseURL = "http://localhost:3000"
+		baseURL = "https://app.maticslab.com"
 	}
 	recommendationLink := fmt.Sprintf("%s/recommend/%s", baseURL, request.Token)
 

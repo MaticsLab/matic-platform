@@ -91,6 +91,7 @@ export function DashboardV2({
             />
             <CompactRecommendations 
               formId={formId}
+              rowId={rowId}
               isPreview={isPreview}
             />
           </div>

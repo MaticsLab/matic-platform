@@ -1441,6 +1441,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     displaySection.sectionType === 'cover' ? (
                       // Cover Section - Novel V2 editor (Notion-like)
                       <NovelCoverEditorV2
+                        key={displaySection.id}
                         initialContent={displaySection.content || ''}
                         onUpdate={(content) => handleUpdateSection(displaySection.id, { content })}
                       />

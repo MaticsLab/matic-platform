@@ -971,17 +971,17 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                           Applicant Name
                         </Label>
                         <Select
-                          value={selectedField.config?.mergeTagFields?.applicant_name || ''}
+                          value={selectedField.config?.mergeTagFields?.applicant_name || 'auto'}
                           onValueChange={(v) => handleConfigUpdate('mergeTagFields', {
                             ...(selectedField.config?.mergeTagFields || {}),
-                            applicant_name: v
+                            applicant_name: v === 'auto' ? '' : v
                           })}
                         >
                           <SelectTrigger className="bg-gray-50/50 border-gray-200 text-sm">
                             <SelectValue placeholder="Auto-detect (name fields)" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">Auto-detect</SelectItem>
+                            <SelectItem value="auto">Auto-detect</SelectItem>
                             {allFields
                               .filter(f => ['text', 'email', 'select'].includes(f.type) && f.id !== selectedField.id)
                               .map(f => (
@@ -998,17 +998,17 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                           Applicant Email
                         </Label>
                         <Select
-                          value={selectedField.config?.mergeTagFields?.applicant_email || ''}
+                          value={selectedField.config?.mergeTagFields?.applicant_email || 'auto'}
                           onValueChange={(v) => handleConfigUpdate('mergeTagFields', {
                             ...(selectedField.config?.mergeTagFields || {}),
-                            applicant_email: v
+                            applicant_email: v === 'auto' ? '' : v
                           })}
                         >
                           <SelectTrigger className="bg-gray-50/50 border-gray-200 text-sm">
                             <SelectValue placeholder="Auto-detect (email fields)" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">Auto-detect</SelectItem>
+                            <SelectItem value="auto">Auto-detect</SelectItem>
                             {allFields
                               .filter(f => ['text', 'email'].includes(f.type) && f.id !== selectedField.id)
                               .map(f => (
