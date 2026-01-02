@@ -717,6 +717,23 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
                     )}
                   </CardHeader>
                   <CardContent className={cn("space-y-6", isExternal ? "px-0" : "")}>
+                    {/* Render rich text content if present (Novel editor JSON) */}
+                    {(activeSection as any).content && (
+                      <div 
+                        className="prose prose-lg dark:prose-invert max-w-full"
+                        dangerouslySetInnerHTML={{ 
+                          __html: (() => {
+                            try {
+                              const json = JSON.parse((activeSection as any).content)
+                              return generateHTML(json, [StarterKit])
+                            } catch {
+                              return (activeSection as any).content
+                            }
+                          })()
+                        }}
+                      />
+                    )}
+                    {/* Render form fields */}
                     <div className="grid grid-cols-12 gap-6">
                       {(activeSection.fields || []).map((field: Field) => (
                         <div key={field.id} className={cn(

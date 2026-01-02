@@ -356,3 +356,185 @@ export function MergeTagTextarea({
     </div>
   )
 }
+
+// Single field picker component - like MergeTagTextarea but for selecting just one field
+interface MergeTagFieldPickerProps {
+  value: string // field ID or empty
+  onChange: (fieldId: string) => void
+  placeholder?: string
+  fields: Field[]
+  className?: string
+  disabled?: boolean
+}
+
+export function MergeTagFieldPicker({
+  value,
+  onChange,
+  placeholder = 'Auto-detect',
+  fields,
+  className,
+  disabled
+}: MergeTagFieldPickerProps) {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
+
+  const selectedField = fields.find(f => f.id === value)
+
+  // Group fields by type for better organization
+  const groupedFields = fields.reduce((acc, field) => {
+    const category = field.type === 'email' ? 'Email' : 
+                    ['text', 'textarea'].includes(field.type) ? 'Text' :
+                    ['select', 'multiselect', 'checkbox', 'radio'].includes(field.type) ? 'Selection' :
+                    'Other'
+    if (!acc[category]) acc[category] = []
+    acc[category].push(field)
+    return acc
+  }, {} as Record<string, Field[]>)
+
+  const filteredFields = searchQuery
+    ? fields.filter(f => 
+        f.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        f.id.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : fields
+
+  const handleSelectField = (field: Field) => {
+    onChange(field.id)
+    setIsOpen(false)
+    setSearchQuery('')
+  }
+
+  const handleClear = () => {
+    onChange('')
+  }
+
+  return (
+    <div className={cn("relative", className)}>
+      <div
+        className={cn(
+          "min-h-[42px] px-3 py-2 rounded-lg border bg-white transition-colors flex items-center gap-2",
+          disabled ? "bg-gray-100 cursor-not-allowed" : "border-gray-200 hover:border-gray-300",
+          isOpen && "ring-2 ring-blue-500 border-blue-500"
+        )}
+      >
+        <div className="flex-1 flex items-center gap-2 min-w-0">
+          {selectedField ? (
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm border border-blue-200">
+              {getFieldIcon(selectedField.type)}
+              <span className="truncate">{selectedField.label}</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleClear()
+                }}
+                className="hover:bg-blue-200 rounded-full p-0.5 -mr-0.5"
+                disabled={disabled}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ) : (
+            <span className="text-gray-400 text-sm">{placeholder}</span>
+          )}
+        </div>
+
+        {/* Field picker button */}
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              className="h-7 w-7 p-0 shrink-0"
+              disabled={disabled}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-0" align="end">
+            <div className="p-2 border-b">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search fields..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 h-8"
+                />
+              </div>
+            </div>
+            <ScrollArea className="h-[200px]">
+              <div className="p-2">
+                {/* Auto-detect option */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange('')
+                    setIsOpen(false)
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-gray-100 text-left mb-2",
+                    !value && "bg-blue-50 text-blue-700"
+                  )}
+                >
+                  <Type className="h-4 w-4 text-gray-400" />
+                  <span>Auto-detect</span>
+                </button>
+                
+                <div className="border-t pt-2">
+                  {searchQuery ? (
+                    <div className="space-y-0.5">
+                      {filteredFields.map(field => (
+                        <button
+                          key={field.id}
+                          type="button"
+                          onClick={() => handleSelectField(field)}
+                          className={cn(
+                            "w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-gray-100 text-left",
+                            value === field.id && "bg-blue-50 text-blue-700"
+                          )}
+                        >
+                          {getFieldIcon(field.type)}
+                          <span className="truncate">{field.label}</span>
+                        </button>
+                      ))}
+                      {filteredFields.length === 0 && (
+                        <p className="text-sm text-gray-500 text-center py-4">No fields found</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {Object.entries(groupedFields).map(([category, categoryFields]) => (
+                        <div key={category}>
+                          <p className="text-xs font-medium text-gray-500 px-2 mb-1">{category}</p>
+                          <div className="space-y-0.5">
+                            {categoryFields.map(field => (
+                              <button
+                                key={field.id}
+                                type="button"
+                                onClick={() => handleSelectField(field)}
+                                className={cn(
+                                  "w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-gray-100 text-left",
+                                  value === field.id && "bg-blue-50 text-blue-700"
+                                )}
+                              >
+                                {getFieldIcon(field.type)}
+                                <span className="truncate">{field.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </ScrollArea>
+          </PopoverContent>
+        </Popover>
+      </div>
+    </div>
+  )
+}
