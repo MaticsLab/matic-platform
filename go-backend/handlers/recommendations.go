@@ -240,13 +240,38 @@ func CreateRecommendationRequest(c *gin.Context) {
 		return
 	}
 
-	// Check for duplicate email
+	// Check for duplicate email - if exists and pending, send reminder instead
 	var existingRequest models.RecommendationRequest
 	if err := database.DB.Where("submission_id = ? AND field_id = ? AND recommender_email = ? AND status != ?",
 		input.SubmissionID, input.FieldID, input.RecommenderEmail, "cancelled").
 		First(&existingRequest).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "A recommendation request has already been sent to this email"})
-		return
+		// Request already exists - send a reminder if still pending
+		if existingRequest.Status == "pending" {
+			// Send reminder email
+			if err := sendRecommendationReminderEmail(&existingRequest, &submission, &form, &fieldConfig); err != nil {
+				fmt.Printf("[Recommendations] Failed to send reminder email: %v\n", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send reminder email"})
+				return
+			}
+
+			// Update reminder count and timestamp
+			now := time.Now()
+			existingRequest.ReminderCount++
+			existingRequest.RemindedAt = &now
+			database.DB.Save(&existingRequest)
+
+			fmt.Printf("[Recommendations] Sent reminder for existing request ID: %s\n", existingRequest.ID.String())
+			c.JSON(http.StatusOK, gin.H{
+				"message":     "Reminder sent successfully",
+				"request":     existingRequest,
+				"is_reminder": true,
+			})
+			return
+		} else {
+			// Request exists but already submitted
+			c.JSON(http.StatusBadRequest, gin.H{"error": "A recommendation has already been submitted by this email"})
+			return
+		}
 	}
 
 	// Calculate expiry date - support both fixed and relative deadlines
@@ -415,7 +440,7 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 		baseURL = os.Getenv("NEXT_PUBLIC_APP_URL")
 	}
 	if baseURL == "" {
-		baseURL = "https://app.maticslab.com" // Production default
+		baseURL = "https://www.maticsapp.com" // Production default
 	}
 	recommendationLink := fmt.Sprintf("%s/recommend/%s", baseURL, request.Token)
 
@@ -749,7 +774,7 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 	// Build the recommendation link
 	baseURL := os.Getenv("NEXT_PUBLIC_APP_URL")
 	if baseURL == "" {
-		baseURL = "https://app.maticslab.com"
+		baseURL = "https://www.maticsapp.com"
 	}
 	recommendationLink := fmt.Sprintf("%s/recommend/%s", baseURL, request.Token)
 
