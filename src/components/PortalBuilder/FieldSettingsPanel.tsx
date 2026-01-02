@@ -894,17 +894,46 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                     <p className="text-xs text-gray-500">How many letters of recommendation are required</p>
                   </div>
                   
-                  <div className="space-y-2">
-                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Deadline (Days)</Label>
-                    <Input 
-                      type="number"
-                      min={1}
-                      max={90}
-                      value={selectedField.config?.deadlineDays || 14} 
-                      onChange={(e) => handleConfigUpdate('deadlineDays', parseInt(e.target.value) || 14)} 
-                      className="bg-gray-50/50 border-gray-200"
-                    />
-                    <p className="text-xs text-gray-500">Days recommenders have to submit</p>
+                  <div className="space-y-3">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Deadline Type</Label>
+                    <Select
+                      value={selectedField.config?.deadlineType || 'relative'}
+                      onValueChange={(v) => handleConfigUpdate('deadlineType', v)}
+                    >
+                      <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="relative">Days after request sent</SelectItem>
+                        <SelectItem value="fixed">Fixed date and time</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
+                    {selectedField.config?.deadlineType === 'fixed' ? (
+                      <div className="space-y-2">
+                        <Label className="text-xs text-gray-600">Deadline Date & Time</Label>
+                        <Input 
+                          type="datetime-local"
+                          value={selectedField.config?.fixedDeadline || ''} 
+                          onChange={(e) => handleConfigUpdate('fixedDeadline', e.target.value)} 
+                          className="bg-gray-50/50 border-gray-200"
+                        />
+                        <p className="text-xs text-gray-500">All recommenders must submit by this date and time</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label className="text-xs text-gray-600">Days to Submit</Label>
+                        <Input 
+                          type="number"
+                          min={1}
+                          max={90}
+                          value={selectedField.config?.deadlineDays || 14} 
+                          onChange={(e) => handleConfigUpdate('deadlineDays', parseInt(e.target.value) || 14)} 
+                          className="bg-gray-50/50 border-gray-200"
+                        />
+                        <p className="text-xs text-gray-500">Days from when request is sent</p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">

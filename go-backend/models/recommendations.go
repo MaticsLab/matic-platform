@@ -50,6 +50,8 @@ type RecommendationFieldConfig struct {
 	NumRecommenders int                      `json:"numRecommenders"` // Frontend uses this name
 	DeadlineDays    int                      `json:"deadline_days"`   // Days after request to expire
 	DeadlineDaysFE  int                      `json:"deadlineDays"`    // Frontend uses this name
+	DeadlineType    string                   `json:"deadlineType"`    // "relative" or "fixed"
+	FixedDeadline   string                   `json:"fixedDeadline"`   // ISO datetime string for fixed deadline
 	AllowWaiver     bool                     `json:"allow_waiver"`    // Allow applicant to waive right to see
 	Questions       []RecommendationQuestion `json:"questions"`
 	EmailTemplate   RecommendationEmail      `json:"email_template"`

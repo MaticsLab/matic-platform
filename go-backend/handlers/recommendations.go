@@ -249,11 +249,28 @@ func CreateRecommendationRequest(c *gin.Context) {
 		return
 	}
 
-	// Calculate expiry date
+	// Calculate expiry date - support both fixed and relative deadlines
 	var expiresAt *time.Time
-	if fieldConfig.DeadlineDays > 0 {
-		expiry := time.Now().AddDate(0, 0, fieldConfig.DeadlineDays)
-		expiresAt = &expiry
+	if fieldConfig.DeadlineType == "fixed" && fieldConfig.FixedDeadline != "" {
+		// Parse the fixed deadline (ISO format from datetime-local input)
+		// Handle both formats: with and without seconds
+		parsed, err := time.Parse("2006-01-02T15:04", fieldConfig.FixedDeadline)
+		if err != nil {
+			parsed, err = time.Parse("2006-01-02T15:04:05", fieldConfig.FixedDeadline)
+		}
+		if err == nil {
+			expiresAt = &parsed
+		}
+	} else {
+		// Relative deadline (days from now)
+		deadlineDays := fieldConfig.DeadlineDays
+		if deadlineDays == 0 {
+			deadlineDays = fieldConfig.DeadlineDaysFE // Try frontend field name
+		}
+		if deadlineDays > 0 {
+			expiry := time.Now().AddDate(0, 0, deadlineDays)
+			expiresAt = &expiry
+		}
 	}
 
 	// Create the request
@@ -402,10 +419,10 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 	}
 	recommendationLink := fmt.Sprintf("%s/recommend/%s", baseURL, request.Token)
 
-	// Format deadline
+	// Format deadline with date and time
 	deadline := "No deadline"
 	if request.ExpiresAt != nil {
-		deadline = request.ExpiresAt.Format("January 2, 2006")
+		deadline = request.ExpiresAt.Format("January 2, 2006 at 3:04 PM")
 	}
 
 	// Use custom template or default - check both backend and frontend field names
