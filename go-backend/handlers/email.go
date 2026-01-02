@@ -62,6 +62,40 @@ func stripHTMLTags(html string) string {
 	return strings.TrimSpace(html)
 }
 
+// convertPlainTextToHTML converts plain text to HTML, preserving line breaks and formatting
+func convertPlainTextToHTML(text string) string {
+	if text == "" {
+		return ""
+	}
+
+	// Escape HTML special characters first
+	text = strings.ReplaceAll(text, "&", "&amp;")
+	text = strings.ReplaceAll(text, "<", "&lt;")
+	text = strings.ReplaceAll(text, ">", "&gt;")
+	text = strings.ReplaceAll(text, "\"", "&quot;")
+
+	// Convert line breaks to <br> tags
+	// Handle both \r\n (Windows) and \n (Unix) line endings
+	text = strings.ReplaceAll(text, "\r\n", "<br>")
+	text = strings.ReplaceAll(text, "\n", "<br>")
+
+	// Wrap in a basic HTML structure with good email client compatibility
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #333;">
+<div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+%s
+</div>
+</body>
+</html>`, text)
+
+	return html
+}
+
 func init() {
 	// Initialize OAuth config - will be properly set when env vars are available
 	gmailOAuthConfig = &oauth2.Config{
@@ -445,6 +479,10 @@ func SendEmail(c *gin.Context) {
 		initialBodyHTML = req.Body
 		// Create plain text version by stripping tags (basic)
 		initialBodyPlain = stripHTMLTags(req.Body)
+	} else if req.BodyHTML == "" && req.Body != "" {
+		// If no HTML provided but plain text is, convert plain text to HTML
+		// This preserves line breaks and basic formatting
+		initialBodyHTML = convertPlainTextToHTML(req.Body)
 	}
 
 	// Create campaign if sending to multiple recipients
