@@ -44,6 +44,7 @@ export function RecommendationRenderer({
   value,
   onChange,
   mode = 'edit',
+  context = 'form',
   disabled = false,
   required = false,
   error,
@@ -52,6 +53,9 @@ export function RecommendationRenderer({
   submissionId,
 }: FieldRendererProps) {
   const config = (field.config || {}) as RecommendationConfig;
+  
+  // Check if we're in portal context (applicant filling out form)
+  const isPortalContext = context === 'portal';
   
   // Track loading state per recommender
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
@@ -128,8 +132,14 @@ export function RecommendationRenderer({
     setLoadingIds(prev => new Set(prev).add(rec.id));
 
     try {
+      // Use portal endpoint when in portal context (no main auth required)
+      // Use regular endpoint when in admin/review context (requires main auth)
+      const createMethod = isPortalContext 
+        ? recommendationsClient.createFromPortal 
+        : recommendationsClient.create;
+      
       // Call the API to create recommendation request and send email
-      const result = await recommendationsClient.create({
+      const result = await createMethod({
         submission_id: submissionId,
         form_id: formId,
         field_id: field.id,
@@ -163,7 +173,7 @@ export function RecommendationRenderer({
         return next;
       });
     }
-  }, [recommenders, onChange, formId, submissionId, field.id]);
+  }, [recommenders, onChange, formId, submissionId, field.id, isPortalContext]);
 
   // Check if a recommender is editable (only draft status)
   const isEditable = (rec: Recommender) => !rec.status || rec.status === 'draft';

@@ -232,6 +232,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			portalDashboard.GET("/documents", handlers.ListPortalDocuments)
 			portalDashboard.POST("/documents", handlers.UploadPortalDocument)
 			portalDashboard.DELETE("/documents/:id", handlers.DeletePortalDocument)
+
+			// Recommendation routes for portal applicants
+			portalDashboard.POST("/recommendations", handlers.CreateRecommendationRequest)
+			portalDashboard.GET("/recommendations", handlers.GetRecommendationRequests)
 		}
 
 		// Public Email Tracking (must be public for tracking pixel to work)

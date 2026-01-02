@@ -167,15 +167,9 @@ export function ApplicationList({
               )}
             >
               <div className="flex items-start gap-3">
-                {/* Index & Avatar */}
-                <div className="flex flex-col items-center gap-2 pt-1">
+                {/* Index */}
+                <div className="flex flex-col items-center pt-1">
                   <span className="text-xs text-gray-400 min-w-[20px]">{index + 1}</span>
-                  <div className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-medium",
-                    getStatusIndicator(app.status)
-                  )}>
-                    {app.avatar || app.firstName?.[0] || '?'}
-                  </div>
                 </div>
 
                 {/* Main Content */}

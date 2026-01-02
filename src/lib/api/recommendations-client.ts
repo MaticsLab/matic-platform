@@ -105,6 +105,45 @@ export const recommendationsClient = {
       method: 'DELETE',
     }),
 
+  // Portal endpoints (for applicants using portal auth)
+  
+  /**
+   * Create a new recommendation request from portal (no main auth required)
+   */
+  createFromPortal: async (data: CreateRecommendationInput): Promise<RecommendationRequest> => {
+    const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
+    const response = await fetch(`${API_BASE}/portal/recommendations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to create recommendation request')
+    }
+    
+    return response.json()
+  },
+
+  /**
+   * List recommendation requests for a submission from portal (no main auth required)
+   */
+  listFromPortal: async (submissionId: string): Promise<RecommendationRequest[]> => {
+    const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
+    const response = await fetch(`${API_BASE}/portal/recommendations?submission_id=${submissionId}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to fetch recommendation requests')
+    }
+    
+    return response.json()
+  },
+
   // Public endpoints (no auth required - for recommenders)
   
   /**
