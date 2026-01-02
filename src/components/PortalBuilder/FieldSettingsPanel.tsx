@@ -956,7 +956,7 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                             {allFields
                               .filter(f => ['text', 'email', 'select'].includes(f.type) && f.id !== selectedField.id)
                               .map(f => (
-                                <SelectItem key={f.id} value={f.id}>{f.label || f.name}</SelectItem>
+                                <SelectItem key={f.id} value={f.id}>{f.label || f.id}</SelectItem>
                               ))
                             }
                           </SelectContent>
@@ -983,7 +983,7 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                             {allFields
                               .filter(f => ['text', 'email'].includes(f.type) && f.id !== selectedField.id)
                               .map(f => (
-                                <SelectItem key={f.id} value={f.id}>{f.label || f.name}</SelectItem>
+                                <SelectItem key={f.id} value={f.id}>{f.label || f.id}</SelectItem>
                               ))
                             }
                           </SelectContent>
