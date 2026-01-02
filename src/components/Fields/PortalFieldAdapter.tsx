@@ -313,6 +313,9 @@ export function PortalFieldAdapter({
   const allChildren: PortalField[] = field.children || (field.config?.children as PortalField[] | undefined) || [];
   const childFieldDefinitions = allChildren.map(portalFieldToDefinition);
 
+  // Extract submission ID from formData for recommendation fields
+  const submissionId = formData?._submission_id as string | undefined;
+
   return (
     <FieldRenderer
       field={fieldDefinition}
@@ -324,6 +327,8 @@ export function PortalFieldAdapter({
       disabled={disabled}
       required={field.required}
       childFields={childFieldDefinitions}
+      formId={formId}
+      submissionId={submissionId}
     />
   );
 }

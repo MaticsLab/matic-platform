@@ -217,19 +217,29 @@ func CreateRecommendationRequest(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("[Recommendations] Created recommendation request ID: %s for email: %s\n", request.ID.String(), request.RecommenderEmail)
+
 	// Send email asynchronously
-	go sendRecommendationRequestEmail(&request, &submission, &form, &fieldConfig)
+	go func() {
+		if err := sendRecommendationRequestEmail(&request, &submission, &form, &fieldConfig); err != nil {
+			fmt.Printf("[Recommendations] Email send failed: %v\n", err)
+		}
+	}()
 
 	c.JSON(http.StatusCreated, request)
 }
 
 // sendRecommendationRequestEmail sends the recommendation request email via Resend
 func sendRecommendationRequestEmail(request *models.RecommendationRequest, submission *models.Row, form *models.Table, config *models.RecommendationFieldConfig) error {
+	fmt.Printf("[Recommendations] Starting to send email to: %s\n", request.RecommenderEmail)
+
 	apiKey := os.Getenv("RESEND_API_KEY")
 	if apiKey == "" {
-		fmt.Println("[Recommendations] RESEND_API_KEY not configured, skipping email")
+		fmt.Println("[Recommendations] ERROR: RESEND_API_KEY not configured, skipping email")
 		return fmt.Errorf("RESEND_API_KEY not configured")
 	}
+
+	fmt.Printf("[Recommendations] RESEND_API_KEY found (length: %d)\n", len(apiKey))
 
 	client := resend.NewClient(apiKey)
 
@@ -315,6 +325,8 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 		fromEmail = "Matic <noreply@notifications.maticsapp.com>"
 	}
 
+	fmt.Printf("[Recommendations] Sending email from: %s to: %s, subject: %s\n", fromEmail, request.RecommenderEmail, subject)
+
 	params := &resend.SendEmailRequest{
 		From:    fromEmail,
 		To:      []string{request.RecommenderEmail},
@@ -322,13 +334,14 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 		Html:    body,
 	}
 
+	fmt.Printf("[Recommendations] Calling Resend API...\n")
 	sent, err := client.Emails.Send(params)
 	if err != nil {
-		fmt.Printf("[Recommendations] Failed to send email: %v\n", err)
+		fmt.Printf("[Recommendations] ERROR: Failed to send email via Resend: %v\n", err)
 		return err
 	}
 
-	fmt.Printf("[Recommendations] Email sent successfully: %s\n", sent.Id)
+	fmt.Printf("[Recommendations] SUCCESS: Email sent to %s, Resend ID: %s\n", request.RecommenderEmail, sent.Id)
 	return nil
 }
 

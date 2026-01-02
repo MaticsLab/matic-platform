@@ -105,6 +105,12 @@ export interface FieldRendererProps {
   
   /** The full field type registry entry */
   fieldType?: FieldTypeRegistry;
+  
+  /** For recommendation fields - form ID */
+  formId?: string;
+  
+  /** For recommendation fields - submission ID (row ID) */
+  submissionId?: string;
 }
 
 /**

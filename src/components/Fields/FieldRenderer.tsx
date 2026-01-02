@@ -79,6 +79,12 @@ export interface FieldRendererComponentProps {
   
   /** Workspace context for link fields */
   workspaceId?: string;
+  
+  /** For recommendation fields - form ID */
+  formId?: string;
+  
+  /** For recommendation fields - submission ID (row ID) */
+  submissionId?: string;
 }
 
 /**
@@ -294,6 +300,8 @@ export function FieldRenderer({
   childValues,
   onChildChange,
   workspaceId,
+  formId,
+  submissionId,
 }: FieldRendererComponentProps): React.ReactElement {
   const [fieldType, setFieldType] = useState<FieldTypeRegistry | undefined>(
     field.field_type || getFieldTypeSync(field.field_type_id || field.type)
@@ -340,6 +348,8 @@ export function FieldRenderer({
     onChildChange,
     workspaceId,
     fieldType,
+    formId,
+    submissionId,
   };
 
   return <Renderer {...rendererProps} />;
