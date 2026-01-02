@@ -17,6 +17,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { v4 as uuidv4 } from 'uuid';
 import {
   DndContext,
   closestCenter,
@@ -1849,7 +1850,7 @@ export function BlockEditor({
   // Add new block
   const handleAddBlock = useCallback((command: BlockCommand, insertIndex: number, containerId?: string) => {
     const newField: Field = {
-      id: `field-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: uuidv4(),
       type: command.fieldType,
       label: ['heading', 'paragraph', 'divider', 'callout'].includes(command.fieldType) ? '' : `New ${command.label}`,
       required: false,

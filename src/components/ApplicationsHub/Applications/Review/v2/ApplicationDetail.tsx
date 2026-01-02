@@ -932,25 +932,11 @@ export function ApplicationDetail({
       {/* Header with User Info */}
       <div className="px-6 py-4 border-b flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center">
-              <User className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">
-                {application.name || 'Unknown'}
-              </h2>
-              <p className="text-sm text-gray-600">{application.email}</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-              <MessageSquare className="w-5 h-5 text-gray-500" />
-            </button>
-            <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-              <Settings className="w-5 h-5 text-gray-500" />
-            </button>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {application.name || 'Unknown'}
+            </h2>
+            <p className="text-sm text-gray-600">{application.email}</p>
           </div>
         </div>
 

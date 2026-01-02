@@ -9,6 +9,7 @@ import { WorkflowBuilder } from './Configuration/WorkflowBuilder'
 import { VisualWorkflowBuilder } from './Configuration/VisualWorkflowBuilder'
 import { ApplicationDashboard } from './Dashboard/ApplicationDashboard'
 import { SettingsModal } from './Configuration/SettingsModal'
+import { ApplicationSettingsModal } from './Configuration/ApplicationSettingsModal'
 import { useTabContext } from '@/components/WorkspaceTabProvider'
 import { useSearch, HubSearchContext } from '@/components/Search'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/ui-components/dialog'
@@ -55,6 +56,7 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
   const [form, setForm] = useState<Form | null>(null)
   const [workspaceSlug, setWorkspaceSlug] = useState<string>('')
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
+  const [isAppSettingsModalOpen, setIsAppSettingsModalOpen] = useState(false)
   const [stats, setStats] = useState<Stats>({
     totalSubmissions: 0,
     pendingReview: 0,
@@ -109,6 +111,15 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
   // Register tab actions - Team button shown for all sub modules
   useEffect(() => {
     const actions = []
+    
+    // Add Settings gear button
+    actions.push({
+      label: '',
+      icon: Settings,
+      onClick: () => setIsAppSettingsModalOpen(true),
+      variant: 'ghost' as const,
+      title: 'Application Settings'
+    })
     
     // Add Team button for all tabs
     actions.push({
@@ -307,6 +318,19 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
         <SettingsModal 
           open={isSettingsModalOpen} 
           onOpenChange={setIsSettingsModalOpen} 
+          formId={formId}
+          onSave={() => {
+            // Refresh form data
+            goClient.get<Form>(`/forms/${formId}`).then(setForm)
+          }}
+        />
+      )}
+
+      {/* Application Settings Modal */}
+      {formId && (
+        <ApplicationSettingsModal
+          open={isAppSettingsModalOpen}
+          onOpenChange={setIsAppSettingsModalOpen}
           formId={formId}
           onSave={() => {
             // Refresh form data

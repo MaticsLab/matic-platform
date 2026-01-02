@@ -220,8 +220,15 @@ func CreateRecommendationRequest(c *gin.Context) {
 	var field models.Field
 	if err := database.DB.Where("table_id = ? AND id = ?", input.FormID, input.FieldID).First(&field).Error; err == nil {
 		if field.Config != nil {
-			json.Unmarshal(field.Config, &fieldConfig)
+			fmt.Printf("[Recommendations] Raw field.Config: %s\n", string(field.Config))
+			if err := json.Unmarshal(field.Config, &fieldConfig); err != nil {
+				fmt.Printf("[Recommendations] Failed to unmarshal field config: %v\n", err)
+			}
+		} else {
+			fmt.Printf("[Recommendations] Field config is nil\n")
 		}
+	} else {
+		fmt.Printf("[Recommendations] Could not find field: %v\n", err)
 	}
 
 	// Set defaults if not configured
@@ -279,17 +286,29 @@ func CreateRecommendationRequest(c *gin.Context) {
 
 	// Calculate expiry date - support both fixed and relative deadlines
 	var expiresAt *time.Time
+
+	// Debug: Log the field config to see what we're getting
+	configJSON, _ := json.Marshal(fieldConfig)
+	fmt.Printf("[Recommendations] Field config: %s\n", string(configJSON))
+	fmt.Printf("[Recommendations] DeadlineType: '%s', FixedDeadline: '%s'\n", fieldConfig.DeadlineType, fieldConfig.FixedDeadline)
+
 	if fieldConfig.DeadlineType == "fixed" && fieldConfig.FixedDeadline != "" {
 		// Parse the fixed deadline (ISO format from datetime-local input)
 		// Handle both formats: with and without seconds
+		fmt.Printf("[Recommendations] Using fixed deadline: %s\n", fieldConfig.FixedDeadline)
 		parsed, err := time.Parse("2006-01-02T15:04", fieldConfig.FixedDeadline)
 		if err != nil {
+			fmt.Printf("[Recommendations] Failed to parse with format 2006-01-02T15:04: %v\n", err)
 			parsed, err = time.Parse("2006-01-02T15:04:05", fieldConfig.FixedDeadline)
 		}
 		if err == nil {
 			expiresAt = &parsed
+			fmt.Printf("[Recommendations] Parsed deadline: %v\n", expiresAt)
+		} else {
+			fmt.Printf("[Recommendations] Failed to parse fixed deadline: %v\n", err)
 		}
 	} else {
+		fmt.Printf("[Recommendations] Using relative deadline\n")
 		// Relative deadline (days from now)
 		deadlineDays := fieldConfig.DeadlineDays
 		if deadlineDays == 0 {

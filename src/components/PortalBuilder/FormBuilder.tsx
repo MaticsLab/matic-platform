@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useDrag, useDrop, DndProvider, ConnectDragSource } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
+import { v4 as uuidv4 } from 'uuid'
 import { 
   GripVertical, Trash2, Plus, Type, AlignLeft, Hash, Mail, Calendar, 
   CheckSquare, List, Image as ImageIcon, Phone, Link, Clock, PenTool, 
@@ -74,7 +75,7 @@ export function FormBuilder({ section, onUpdate, selectedFieldId, onSelectField 
 
   const handleAddChildField = (parentId: string) => {
     const newField: Field = {
-      id: Date.now().toString(),
+      id: uuidv4(),
       type: 'text',
       label: 'New Field',
       required: false,
@@ -873,7 +874,7 @@ function FieldEditor({
                           // Recursive add child logic needs to be passed down or handled via a global handler
                           // For now, we can just call the parent's onUpdate with the new child
                           const newChild: Field = {
-                            id: Date.now().toString(),
+                            id: uuidv4(),
                             type: 'text',
                             label: 'New Field',
                             required: false,

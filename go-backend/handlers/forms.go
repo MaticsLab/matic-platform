@@ -990,6 +990,57 @@ func SubmitForm(c *gin.Context) {
 		return
 	}
 
+	// Get table settings for application-level validation
+	var table models.Table
+	if err := database.DB.First(&table, "id = ?", formID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Table not found"})
+		return
+	}
+
+	// Parse application settings from table.Settings
+	var tableSettings map[string]interface{}
+	if table.Settings != nil {
+		json.Unmarshal(table.Settings, &tableSettings)
+	}
+	if tableSettings == nil {
+		tableSettings = make(map[string]interface{})
+	}
+
+	// Check application status
+	if status, ok := tableSettings["applicationStatus"].(string); ok {
+		if status == "closed" {
+			fmt.Printf("🛑 SubmitForm: application %s is closed, rejecting submission\n", formID)
+			c.JSON(http.StatusForbidden, gin.H{"error": "Applications are currently closed"})
+			return
+		}
+		if status == "draft" {
+			fmt.Printf("🛑 SubmitForm: application %s is in draft mode, rejecting submission\n", formID)
+			c.JSON(http.StatusForbidden, gin.H{"error": "This application is not accepting submissions"})
+			return
+		}
+	}
+
+	// Check application deadline
+	if deadline, ok := tableSettings["applicationDeadline"].(string); ok && deadline != "" {
+		deadlineTime, err := time.Parse(time.RFC3339, deadline)
+		if err == nil && time.Now().After(deadlineTime) {
+			fmt.Printf("🛑 SubmitForm: application %s deadline has passed (%s), rejecting submission\n", formID, deadline)
+			c.JSON(http.StatusForbidden, gin.H{"error": "The application deadline has passed"})
+			return
+		}
+	}
+
+	// Check max submissions limit (only for new submissions, not updates)
+	if maxSubs, ok := tableSettings["maxSubmissions"].(float64); ok && maxSubs > 0 {
+		var currentCount int64
+		database.DB.Model(&models.Row{}).Where("table_id = ?", formID).Count(&currentCount)
+		if currentCount >= int64(maxSubs) {
+			fmt.Printf("🛑 SubmitForm: application %s has reached max submissions (%d/%d), rejecting\n", formID, currentCount, int(maxSubs))
+			c.JSON(http.StatusForbidden, gin.H{"error": "Maximum number of submissions has been reached"})
+			return
+		}
+	}
+
 	var input SubmitFormInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		fmt.Printf("❌ SubmitForm: bad request payload for %s: %v\n", formID, err)
@@ -1095,6 +1146,31 @@ func SubmitForm(c *gin.Context) {
 		}
 
 		if found {
+			// Check if edits are allowed after submission
+			allowEdits := true // Default to allowing edits
+			if val, ok := tableSettings["allowEditsAfterSubmission"].(bool); ok {
+				allowEdits = val
+			}
+
+			// Check if the existing submission is already submitted (not a draft)
+			var checkMetadata map[string]interface{}
+			if existingRow.Metadata != nil {
+				json.Unmarshal(existingRow.Metadata, &checkMetadata)
+			}
+			isSubmitted := false
+			if checkMetadata != nil {
+				if status, ok := checkMetadata["status"].(string); ok && status == "submitted" {
+					isSubmitted = true
+				}
+			}
+
+			// Block edit if submissions are not allowed and already submitted
+			if !allowEdits && isSubmitted && !input.SaveDraft {
+				fmt.Printf("🛑 SubmitForm: edits not allowed for submitted application %s, rejecting\n", formID)
+				c.JSON(http.StatusForbidden, gin.H{"error": "Edits are not allowed after submission"})
+				return
+			}
+
 			fmt.Printf("🔄 SubmitForm: existing submission found for %s (email=%s), updating row %s\n", formID, email, existingRow.ID)
 			// Update existing row with transaction - create version in same transaction
 			tx := database.DB.Begin()
@@ -1555,6 +1631,15 @@ func UpdateFormStructure(c *gin.Context) {
 		for _, fieldInput := range section.Fields {
 			// DEBUG: Log what we received from frontend
 			fmt.Printf("📥 Field received: type=%s, label=%s, config=%+v\n", fieldInput.Type, fieldInput.Label, fieldInput.Config)
+
+			// Extra debug for recommendation fields
+			if fieldInput.Type == "recommendation" {
+				fmt.Printf("🔔 RECOMMENDATION FIELD CONFIG RECEIVED:\n")
+				fmt.Printf("   deadlineType=%v\n", fieldInput.Config["deadlineType"])
+				fmt.Printf("   fixedDeadline=%v\n", fieldInput.Config["fixedDeadline"])
+				fmt.Printf("   deadlineDays=%v\n", fieldInput.Config["deadlineDays"])
+				fmt.Printf("   Full config: %+v\n", fieldInput.Config)
+			}
 
 			// Construct config JSON - start with any config from the frontend
 			config := make(map[string]interface{})
