@@ -154,12 +154,36 @@ export const recommendationsClient = {
 
   /**
    * Submit a recommendation (public endpoint for recommenders)
+   * Supports file upload for recommendation documents
    */
-  submit: (token: string, data: SubmitRecommendationInput) =>
-    goFetch<{ message: string; request: RecommendationRequest }>(`/recommend/${token}/submit`, {
+  submit: async (token: string, data: SubmitRecommendationInput, file?: File | null): Promise<{ message: string; request: RecommendationRequest }> => {
+    const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
+    
+    if (file) {
+      // Use FormData for file upload
+      const formData = new FormData()
+      formData.append('response', JSON.stringify(data.response))
+      formData.append('document', file)
+      
+      const response = await fetch(`${API_BASE}/recommend/${token}/submit`, {
+        method: 'POST',
+        body: formData,
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to submit recommendation')
+      }
+      
+      return response.json()
+    }
+    
+    // Regular JSON submission (no file)
+    return goFetch<{ message: string; request: RecommendationRequest }>(`/recommend/${token}/submit`, {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    })
+  },
 }
 
 export default recommendationsClient

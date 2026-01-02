@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
@@ -16,12 +16,117 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/ui-components/select'
-import { Star, Loader2, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react'
+import { Star, Loader2, CheckCircle, XCircle, Clock, AlertCircle, Upload, FileText, X, User, Mail } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import recommendationsClient, { 
   RecommendationByTokenResponse, 
   RecommendationQuestion 
 } from '@/lib/api/recommendations-client'
+
+// File Upload Component
+function FileUpload({ value, onChange }: { value?: File | null; onChange: (file: File | null) => void }) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [dragActive, setDragActive] = useState(false)
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true)
+    } else if (e.type === "dragleave") {
+      setDragActive(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0]
+      if (isValidFile(file)) {
+        onChange(file)
+      }
+    }
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      if (isValidFile(file)) {
+        onChange(file)
+      }
+    }
+  }
+
+  const isValidFile = (file: File) => {
+    const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    if (!validTypes.includes(file.type)) {
+      alert('Please upload a PDF or Word document')
+      return false
+    }
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      alert('File size must be less than 10MB')
+      return false
+    }
+    return true
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B'
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  }
+
+  if (value) {
+    return (
+      <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+        <FileText className="h-8 w-8 text-purple-600" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-900 truncate">{value.name}</p>
+          <p className="text-xs text-slate-500">{formatFileSize(value.size)}</p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onChange(null)}
+          className="text-slate-400 hover:text-red-500"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        "border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
+        dragActive ? "border-purple-500 bg-purple-50" : "border-slate-300 hover:border-purple-400"
+      )}
+      onDragEnter={handleDrag}
+      onDragLeave={handleDrag}
+      onDragOver={handleDrag}
+      onDrop={handleDrop}
+      onClick={() => fileInputRef.current?.click()}
+    >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx"
+        onChange={handleChange}
+        className="hidden"
+      />
+      <Upload className="h-8 w-8 text-slate-400 mx-auto mb-2" />
+      <p className="text-sm text-slate-600">
+        <span className="text-purple-600 font-medium">Click to upload</span> or drag and drop
+      </p>
+      <p className="text-xs text-slate-400 mt-1">PDF or Word documents (max 10MB)</p>
+    </div>
+  )
+}
 
 export default function RecommendPage() {
   const params = useParams()
@@ -76,10 +181,15 @@ export default function RecommendPage() {
       return
     }
 
+    // Extract file from responses before sending
+    const file = responses['document'] as File | null | undefined
+    const responsesToSend = { ...responses }
+    delete responsesToSend['document'] // Remove file from JSON payload
+
     try {
       setSubmitting(true)
       setError(null)
-      await recommendationsClient.submit(token, { response: responses })
+      await recommendationsClient.submit(token, { response: responsesToSend }, file)
       setSuccess(true)
     } catch (err: any) {
       setError(err.message || 'Failed to submit recommendation')
@@ -154,9 +264,26 @@ export default function RecommendPage() {
             Recommendation Request
           </h1>
           <p className="text-slate-600">
-            {data?.applicant_name} has requested your recommendation for their application to{' '}
+            <span className="font-medium">{data?.applicant_name || 'An applicant'}</span> has requested your recommendation for their application to{' '}
             <span className="font-medium">{data?.form_title}</span>
           </p>
+          {/* Applicant Info Card */}
+          {(data?.applicant_name || data?.applicant_email) && (
+            <div className="mt-4 inline-flex items-center gap-4 px-4 py-2 bg-white rounded-lg border border-slate-200 shadow-sm">
+              {data?.applicant_name && (
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <User className="h-4 w-4 text-slate-400" />
+                  <span>{data.applicant_name}</span>
+                </div>
+              )}
+              {data?.applicant_email && (
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <Mail className="h-4 w-4 text-slate-400" />
+                  <span>{data.applicant_email}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Deadline warning */}
@@ -228,7 +355,7 @@ export default function RecommendPage() {
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="relationship">
-                      How do you know {data?.applicant_name}? *
+                      How do you know {data?.applicant_name || 'the applicant'}? *
                     </Label>
                     <Input
                       id="relationship"
@@ -249,6 +376,20 @@ export default function RecommendPage() {
                       onChange={(e) => updateResponse('recommendation', e.target.value)}
                       rows={10}
                       required
+                    />
+                  </div>
+                  
+                  {/* File Upload Option */}
+                  <div className="space-y-2">
+                    <Label htmlFor="document">
+                      Upload Letter Document (Optional)
+                    </Label>
+                    <p className="text-sm text-slate-500 mb-2">
+                      You can also upload a PDF or Word document with your letter of recommendation.
+                    </p>
+                    <FileUpload 
+                      value={responses['document']}
+                      onChange={(file) => updateResponse('document', file)}
                     />
                   </div>
                 </>

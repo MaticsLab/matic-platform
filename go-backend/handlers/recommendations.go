@@ -5,8 +5,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -90,6 +93,8 @@ func GetRecommendationByToken(c *gin.Context) {
 	// Get applicant info from submission data
 	applicantName := ""
 	applicantEmail := ""
+	firstName := ""
+	lastName := ""
 	if submission.Data != nil {
 		var data map[string]interface{}
 		json.Unmarshal(submission.Data, &data)
@@ -97,12 +102,39 @@ func GetRecommendationByToken(c *gin.Context) {
 		// Try to find name and email fields
 		for key, value := range data {
 			keyLower := strings.ToLower(key)
-			if str, ok := value.(string); ok {
-				if strings.Contains(keyLower, "name") && applicantName == "" {
+			if str, ok := value.(string); ok && str != "" {
+				// Check for full name first
+				if keyLower == "full_name" || keyLower == "fullname" || keyLower == "applicant_name" || keyLower == "name" {
 					applicantName = str
 				}
+				// Track first/last name for fallback
+				if keyLower == "first_name" || keyLower == "firstname" {
+					firstName = str
+				}
+				if keyLower == "last_name" || keyLower == "lastname" {
+					lastName = str
+				}
+				// Email
 				if strings.Contains(keyLower, "email") && applicantEmail == "" {
 					applicantEmail = str
+				}
+			}
+		}
+
+		// If no full name found, try to combine first + last
+		if applicantName == "" && (firstName != "" || lastName != "") {
+			applicantName = strings.TrimSpace(firstName + " " + lastName)
+		}
+
+		// Final fallback - look for any field containing "name" (but not "recommender")
+		if applicantName == "" {
+			for key, value := range data {
+				keyLower := strings.ToLower(key)
+				if strings.Contains(keyLower, "name") && !strings.Contains(keyLower, "recommender") {
+					if str, ok := value.(string); ok && str != "" {
+						applicantName = str
+						break
+					}
 				}
 			}
 		}
@@ -243,26 +275,64 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 
 	client := resend.NewClient(apiKey)
 
-	// Get applicant info
-	applicantName := "the applicant"
+	// Get applicant info - try multiple common field patterns
+	applicantName := ""
+	firstName := ""
+	lastName := ""
 	if submission.Data != nil {
 		var data map[string]interface{}
 		json.Unmarshal(submission.Data, &data)
+
+		// Look for full name fields first
 		for key, value := range data {
 			keyLower := strings.ToLower(key)
-			if strings.Contains(keyLower, "name") {
-				if str, ok := value.(string); ok && str != "" {
+			if str, ok := value.(string); ok && str != "" {
+				// Check for full name
+				if keyLower == "full_name" || keyLower == "fullname" || keyLower == "applicant_name" || keyLower == "name" {
 					applicantName = str
 					break
+				}
+				// Track first/last name for fallback
+				if keyLower == "first_name" || keyLower == "firstname" {
+					firstName = str
+				}
+				if keyLower == "last_name" || keyLower == "lastname" {
+					lastName = str
+				}
+			}
+		}
+
+		// If no full name found, try to combine first + last
+		if applicantName == "" && (firstName != "" || lastName != "") {
+			applicantName = strings.TrimSpace(firstName + " " + lastName)
+		}
+
+		// Final fallback - look for any field containing "name"
+		if applicantName == "" {
+			for key, value := range data {
+				keyLower := strings.ToLower(key)
+				if strings.Contains(keyLower, "name") && !strings.Contains(keyLower, "recommender") {
+					if str, ok := value.(string); ok && str != "" {
+						applicantName = str
+						break
+					}
 				}
 			}
 		}
 	}
 
-	// Build the recommendation link
-	baseURL := os.Getenv("NEXT_PUBLIC_APP_URL")
+	// Default if nothing found
+	if applicantName == "" {
+		applicantName = "the applicant"
+	}
+
+	// Build the recommendation link - use APP_URL for production
+	baseURL := os.Getenv("APP_URL")
 	if baseURL == "" {
-		baseURL = "http://localhost:3000"
+		baseURL = os.Getenv("NEXT_PUBLIC_APP_URL")
+	}
+	if baseURL == "" {
+		baseURL = "https://app.maticslab.com" // Production default
 	}
 	recommendationLink := fmt.Sprintf("%s/recommend/%s", baseURL, request.Token)
 
@@ -320,10 +390,12 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 		subject = strings.ReplaceAll(subject, "{{form_title}}", form.Name)
 	}
 
-	fromEmail := os.Getenv("RESEND_FROM_EMAIL")
-	if fromEmail == "" {
-		fromEmail = "Matic <noreply@notifications.maticsapp.com>"
+	// Build sender name from form name
+	senderName := form.Name
+	if senderName == "" {
+		senderName = "Matic"
 	}
+	fromEmail := fmt.Sprintf("%s <noreply@notifications.maticsapp.com>", senderName)
 
 	fmt.Printf("[Recommendations] Sending email from: %s to: %s, subject: %s\n", fromEmail, request.RecommenderEmail, subject)
 
@@ -349,14 +421,6 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 func SubmitRecommendation(c *gin.Context) {
 	token := c.Param("token")
 
-	var input struct {
-		Response map[string]interface{} `json:"response" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
 	var request models.RecommendationRequest
 	if err := database.DB.First(&request, "token = ?", token).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Recommendation request not found"})
@@ -375,8 +439,99 @@ func SubmitRecommendation(c *gin.Context) {
 		return
 	}
 
+	// Parse the response - handle both JSON and multipart form data
+	var responseData map[string]interface{}
+
+	contentType := c.ContentType()
+	if strings.Contains(contentType, "multipart/form-data") {
+		// Handle multipart form with file
+		responseStr := c.PostForm("response")
+		if responseStr != "" {
+			if err := json.Unmarshal([]byte(responseStr), &responseData); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid response format"})
+				return
+			}
+		} else {
+			responseData = make(map[string]interface{})
+		}
+
+		// Handle file upload
+		file, header, err := c.Request.FormFile("document")
+		if err == nil && file != nil {
+			defer file.Close()
+
+			// Validate file type
+			allowedTypes := map[string]bool{
+				"application/pdf":    true,
+				"application/msword": true,
+				"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
+			}
+
+			fileContentType := header.Header.Get("Content-Type")
+			if !allowedTypes[fileContentType] {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file type. Please upload a PDF or Word document."})
+				return
+			}
+
+			// Validate file size (10MB max)
+			if header.Size > 10*1024*1024 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "File size must be less than 10MB"})
+				return
+			}
+
+			// Generate unique filename
+			ext := filepath.Ext(header.Filename)
+			filename := fmt.Sprintf("%s_%s%s", uuid.New().String()[:8], strings.TrimSuffix(header.Filename, ext), ext)
+
+			// Create uploads directory if it doesn't exist
+			uploadDir := filepath.Join("uploads", "recommendations", request.ID.String())
+			if err := os.MkdirAll(uploadDir, 0755); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
+				return
+			}
+
+			// Save the file
+			filePath := filepath.Join(uploadDir, filename)
+			dst, err := os.Create(filePath)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+				return
+			}
+			defer dst.Close()
+
+			if _, err := io.Copy(dst, file); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write file"})
+				return
+			}
+
+			// Generate URL
+			baseURL := os.Getenv("BASE_URL")
+			if baseURL == "" {
+				baseURL = "http://localhost:8080"
+			}
+			documentURL := fmt.Sprintf("%s/uploads/recommendations/%s/%s", baseURL, request.ID.String(), filename)
+
+			responseData["uploaded_document"] = map[string]interface{}{
+				"url":      documentURL,
+				"filename": header.Filename,
+				"size":     header.Size,
+				"type":     fileContentType,
+			}
+		}
+	} else {
+		// Handle regular JSON request
+		var input struct {
+			Response map[string]interface{} `json:"response" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		responseData = input.Response
+	}
+
 	// Update the request
-	responseJSON, _ := json.Marshal(input.Response)
+	responseJSON, _ := json.Marshal(responseData)
 	now := time.Now()
 
 	request.Response = responseJSON
