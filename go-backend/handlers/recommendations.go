@@ -89,62 +89,92 @@ func GetRecommendationByToken(c *gin.Context) {
 	var form models.Table
 	database.DB.First(&form, "id = ?", request.FormID)
 
-	// Get applicant info from submission data
-	applicantName := ""
-	applicantEmail := ""
-	firstName := ""
-	lastName := ""
-	if submission.Data != nil {
-		var data map[string]interface{}
-		json.Unmarshal(submission.Data, &data)
-
-		// Try to find name and email fields
-		for key, value := range data {
-			keyLower := strings.ToLower(key)
-			if str, ok := value.(string); ok && str != "" {
-				// Check for full name first
-				if keyLower == "full_name" || keyLower == "fullname" || keyLower == "applicant_name" || keyLower == "name" {
-					applicantName = str
-				}
-				// Track first/last name for fallback
-				if keyLower == "first_name" || keyLower == "firstname" {
-					firstName = str
-				}
-				if keyLower == "last_name" || keyLower == "lastname" {
-					lastName = str
-				}
-				// Email
-				if strings.Contains(keyLower, "email") && applicantEmail == "" {
-					applicantEmail = str
-				}
-			}
-		}
-
-		// If no full name found, try to combine first + last
-		if applicantName == "" && (firstName != "" || lastName != "") {
-			applicantName = strings.TrimSpace(firstName + " " + lastName)
-		}
-
-		// Final fallback - look for any field containing "name" (but not "recommender")
-		if applicantName == "" {
-			for key, value := range data {
-				keyLower := strings.ToLower(key)
-				if strings.Contains(keyLower, "name") && !strings.Contains(keyLower, "recommender") {
-					if str, ok := value.(string); ok && str != "" {
-						applicantName = str
-						break
-					}
-				}
-			}
-		}
-	}
-
-	// Get field config for questions
+	// Get field config for questions and merge tag mappings
 	var fieldConfig models.RecommendationFieldConfig
 	var field models.Field
 	if err := database.DB.Where("table_id = ? AND id = ?", request.FormID, request.FieldID).First(&field).Error; err == nil {
 		if field.Config != nil {
 			json.Unmarshal(field.Config, &fieldConfig)
+		}
+	}
+
+	// Get applicant info from submission data using configured field mappings or auto-detection
+	applicantName := ""
+	applicantEmail := ""
+
+	if submission.Data != nil {
+		var data map[string]interface{}
+		json.Unmarshal(submission.Data, &data)
+
+		// Check for configured field mappings first
+		if fieldConfig.MergeTagFields.ApplicantName != "" {
+			if val, ok := data[fieldConfig.MergeTagFields.ApplicantName]; ok {
+				if str, ok := val.(string); ok && str != "" {
+					applicantName = str
+				}
+			}
+		}
+
+		if fieldConfig.MergeTagFields.ApplicantEmail != "" {
+			if val, ok := data[fieldConfig.MergeTagFields.ApplicantEmail]; ok {
+				if str, ok := val.(string); ok && str != "" {
+					applicantEmail = str
+				}
+			}
+		}
+
+		// Fall back to auto-detection for applicant name if not configured or not found
+		if applicantName == "" {
+			firstName := ""
+			lastName := ""
+
+			for key, value := range data {
+				keyLower := strings.ToLower(key)
+				if str, ok := value.(string); ok && str != "" {
+					// Check for full name first
+					if keyLower == "full_name" || keyLower == "fullname" || keyLower == "applicant_name" || keyLower == "name" {
+						applicantName = str
+					}
+					// Track first/last name for fallback
+					if keyLower == "first_name" || keyLower == "firstname" {
+						firstName = str
+					}
+					if keyLower == "last_name" || keyLower == "lastname" {
+						lastName = str
+					}
+				}
+			}
+
+			// If no full name found, try to combine first + last
+			if applicantName == "" && (firstName != "" || lastName != "") {
+				applicantName = strings.TrimSpace(firstName + " " + lastName)
+			}
+
+			// Final fallback - look for any field containing "name" (but not "recommender")
+			if applicantName == "" {
+				for key, value := range data {
+					keyLower := strings.ToLower(key)
+					if strings.Contains(keyLower, "name") && !strings.Contains(keyLower, "recommender") {
+						if str, ok := value.(string); ok && str != "" {
+							applicantName = str
+							break
+						}
+					}
+				}
+			}
+		}
+
+		// Fall back to auto-detection for applicant email if not configured or not found
+		if applicantEmail == "" {
+			for key, value := range data {
+				keyLower := strings.ToLower(key)
+				if strings.Contains(keyLower, "email") && !strings.Contains(keyLower, "recommender") {
+					if str, ok := value.(string); ok && str != "" {
+						applicantEmail = str
+						break
+					}
+				}
+			}
 		}
 	}
 
@@ -274,45 +304,82 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 
 	client := resend.NewClient(apiKey)
 
-	// Get applicant info - try multiple common field patterns
+	// Get applicant info using configured field mappings or auto-detection
 	applicantName := ""
-	firstName := ""
-	lastName := ""
+	applicantEmail := ""
+
 	if submission.Data != nil {
 		var data map[string]interface{}
 		json.Unmarshal(submission.Data, &data)
 
-		// Look for full name fields first
-		for key, value := range data {
-			keyLower := strings.ToLower(key)
-			if str, ok := value.(string); ok && str != "" {
-				// Check for full name
-				if keyLower == "full_name" || keyLower == "fullname" || keyLower == "applicant_name" || keyLower == "name" {
+		// Check for configured field mappings first
+		if config.MergeTagFields.ApplicantName != "" {
+			// Try to get value from configured field ID
+			if val, ok := data[config.MergeTagFields.ApplicantName]; ok {
+				if str, ok := val.(string); ok && str != "" {
 					applicantName = str
-					break
-				}
-				// Track first/last name for fallback
-				if keyLower == "first_name" || keyLower == "firstname" {
-					firstName = str
-				}
-				if keyLower == "last_name" || keyLower == "lastname" {
-					lastName = str
 				}
 			}
 		}
 
-		// If no full name found, try to combine first + last
-		if applicantName == "" && (firstName != "" || lastName != "") {
-			applicantName = strings.TrimSpace(firstName + " " + lastName)
+		if config.MergeTagFields.ApplicantEmail != "" {
+			if val, ok := data[config.MergeTagFields.ApplicantEmail]; ok {
+				if str, ok := val.(string); ok && str != "" {
+					applicantEmail = str
+				}
+			}
 		}
 
-		// Final fallback - look for any field containing "name"
+		// Fall back to auto-detection for applicant name if not configured or not found
 		if applicantName == "" {
+			firstName := ""
+			lastName := ""
+
+			// Look for full name fields first
 			for key, value := range data {
 				keyLower := strings.ToLower(key)
-				if strings.Contains(keyLower, "name") && !strings.Contains(keyLower, "recommender") {
-					if str, ok := value.(string); ok && str != "" {
+				if str, ok := value.(string); ok && str != "" {
+					// Check for full name
+					if keyLower == "full_name" || keyLower == "fullname" || keyLower == "applicant_name" || keyLower == "name" {
 						applicantName = str
+						break
+					}
+					// Track first/last name for fallback
+					if keyLower == "first_name" || keyLower == "firstname" {
+						firstName = str
+					}
+					if keyLower == "last_name" || keyLower == "lastname" {
+						lastName = str
+					}
+				}
+			}
+
+			// If no full name found, try to combine first + last
+			if applicantName == "" && (firstName != "" || lastName != "") {
+				applicantName = strings.TrimSpace(firstName + " " + lastName)
+			}
+
+			// Final fallback - look for any field containing "name"
+			if applicantName == "" {
+				for key, value := range data {
+					keyLower := strings.ToLower(key)
+					if strings.Contains(keyLower, "name") && !strings.Contains(keyLower, "recommender") {
+						if str, ok := value.(string); ok && str != "" {
+							applicantName = str
+							break
+						}
+					}
+				}
+			}
+		}
+
+		// Fall back to auto-detection for applicant email if not configured or not found
+		if applicantEmail == "" {
+			for key, value := range data {
+				keyLower := strings.ToLower(key)
+				if strings.Contains(keyLower, "email") && !strings.Contains(keyLower, "recommender") {
+					if str, ok := value.(string); ok && str != "" {
+						applicantEmail = str
 						break
 					}
 				}
@@ -362,6 +429,7 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 		body = customBody
 		body = strings.ReplaceAll(body, "{{recommender_name}}", request.RecommenderName)
 		body = strings.ReplaceAll(body, "{{applicant_name}}", applicantName)
+		body = strings.ReplaceAll(body, "{{applicant_email}}", applicantEmail)
 		body = strings.ReplaceAll(body, "{{form_title}}", form.Name)
 		body = strings.ReplaceAll(body, "{{link}}", recommendationLink)
 		body = strings.ReplaceAll(body, "{{deadline}}", deadline)
@@ -399,6 +467,7 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 		// Also process subject merge tags
 		subject = strings.ReplaceAll(subject, "{{recommender_name}}", request.RecommenderName)
 		subject = strings.ReplaceAll(subject, "{{applicant_name}}", applicantName)
+		subject = strings.ReplaceAll(subject, "{{applicant_email}}", applicantEmail)
 		subject = strings.ReplaceAll(subject, "{{form_title}}", form.Name)
 	} else {
 		// Default template

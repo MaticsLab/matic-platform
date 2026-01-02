@@ -928,6 +928,70 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                     <p className="text-xs text-gray-500">Message sent to recommenders via email</p>
                   </div>
 
+                  {/* Merge Tag Field Mappings */}
+                  <div className="space-y-3 pt-4 border-t border-gray-200">
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Merge Tag Field Mappings</Label>
+                    <p className="text-xs text-gray-500">
+                      Select which form fields to use for email merge tags
+                    </p>
+                    
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-gray-600 flex items-center gap-2">
+                          <code className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px]">{'{{applicant_name}}'}</code>
+                          Applicant Name
+                        </Label>
+                        <Select
+                          value={selectedField.config?.mergeTagFields?.applicant_name || ''}
+                          onValueChange={(v) => handleConfigUpdate('mergeTagFields', {
+                            ...(selectedField.config?.mergeTagFields || {}),
+                            applicant_name: v
+                          })}
+                        >
+                          <SelectTrigger className="bg-gray-50/50 border-gray-200 text-sm">
+                            <SelectValue placeholder="Auto-detect (name fields)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">Auto-detect</SelectItem>
+                            {allFields
+                              .filter(f => ['text', 'email', 'select'].includes(f.type) && f.id !== selectedField.id)
+                              .map(f => (
+                                <SelectItem key={f.id} value={f.id}>{f.label || f.name}</SelectItem>
+                              ))
+                            }
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-gray-600 flex items-center gap-2">
+                          <code className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px]">{'{{applicant_email}}'}</code>
+                          Applicant Email
+                        </Label>
+                        <Select
+                          value={selectedField.config?.mergeTagFields?.applicant_email || ''}
+                          onValueChange={(v) => handleConfigUpdate('mergeTagFields', {
+                            ...(selectedField.config?.mergeTagFields || {}),
+                            applicant_email: v
+                          })}
+                        >
+                          <SelectTrigger className="bg-gray-50/50 border-gray-200 text-sm">
+                            <SelectValue placeholder="Auto-detect (email fields)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">Auto-detect</SelectItem>
+                            {allFields
+                              .filter(f => ['text', 'email'].includes(f.type) && f.id !== selectedField.id)
+                              .map(f => (
+                                <SelectItem key={f.id} value={f.id}>{f.label || f.name}</SelectItem>
+                              ))
+                            }
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="space-y-0.5">
                       <Label className="text-sm font-medium">Allow Applicant to See Status</Label>

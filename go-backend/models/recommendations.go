@@ -53,10 +53,17 @@ type RecommendationFieldConfig struct {
 	AllowWaiver     bool                     `json:"allow_waiver"`    // Allow applicant to waive right to see
 	Questions       []RecommendationQuestion `json:"questions"`
 	EmailTemplate   RecommendationEmail      `json:"email_template"`
-	EmailSubject    string                   `json:"emailSubject"`  // Frontend uses this name
-	EmailMessage    string                   `json:"emailMessage"`  // Frontend uses this name
-	ReminderDays    []int                    `json:"reminder_days"` // Days after request to send reminders
-	Instructions    string                   `json:"instructions"`  // Instructions shown to applicant
+	EmailSubject    string                   `json:"emailSubject"`   // Frontend uses this name
+	EmailMessage    string                   `json:"emailMessage"`   // Frontend uses this name
+	MergeTagFields  MergeTagFieldMappings    `json:"mergeTagFields"` // Field mappings for merge tags
+	ReminderDays    []int                    `json:"reminder_days"`  // Days after request to send reminders
+	Instructions    string                   `json:"instructions"`   // Instructions shown to applicant
+}
+
+// MergeTagFieldMappings maps merge tags to specific form field IDs
+type MergeTagFieldMappings struct {
+	ApplicantName  string `json:"applicant_name"`
+	ApplicantEmail string `json:"applicant_email"`
 }
 
 // RecommendationQuestion represents a question in the recommendation form

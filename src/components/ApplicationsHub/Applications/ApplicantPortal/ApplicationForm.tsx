@@ -411,25 +411,23 @@ export function ApplicationForm({
         }
         
         toast.success('Application saved successfully!')
+        setLastSaved(new Date())
       } catch (error) {
         console.error('Failed to save:', error)
         toast.error('Failed to save application')
       }
     }
 
-    setTimeout(() => {
-      setLastSaved(new Date())
-      setIsSaving(false)
-      if (exit) {
-        if (onSave) {
-          onSave()
-        } else if (isExternal) {
-          window.location.reload()
-        } else {
-          onBack()
-        }
+    setIsSaving(false)
+    if (exit) {
+      if (onSave) {
+        onSave()
+      } else if (isExternal) {
+        window.location.reload()
+      } else {
+        onBack()
       }
-    }, 800)
+    }
   }
 
   const updateField = (section: string, field: string, value: any) => {
@@ -1156,8 +1154,7 @@ function ReviewSection({
     if (!agreedToTerms || !agreedToAccuracy) return
     
     setIsSubmitting(true)
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    onSubmit()
+    await onSubmit()
     setIsSubmitting(false)
   }
 
@@ -1165,33 +1162,46 @@ function ReviewSection({
   const getCompletionStatus = () => {
     if (isDynamic && formDefinition?.fields) {
       const requiredFields = formDefinition.fields.filter(f => (f.config as any)?.is_required)
-      if (requiredFields.length === 0) return { filledCount: 0, total: 0, isComplete: true }
+      if (requiredFields.length === 0) return { filledCount: 0, total: 0, isComplete: true, incompleteFields: [] }
       
       const filledFields = requiredFields.filter(f => {
         const val = formData[f.name]
         return val !== undefined && val !== '' && val !== null && (Array.isArray(val) ? val.length > 0 : true)
       })
       
+      // Get incomplete fields with their section info
+      const incompleteFields = requiredFields.filter(f => {
+        const val = formData[f.name]
+        return val === undefined || val === '' || val === null || (Array.isArray(val) && val.length === 0)
+      }).map(f => {
+        const config = f.config as any
+        const sectionId = config?.section_id || 'default'
+        const section = sections.find(s => s.id === sectionId)
+        return {
+          ...f,
+          sectionId,
+          sectionTitle: section?.title || 'Form'
+        }
+      })
+      
       return { 
         filledCount: filledFields.length, 
         total: requiredFields.length, 
         isComplete: filledFields.length === requiredFields.length,
-        incompleteFields: requiredFields.filter(f => {
-          const val = formData[f.name]
-          return val === undefined || val === '' || val === null || (Array.isArray(val) && val.length === 0)
-        })
+        incompleteFields
       }
     }
     
-    // For static forms, just check some key fields
-    const staticFields = [
-      formData.personal?.studentName,
-      formData.personal?.personalEmail,
-      formData.academic?.gpa,
-      formData.essays?.whyScholarship
+    // For static forms, check key fields with section info
+    const staticFieldDefs = [
+      { name: 'studentName', label: 'Name', sectionId: 'personal', sectionTitle: 'Personal Info', value: formData.personal?.studentName },
+      { name: 'personalEmail', label: 'Personal Email', sectionId: 'personal', sectionTitle: 'Personal Info', value: formData.personal?.personalEmail },
+      { name: 'gpa', label: 'GPA', sectionId: 'academic', sectionTitle: 'Academic Info', value: formData.academic?.gpa },
+      { name: 'whyScholarship', label: 'Why Scholarship Essay', sectionId: 'essays', sectionTitle: 'Essays', value: formData.essays?.whyScholarship }
     ]
-    const filledCount = staticFields.filter(f => f && f !== '').length
-    return { filledCount, total: staticFields.length, isComplete: filledCount === staticFields.length }
+    const filledCount = staticFieldDefs.filter(f => f.value && f.value !== '').length
+    const incompleteFields = staticFieldDefs.filter(f => !f.value || f.value === '')
+    return { filledCount, total: staticFieldDefs.length, isComplete: filledCount === staticFieldDefs.length, incompleteFields }
   }
 
   const status = getCompletionStatus()
@@ -1348,6 +1358,30 @@ function ReviewSection({
                 ? "All required fields have been completed. Review your information below and submit when ready."
                 : `${status.filledCount} of ${status.total} required fields completed. Please complete all sections before submitting.`}
             </p>
+            
+            {/* Missing Required Fields List */}
+            {!status.isComplete && status.incompleteFields && status.incompleteFields.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-orange-200">
+                <h4 className="text-sm font-medium text-orange-900 mb-2">Missing Required Fields:</h4>
+                <ul className="space-y-1">
+                  {status.incompleteFields.map((field: any, idx: number) => (
+                    <li key={field.id || field.name || idx} className="flex items-center gap-2 text-sm">
+                      <AlertCircle className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
+                      <span className="text-orange-800">
+                        <strong>{field.label || field.name}</strong>
+                        <span className="text-orange-600 ml-1">({field.sectionTitle})</span>
+                      </span>
+                      <button
+                        onClick={() => onNavigateToSection(field.sectionId)}
+                        className="text-orange-700 hover:text-orange-900 underline text-xs ml-auto"
+                      >
+                        Go to section
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       </div>
