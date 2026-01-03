@@ -1643,64 +1643,15 @@ export function ApplicationDetail({
           </div>
         )}
 
-      {/* Reviews Tab */}
-      {activeTab === 'reviews' && (
+      {/* Reviews Tab - removed, now in split view */}
+      {false && (
           <div className="flex-1 min-h-0 overflow-y-auto p-6">
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Reviews ({application.reviewedCount || 0}/{application.totalReviewers || 0})
-                </h3>
-              </div>
-              
-              {(application.reviewHistory?.length ?? 0) > 0 ? (
-                <div className="space-y-4">
-                  {(application.reviewHistory ?? []).map((review, idx) => {
-                    const totalScore = review.total_score || Object.values(review.scores || {}).reduce((a, b) => a + b, 0);
-                    const reviewerName = review.reviewer_name || getReviewerName(review.reviewer_id);
-                    return (
-                      <div key={idx} className="bg-white border rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
-                              {reviewerName[0]?.toUpperCase() || 'R'}
-                            </div>
-                            <div>
-                              <div className="font-semibold text-gray-900">{reviewerName}</div>
-                              {review.reviewed_at && (
-                                <div className="text-xs text-gray-500">
-                                  {new Date(review.reviewed_at).toLocaleDateString()}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1.5 bg-yellow-50 px-3 py-1.5 rounded-lg">
-                            <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                            <span className="text-gray-900 text-sm font-semibold">{totalScore}/{application.maxScore || 10}</span>
-                          </div>
-                        </div>
-                        {review.notes && (
-                          <p className="text-gray-700 text-sm">{review.notes}</p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <Star className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Reviews Yet</h3>
-                  <p className="text-gray-500 text-sm">Reviews from assigned reviewers will appear here</p>
-                </div>
-              )}
-            </div>
+            {/* Reviews content removed - not part of split view */}
           </div>
         )}
-          </div>
 
       {/* Action Buttons - Fixed at bottom */}
-        <div className="p-4 border-t bg-white flex-shrink-0">
+      <div className="p-4 border-t bg-white flex-shrink-0">
           <div className="flex items-center gap-3">
             {/* Dynamic Action Button with Dropdown */}
             <div className="relative flex-1 max-w-sm">
