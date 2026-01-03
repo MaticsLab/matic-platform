@@ -25,13 +25,25 @@ declare module '@tiptap/core' {
   }
 }
 
-const EmailSignatureComponent = ({ node, deleteNode, availableSignatures, updateAttributes }: any) => {
+const EmailSignatureComponent = ({ node, deleteNode, getPos, editor, availableSignatures, updateAttributes }: any) => {
   const [showMenu, setShowMenu] = useState(false)
   const signatureId = node.attrs.signatureId
   const signatureContent = node.attrs.content
 
-  const handleRemove = () => {
-    deleteNode()
+  const handleRemove = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    // Use editor commands to delete the node at its position
+    if (editor && getPos) {
+      const pos = getPos()
+      if (typeof pos === 'number') {
+        editor.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run()
+      }
+    } else if (deleteNode) {
+      // Fallback to deleteNode if editor not available
+      deleteNode()
+    }
   }
 
   const handleChange = (newSignatureId: string) => {
@@ -88,6 +100,7 @@ const EmailSignatureComponent = ({ node, deleteNode, availableSignatures, update
           </div>
           <button
             onClick={handleRemove}
+            onMouseDown={(e) => e.preventDefault()} // Prevent focus loss
             className="p-1 hover:bg-red-50 rounded transition-colors"
             title="Remove signature"
             type="button"
@@ -205,7 +218,7 @@ export const EmailSignature = Node.create<EmailSignatureOptions>({
   },
 
   addNodeView() {
-    return ({ node, HTMLAttributes, getPos, deleteNode, updateAttributes }: any) => {
+    return ({ node, HTMLAttributes, getPos, deleteNode, updateAttributes, editor }: any) => {
       const dom = document.createElement('div')
       dom.setAttribute('data-type', 'emailSignature')
       dom.className = 'email-signature-wrapper'
@@ -215,6 +228,8 @@ export const EmailSignature = Node.create<EmailSignatureOptions>({
         React.createElement(EmailSignatureComponent, {
           node,
           deleteNode,
+          getPos,
+          editor,
           availableSignatures: this.options.availableSignatures || [],
           updateAttributes,
         })
@@ -231,6 +246,8 @@ export const EmailSignature = Node.create<EmailSignatureOptions>({
             React.createElement(EmailSignatureComponent, {
               node: updatedNode,
               deleteNode,
+              getPos,
+              editor,
               availableSignatures: this.options.availableSignatures || [],
               updateAttributes,
             })
