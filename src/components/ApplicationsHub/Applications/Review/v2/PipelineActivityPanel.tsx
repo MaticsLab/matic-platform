@@ -18,6 +18,9 @@ import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
 import { EmailConnectionStatus } from '@/components/Email/EmailConnectionStatus';
 import { useEmailConnection } from '@/hooks/useEmailConnection';
 import { Checkbox } from '@/ui-components/checkbox';
+import { FullEmailComposer } from '../FullEmailComposer';
+import { CampaignComposer } from '../CampaignComposer';
+import { EmailManagementDashboard } from '../EmailManagementDashboard';
 
 export function PipelineActivityPanel({ 
   applications, 
@@ -41,6 +44,9 @@ export function PipelineActivityPanel({
   const [isSending, setIsSending] = useState(false);
   const [showEmailSettings, setShowEmailSettings] = useState(false);
   const [selectedAttachments, setSelectedAttachments] = useState<EmailAttachment[]>([]);
+  const [showFullComposer, setShowFullComposer] = useState(false);
+  const [showCampaignComposer, setShowCampaignComposer] = useState(false);
+  const [showEmailDashboard, setShowEmailDashboard] = useState(false);
   
   // Gmail connection - use shared hook
   const { 
@@ -300,7 +306,7 @@ export function PipelineActivityPanel({
         <div className="bg-gray-50 rounded-xl border border-gray-200 p-3">
           {activeCommentTab === 'email' ? (
             <>
-              {/* Gmail Connection Status - Shared Component */}
+              {/* Gmail Connection Status */}
               <EmailConnectionStatus 
                 connection={gmailConnection}
                 isChecking={isCheckingConnection}
@@ -308,225 +314,64 @@ export function PipelineActivityPanel({
                 onConfigureClick={() => setShowEmailSettings(true)}
               />
 
-              {/* From field - now a dropdown */}
-              <div className="flex items-center gap-3 py-2 border-b border-gray-200">
-                <span className="text-gray-600 text-sm w-16">From</span>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button className="flex-1 flex items-center gap-2 hover:bg-gray-100 rounded px-2 py-1 transition-colors">
-                      <span className="text-gray-900 text-sm">
-                        {selectedFromEmail || gmailConnection?.email || 'Select email...'}
-                      </span>
-                      <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-auto" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-72 p-1" align="start">
-                    <div className="space-y-0.5">
-                      {emailAccounts.length > 0 ? (
-                        emailAccounts.map((account) => (
-                          <button
-                            key={account.id}
-                            onClick={() => setSelectedFromEmail(account.email)}
-                            className={cn(
-                              "w-full text-left px-3 py-2 rounded-md text-sm flex items-center gap-2 transition-colors",
-                              selectedFromEmail === account.email 
-                                ? "bg-blue-50 text-blue-700" 
-                                : "hover:bg-gray-100 text-gray-700"
-                            )}
-                          >
-                            <Mail className="w-4 h-4 text-gray-400" />
-                            <span className="truncate">{account.email}</span>
-                          </button>
-                        ))
-                      ) : gmailConnection?.email ? (
-                        <button
-                          onClick={() => setSelectedFromEmail(gmailConnection.email || '')}
-                          className={cn(
-                            "w-full text-left px-3 py-2 rounded-md text-sm flex items-center gap-2 transition-colors",
-                            selectedFromEmail === gmailConnection.email 
-                              ? "bg-blue-50 text-blue-700" 
-                              : "hover:bg-gray-100 text-gray-700"
-                          )}
-                        >
-                          <Mail className="w-4 h-4 text-gray-400" />
-                          <span className="truncate">{gmailConnection.email}</span>
-                        </button>
-                      ) : (
-                        <p className="px-3 py-2 text-sm text-gray-500">No email accounts connected</p>
-                      )}
-                      <div className="border-t border-gray-100 mt-1 pt-1">
-                        <button
-                          onClick={() => {
-                            setShowEmailSettings(true);
-                          }}
-                          className="w-full text-left px-3 py-2 rounded-md text-sm flex items-center gap-2 hover:bg-gray-100 text-gray-600 transition-colors"
-                        >
-                          <Settings className="w-4 h-4" />
-                          <span>Configure Email Settings</span>
-                        </button>
+              {/* Quick Action Buttons */}
+              <div className="flex flex-col gap-2 mt-3">
+                {applications.length === 1 ? (
+                  <button
+                    onClick={() => setShowFullComposer(true)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Mail className="w-5 h-5 text-blue-600" />
+                      <div className="text-left">
+                        <div className="font-medium text-gray-900">Compose Email</div>
+                        <div className="text-xs text-gray-500">Send to {applications[0].name || applications[0].email}</div>
                       </div>
                     </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
-              
-              {/* To field with recipient suggestion */}
-              <div className="flex items-center gap-3 py-2 border-b border-gray-200">
-                <span className="text-gray-600 text-sm w-16">To</span>
-                <div className="flex-1 flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={emailTo}
-                    onChange={(e) => setEmailTo(e.target.value)}
-                    placeholder={`All applicants (${applications.length})`}
-                    className="flex-1 px-0 bg-transparent border-0 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 text-sm"
-                  />
+                    <ArrowRight className="w-4 h-4 text-gray-400" />
+                  </button>
+                ) : (
                   <button
-                    onClick={() => setShowCcBcc(!showCcBcc)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors text-xs"
+                    onClick={() => setShowCampaignComposer(true)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                   >
-                    Cc Bcc
+                    <div className="flex items-center gap-3">
+                      <Users className="w-5 h-5 text-blue-600" />
+                      <div className="text-left">
+                        <div className="font-medium text-gray-900">Campaign Composer</div>
+                        <div className="text-xs text-gray-500">Send to {applications.length} applicants</div>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-gray-400" />
+                  </button>
+                )}
+                
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowFullComposer(true)}
+                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-700"
+                  >
+                    <Mail className="w-4 h-4 inline mr-2" />
+                    Single Email
+                  </button>
+                  {applications.length > 1 && (
+                    <button
+                      onClick={() => setShowCampaignComposer(true)}
+                      className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-700"
+                    >
+                      <Users className="w-4 h-4 inline mr-2" />
+                      Campaign
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowEmailDashboard(true)}
+                    className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-700"
+                    title="Email Dashboard"
+                  >
+                    <Settings className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-              
-              {/* Cc/Bcc fields - conditionally shown */}
-              {showCcBcc && (
-                <>
-                  <div className="flex items-center gap-3 py-2 border-b border-gray-200">
-                    <span className="text-gray-600 text-sm w-16">Cc</span>
-                    <input
-                      type="text"
-                      value={emailCc}
-                      onChange={(e) => setEmailCc(e.target.value)}
-                      className="flex-1 px-0 bg-transparent border-0 text-gray-900 focus:outline-none focus:ring-0 text-sm"
-                    />
-                  </div>
-                  <div className="flex items-center gap-3 py-2 border-b border-gray-200">
-                    <span className="text-gray-600 text-sm w-16">Bcc</span>
-                    <input
-                      type="text"
-                      value={emailBcc}
-                      onChange={(e) => setEmailBcc(e.target.value)}
-                      className="flex-1 px-0 bg-transparent border-0 text-gray-900 focus:outline-none focus:ring-0 text-sm"
-                    />
-                  </div>
-                </>
-              )}
-              
-              {/* Subject field */}
-              <div className="flex items-center gap-3 py-2 border-b border-gray-200">
-                <span className="text-gray-600 text-sm w-16">Subject</span>
-                <input
-                  type="text"
-                  value={emailSubject}
-                  onChange={(e) => setEmailSubject(e.target.value)}
-                  className="flex-1 px-0 bg-transparent border-0 text-gray-900 focus:outline-none focus:ring-0 text-sm"
-                />
-              </div>
-
-              {/* Merge Tags Button */}
-              {availableMergeTags.length > 0 && (
-                <div className="py-2 border-b border-gray-200">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 px-2 py-1 hover:bg-blue-50 rounded transition-colors">
-                        <Tag className="w-3 h-3" />
-                        Insert Field
-                        <ChevronDown className="w-3 h-3" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-56 p-0 bg-white border border-gray-200 shadow-lg" align="start">
-                      <div className="max-h-48 overflow-y-auto">
-                        {availableMergeTags.map((field, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => insertMergeTag(field.label)}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center justify-between bg-white"
-                          >
-                            <span className="truncate">{field.label}</span>
-                            <span className="text-xs text-gray-400 ml-2">{field.tag}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              )}
-
-              {/* Attachments Section */}
-              {(availableDocuments.length > 0 || selectedAttachments.length > 0) && (
-                <div className="py-2 border-b border-gray-200">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {/* Attachment picker */}
-                    {availableDocuments.length > 0 && (
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-800 px-2 py-1 hover:bg-gray-100 rounded transition-colors">
-                            <Paperclip className="w-3 h-3" />
-                            Attach Document
-                            <ChevronDown className="w-3 h-3" />
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 p-2 bg-white border border-gray-200 shadow-lg" align="start">
-                          <p className="text-xs text-gray-500 mb-2">Select documents to attach:</p>
-                          <div className="max-h-48 overflow-y-auto space-y-1">
-                            {availableDocuments.map((doc, idx) => {
-                              const isSelected = selectedAttachments.some(a => a.url === doc.url);
-                              return (
-                                <button
-                                  key={idx}
-                                  onClick={() => toggleAttachment(doc)}
-                                  className={cn(
-                                    "w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 transition-colors",
-                                    isSelected ? "bg-blue-50 text-blue-700" : "hover:bg-gray-100 text-gray-700"
-                                  )}
-                                >
-                                  {doc.contentType.includes('pdf') ? (
-                                    <FileText className="w-4 h-4 text-red-500 flex-shrink-0" />
-                                  ) : doc.contentType.includes('image') ? (
-                                    <Image className="w-4 h-4 text-green-500 flex-shrink-0" />
-                                  ) : (
-                                    <File className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                  )}
-                                  <span className="truncate flex-1">{doc.name}</span>
-                                  <Checkbox checked={isSelected} className="flex-shrink-0" />
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    )}
-
-                    {/* Show selected attachments */}
-                    {selectedAttachments.map((att, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs"
-                      >
-                        <Paperclip className="w-3 h-3" />
-                        <span className="truncate max-w-[120px]">{att.filename}</span>
-                        <button
-                          onClick={() => setSelectedAttachments(prev => prev.filter((_, i) => i !== idx))}
-                          className="ml-1 hover:bg-blue-100 rounded p-0.5"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* Email body */}
-              <textarea
-                value={emailBody}
-                onChange={(e) => setEmailBody(e.target.value)}
-                placeholder="Write your message. Use Insert Field to add personalized content like {{First Name}}"
-                rows={3}
-                className="w-full px-0 py-3 bg-transparent border-0 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 resize-none text-sm"
-              />
             </>
           ) : (
             /* Comment input */
@@ -610,27 +455,19 @@ export function PipelineActivityPanel({
               </button>
             </div>
             
-            {/* Send button */}
-            <button
-              onClick={() => {
-                if (activeCommentTab === 'comment') {
-                  handleAddComment();
-                } else {
-                  handleSendEmail();
-                }
-              }}
-              disabled={isSending}
-              className={cn(
-                "p-1.5 rounded transition-colors",
-                isSending ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-100 text-blue-600"
-              )}
-            >
-              {isSending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
+            {/* Send button - only for comments */}
+            {activeCommentTab === 'comment' && (
+              <button
+                onClick={handleAddComment}
+                disabled={!comment.trim()}
+                className={cn(
+                  "p-1.5 rounded transition-colors",
+                  !comment.trim() ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-100 text-blue-600"
+                )}
+              >
                 <Send className="w-4 h-4" />
-              )}
-            </button>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -642,6 +479,59 @@ export function PipelineActivityPanel({
           open={showEmailSettings}
           onOpenChange={setShowEmailSettings}
           onAccountsUpdated={refreshConnection}
+        />
+      )}
+
+      {/* Full Email Composer */}
+      {workspaceId && applications.length === 1 && (
+        <FullEmailComposer
+          open={showFullComposer}
+          onClose={() => setShowFullComposer(false)}
+          workspaceId={workspaceId}
+          formId={formId}
+          submissionId={applications[0]?.id}
+          recipientEmails={applications[0]?.email ? [applications[0].email] : []}
+          onSent={() => {
+            if (onSendEmail) {
+              onSendEmail(
+                applications[0]?.email || '',
+                emailSubject,
+                emailBody,
+                { submissionIds: [applications[0]?.id].filter(Boolean) }
+              );
+            }
+          }}
+        />
+      )}
+
+      {/* Campaign Composer */}
+      {workspaceId && applications.length > 0 && (
+        <CampaignComposer
+          open={showCampaignComposer}
+          onClose={() => setShowCampaignComposer(false)}
+          workspaceId={workspaceId}
+          formId={formId}
+          selectedSubmissionIds={applications.map(app => app.id).filter(Boolean)}
+          onSent={() => {
+            if (onSendEmail) {
+              onSendEmail(
+                applications.map(app => app.email).filter(Boolean).join(', '),
+                emailSubject,
+                emailBody,
+                { submissionIds: applications.map(app => app.id).filter(Boolean) }
+              );
+            }
+          }}
+        />
+      )}
+
+      {/* Email Management Dashboard */}
+      {workspaceId && (
+        <EmailManagementDashboard
+          open={showEmailDashboard}
+          onClose={() => setShowEmailDashboard(false)}
+          workspaceId={workspaceId}
+          formId={formId}
         />
       )}
     </div>
