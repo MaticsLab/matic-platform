@@ -63,10 +63,26 @@ export function SelectCell({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const options = normalizeOptions(rawOptions);
   
-  // Normalize value
-  const selectedValues = isMulti
-    ? (Array.isArray(value) ? value : value ? [value] : [])
-    : (value ? [value] : []);
+  // Normalize value - ensure it's always string[]
+  const selectedValues: string[] = (() => {
+    if (isMulti) {
+      if (Array.isArray(value)) {
+        return value.filter((v): v is string => typeof v === 'string');
+      }
+      if (value && typeof value === 'string') {
+        return [value];
+      }
+      return [];
+    } else {
+      if (value && typeof value === 'string') {
+        return [value];
+      }
+      if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
+        return [value[0]];
+      }
+      return [];
+    }
+  })();
   
   const selectedOptions = options.filter(opt => selectedValues.includes(opt.value));
   
