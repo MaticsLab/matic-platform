@@ -8,7 +8,7 @@ import {
   CheckCircle2, ArrowRight, AlertCircle, Users, Send,
   Paperclip, Sparkles, AtSign, Plus, Tag, Loader2, FileEdit, Settings,
   Play, Archive, XCircle, Clock, Folder, ChevronUp, Download, ExternalLink,
-  Image, File, FileImage, Bell, Upload, Eye, Search, Link, Smile, PenTool, MoreVertical
+  Image, File, FileImage, Bell, Upload, Eye, Search, Link, Smile, PenTool, MoreVertical, Maximize2, Square, PanelRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -407,6 +407,7 @@ export function ApplicationDetail({
   onActivityCreated
 }: ApplicationDetailProps) {
   const [isActivityPanelExpanded, setIsActivityPanelExpanded] = useState(true);
+  const [viewMode, setViewMode] = useState<'modal' | 'fullscreen' | 'sidebar'>('sidebar');
   const [selectedStage, setSelectedStage] = useState(application.stageId || application.status);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [activeCommentTab, setActiveCommentTab] = useState<'comment' | 'email'>('comment');
@@ -938,10 +939,18 @@ export function ApplicationDetail({
     return items;
   }, [application.stageHistory, application.reviewHistory, application.stageName, application.stageId, application.lastActivity, application.submittedDate, application.name, application.email, stages]);
 
-  return (
-    <div className="bg-white flex flex-col h-full">
+  // Handle view mode rendering
+  const content = (
+    <div className={cn(
+      "bg-white flex flex-col h-full relative",
+      viewMode === 'modal' && "max-w-5xl mx-auto my-8 rounded-lg shadow-xl border border-gray-200",
+      viewMode === 'fullscreen' && "fixed inset-0 z-50"
+    )}>
       {/* Split View: Overview (Left) + Activity (Right) - Always visible */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
+      <div className={cn(
+        "flex-1 min-h-0 flex overflow-hidden",
+        viewMode === 'modal' && "rounded-lg"
+      )}>
         {/* Left Panel: Overview */}
         <div className={cn(
           "border-r overflow-y-auto transition-all duration-300",
@@ -1076,9 +1085,52 @@ export function ApplicationDetail({
                   <Bell className="w-4 h-4 text-gray-500" />
                   <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">1</span>
                 </button>
-                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
-                  <Settings className="w-4 h-4 text-gray-500" />
-                </button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+                      <Maximize2 className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 p-2" align="end">
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => setViewMode('modal')}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
+                          viewMode === 'modal' && "bg-purple-50 text-purple-700"
+                        )}
+                      >
+                        <div className="w-8 h-6 border border-gray-300 rounded flex items-center justify-center bg-white">
+                          <div className="w-4 h-3 border border-gray-200 rounded"></div>
+                        </div>
+                        <span className={cn("text-sm", viewMode === 'modal' && "text-purple-700 font-medium")}>Modal</span>
+                      </button>
+                      <button
+                        onClick={() => setViewMode('fullscreen')}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
+                          viewMode === 'fullscreen' && "bg-purple-50 text-purple-700"
+                        )}
+                      >
+                        <div className="w-8 h-6 border-2 border-gray-400 rounded bg-gray-50"></div>
+                        <span className={cn("text-sm", viewMode === 'fullscreen' && "text-purple-700 font-medium")}>Full screen</span>
+                      </button>
+                      <button
+                        onClick={() => setViewMode('sidebar')}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
+                          viewMode === 'sidebar' && "bg-purple-50 text-purple-700"
+                        )}
+                      >
+                        <div className="w-8 h-6 border border-gray-300 rounded flex gap-0.5 p-0.5">
+                          <div className="flex-1 bg-gray-100 rounded"></div>
+                          <div className="w-2 bg-gray-200 rounded"></div>
+                        </div>
+                        <span className={cn("text-sm", viewMode === 'sidebar' && "text-purple-700 font-medium")}>Sidebar</span>
+                      </button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
@@ -1695,4 +1747,20 @@ export function ApplicationDetail({
       )}
     </div>
   );
+
+  // For modal and fullscreen, wrap in portal-like container
+  if (viewMode === 'modal') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        {content}
+      </div>
+    );
+  }
+
+  if (viewMode === 'fullscreen') {
+    return content;
+  }
+
+  // Default sidebar view
+  return content;
 }
