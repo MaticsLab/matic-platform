@@ -8,7 +8,7 @@ import {
   CheckCircle2, ArrowRight, AlertCircle, Users, Send,
   Paperclip, Sparkles, AtSign, Plus, Tag, Loader2, FileEdit, Settings,
   Play, Archive, XCircle, Clock, Folder, ChevronUp, Download, ExternalLink,
-  Image, File, FileImage, Bell, Upload, Eye
+  Image, File, FileImage, Bell, Upload, Eye, Search, Link, Smile, PenTool, MoreVertical
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -981,67 +981,72 @@ export function ApplicationDetail({
                   className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-200 transition-colors"
                 >
                   <Play className="w-3.5 h-3.5" />
-                  {application.stageName?.toUpperCase() || 'FOLLOW UP'}
+                  {application.stageName?.toUpperCase() || application.status?.toUpperCase() || 'SUBMITTED'}
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              {/* Assignees */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Assignees</span>
-                <span className="text-sm text-gray-400">Empty</span>
-              </div>
+              {/* Assignees - Only show if data exists */}
+              {application.assignedTo && application.assignedTo.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Assignees</span>
+                  <span className="text-sm text-gray-900">{application.assignedTo.join(', ')}</span>
+                </div>
+              )}
 
-              {/* Dates */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Dates</span>
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                  <Clock className="w-4 h-4" />
-                  <span>Start</span>
-                  <ArrowRight className="w-3 h-3" />
-                  <Clock className="w-4 h-4" />
-                  <span>Due</span>
+              {/* Dates - Only show if submittedDate exists */}
+              {application.submittedDate && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Dates</span>
+                  <div className="flex items-center gap-2 text-sm text-gray-900">
+                    <Clock className="w-4 h-4" />
+                    <span>{new Date(application.submittedDate).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Priority - Only show if data exists */}
+              {application.priority && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Priority</span>
+                  <span className={cn(
+                    "text-sm font-medium capitalize",
+                    application.priority === 'high' && 'text-red-600',
+                    application.priority === 'medium' && 'text-yellow-600',
+                    application.priority === 'low' && 'text-gray-600'
+                  )}>
+                    {application.priority}
+                  </span>
+                </div>
+              )}
+
+              {/* Tags - Only show if data exists */}
+              {application.tags && application.tags.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Tags</span>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {application.tags.map((tag, idx) => (
+                      <span key={idx} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Description Section - Only show if comments exist */}
+            {application.comments && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium text-gray-700">Description</span>
+                </div>
+                <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 min-h-[100px]">
+                  <p className="text-sm text-gray-900">{application.comments}</p>
                 </div>
               </div>
-
-              {/* Priority */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Priority</span>
-                <span className="text-sm text-gray-400">Empty</span>
-              </div>
-
-              {/* Time estimate */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Time estimate</span>
-                <span className="text-sm text-gray-400">Empty</span>
-              </div>
-
-              {/* Track time */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Track time</span>
-                <button className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-full text-sm font-medium flex items-center gap-2 hover:bg-gray-200 transition-colors">
-                  <Play className="w-3.5 h-3.5" />
-                  Start
-                </button>
-              </div>
-
-              {/* Tags */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Tags</span>
-                <span className="text-sm text-gray-400">Empty</span>
-              </div>
-            </div>
-
-            {/* Description Section */}
-            <div className="mb-6">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-4 h-4 text-purple-600" />
-                <span className="text-sm font-medium text-gray-700">Description</span>
-              </div>
-              <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 min-h-[100px]">
-                <p className="text-sm text-gray-500">Add description, or write with AI</p>
-              </div>
-            </div>
+            )}
 
             {/* Custom Fields Section */}
             <div className="border-t pt-4">
@@ -1061,28 +1066,24 @@ export function ApplicationDetail({
         {isActivityPanelExpanded && (
           <div className="w-1/2 flex flex-col overflow-hidden border-l">
             {/* Activity Header */}
-            <div className="px-6 py-3 border-b flex items-center justify-between flex-shrink-0">
+            <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
               <h2 className="text-sm font-semibold text-gray-900">Activity</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+                  <Search className="w-4 h-4 text-gray-500" />
+                </button>
+                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors relative">
+                  <Bell className="w-4 h-4 text-gray-500" />
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">1</span>
+                </button>
                 <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
                   <Settings className="w-4 h-4 text-gray-500" />
-                </button>
-                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
-                  <Bell className="w-4 h-4 text-gray-500" />
-                  <span className="ml-1 text-xs text-gray-600">1</span>
-                </button>
-                <button
-                  onClick={() => setIsActivityPanelExpanded(false)}
-                  className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-                  title="Collapse activity panel"
-                >
-                  <ChevronRight className="w-4 h-4 text-gray-500" />
                 </button>
               </div>
             </div>
 
           {/* Activity Feed */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-4">
             <div className="space-y-4">
               {activities.map((activity) => (
                 <div key={activity.id} className="flex items-start gap-3">
@@ -1094,8 +1095,8 @@ export function ApplicationDetail({
                       <span className="text-sm font-medium text-gray-900">{activity.user}</span>
                       <span className="text-xs text-gray-500">{activity.time}</span>
                     </div>
-                    <p className="text-sm text-gray-700 mb-3">{activity.message}</p>
-                    <div className="flex items-center gap-3">
+                    <p className="text-sm text-gray-700 mb-2">{activity.message}</p>
+                    <div className="flex items-center gap-2">
                       <button className="p-1 hover:bg-gray-100 rounded transition-colors">
                         <CheckCircle2 className="w-4 h-4 text-gray-400" />
                       </button>
@@ -1103,10 +1104,13 @@ export function ApplicationDetail({
                         <MessageSquare className="w-4 h-4 text-gray-400" />
                       </button>
                       <button className="p-1 hover:bg-gray-100 rounded transition-colors">
-                        <Sparkles className="w-4 h-4 text-gray-400" />
+                        <ArrowRight className="w-4 h-4 text-gray-400" />
                       </button>
-                      <button className="ml-auto px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded transition-colors">
-                        Reply
+                      <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+                        <Mail className="w-4 h-4 text-gray-400" />
+                      </button>
+                      <button className="p-1 hover:bg-gray-100 rounded transition-colors ml-auto">
+                        <MoreVertical className="w-4 h-4 text-gray-400" />
                       </button>
                     </div>
                   </div>
@@ -1124,10 +1128,18 @@ export function ApplicationDetail({
                 <Popover>
                   <PopoverTrigger asChild>
                     <button className="flex-1 flex items-center gap-2 text-sm text-gray-900 hover:bg-gray-50 rounded px-2 py-1 transition-colors">
-                      <span>{selectedFromEmail || gmailConnection?.email || 'Select sender...'}</span>
-                      {selectedFromEmail && (
-                        <span className="text-gray-500">&lt;{selectedFromEmail}&gt;</span>
-                      )}
+                      {(() => {
+                        const email = selectedFromEmail || gmailConnection?.email;
+                        if (!email) return <span>Select sender...</span>;
+                        const account = emailAccounts.find(a => a.email === email);
+                        const name = account?.display_name || email.split('@')[0];
+                        return (
+                          <>
+                            <span>{name}</span>
+                            <span className="text-gray-500">&lt;{email}&gt;</span>
+                          </>
+                        );
+                      })()}
                       <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-auto" />
                     </button>
                   </PopoverTrigger>
@@ -1239,13 +1251,16 @@ export function ApplicationDetail({
               </div>
 
               {/* Email Body */}
-              <div className="ml-14">
+              <div className="ml-14 relative">
+                <div className="absolute left-2 top-2">
+                  <Plus className="w-4 h-4 text-gray-400" />
+                </div>
                 <textarea
                   value={emailBody}
                   onChange={(e) => setEmailBody(e.target.value)}
                   placeholder="Write your message..."
                   rows={6}
-                  className="w-full px-3 py-2 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                 />
               </div>
 
@@ -1263,16 +1278,22 @@ export function ApplicationDetail({
                     <Sparkles className="w-4 h-4" />
                   </button>
                   <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                    <AtSign className="w-4 h-4" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                    <Link className="w-4 h-4" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
                     <Paperclip className="w-4 h-4" />
                   </button>
                   <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
-                    <Tag className="w-4 h-4" />
+                    <AtSign className="w-4 h-4" />
                   </button>
                   <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
-                    <Sparkles className="w-4 h-4" />
+                    <Smile className="w-4 h-4" />
                   </button>
                   <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
-                    <Clock className="w-4 h-4" />
+                    <PenTool className="w-4 h-4" />
                   </button>
                   <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
                     <Settings className="w-4 h-4" />
@@ -1298,15 +1319,22 @@ export function ApplicationDetail({
           </div>
         )}
         
-        {/* Collapsed Activity Panel Button */}
+        {/* Collapsed Activity Panel - Fixed Icon Buttons */}
         {!isActivityPanelExpanded && (
-          <div className="border-l bg-gray-50 flex items-center justify-center w-12 flex-shrink-0">
+          <div className="border-l bg-white flex flex-col items-center py-2 w-12 flex-shrink-0 gap-1">
             <button
               onClick={() => setIsActivityPanelExpanded(true)}
-              className="p-2 hover:bg-gray-200 rounded transition-colors"
-              title="Expand activity panel"
+              className="p-2 hover:bg-gray-100 rounded transition-colors"
+              title="Activity"
             >
-              <ChevronLeft className="w-5 h-5 text-gray-600" />
+              <MessageSquare className="w-4 h-4 text-gray-500" />
+            </button>
+            <button className="p-2 hover:bg-gray-100 rounded transition-colors relative" title="Notifications">
+              <Bell className="w-4 h-4 text-gray-500" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-blue-600 rounded-full"></span>
+            </button>
+            <button className="p-2 hover:bg-gray-100 rounded transition-colors" title="More">
+              <Settings className="w-4 h-4 text-gray-500" />
             </button>
           </div>
         )}
