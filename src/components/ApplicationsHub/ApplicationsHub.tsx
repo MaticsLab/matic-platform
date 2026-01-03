@@ -132,7 +132,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
     if (currentView !== 'home') return
 
     setTabHeaderContent({
-      title: 'Applications Hub'
+      title: 'Programs'
     })
 
     setTabActions([
@@ -157,7 +157,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
     const context: HubSearchContext = {
       hubType: 'applications',
       hubId: workspaceId,
-      hubName: 'Applications Hub',
+      hubName: 'Programs',
       placeholder: 'Search applications...',
       actions: [
         { id: 'new-app', label: 'New Application', icon: Plus, action: () => setIsCreateDialogOpen(true) }

@@ -48,14 +48,14 @@ export function Sidebar({
   const navItems = [
     {
       id: 'applications',
-      label: 'Applications',
+      label: 'Programs',
       icon: GraduationCap,
       url: `/workspace/${workspaceId}/applications`,
       type: 'custom'
     },
     {
       id: 'data',
-      label: 'Data',
+      label: 'Database',
       icon: BarChart3,
       url: `/workspace/${workspaceId}/tables`,
       type: 'table'
@@ -207,11 +207,6 @@ export function Sidebar({
           "flex items-center justify-between mb-4 px-2",
           isCollapsed && "justify-center px-0"
         )}>
-          {!isCollapsed && (
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Hubs
-            </div>
-          )}
         </div>
         
         <nav className="space-y-1">

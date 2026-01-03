@@ -75,7 +75,7 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
   // Register tab header content
   useEffect(() => {
     setTabHeaderContent({
-      title: 'Data Hub',
+      title: 'Database',
     })
     return () => setTabHeaderContent(null)
   }, [setTabHeaderContent])

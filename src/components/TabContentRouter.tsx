@@ -845,7 +845,7 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
         break
       case 'applications':
         tabManager.addTab({
-          title: 'Applications',
+          title: 'Programs',
           type: 'custom',
           url: `/workspace/${workspaceId}/applications`,
           workspaceId,
@@ -854,7 +854,7 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
         break
       case 'data':
         tabManager.addTab({
-          title: 'Data Tables',
+          title: 'Database',
           type: 'table',
           url: `/workspace/${workspaceId}/tables`,
           workspaceId,
@@ -913,7 +913,7 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
   const hubs = [
     { 
       id: 'applications', 
-      name: 'Applications Hub', 
+      name: 'Programs', 
       icon: GraduationCap, 
       description: 'Manage scholarships, grants, and admissions.', 
       color: 'green',
@@ -921,7 +921,7 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
     },
     { 
       id: 'data', 
-      name: 'Data Hub', 
+      name: 'Database', 
       icon: Database, 
       description: 'System tables, data management, and reporting.', 
       color: 'slate',

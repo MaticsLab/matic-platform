@@ -128,30 +128,30 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
       },
       {
         id: 'nav-tables',
-        title: 'Data Hub',
+        title: 'Database',
         subtitle: 'View all tables',
         icon: Table2,
         type: 'navigation',
         category: 'Navigate',
-        action: () => navigateTo(`/workspace/${workspaceSlug}/tables`, 'Data Hub', 'custom')
+        action: () => navigateTo(`/workspace/${workspaceSlug}/tables`, 'Database', 'custom')
       },
       {
         id: 'nav-activities',
-        title: 'Activities Hub',
+        title: 'Activities',
         subtitle: 'Manage activities and events',
         icon: Layout,
         type: 'navigation',
         category: 'Navigate',
-        action: () => navigateTo(`/workspace/${workspaceSlug}/activities-hubs`, 'Activities Hub', 'custom')
+        action: () => navigateTo(`/workspace/${workspaceSlug}/activities-hubs`, 'Activities', 'custom')
       },
       {
         id: 'nav-applications',
-        title: 'Applications Hub',
+        title: 'Programs',
         subtitle: 'Manage scholarships and applications',
         icon: GraduationCap,
         type: 'navigation',
         category: 'Navigate',
-        action: () => navigateTo(`/workspace/${workspaceSlug}/applications`, 'Applications Hub', 'custom')
+        action: () => navigateTo(`/workspace/${workspaceSlug}/applications`, 'Programs', 'custom')
       }
     ]
   }, [workspaceSlug, navigateTo])
@@ -186,9 +186,9 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
   // Get category name from hub type
   const getCategoryName = (hubType?: string): string => {
     switch (hubType) {
-      case 'applications': return 'Applications Hub'
-      case 'activities': return 'Activities Hub'
-      case 'data': return 'Data Hub'
+      case 'applications': return 'Programs'
+      case 'activities': return 'Activities'
+      case 'data': return 'Database'
       default: return 'Results'
     }
   }
@@ -257,7 +257,7 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
           break
         default:
           url = `/workspace/${workspaceSlug}/applications`
-          title = 'Applications Hub'
+          title = 'Programs'
       }
     } else if (result.hubType === 'activities') {
       // Activities hub content

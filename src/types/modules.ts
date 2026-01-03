@@ -16,9 +16,9 @@
 export type HubType = 'activities' | 'applications' | 'data';
 
 export const HUB_TYPE_LABELS: Record<HubType, string> = {
-  activities: 'Activities Hub',
-  applications: 'Applications Hub',
-  data: 'Data Hub',
+  activities: 'Activities',
+  applications: 'Programs',
+  data: 'Database',
 };
 
 export const HUB_TYPE_DESCRIPTIONS: Record<HubType, string> = {
