@@ -54,26 +54,52 @@ func validateBetterAuthSessionToken(token string) (*models.BetterAuthSession, bo
 	return &session, true
 }
 
+// extractTokenFromRequest extracts the token from either Authorization header or cookies
+func extractTokenFromRequest(c *gin.Context) string {
+	// First, try Authorization header
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			return parts[1]
+		}
+	}
+
+	// Fallback: Check cookies for Better Auth session token
+	// Better Auth stores tokens in HTTP-only cookies with various possible names
+	cookieNames := []string{
+		"__Secure-better-auth.session_token",
+		"better-auth.session_token",
+		"better-auth_session_token",
+		"better_auth_session",
+		"session_token",
+		"better-auth.sessionToken",
+	}
+
+	for _, cookieName := range cookieNames {
+		if cookie, err := c.Cookie(cookieName); err == nil && cookie != "" {
+			// If cookie is signed (contains .), extract just the token part
+			// Better Auth might sign cookies, so we need to handle that
+			if strings.Contains(cookie, ".") {
+				return strings.Split(cookie, ".")[0]
+			}
+			return cookie
+		}
+	}
+
+	return ""
+}
+
 // AuthMiddleware validates Better Auth tokens only
 func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get Authorization header
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+		// Extract token from either Authorization header or cookies
+		tokenString := extractTokenFromRequest(c)
+		if tokenString == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization required. Please provide a token in the Authorization header or session cookie."})
 			c.Abort()
 			return
 		}
-
-		// Extract token from "Bearer <token>"
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format. Expected: Bearer <token>"})
-			c.Abort()
-			return
-		}
-
-		tokenString := parts[1]
 
 		// First, try to validate as a Better Auth session token (database lookup)
 		// Better Auth session tokens are not JWTs - they're random strings stored in db

@@ -36,9 +36,24 @@ export async function goFetch<T>(
     url += `?${searchParams.toString()}`
   }
 
-  // Get auth token
-  const { getSessionToken } = await import('@/lib/supabase')
-  const token = await getSessionToken()
+  // Get auth token - try auth-helpers first (more reliable), fallback to supabase
+  let token: string | null = null
+  try {
+    const { getSessionToken: getTokenFromHelpers } = await import('@/lib/auth-helpers')
+    token = await getTokenFromHelpers()
+  } catch (error) {
+    console.debug('Failed to get token from auth-helpers, trying supabase:', error)
+  }
+  
+  // Fallback to supabase version if auth-helpers didn't work
+  if (!token) {
+    try {
+      const { getSessionToken } = await import('@/lib/supabase')
+      token = await getSessionToken()
+    } catch (error) {
+      console.debug('Failed to get token from supabase:', error)
+    }
+  }
   
   // Debug: log if token is missing for non-public endpoints
   // Public portal forms and field-types endpoint don't require auth tokens
@@ -50,11 +65,28 @@ export async function goFetch<T>(
   
   if (!token && !isPublicEndpoint) {
     console.warn('⚠️ No auth token available for request:', endpoint)
+    // Additional debugging: try to get session info
+    if (typeof window !== 'undefined') {
+      try {
+        const { authClient } = await import('@/lib/better-auth-client')
+        const session = await authClient.getSession()
+        console.warn('🔍 Session debug info:', {
+          hasSession: !!session?.data?.session,
+          hasUser: !!session?.data?.user,
+          sessionKeys: session?.data?.session ? Object.keys(session.data.session) : [],
+          fullSession: session?.data
+        })
+      } catch (error) {
+        console.debug('Failed to get session for debugging:', error)
+      }
+    }
   }
 
   // Make request
+  // Include credentials to send cookies (Better Auth stores tokens in HTTP-only cookies)
   const response = await fetch(url, {
     ...fetchOptions,
+    credentials: 'include', // Include cookies for Better Auth session tokens
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
