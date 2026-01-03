@@ -775,10 +775,23 @@ func SubmitRecommendation(c *gin.Context) {
 				return
 			}
 
-			// Generate URL
+			// Generate URL - use request host for production, fallback to env or localhost
 			baseURL := os.Getenv("BASE_URL")
 			if baseURL == "" {
-				baseURL = "http://localhost:8080"
+				// Try to get from request
+				scheme := "https"
+				if c.GetHeader("X-Forwarded-Proto") == "http" || strings.HasPrefix(c.Request.Host, "localhost") {
+					scheme = "http"
+				}
+				host := c.GetHeader("X-Forwarded-Host")
+				if host == "" {
+					host = c.Request.Host
+				}
+				if host != "" {
+					baseURL = fmt.Sprintf("%s://%s", scheme, host)
+				} else {
+					baseURL = "https://backend.maticslab.com" // Production default
+				}
 			}
 			documentURL := fmt.Sprintf("%s/uploads/recommendations/%s/%s", baseURL, request.ID.String(), filename)
 

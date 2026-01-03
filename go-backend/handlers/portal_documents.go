@@ -113,10 +113,23 @@ func UploadPortalDocument(c *gin.Context) {
 		return
 	}
 
-	// Generate URL (in production, this would be a CDN or S3 URL)
+	// Generate URL - use request host for production, fallback to env or production default
 	baseURL := os.Getenv("BASE_URL")
 	if baseURL == "" {
-		baseURL = "http://localhost:8080"
+		// Try to get from request
+		scheme := "https"
+		if c.GetHeader("X-Forwarded-Proto") == "http" || strings.HasPrefix(c.Request.Host, "localhost") {
+			scheme = "http"
+		}
+		host := c.GetHeader("X-Forwarded-Host")
+		if host == "" {
+			host = c.Request.Host
+		}
+		if host != "" {
+			baseURL = fmt.Sprintf("%s://%s", scheme, host)
+		} else {
+			baseURL = "https://backend.maticslab.com" // Production default
+		}
 	}
 	fileURL := fmt.Sprintf("%s/uploads/portal/%s/%s", baseURL, rowID.String(), filename)
 
