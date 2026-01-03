@@ -131,6 +131,11 @@ ul[data-type="taskList"] li[data-checked="true"] > div > p {
   z-index: 9999 !important;
 }
 
+/* Ensure bubble menu toolbar appears above editor */
+.ProseMirror .tippy-box {
+  position: fixed !important;
+}
+
 .ProseMirror:not(.dragging) .ProseMirror-selectednode {
   outline: none !important;
   background-color: var(--novel-highlight-blue);

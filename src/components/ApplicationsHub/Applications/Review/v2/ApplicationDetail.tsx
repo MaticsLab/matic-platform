@@ -30,6 +30,7 @@ import { RefreshCw } from 'lucide-react';
 import { QuickReminderPanel } from '../QuickReminderPanel';
 import { FullEmailComposer } from '../FullEmailComposer';
 import { EmailNovelEditor } from '../EmailNovelEditor';
+import { EmailAIComposer } from '../EmailAIComposer';
 import type { EditorInstance } from 'novel';
 
 // Icon mapping for actions
@@ -489,6 +490,7 @@ export function ApplicationDetail({
   const [signatures, setSignatures] = useState<EmailSignature[]>([]);
   const [isLoadingSignatures, setIsLoadingSignatures] = useState(false);
   const [showSignatureDropdown, setShowSignatureDropdown] = useState(false);
+  const [showAIComposer, setShowAIComposer] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const emailEditorRef = useRef<EditorInstance | null>(null);
 
@@ -1929,7 +1931,11 @@ export function ApplicationDetail({
                     Email
                     <ChevronDown className="w-3.5 h-3.5" />
                   </button>
-                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-purple-600">
+                  <button 
+                    onClick={() => setShowAIComposer(true)}
+                    className="p-1.5 hover:bg-gray-200 rounded transition-colors text-purple-600"
+                    title="AI Email Composer"
+                  >
                     <Sparkles className="w-4 h-4" />
                   </button>
                   <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
@@ -2292,9 +2298,13 @@ export function ApplicationDetail({
                       Email
                       <ChevronDown className="w-3.5 h-3.5" />
                     </button>
-                    <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-purple-600">
-                      <Sparkles className="w-4 h-4" />
-                    </button>
+                  <button 
+                    onClick={() => setShowAIComposer(true)}
+                    className="p-1.5 hover:bg-gray-200 rounded transition-colors text-purple-600"
+                    title="AI Email Composer"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                  </button>
                     <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                       <AtSign className="w-4 h-4" />
                     </button>
@@ -2436,6 +2446,28 @@ export function ApplicationDetail({
           }}
         />
       )}
+
+      {/* AI Email Composer */}
+      <EmailAIComposer
+        open={showAIComposer}
+        onClose={() => setShowAIComposer(false)}
+        currentSubject={emailSubject}
+        currentBody={emailBody}
+        applicationData={{
+          name: application.name,
+          email: application.email,
+          raw_data: application.raw_data,
+        }}
+        fields={fields}
+        onApply={(subject, body) => {
+          setEmailSubject(subject);
+          setEmailBody(body);
+          // Update editor content if editor is available
+          if (emailEditorRef.current) {
+            emailEditorRef.current.commands.setContent(body);
+          }
+        }}
+      />
     </>
   );
 

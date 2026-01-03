@@ -18,7 +18,10 @@ const GenerativeMenuSwitch = ({ children, open, onOpenChange }: GenerativeMenuSw
   return (
     <EditorBubble
       tippyOptions={{
-        placement: open ? "bottom-start" : "top",
+        placement: "top", // Always show above to avoid being cut off
+        offset: [0, 8], // Add some spacing from the selection
+        zIndex: 9999, // Ensure it's above everything
+        appendTo: () => document.body, // Render in portal to avoid overflow issues
         onHidden: () => {
           onOpenChange(false);
           editor?.chain().unsetHighlight().run();
