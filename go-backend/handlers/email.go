@@ -338,6 +338,8 @@ type SendEmailRequest struct {
 	SaveTemplate    bool              `json:"save_template"`
 	TemplateName    string            `json:"template_name"`
 	Attachments     []EmailAttachment `json:"attachments"` // Optional file attachments
+	FromEmail       string            `json:"from_email"`   // Optional: specific email address to send from
+	SenderAccountID string            `json:"sender_account_id"` // Optional: Gmail account ID to send from
 	// Threading support for replies
 	ThreadID   string `json:"thread_id"`   // Gmail thread ID to reply to
 	InReplyTo  string `json:"in_reply_to"` // Message-ID of the email being replied to
@@ -424,12 +426,33 @@ func SendEmail(c *gin.Context) {
 	fmt.Printf("[Email] SendEmail called - FormID: %s, SubmissionIDs: %d, EmailField: %s, MergeTags: %v\n",
 		req.FormID, len(req.SubmissionIDs), req.EmailField, req.MergeTags)
 
-	// Get Gmail connection
+	// Get Gmail connection - use specific email if provided
 	var connection models.GmailConnection
-	if err := database.DB.Where("workspace_id = ?", workspaceID).First(&connection).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Gmail not connected. Please connect your Gmail account first."})
-		return
+	query := database.DB.Where("workspace_id = ?", workspaceID)
+	
+	// If from_email is provided, use that specific connection
+	if req.FromEmail != "" {
+		query = query.Where("email = ?", req.FromEmail)
+	} else if req.SenderAccountID != "" {
+		// If sender_account_id is provided, look up by ID
+		query = query.Where("id = ?", req.SenderAccountID)
 	}
+	
+	if err := query.First(&connection).Error; err != nil {
+		// If specific email/account not found, fall back to default connection
+		if req.FromEmail != "" || req.SenderAccountID != "" {
+			if err := database.DB.Where("workspace_id = ?", workspaceID).First(&connection).Error; err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Gmail not connected. Please connect your Gmail account first."})
+				return
+			}
+			fmt.Printf("[Email] Specific account not found, using default connection: %s\n", connection.Email)
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Gmail not connected. Please connect your Gmail account first."})
+			return
+		}
+	}
+	
+	fmt.Printf("[Email] Using Gmail connection: %s (ID: %s)\n", connection.Email, connection.ID.String())
 
 	// Create OAuth token
 	token := &oauth2.Token{

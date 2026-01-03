@@ -38,7 +38,7 @@ export function QuickReminderPanel({
   const [isSending, setIsSending] = useState(false);
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
 
-  const { canSendEmail, sendBlockedReason, handleOAuthError } = useEmailConnection(workspaceId);
+  const { canSendEmail, sendBlockedReason, handleOAuthError, selectedFromEmail, accounts } = useEmailConnection(workspaceId);
 
   // Load templates
   useEffect(() => {
@@ -96,6 +96,9 @@ export function QuickReminderPanel({
 
     setIsSending(true);
     try {
+      // Find the account ID for the selected email
+      const selectedAccount = accounts.find(acc => acc.email === selectedFromEmail);
+      
       const result = await emailClient.send(workspaceId, {
         form_id: formId,
         submission_ids: [submissionId],
@@ -105,6 +108,8 @@ export function QuickReminderPanel({
         is_html: true,
         merge_tags: true,
         track_opens: true,
+        from_email: selectedFromEmail || undefined,
+        sender_account_id: selectedAccount?.id || undefined,
       });
 
       if (result.success) {

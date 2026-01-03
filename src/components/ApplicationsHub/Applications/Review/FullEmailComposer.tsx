@@ -53,7 +53,7 @@ export function FullEmailComposer({
   const [scheduledFor, setScheduledFor] = useState<string>('');
   const autoSaveIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { canSendEmail, sendBlockedReason, handleOAuthError } = useEmailConnection(workspaceId);
+  const { canSendEmail, sendBlockedReason, handleOAuthError, selectedFromEmail, accounts } = useEmailConnection(workspaceId);
   const { data: session } = useSession();
   const userId = session?.user?.id || null;
 
@@ -177,6 +177,10 @@ export function FullEmailComposer({
     setIsSending(true);
     try {
       const emails = to.split(',').map(e => e.trim()).filter(Boolean);
+      
+      // Find the account ID for the selected email
+      const selectedAccount = accounts.find(acc => acc.email === selectedFromEmail);
+      
       const request = {
         form_id: formId,
         submission_ids: submissionId ? [submissionId] : undefined,
@@ -186,6 +190,8 @@ export function FullEmailComposer({
         is_html: true,
         merge_tags: true,
         track_opens: true,
+        from_email: selectedFromEmail || undefined,
+        sender_account_id: selectedAccount?.id || undefined,
       };
 
       const result = await emailClient.send(workspaceId, request);

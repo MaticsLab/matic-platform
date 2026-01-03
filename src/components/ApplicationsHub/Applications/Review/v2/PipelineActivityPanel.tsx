@@ -191,6 +191,9 @@ export function PipelineActivityPanel({
     try {
       const submissionIds = applications.map(a => a.id);
       
+      // Find the account ID for the selected email
+      const selectedAccount = emailAccounts.find(acc => acc.email === selectedFromEmail);
+      
       const request: SendEmailRequest = {
         form_id: formId || undefined,
         submission_ids: submissionIds,
@@ -200,6 +203,8 @@ export function PipelineActivityPanel({
         merge_tags: true,
         track_opens: true,
         attachments: selectedAttachments.length > 0 ? selectedAttachments : undefined,
+        from_email: selectedFromEmail || undefined,
+        sender_account_id: selectedAccount?.id || undefined,
       };
 
       const result = await emailClient.send(workspaceId, request);

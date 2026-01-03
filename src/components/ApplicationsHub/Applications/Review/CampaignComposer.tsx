@@ -48,7 +48,7 @@ export function CampaignComposer({
   const [staggerDelay, setStaggerDelay] = useState<number>(0); // seconds between emails
   const [scheduledFor, setScheduledFor] = useState<string>('');
 
-  const { canSendEmail, sendBlockedReason, handleOAuthError } = useEmailConnection(workspaceId);
+  const { canSendEmail, sendBlockedReason, handleOAuthError, selectedFromEmail, accounts } = useEmailConnection(workspaceId);
 
   // Load templates
   useEffect(() => {
@@ -270,6 +270,9 @@ export function CampaignComposer({
       const recipientEmails = validRecipients.map(r => r.email.trim()).filter(Boolean);
       const submissionIds = validRecipients.map(r => r.id);
 
+      // Find the account ID for the selected email
+      const selectedAccount = accounts.find(acc => acc.email === selectedFromEmail);
+      
       const request = {
         form_id: formId,
         submission_ids: submissionIds,
@@ -279,6 +282,8 @@ export function CampaignComposer({
         is_html: true,
         merge_tags: true,
         track_opens: true,
+        from_email: selectedFromEmail || undefined,
+        sender_account_id: selectedAccount?.id || undefined,
       };
 
       const result = await emailClient.send(workspaceId, request);
