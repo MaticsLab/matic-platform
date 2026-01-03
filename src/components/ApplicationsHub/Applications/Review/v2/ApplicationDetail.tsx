@@ -250,15 +250,59 @@ function InlineDocumentPreview({ value, fieldLabel }: { value: any; fieldLabel?:
 }
 
 // Helper to format field labels nicely
-function formatFieldLabel(key: string): string {
+function formatFieldLabel(key: string, fieldMap?: Map<string, any>): string {
+  // First try to look up the field in the map
+  if (fieldMap) {
+    // Try direct key match
+    let fieldDef = fieldMap.get(key);
+    
+    // Try without "Field-" prefix
+    if (!fieldDef && key.startsWith('Field-')) {
+      const withoutPrefix = key.replace(/^Field-/, '');
+      fieldDef = fieldMap.get(withoutPrefix);
+      
+      // Try matching by ID (field IDs often have format like "Field-{timestamp}-{random}")
+      // Extract the base ID if it's a complex ID
+      if (!fieldDef) {
+        // Try to match by extracting the timestamp part or matching the full ID
+        for (const [mapKey, mapField] of fieldMap.entries()) {
+          const mapFieldId = mapField.id || mapKey;
+          // Exact match
+          if (mapFieldId === key || mapFieldId === withoutPrefix) {
+            fieldDef = mapField;
+            break;
+          }
+          // Try matching the base part (before the last segment)
+          // e.g., "Field-1766110112708-zg4hskrds" might match a field with ID "Field-1766110112708-..."
+          if (key.includes('-') && mapFieldId.includes('-')) {
+            const keyParts = key.split('-');
+            const mapIdParts = mapFieldId.split('-');
+            // Match if first parts are similar (timestamp matching)
+            if (keyParts.length >= 2 && mapIdParts.length >= 2 && keyParts[0] === mapIdParts[0]) {
+              fieldDef = mapField;
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    // If found, use the label
+    if (fieldDef && (fieldDef.label || fieldDef.name)) {
+      return fieldDef.label || fieldDef.name || key;
+    }
+  }
+  
+  // Fallback to formatting the key
   return key
+    .replace(/^Field-/, '')
     .replace(/_/g, ' ')
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .replace(/^./, str => str.toUpperCase());
 }
 
 // Helper function to render field values properly (handles arrays, objects, repeaters, files)
-function renderFieldValue(value: any, depth: number = 0, fieldLabel?: string): React.ReactNode {
+function renderFieldValue(value: any, depth: number = 0, fieldLabel?: string, fieldMap?: Map<string, any>): React.ReactNode {
   // Handle null/undefined/empty
   if (value === null || value === undefined || value === '') {
     return <span className="text-gray-400 italic">Not provided</span>;
@@ -336,8 +380,8 @@ function renderFieldValue(value: any, depth: number = 0, fieldLabel?: string): R
                   .filter(([k]) => !k.startsWith('_')) // Skip internal fields like _id
                   .map(([k, v]) => (
                     <div key={k} className="flex flex-wrap gap-x-2">
-                      <span className="text-xs font-medium text-gray-500 min-w-[80px]">{formatFieldLabel(k)}:</span>
-                      <span className="text-sm text-gray-900">{renderFieldValue(v, depth + 1, k)}</span>
+                      <span className="text-xs font-medium text-gray-500 min-w-[80px]">{formatFieldLabel(k, fieldMap)}:</span>
+                      <span className="text-sm text-gray-900">{renderFieldValue(v, depth + 1, k, fieldMap)}</span>
                     </div>
                   ))
               ) : (
@@ -367,7 +411,7 @@ function renderFieldValue(value: any, depth: number = 0, fieldLabel?: string): R
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {entries.map(([k, v]) => (
             <span key={k} className="text-sm">
-              <span className="text-gray-500">{formatFieldLabel(k)}:</span>{' '}
+              <span className="text-gray-500">{formatFieldLabel(k, fieldMap)}:</span>{' '}
               <span className="text-gray-900 font-medium">{v === null || v === '' ? '-' : String(v)}</span>
             </span>
           ))}
@@ -382,9 +426,9 @@ function renderFieldValue(value: any, depth: number = 0, fieldLabel?: string): R
           {entries.map(([k, v]) => (
             <div key={k} className="px-3 py-2">
               <div className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">
-                {formatFieldLabel(k)}
+                {formatFieldLabel(k, fieldMap)}
               </div>
-              <div className="text-gray-900">{renderFieldValue(v, depth + 1, k)}</div>
+              <div className="text-gray-900">{renderFieldValue(v, depth + 1, k, fieldMap)}</div>
             </div>
           ))}
         </div>
@@ -1271,30 +1315,80 @@ export function ApplicationDetail({
                   </div>
                 </div>
                 <div className="space-y-4">
-                  {fieldSections.map((section, sectionIdx) => (
-                    <div key={sectionIdx} className="space-y-3">
-                      {fieldSections.length > 1 && (
-                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                          {section.name}
-                        </h3>
-                      )}
-                      {section.fields.map((field) => {
-                        const value = application.raw_data?.[field.id] || 
-                                     application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
-                                     application.raw_data?.[field.label];
-                        if (value === null || value === undefined || value === '') return null;
-                        
-                        return (
-                          <div key={field.id} className="flex flex-col gap-1">
-                            <span className="text-xs font-medium text-gray-500">{field.label || field.id}</span>
-                            <div className="text-sm text-gray-900">
-                              {renderFieldValue(value, 0, field.label)}
+                  {(() => {
+                    // Create field map for nested field lookup (includes child fields for repeaters)
+                    const fieldMap = new Map<string, any>();
+                    fields.forEach(f => {
+                      const fieldId = f.id || (f as any).field_id;
+                      const fieldLabel = f.label || (f as any).name;
+                      
+                      if (fieldId) {
+                        fieldMap.set(fieldId, f);
+                        // Also map with "Field-" prefix if it doesn't have it
+                        if (!fieldId.startsWith('Field-')) {
+                          fieldMap.set(`Field-${fieldId}`, f);
+                        }
+                        // Map without "Field-" prefix if it has it
+                        if (fieldId.startsWith('Field-')) {
+                          fieldMap.set(fieldId.replace(/^Field-/, ''), f);
+                        }
+                      }
+                      if (fieldLabel) {
+                        fieldMap.set(fieldLabel, f);
+                        fieldMap.set(fieldLabel.toLowerCase().replace(/\s+/g, '_'), f);
+                        // Also try with underscores
+                        fieldMap.set(fieldLabel.replace(/\s+/g, '_'), f);
+                      }
+                      // Map child fields for repeater/group fields
+                      const children = (f as any).children || (f as any).child_fields || [];
+                      if (Array.isArray(children)) {
+                        children.forEach((child: any) => {
+                          const childId = child.id || child.field_id;
+                          const childLabel = child.label || child.name;
+                          
+                          if (childId) {
+                            fieldMap.set(childId, child);
+                            if (!childId.startsWith('Field-')) {
+                              fieldMap.set(`Field-${childId}`, child);
+                            }
+                            if (childId.startsWith('Field-')) {
+                              fieldMap.set(childId.replace(/^Field-/, ''), child);
+                            }
+                          }
+                          if (childLabel) {
+                            fieldMap.set(childLabel, child);
+                            fieldMap.set(childLabel.toLowerCase().replace(/\s+/g, '_'), child);
+                            fieldMap.set(childLabel.replace(/\s+/g, '_'), child);
+                          }
+                        });
+                      }
+                    });
+                    
+                    return fieldSections.map((section, sectionIdx) => (
+                      <div key={sectionIdx} className="space-y-3">
+                        {fieldSections.length > 1 && (
+                          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            {section.name}
+                          </h3>
+                        )}
+                        {section.fields.map((field) => {
+                          const value = application.raw_data?.[field.id] || 
+                                       application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
+                                       application.raw_data?.[field.label];
+                          if (value === null || value === undefined || value === '') return null;
+                          
+                          return (
+                            <div key={field.id} className="flex flex-col gap-1">
+                              <span className="text-xs font-medium text-gray-500">{field.label || field.id}</span>
+                              <div className="text-sm text-gray-900">
+                                {renderFieldValue(value, 0, field.label, fieldMap)}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
+                          );
+                        })}
+                      </div>
+                    ));
+                  })()}
                 </div>
               </div>
             )}
@@ -1804,16 +1898,18 @@ export function ApplicationDetail({
               </div>
 
               {/* Email Body */}
-              <div className="ml-14 relative flex-1 flex flex-col min-h-[200px] max-h-[400px] overflow-hidden">
-                <EmailNovelEditor
-                  value={emailBody}
-                  onChange={setEmailBody}
-                  placeholder="Say something, press 'space' for AI, '/' for commands"
-                  minHeight="200px"
-                  className="flex-1 overflow-y-auto"
-                  editorRef={emailEditorRef}
-                  availableSignatures={signatures}
-                />
+              <div className="ml-14 relative flex-1 flex flex-col min-h-[200px] max-h-[400px] overflow-visible">
+                <div className="flex-1 overflow-y-auto">
+                  <EmailNovelEditor
+                    value={emailBody}
+                    onChange={setEmailBody}
+                    placeholder="Say something, press 'space' for AI, '/' for commands"
+                    minHeight="200px"
+                    className="flex-1"
+                    editorRef={emailEditorRef}
+                    availableSignatures={signatures}
+                  />
+                </div>
               </div>
 
               {/* Bottom Toolbar */}
@@ -2165,16 +2261,18 @@ export function ApplicationDetail({
                 </div>
 
                 {/* Email Body */}
-                <div className="ml-14 relative flex-1 flex flex-col min-h-[200px] max-h-[400px] overflow-hidden">
-                  <EmailNovelEditor
-                    value={emailBody}
-                    onChange={setEmailBody}
-                    placeholder="Say something, press 'space' for AI, '/' for commands"
-                    minHeight="200px"
-                    className="flex-1 overflow-y-auto"
-                    editorRef={emailEditorRef}
-                    availableSignatures={signatures}
-                  />
+                <div className="ml-14 relative flex-1 flex flex-col min-h-[200px] max-h-[400px] overflow-visible">
+                  <div className="flex-1 overflow-y-auto">
+                    <EmailNovelEditor
+                      value={emailBody}
+                      onChange={setEmailBody}
+                      placeholder="Say something, press 'space' for AI, '/' for commands"
+                      minHeight="200px"
+                      className="flex-1"
+                      editorRef={emailEditorRef}
+                      availableSignatures={signatures}
+                    />
+                  </div>
                 </div>
 
                 {/* Bottom Toolbar */}

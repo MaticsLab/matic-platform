@@ -34,7 +34,7 @@ export const getRecommendedModel = (task: string, preferQuality: boolean = true)
     case 'improve':
       if (preferQuality) {
         return {
-          model: 'claude-3-5-sonnet-20241022',
+          model: 'claude-sonnet-4-20250514',
           provider: 'anthropic',
           reason: 'Best quality for professional writing improvements',
           quality: 'high',
@@ -136,8 +136,19 @@ export const getAvailableModels = (): ModelConfig[] => {
     models.push(
       {
         provider: 'anthropic',
-        modelId: 'claude-3-5-sonnet-20241022',
-        displayName: 'Claude 3.5 Sonnet',
+        modelId: 'claude-sonnet-4-20250514',
+        displayName: 'Claude Sonnet 4',
+        apiKey: anthropicKey,
+        baseUrl: 'https://api.anthropic.com/v1',
+        maxTokens: 4096,
+        temperature: 0.4,
+        costPer1MInput: 3.00,
+        costPer1MOutput: 15.00,
+      },
+      {
+        provider: 'anthropic',
+        modelId: 'claude-3-5-sonnet',
+        displayName: 'Claude 3.5 Sonnet (Fallback)',
         apiKey: anthropicKey,
         baseUrl: 'https://api.anthropic.com/v1',
         maxTokens: 4096,

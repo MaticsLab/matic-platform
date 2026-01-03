@@ -119,6 +119,16 @@ ul[data-type="taskList"] li[data-checked="true"] > div > p {
 
 .tippy-box {
   max-width: 400px !important;
+  z-index: 9999 !important;
+}
+
+.tippy-content {
+  z-index: 9999 !important;
+}
+
+/* Ensure bubble menu is not clipped by overflow containers */
+[data-tippy-root] {
+  z-index: 9999 !important;
 }
 
 .ProseMirror:not(.dragging) .ProseMirror-selectednode {
