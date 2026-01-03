@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
+	"github.com/Jsanchez767/matic-platform/middleware"
 	"github.com/Jsanchez767/matic-platform/models"
 
 	"github.com/gin-gonic/gin"
@@ -1483,7 +1484,12 @@ func DeleteEmailAccount(c *gin.Context) {
 // ListSignatures returns all signatures for a user in a workspace
 func ListSignatures(c *gin.Context) {
 	workspaceID := c.Query("workspace_id")
-	userID := c.Query("user_id")
+	// Get authenticated user ID from Better Auth
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
 
 	if workspaceID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id is required"})
@@ -1491,10 +1497,7 @@ func ListSignatures(c *gin.Context) {
 	}
 
 	var signatures []models.EmailSignature
-	query := database.DB.Where("workspace_id = ?", workspaceID)
-	if userID != "" {
-		query = query.Where("user_id = ?", userID)
-	}
+	query := database.DB.Where("workspace_id = ? AND user_id = ?", workspaceID, userID)
 	query.Order("created_at DESC").Find(&signatures)
 
 	c.JSON(http.StatusOK, signatures)
@@ -1502,11 +1505,21 @@ func ListSignatures(c *gin.Context) {
 
 // CreateSignature creates a new email signature
 func CreateSignature(c *gin.Context) {
+	// Get authenticated user ID from Better Auth
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	var signature models.EmailSignature
 	if err := c.ShouldBindJSON(&signature); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Set user ID from authenticated user (Better Auth)
+	signature.UserID = userID
 
 	// If this is set as default, unset other defaults for this user
 	if signature.IsDefault {
@@ -1527,9 +1540,22 @@ func CreateSignature(c *gin.Context) {
 func UpdateSignature(c *gin.Context) {
 	id := c.Param("id")
 
+	// Get authenticated user ID from Better Auth
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	var signature models.EmailSignature
 	if err := database.DB.First(&signature, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Signature not found"})
+		return
+	}
+
+	// Verify user owns this signature
+	if signature.UserID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to update this signature"})
 		return
 	}
 
@@ -1567,7 +1593,26 @@ func UpdateSignature(c *gin.Context) {
 func DeleteSignature(c *gin.Context) {
 	id := c.Param("id")
 
-	if err := database.DB.Delete(&models.EmailSignature{}, "id = ?", id).Error; err != nil {
+	// Get authenticated user ID from Better Auth
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	// Verify user owns this signature
+	var signature models.EmailSignature
+	if err := database.DB.First(&signature, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Signature not found"})
+		return
+	}
+
+	if signature.UserID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to delete this signature"})
+		return
+	}
+
+	if err := database.DB.Delete(&signature).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete signature"})
 		return
 	}

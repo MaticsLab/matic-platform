@@ -53,7 +53,7 @@ export function QuickReminderPanel({
       const data = await emailClient.getTemplates(workspaceId, formId);
       // Filter for reminder templates or show all
       const reminderTemplates = data.filter(t => 
-        t.category === 'reminder' || 
+        (t as any).category === 'reminder' || 
         t.name.toLowerCase().includes('reminder') ||
         t.type === 'automated'
       );

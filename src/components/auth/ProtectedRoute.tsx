@@ -47,7 +47,7 @@ export function ProtectedRoute({
       return
     }
 
-    if (requireOrganization && !data.organizationId) {
+    if (requireOrganization && !(data?.session as any)?.activeOrganizationId) {
       router.push('/workspaces')
       return
     }
@@ -72,7 +72,7 @@ export function ProtectedRoute({
     return fallback || null
   }
 
-  if (requireOrganization && !data.organizationId) {
+  if (requireOrganization && !(data?.session as any)?.activeOrganizationId) {
     return fallback || null
   }
 

@@ -71,11 +71,11 @@ export function ProfileSidebar({ isOpen, onClose }: ProfileSidebarProps) {
           setEmail(user.email || '')
           setNewEmail(user.email || '')
           setOriginalEmail(user.email || '')
-          setFullName(user.name || user.fullName || '')
-          setPhone(user.phone || '')
-          setOrganization(user.organization || '')
-          setRole(user.role || '')
-          setAvatarUrl(user.image || user.avatarUrl || '')
+          setFullName(user.name || (user as any).fullName || '')
+          setPhone((user as any).phone || '')
+          setOrganization((user as any).organization || '')
+          setRole((user as any).role || '')
+          setAvatarUrl(user.image || (user as any).avatarUrl || '')
           
           // Load notification preferences (Better Auth stores these differently)
           // For now, use defaults - can be extended later
@@ -164,11 +164,9 @@ export function ProfileSidebar({ isOpen, onClose }: ProfileSidebarProps) {
 
     setIsUpdatingEmail(true)
     try {
-      const result = await authClient.updateUser({
-        email: newEmail
-      })
-
-      if (result.error) throw new Error(result.error.message || 'Failed to update email')
+      // Better Auth doesn't support direct email updates via updateUser
+      // Email changes require verification flow - for now, show error
+      throw new Error('Email updates require verification. Please use the account settings page.')
 
       toast.success('Confirmation email sent! Please check both your old and new email addresses to confirm the change.')
       setEmail(newEmail)

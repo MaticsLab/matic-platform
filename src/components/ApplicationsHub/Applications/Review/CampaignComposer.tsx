@@ -80,13 +80,13 @@ export function CampaignComposer({
     setIsLoadingRecipients(true);
     try {
       // Fetch all submissions for the form
-      const allSubmissions = await formsClient.getSubmissions(formId);
+      const allSubmissions = await formsClient.getSubmissions(formId) as Array<{ id: string; data?: Record<string, any> }>;
       
       // Filter to only selected submissions and extract email/name
       const recipientList: Recipient[] = selectedSubmissionIds
-        .map((id) => {
-          const submission = allSubmissions.find((s: any) => s.id === id);
-          if (!submission) return null;
+        .flatMap((id) => {
+          const submission = allSubmissions.find((s) => s.id === id);
+          if (!submission) return [];
 
           // Extract email from submission data (common field names)
           const data = submission.data || {};
@@ -96,14 +96,13 @@ export function CampaignComposer({
           const name = data.name || data.Name || data['Full Name'] || data['full_name'] || 
                       `${data['First Name'] || data.first_name || ''} ${data['Last Name'] || data.last_name || ''}`.trim() || '';
 
-          return {
+          return [{
             id,
             email: email || `submission-${id.slice(0, 8)}`,
             name: name || undefined,
             selected: true,
-          };
-        })
-        .filter((r): r is Recipient => r !== null);
+          }];
+        });
 
       setRecipients(recipientList);
     } catch (error) {

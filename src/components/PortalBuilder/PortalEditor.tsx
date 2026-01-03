@@ -272,7 +272,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         setCurrentUser({
           id: user.id,
           name: user.name || user.email || 'Anonymous',
-          avatarUrl: user.image || user.avatarUrl
+          avatarUrl: user.image || (user as any).avatarUrl
         })
       }
     }

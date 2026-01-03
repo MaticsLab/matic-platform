@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
+	"github.com/Jsanchez767/matic-platform/middleware"
 	"github.com/Jsanchez767/matic-platform/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -16,7 +17,17 @@ import (
 // ListEmailDrafts returns all drafts for a user/workspace
 func ListEmailDrafts(c *gin.Context) {
 	workspaceID := c.Query("workspace_id")
-	userID := c.Query("user_id")
+	// Get authenticated user ID from Better Auth
+	authUserID, exists := middleware.GetUserID(c)
+	if !exists {
+		// If no auth, allow query by user_id parameter (for backward compatibility)
+		userID := c.Query("user_id")
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
+		authUserID = userID
+	}
 
 	if workspaceID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id is required"})
@@ -26,9 +37,8 @@ func ListEmailDrafts(c *gin.Context) {
 	var drafts []models.EmailDraft
 	query := database.DB.Where("workspace_id = ?", workspaceID)
 
-	if userID != "" {
-		query = query.Where("user_id = ?", userID)
-	}
+	// Use Better Auth user ID
+	query = query.Where("user_id = ?", authUserID)
 
 	// Only show drafts from last 30 days (auto-cleanup)
 	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)

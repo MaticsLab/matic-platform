@@ -121,7 +121,7 @@ export const useCollaborationStore = create<CollaborationStore>()(
       const currentUser = {
         id: user.id,
         name: user.name || user.email?.split('@')[0] || 'Anonymous',
-        avatarUrl: user.image || user.avatarUrl
+        avatarUrl: user.image || (user as any).avatarUrl
       };
 
       const ydoc = new Y.Doc();

@@ -26,13 +26,13 @@ export async function getSessionToken(): Promise<string | null> {
       const betterAuthSession = await authClient.getSession()
       
       // Try multiple possible token locations in the session response
-      if (betterAuthSession?.data?.session?.token) {
-        return betterAuthSession.data.session.token
+      if (betterAuthSession?.data?.session && (betterAuthSession.data.session as any)?.token) {
+        return (betterAuthSession.data.session as any).token
       }
       
       // Some Better Auth versions might expose token directly
-      if (betterAuthSession?.data?.token) {
-        return betterAuthSession.data.token
+      if (betterAuthSession?.data && (betterAuthSession.data as any)?.token) {
+        return (betterAuthSession.data as any).token
       }
       
       // If we have a session ID but no token, try to fetch it from the API

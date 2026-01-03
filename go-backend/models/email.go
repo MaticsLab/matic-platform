@@ -127,7 +127,7 @@ func (t *EmailTemplate) TableName() string {
 type EmailSignature struct {
 	ID          uuid.UUID `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
 	WorkspaceID uuid.UUID `gorm:"type:uuid;not null;index" json:"workspace_id"`
-	UserID      string    `gorm:"not null;index" json:"user_id"` // Supabase user ID
+	UserID      string    `gorm:"not null;index" json:"user_id"` // Better Auth user ID (TEXT)
 	Name        string    `gorm:"not null" json:"name"`
 	Content     string    `gorm:"type:text;not null" json:"content"`       // Plain text or rich text
 	ContentHTML string    `gorm:"type:text" json:"content_html,omitempty"` // HTML version
@@ -145,7 +145,7 @@ func (s *EmailSignature) TableName() string {
 type EmailDraft struct {
 	ID              uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
 	WorkspaceID     uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
-	UserID          string         `gorm:"not null;index" json:"user_id"` // Supabase user ID
+	UserID          string         `gorm:"not null;index" json:"user_id"` // Better Auth user ID (TEXT)
 	FormID          *uuid.UUID     `gorm:"type:uuid;index" json:"form_id,omitempty"`
 	SubmissionID    *uuid.UUID     `gorm:"type:uuid;index" json:"submission_id,omitempty"`
 	RecipientEmails datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"recipient_emails"`

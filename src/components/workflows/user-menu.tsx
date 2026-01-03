@@ -34,8 +34,8 @@ function getUserName(user: { user_metadata?: { name?: string; full_name?: string
 }
 
 // Helper to get user avatar from Supabase user metadata
-function getUserAvatar(user: { user_metadata?: { avatar_url?: string; picture?: string } } | null | undefined): string {
-  return user?.user_metadata?.avatar_url || user?.user_metadata?.picture || "";
+function getUserAvatar(user: { image?: string | null; [key: string]: any } | null | undefined): string {
+  return user?.image || (user as any)?.avatarUrl || (user as any)?.user_metadata?.avatar_url || (user as any)?.user_metadata?.picture || "";
 }
 
 export const UserMenu = () => {

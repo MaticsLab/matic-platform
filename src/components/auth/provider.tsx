@@ -42,7 +42,7 @@ export function useAuthContext(): AuthContextValue {
       user: null,
       isPending: true,
       signOut: async () => {
-        await supabase.auth.signOut();
+        await betterAuthSignOut();
       },
       isEmbedded: false,
       hasMounted: true,

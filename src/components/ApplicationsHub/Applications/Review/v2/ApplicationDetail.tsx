@@ -433,6 +433,10 @@ export function ApplicationDetail({
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
   const [expandedRecommendations, setExpandedRecommendations] = useState<Set<string>>(new Set());
+  
+  // Email composer state
+  const [showQuickReminder, setShowQuickReminder] = useState(false);
+  const [showFullComposer, setShowFullComposer] = useState(false);
 
   // Gmail connection - use shared hook
   const { 

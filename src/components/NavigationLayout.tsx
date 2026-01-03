@@ -119,7 +119,7 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
     email: hybridUser.email,
     user_metadata: {
       full_name: hybridUser.name,
-      avatar_url: hybridUser.image || hybridUser.avatarUrl
+      avatar_url: hybridUser.image || (hybridUser as any).avatarUrl
     }
   } : null
 

@@ -168,8 +168,7 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
         color
       })
     }
-    loadUser()
-  }, [])
+  }, [sessionData])
 
   // Column resizing logic
   useEffect(() => {

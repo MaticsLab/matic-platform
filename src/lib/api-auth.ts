@@ -50,10 +50,8 @@ export async function requireAuth(
   try {
     let headersList: Headers
 
-    if (request instanceof Request) {
-      headersList = request.headers
-    } else if (request instanceof NextRequest) {
-      headersList = request.headers
+    if (request && typeof request === 'object' && 'headers' in request) {
+      headersList = (request as { headers: Headers }).headers
     } else {
       // Server-side without request object (e.g., Server Actions)
       // Dynamic import to avoid bundling next/headers in client code
@@ -85,10 +83,10 @@ export async function requireAuth(
         },
         session: {
           id: session.session.id,
-          token: session.token,
+          token: (session.session as any).token || session.session.id, // Token might be in session object or use session ID
           expiresAt: session.session.expiresAt,
         },
-        organizationId: session.organizationId,
+        organizationId: (session.session as any).activeOrganizationId || (session as any).organizationId,
       },
     }
   } catch (error) {

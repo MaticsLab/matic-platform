@@ -112,9 +112,9 @@ export async function getAuthSession(): Promise<AuthSession | null> {
       return {
         id: session.data.session.id,
         userId: session.data.user.id,
-        token: session.data.session.token,
+        token: (session.data.session as any).token || session.data.session.id,
         expiresAt: session.data.session.expiresAt,
-        organizationId: session.data.organizationId,
+        organizationId: (session.data.session as any).activeOrganizationId || (session.data as any).organizationId,
       }
     }
     return null
@@ -130,9 +130,9 @@ export async function getAuthSession(): Promise<AuthSession | null> {
         return {
           id: session.session.id,
           userId: session.user.id,
-          token: session.token,
+          token: (session.session as any).token || session.session.id, // Token might be in session object or use session ID
           expiresAt: session.session.expiresAt,
-          organizationId: session.organizationId,
+          organizationId: (session.session as any).activeOrganizationId || (session as any).organizationId,
         }
       }
     } catch (error) {
@@ -176,9 +176,9 @@ export async function updateUser(updates: {
   if (typeof window !== 'undefined') {
     const result = await authClient.updateUser({
       name: updates.name || updates.fullName,
-      email: updates.email,
+      ...(updates.email ? { email: updates.email } : {}), // Email updates require separate flow
       image: updates.image || updates.avatarUrl,
-    })
+    } as any)
     return { data: result.data, error: result.error }
   } else {
     throw new Error('updateUser() must be called client-side')
