@@ -30,9 +30,11 @@ import { slashCommand, suggestionItems } from '@/components/novel-editor/slash-c
 import { uploadFn } from '@/components/novel-editor/image-upload'
 import GenerativeMenuSwitch from '@/components/novel-editor/generative/generative-menu-switch'
 import { MathSelector } from '@/components/novel-editor/selectors/math-selector'
+import { EmailSignature } from './email-signature-extension'
+import type { EmailSignature as EmailSignatureType } from '@/lib/api/email-client'
 
 // @ts-ignore - type compatibility
-const extensions = [...defaultExtensions, slashCommand] as any
+const baseExtensions = [...defaultExtensions, slashCommand] as any
 
 interface EmailNovelEditorProps {
   value: string // HTML string
@@ -41,6 +43,7 @@ interface EmailNovelEditorProps {
   className?: string
   minHeight?: string
   editorRef?: React.MutableRefObject<EditorInstance | null> // Expose editor instance for external HTML insertion
+  availableSignatures?: EmailSignatureType[] // Available signatures for changing
 }
 
 export function EmailNovelEditor({
@@ -50,11 +53,25 @@ export function EmailNovelEditor({
   className = '',
   minHeight = '300px',
   editorRef: externalEditorRef,
+  availableSignatures = [],
 }: EmailNovelEditorProps) {
   const internalEditorRef = useRef<EditorInstance | null>(null)
   const editorRef = externalEditorRef || internalEditorRef
   const isInitializedRef = useRef(false)
   const isInternalUpdateRef = useRef(false)
+
+  // Create extensions with EmailSignature extension
+  const extensions = [
+    ...baseExtensions,
+    EmailSignature.configure({
+      availableSignatures: availableSignatures.map(sig => ({
+        id: sig.id,
+        name: sig.name,
+        content: sig.is_html ? (sig.content_html || sig.content) : sig.content,
+        is_html: sig.is_html,
+      })),
+    }),
+  ] as any
 
   // Handle editor updates - convert to HTML
   const debouncedUpdates = useDebouncedCallback(async (editor: EditorInstance) => {

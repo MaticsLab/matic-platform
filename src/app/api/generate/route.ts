@@ -35,13 +35,16 @@ export async function POST(req: Request): Promise<Response> {
       {
         role: "system" as const,
         content:
-          "You are an AI writing assistant that improves existing text. " +
-          "Output ONLY the improved text, nothing else. Do not include any explanations, prefacing, or phrases like 'Here is'. " +
-          "Do not wrap the output in quotes or any markup.",
+          "You are an AI writing assistant that improves existing text while preserving the original meaning and tone. " +
+          "Improve the text by: enhancing clarity and readability, fixing awkward phrasing, improving word choice, " +
+          "ensuring proper grammar and flow, and making it more professional and polished. " +
+          "Do NOT change the core message, facts, or intent. Keep the same length unless the original is unnecessarily wordy. " +
+          "Output ONLY the improved text, nothing else. Do not include any explanations, prefacing, or phrases like 'Here is' or 'Here's the improved version'. " +
+          "Do not wrap the output in quotes or any markup. Return the text exactly as it should appear.",
       },
       {
         role: "user" as const,
-        content: cleanPrompt,
+        content: `Improve the following text:\n\n${cleanPrompt}`,
       },
     ])
     .with("shorter", () => [
@@ -105,7 +108,7 @@ export async function POST(req: Request): Promise<Response> {
       model: "gpt-4o-mini",
       messages: messages,
       max_tokens: 4096,
-      temperature: 0.7,
+      temperature: option === "improve" || option === "fix" ? 0.3 : 0.7, // Lower temperature for improvement/fixing tasks
       stream: true,
     }),
   });

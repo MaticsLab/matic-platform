@@ -6,7 +6,7 @@ import {
   X, Mail, Trash2, ChevronRight, ChevronDown, ChevronLeft,
   User, FileText, Star, MessageSquare,
   CheckCircle2, ArrowRight, AlertCircle, Users, Send,
-  Paperclip, Sparkles, AtSign, Plus, Tag, Loader2, FileEdit, Settings,
+  Paperclip, Sparkles, AtSign, Tag, Loader2, FileEdit, Settings,
   Play, Archive, XCircle, Clock, Folder, ChevronUp, Download, ExternalLink,
   Image, File, FileImage, Bell, Upload, Eye, Search, Link, Smile, PenTool, MoreVertical, Maximize2, Square, PanelRight, UserPlus, Clock3, FileSignature
 } from 'lucide-react';
@@ -494,25 +494,41 @@ export function ApplicationDetail({
   };
 
   const handleInsertSignature = (signature: EmailSignature) => {
-    const signatureContent = signature.is_html 
-      ? (signature.content_html || signature.content)
-      : signature.content;
-    
     if (emailEditorRef.current) {
-      // Use Novel editor to insert HTML
       const editor = emailEditorRef.current;
       
-      // Add a horizontal line separator before signature if body is not empty
-      const currentHTML = editor.getHTML();
-      const separator = currentHTML.trim() 
-        ? '<hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;" />' 
-        : '';
-      
-      // Insert separator and signature HTML
-      if (separator) {
-        editor.commands.insertContent(separator);
+      // Check if there's already a signature in the document
+      let hasExistingSignature = false;
+      editor.state.doc.descendants((node) => {
+        if (node.type.name === 'emailSignature') {
+          hasExistingSignature = true;
+          return false;
+        }
+      });
+
+      if (hasExistingSignature) {
+        toast.error('A signature already exists. Please remove it first or change it using the menu.');
+        setShowSignatureDropdown(false);
+        return;
       }
-      editor.commands.insertContent(signatureContent);
+
+      // Insert a paragraph break before signature if there's content
+      const { from } = editor.state.selection;
+      const currentContent = editor.getHTML();
+      
+      if (currentContent.trim()) {
+        // Insert a paragraph break (empty line) before the signature
+        editor.commands.insertContent('<p><br></p>');
+      }
+
+      // Insert signature using the custom extension
+      (editor.commands as any).insertSignature({
+        id: signature.id,
+        name: signature.name,
+        content: signature.is_html ? (signature.content_html || signature.content) : signature.content,
+        is_html: signature.is_html,
+        content_html: signature.content_html,
+      });
       
       setShowSignatureDropdown(false);
       toast.success('Signature added');
@@ -1744,15 +1760,13 @@ export function ApplicationDetail({
                       minHeight="200px"
                       className="flex-1"
                       editorRef={emailEditorRef}
+                      availableSignatures={signatures}
                     />
                   </div>
 
                   {/* Bottom Toolbar */}
                   <div className="flex items-center justify-between pt-2 border-t">
                     <div className="flex items-center gap-1">
-                      <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                        <Plus className="w-4 h-4" />
-                      </button>
                       <button className="px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded transition-colors flex items-center gap-1">
                         Email
                         <ChevronDown className="w-3.5 h-3.5" />
@@ -1765,12 +1779,6 @@ export function ApplicationDetail({
                       </button>
                       <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                         <Paperclip className="w-4 h-4" />
-                      </button>
-                      <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                        <Paperclip className="w-4 h-4" />
-                      </button>
-                      <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                        <AtSign className="w-4 h-4" />
                       </button>
                       <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                         <Smile className="w-4 h-4" />
@@ -2189,15 +2197,13 @@ export function ApplicationDetail({
                   minHeight="200px"
                   className="flex-1"
                   editorRef={emailEditorRef}
+                  availableSignatures={signatures}
                 />
               </div>
 
               {/* Bottom Toolbar */}
               <div className="flex items-center justify-between pt-2 border-t">
                 <div className="flex items-center gap-1">
-                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                    <Plus className="w-4 h-4" />
-                  </button>
                   <button className="px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded transition-colors flex items-center gap-1">
                     Email
                     <ChevronDown className="w-3.5 h-3.5" />
@@ -2210,12 +2216,6 @@ export function ApplicationDetail({
                   </button>
                   <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                     <Paperclip className="w-4 h-4" />
-                  </button>
-                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                    <Paperclip className="w-4 h-4" />
-                  </button>
-                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                    <AtSign className="w-4 h-4" />
                   </button>
                   <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                     <Smile className="w-4 h-4" />

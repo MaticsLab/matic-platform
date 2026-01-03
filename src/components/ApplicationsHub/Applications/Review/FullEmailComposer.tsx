@@ -248,25 +248,40 @@ export function FullEmailComposer({
   };
 
   const handleInsertSignature = (signature: EmailSignature) => {
-    const signatureContent = signature.is_html 
-      ? (signature.content_html || signature.content)
-      : signature.content;
-    
     if (emailEditorRef.current) {
-      // Use Novel editor to insert HTML
       const editor = emailEditorRef.current;
       
-      // Add a horizontal line separator before signature if body is not empty
-      const currentHTML = editor.getHTML();
-      const separator = currentHTML.trim() 
-        ? '<hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;" />' 
-        : '';
-      
-      // Insert separator and signature HTML
-      if (separator) {
-        editor.commands.insertContent(separator);
+      // Check if there's already a signature in the document
+      let hasExistingSignature = false;
+      editor.state.doc.descendants((node) => {
+        if (node.type.name === 'emailSignature') {
+          hasExistingSignature = true;
+          return false;
+        }
+      });
+
+      if (hasExistingSignature) {
+        toast.error('A signature already exists. Please remove it first or change it using the menu.');
+        setShowSignatureDropdown(false);
+        return;
       }
-      editor.commands.insertContent(signatureContent);
+
+      // Insert a paragraph break before signature if there's content
+      const currentContent = editor.getHTML();
+      
+      if (currentContent.trim()) {
+        // Insert a paragraph break (empty line) before the signature
+        editor.commands.insertContent('<p><br></p>');
+      }
+
+      // Insert signature using the custom extension
+      (editor.commands as any).insertSignature({
+        id: signature.id,
+        name: signature.name,
+        content: signature.is_html ? (signature.content_html || signature.content) : signature.content,
+        is_html: signature.is_html,
+        content_html: signature.content_html,
+      });
       
       setShowSignatureDropdown(false);
       toast.success('Signature added');
@@ -482,6 +497,7 @@ export function FullEmailComposer({
                   minHeight="300px"
                   className="flex-1"
                   editorRef={emailEditorRef}
+                  availableSignatures={signatures}
                 />
               </div>
             )}
