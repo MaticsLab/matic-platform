@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
@@ -12,8 +13,11 @@ import (
 
 // EmailQueueWorker processes queued emails
 type EmailQueueWorker struct {
-	router *EmailRouter
-	stop   chan bool
+	router          *EmailRouter
+	stop            chan bool
+	tableChecked    bool
+	tableExists     bool
+	tableCheckMutex sync.Mutex
 }
 
 // NewEmailQueueWorker creates a new email queue worker
@@ -53,6 +57,23 @@ func (w *EmailQueueWorker) run(ctx context.Context) {
 
 // processQueue processes pending emails in the queue
 func (w *EmailQueueWorker) processQueue(ctx context.Context) {
+	// Check if table exists (only check once, then cache result)
+	w.tableCheckMutex.Lock()
+	if !w.tableChecked {
+		w.tableExists = database.DB.Migrator().HasTable(&models.EmailQueueItem{})
+		w.tableChecked = true
+		if !w.tableExists {
+			fmt.Printf("[EmailQueueWorker] email_queue table does not exist. Please run the migration or restart the server.\n")
+		}
+	}
+	tableExists := w.tableExists
+	w.tableCheckMutex.Unlock()
+
+	if !tableExists {
+		// Table doesn't exist, return silently to prevent spam
+		return
+	}
+
 	// Get pending emails that are scheduled for now or earlier
 	now := time.Now()
 	var queueItems []models.EmailQueueItem
@@ -63,6 +84,13 @@ func (w *EmailQueueWorker) processQueue(ctx context.Context) {
 		Find(&queueItems).Error
 
 	if err != nil {
+		// Check if it's a "table doesn't exist" error and update our cache
+		if err.Error() == `ERROR: relation "email_queue" does not exist (SQLSTATE 42P01)` {
+			w.tableCheckMutex.Lock()
+			w.tableExists = false
+			w.tableCheckMutex.Unlock()
+			return
+		}
 		fmt.Printf("[EmailQueueWorker] Error fetching queue items: %v\n", err)
 		return
 	}

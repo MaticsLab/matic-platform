@@ -43,6 +43,25 @@ const nextConfig = {
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+        stream: false,
+        url: false,
+        zlib: false,
+        http: false,
+        https: false,
+        assert: false,
+        os: false,
+        path: false,
+      }
+      
+      // Exclude pg and other Node.js-only packages from client bundle
+      config.externals = config.externals || []
+      if (Array.isArray(config.externals)) {
+        config.externals.push('pg', 'pg-native')
+      } else {
+        config.externals = [config.externals, 'pg', 'pg-native']
       }
     }
 
