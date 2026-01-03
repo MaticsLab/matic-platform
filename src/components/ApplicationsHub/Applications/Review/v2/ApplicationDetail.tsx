@@ -407,6 +407,7 @@ export function ApplicationDetail({
   onActivityCreated
 }: ApplicationDetailProps) {
   const [showActivityPanel, setShowActivityPanel] = useState(false); // Toggle between details and activity
+  const [isActivityPanelCollapsed, setIsActivityPanelCollapsed] = useState(false); // For modal/fullscreen collapse
   const [viewMode, setViewMode] = useState<'modal' | 'fullscreen' | 'sidebar'>('sidebar');
   const [selectedStage, setSelectedStage] = useState(application.stageId || application.status);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -953,74 +954,13 @@ export function ApplicationDetail({
       )}>
         {/* Application Details Panel */}
         {!showActivityPanel && (
-          <div className="flex-1 overflow-y-auto relative">
-            {/* Action Buttons - Top Right */}
-            <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
-              <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
-                <Search className="w-4 h-4 text-gray-500" />
-              </button>
-              <button className="p-1.5 hover:bg-gray-100 rounded transition-colors relative">
-                <Bell className="w-4 h-4 text-gray-500" />
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">1</span>
-              </button>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
-                    <Maximize2 className="w-4 h-4 text-gray-500" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-48 p-2" align="end">
-                  <div className="space-y-1">
-                    <button
-                      onClick={() => setViewMode('modal')}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
-                        viewMode === 'modal' && "bg-purple-50 text-purple-700"
-                      )}
-                    >
-                      <div className="w-8 h-6 border border-gray-300 rounded flex items-center justify-center bg-white">
-                        <div className="w-4 h-3 border border-gray-200 rounded"></div>
-                      </div>
-                      <span className={cn("text-sm", viewMode === 'modal' && "text-purple-700 font-medium")}>Modal</span>
-                    </button>
-                    <button
-                      onClick={() => setViewMode('fullscreen')}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
-                        viewMode === 'fullscreen' && "bg-purple-50 text-purple-700"
-                      )}
-                    >
-                      <div className="w-8 h-6 border-2 border-gray-400 rounded bg-gray-50"></div>
-                      <span className={cn("text-sm", viewMode === 'fullscreen' && "text-purple-700 font-medium")}>Full screen</span>
-                    </button>
-                    <button
-                      onClick={() => setViewMode('sidebar')}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
-                        viewMode === 'sidebar' && "bg-purple-50 text-purple-700"
-                      )}
-                    >
-                      <div className="w-8 h-6 border border-gray-300 rounded flex gap-0.5 p-0.5">
-                        <div className="flex-1 bg-gray-100 rounded"></div>
-                        <div className="w-2 bg-gray-200 rounded"></div>
-                      </div>
-                      <span className={cn("text-sm", viewMode === 'sidebar' && "text-purple-700 font-medium")}>Sidebar</span>
-                    </button>
-                  </div>
-                </PopoverContent>
-              </Popover>
-              <button 
-                onClick={() => setShowActivityPanel(true)}
-                className={cn(
-                  "p-1.5 hover:bg-gray-100 rounded transition-colors",
-                  showActivityPanel && "bg-blue-50"
-                )}
-              >
-                <MessageSquare className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
-
-            <div className="p-6">
+          <div className={cn(
+            "flex overflow-hidden transition-all duration-300",
+            (viewMode === 'modal' || viewMode === 'fullscreen') && isActivityPanelCollapsed ? "flex-1 w-full" : "flex-1"
+          )}>
+            {/* Main Content */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-6">
               {/* Name */}
               <h1 className="text-2xl font-bold text-gray-900 mb-4">
                 {application.name || 'Unknown'}
@@ -1132,7 +1072,360 @@ export function ApplicationDetail({
                 </div>
               </button>
             </div>
+              </div>
+            </div>
+
+            {/* Action Buttons - Right Side Vertical (only in sidebar mode) */}
+            {viewMode === 'sidebar' && (
+              <div className="flex flex-col items-center gap-2 p-2 border-l border-gray-200 bg-gray-50">
+                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+                  <Search className="w-4 h-4 text-gray-500" />
+                </button>
+                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors relative">
+                  <Bell className="w-4 h-4 text-gray-500" />
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">1</span>
+                </button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+                      <Maximize2 className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 p-2" align="end">
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => setViewMode('modal')}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
+                          (viewMode as 'modal' | 'fullscreen' | 'sidebar') === 'modal' && "bg-purple-50 text-purple-700"
+                        )}
+                      >
+                        <div className="w-8 h-6 border border-gray-300 rounded flex items-center justify-center bg-white">
+                          <div className="w-4 h-3 border border-gray-200 rounded"></div>
+                        </div>
+                        <span className={cn("text-sm", (viewMode as 'modal' | 'fullscreen' | 'sidebar') === 'modal' && "text-purple-700 font-medium")}>Modal</span>
+                      </button>
+                      <button
+                        onClick={() => setViewMode('fullscreen')}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
+                          (viewMode as 'modal' | 'fullscreen' | 'sidebar') === 'fullscreen' && "bg-purple-50 text-purple-700"
+                        )}
+                      >
+                        <div className="w-8 h-6 border-2 border-gray-400 rounded bg-gray-50"></div>
+                        <span className={cn("text-sm", (viewMode as 'modal' | 'fullscreen' | 'sidebar') === 'fullscreen' && "text-purple-700 font-medium")}>Full screen</span>
+                      </button>
+                      <button
+                        onClick={() => setViewMode('sidebar')}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
+                          (viewMode as 'modal' | 'fullscreen' | 'sidebar') === 'sidebar' && "bg-purple-50 text-purple-700"
+                        )}
+                      >
+                        <div className="w-8 h-6 border border-gray-300 rounded flex gap-0.5 p-0.5">
+                          <div className="flex-1 bg-gray-100 rounded"></div>
+                          <div className="w-2 bg-gray-200 rounded"></div>
+                        </div>
+                        <span className={cn("text-sm", (viewMode as 'modal' | 'fullscreen' | 'sidebar') === 'sidebar' && "text-purple-700 font-medium")}>Sidebar</span>
+                      </button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <button 
+                  onClick={() => setShowActivityPanel(true)}
+                  className={cn(
+                    "p-1.5 hover:bg-gray-100 rounded transition-colors",
+                    showActivityPanel && "bg-blue-50"
+                  )}
+                >
+                  <MessageSquare className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
+            )}
           </div>
+        )}
+
+        {/* Activity Panel - Show in modal/fullscreen when not collapsed */}
+        {(viewMode === 'modal' || viewMode === 'fullscreen') && !showActivityPanel && !isActivityPanelCollapsed && (
+          <>
+            {/* Collapse Button */}
+            <div className="flex items-center justify-center w-6 border-l border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setIsActivityPanelCollapsed(true)}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                title="Collapse activity panel"
+              >
+                <ChevronRight className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Activity Panel */}
+            <div className="w-80 flex flex-col overflow-hidden border-l border-gray-200">
+              {/* Activity Header */}
+              <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
+                <h2 className="text-sm font-semibold text-gray-900">Activity</h2>
+                <div className="flex items-center gap-1">
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+                    <Search className="w-4 h-4 text-gray-500" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors relative">
+                    <Bell className="w-4 h-4 text-gray-500" />
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">1</span>
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+                    <Settings className="w-4 h-4 text-gray-500" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Activity Feed */}
+              <div className="flex-1 overflow-y-auto p-4">
+                <div className="space-y-4">
+                  {activities.map((activity) => (
+                    <div key={activity.id} className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                        <User className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium text-gray-900">{activity.user}</span>
+                          <span className="text-xs text-gray-500">{activity.time}</span>
+                        </div>
+                        <p className="text-sm text-gray-700 mb-2">{activity.message}</p>
+                        <div className="flex items-center gap-2">
+                          <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+                            <CheckCircle2 className="w-4 h-4 text-gray-400" />
+                          </button>
+                          <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+                            <MessageSquare className="w-4 h-4 text-gray-400" />
+                          </button>
+                          <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+                            <ArrowRight className="w-4 h-4 text-gray-400" />
+                          </button>
+                          <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+                            <Mail className="w-4 h-4 text-gray-400" />
+                          </button>
+                          <button className="p-1 hover:bg-gray-100 rounded transition-colors ml-auto">
+                            <MoreVertical className="w-4 h-4 text-gray-400" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Email Composer - Fixed at Bottom */}
+              <div className="border-t bg-white flex-shrink-0 p-2">
+                <div className="space-y-3">
+                  {/* From field */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 w-12">From</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className="flex-1 flex items-center gap-2 text-sm text-gray-900 hover:bg-gray-50 rounded px-2 py-1 transition-colors">
+                          {(() => {
+                            const email = selectedFromEmail || gmailConnection?.email;
+                            if (!email) return <span>Select sender...</span>;
+                            const account = emailAccounts.find(a => a.email === email);
+                            const name = account?.display_name || email.split('@')[0];
+                            return (
+                              <>
+                                <span>{name}</span>
+                                <span className="text-gray-500">&lt;{email}&gt;</span>
+                              </>
+                            );
+                          })()}
+                          <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-auto" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-0 bg-white border border-gray-200 shadow-lg" align="start">
+                        <div className="max-h-48 overflow-y-auto">
+                          {emailAccounts.map((account) => (
+                            <button
+                              key={account.email}
+                              onClick={() => setSelectedFromEmail(account.email)}
+                              className={cn(
+                                "w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center gap-2",
+                                selectedFromEmail === account.email && "bg-blue-50"
+                              )}
+                            >
+                              <Mail className="w-4 h-4 text-gray-400" />
+                              <span className="truncate">{account.email}</span>
+                            </button>
+                          ))}
+                          {emailAccounts.length === 0 && (
+                            <div className="px-3 py-2 text-sm text-gray-500">
+                              No email accounts connected
+                            </div>
+                          )}
+                          <div className="border-t">
+                            <button
+                              onClick={() => setShowEmailSettings(true)}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-600"
+                            >
+                              <Settings className="w-4 h-4" />
+                              Configure Email Settings
+                            </button>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  {/* To field */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 w-12">To</span>
+                    <input
+                      type="text"
+                      value={emailTo}
+                      onChange={(e) => setEmailTo(e.target.value)}
+                      placeholder={application.email}
+                      className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <button
+                      onClick={() => setShowCcBcc(!showCcBcc)}
+                      className="text-xs text-gray-500 hover:text-gray-700 px-2"
+                    >
+                      Cc Bcc
+                    </button>
+                  </div>
+
+                  {/* Suggested Emails */}
+                  {application.email && (
+                    <div className="ml-14">
+                      <p className="text-xs text-gray-500 mb-1">SUGGESTED EMAILS:</p>
+                      <button
+                        onClick={() => setEmailTo(application.email || '')}
+                        className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                      >
+                        {application.email}
+                      </button>
+                    </div>
+                  )}
+                  
+                  {showCcBcc && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600 w-12">Cc</span>
+                        <input
+                          type="text"
+                          value={emailCc}
+                          onChange={(e) => setEmailCc(e.target.value)}
+                          className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600 w-12">Bcc</span>
+                        <input
+                          type="text"
+                          value={emailBcc}
+                          onChange={(e) => setEmailBcc(e.target.value)}
+                          className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* Subject field */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 w-12">Subject</span>
+                    <input
+                      type="text"
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                      placeholder="Email subject..."
+                      className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  {/* Add Signature Button */}
+                  <div className="ml-14">
+                    <button className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1 hover:bg-gray-50 rounded transition-colors">
+                      Add signature
+                    </button>
+                  </div>
+
+                  {/* Email Body */}
+                  <div className="ml-14 relative">
+                    <div className="absolute left-2 top-2">
+                      <Plus className="w-4 h-4 text-gray-400" />
+                    </div>
+                    <textarea
+                      value={emailBody}
+                      onChange={(e) => setEmailBody(e.target.value)}
+                      placeholder="Write your message..."
+                      rows={6}
+                      className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    />
+                  </div>
+
+                  {/* Bottom Toolbar */}
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <div className="flex items-center gap-1">
+                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                        <Plus className="w-4 h-4" />
+                      </button>
+                      <button className="px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded transition-colors flex items-center gap-1">
+                        Email
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-purple-600">
+                        <Sparkles className="w-4 h-4" />
+                      </button>
+                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                        <AtSign className="w-4 h-4" />
+                      </button>
+                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                        <Link className="w-4 h-4" />
+                      </button>
+                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                        <Paperclip className="w-4 h-4" />
+                      </button>
+                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                        <AtSign className="w-4 h-4" />
+                      </button>
+                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                        <Smile className="w-4 h-4" />
+                      </button>
+                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                        <PenTool className="w-4 h-4" />
+                      </button>
+                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                        <Settings className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <button
+                      onClick={handleSendEmail}
+                      disabled={isSending}
+                      className={cn(
+                        "p-1.5 rounded transition-colors",
+                        isSending ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-100 text-blue-600"
+                      )}
+                    >
+                      {isSending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Expand Button - Show when activity panel is collapsed in modal/fullscreen */}
+        {(viewMode === 'modal' || viewMode === 'fullscreen') && !showActivityPanel && isActivityPanelCollapsed && (
+          <div className="flex items-center justify-center w-6 border-l border-gray-200 bg-gray-50">
+            <button
+              onClick={() => setIsActivityPanelCollapsed(false)}
+              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              title="Expand activity panel"
+            >
+              <ChevronLeft className="w-4 h-4 text-gray-500" />
+            </button>
           </div>
         )}
 
