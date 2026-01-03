@@ -1698,7 +1698,7 @@ export function ApplicationDetail({
         )}
 
       {/* Action Buttons - Fixed at bottom for overview tab only */}
-        {activeTab === 'overview' && (
+      {activeTab === 'overview' && (
         <div className="p-4 border-t bg-white flex-shrink-0">
           <div className="flex items-center gap-3">
             {/* Dynamic Action Button with Dropdown */}
@@ -1899,8 +1899,7 @@ export function ApplicationDetail({
             </div>
           </div>
         </div>
-        )}
-      </div>
+      )}
 
       {/* Click outside to close dropdown */}
       {showActionsDropdown && (
