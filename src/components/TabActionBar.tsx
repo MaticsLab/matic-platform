@@ -195,40 +195,11 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
 
   return (
     <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
-      {/* Left side - Navigation arrows + Title */}
+      {/* Left side - Title */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1">
-          <button
-            onClick={handleBack}
-            disabled={!canGoBack}
-            className={cn(
-              "p-1.5 rounded transition-colors",
-              canGoBack 
-                ? "text-gray-600 hover:text-gray-900 hover:bg-gray-100" 
-                : "text-gray-300 cursor-not-allowed"
-            )}
-            title="Go back"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleForward}
-            disabled={!canGoForward}
-            className={cn(
-              "p-1.5 rounded transition-colors",
-              canGoForward 
-                ? "text-gray-600 hover:text-gray-900 hover:bg-gray-100" 
-                : "text-gray-300 cursor-not-allowed"
-            )}
-            title="Go forward"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-        
-        {/* Title info after arrows */}
+        {/* Title info */}
         {tabHeaderContent && (
-          <div className="pl-2 border-l border-gray-200 flex items-center gap-2 max-w-[200px]">
+          <div className="flex items-center gap-2 max-w-[200px]">
             <span className="text-sm font-semibold text-gray-900 truncate">{tabHeaderContent.title}</span>
           </div>
         )}
