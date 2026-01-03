@@ -7,7 +7,6 @@
 
 import { auth } from '@/lib/better-auth'
 import { NextRequest, NextResponse } from 'next/server'
-import { headers } from 'next/headers'
 
 export type AuthContext = {
   user: {
@@ -57,6 +56,8 @@ export async function requireAuth(
       headersList = request.headers
     } else {
       // Server-side without request object (e.g., Server Actions)
+      // Dynamic import to avoid bundling next/headers in client code
+      const { headers } = await import('next/headers')
       headersList = await headers()
     }
 
