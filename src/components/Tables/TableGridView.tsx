@@ -12,6 +12,8 @@ import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/better-auth-client'
 import type { TableRow } from '@/types/data-tables'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow as TableRowComponent } from '@/ui-components/table'
+import { FileCell } from './cells/FileCell'
+import { SelectCell } from './cells/SelectCell'
 import { Badge } from '@/ui-components/badge'
 import { Input } from '@/ui-components/input'
 import { Button } from '@/ui-components/button'
@@ -26,6 +28,7 @@ interface Column {
   name: string
   label: string
   column_type: string
+  field_type_id?: string
   width: number
   is_visible: boolean
   position: number
@@ -1238,6 +1241,58 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
     const isEditing = editingCell?.rowId === row.id && editingCell?.columnId === column.id
     const isSelected = selectedCell?.rowId === row.id && selectedCell?.columnId === column.id
 
+    // File/Image upload column types - use FileCell component
+    if (column.column_type === 'file_upload' || column.column_type === 'image_upload' || 
+        column.column_type === 'file' || column.column_type === 'image' ||
+        column.field_type_id === 'file_upload' || column.field_type_id === 'image_upload') {
+      return (
+        <FileCell
+          value={value}
+          isSelected={isSelected}
+          isEditing={isEditing}
+          onClick={() => setSelectedCell({ rowId: row.id, columnId: column.id })}
+          onDoubleClick={() => {
+            if (!otherUserEditing) {
+              setEditingCell({ rowId: row.id, columnId: column.id })
+            }
+          }}
+        />
+      )
+    }
+
+    // Select column type - use SelectCell component
+    if (column.column_type === 'select' || column.field_type_id === 'select') {
+      const options = column.settings?.options || []
+      return (
+        <SelectCell
+          value={value as string | null}
+          options={options}
+          isMulti={false}
+          isSelected={isSelected}
+          isEditing={isEditing}
+          onChange={(newValue) => {
+            const key = getCellKey(row.data, column)
+            const updatedRows = rows.map(r => 
+              r.id === row.id 
+                ? { ...r, data: { ...r.data, [key]: newValue } }
+                : r
+            )
+            setRows(updatedRows)
+          }}
+          onSave={async (newValue) => {
+            await handleCellEdit(row.id, column.name, newValue)
+            setEditingCell(null)
+          }}
+          onClick={() => {
+            setSelectedCell({ rowId: row.id, columnId: column.id })
+            if (!isEditing) {
+              setEditingCell({ rowId: row.id, columnId: column.id })
+            }
+          }}
+        />
+      )
+    }
+
     // Link column type - use real-time link field component
     if (column.column_type === 'link') {
       const linkedRecordIds = Array.isArray(value) ? value : []
@@ -1293,8 +1348,41 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
       )
     }
 
-    // Multi-select column type
-    if (column.column_type === 'multiselect') {
+    // Multi-select column type - use SelectCell component
+    if (column.column_type === 'multiselect' || column.field_type_id === 'multiselect') {
+      const options = column.settings?.options || []
+      return (
+        <SelectCell
+          value={value as string[] | null}
+          options={options}
+          isMulti={true}
+          isSelected={isSelected}
+          isEditing={isEditing}
+          onChange={(newValue) => {
+            const key = getCellKey(row.data, column)
+            const updatedRows = rows.map(r => 
+              r.id === row.id 
+                ? { ...r, data: { ...r.data, [key]: newValue } }
+                : r
+            )
+            setRows(updatedRows)
+          }}
+          onSave={async (newValue) => {
+            await handleCellEdit(row.id, column.name, newValue)
+            setEditingCell(null)
+          }}
+          onClick={() => {
+            setSelectedCell({ rowId: row.id, columnId: column.id })
+            if (!isEditing) {
+              setEditingCell({ rowId: row.id, columnId: column.id })
+            }
+          }}
+        />
+      )
+    }
+
+    // Legacy multi-select column type (keep for backwards compatibility)
+    if (column.column_type === 'multiselect' && !column.field_type_id) {
       const selectedOptions = Array.isArray(value) ? value : []
       const options = column.settings?.options || []
       const filteredOptions = multiselectSearch 
