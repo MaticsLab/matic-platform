@@ -1548,12 +1548,13 @@ export function ApplicationDetail({
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
                   </div>
-                ) : storageFiles.length === 0 && documentCounts.uploaded === 0 ? (
+                ) : storageFiles.length === 0 && availableDocuments.length === 0 ? (
                   <div className="text-center py-8 text-sm text-gray-500">
                     No documents found
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    {/* Storage Files */}
                     {storageFiles.map((file) => {
                       const fileUrl = file.public_url || file.storage_path;
                       const fileName = file.filename || file.original_filename || file.storage_path?.split('/').pop() || 'Document';
@@ -1581,6 +1582,38 @@ export function ApplicationDetail({
                                 <Eye className="w-4 h-4 text-gray-500" />
                               </a>
                             )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Documents from raw_data */}
+                    {availableDocuments.map((doc, idx) => {
+                      // Don't duplicate if already in storage files
+                      const isDuplicate = storageFiles.some(sf => 
+                        (sf.public_url === doc.url) || (sf.storage_path === doc.url)
+                      );
+                      if (isDuplicate) return null;
+                      
+                      return (
+                        <div key={`doc-${idx}`} className="border border-gray-200 rounded-lg p-3 bg-white">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                              <FileText className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{doc.name}</p>
+                              <p className="text-xs text-gray-500">{doc.contentType}</p>
+                            </div>
+                            <a
+                              href={doc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 hover:bg-gray-100 rounded transition-colors"
+                              title="View file"
+                            >
+                              <Eye className="w-4 h-4 text-gray-500" />
+                            </a>
                           </div>
                         </div>
                       );
@@ -1692,12 +1725,13 @@ export function ApplicationDetail({
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
                 </div>
-              ) : storageFiles.length === 0 && documentCounts.uploaded === 0 ? (
+              ) : storageFiles.length === 0 && availableDocuments.length === 0 ? (
                 <div className="text-center py-8 text-sm text-gray-500">
                   No documents found
                 </div>
               ) : (
                 <div className="space-y-3">
+                  {/* Storage Files */}
                   {storageFiles.map((file) => {
                     const fileUrl = file.public_url || file.storage_path;
                     const fileName = file.filename || file.original_filename || file.storage_path?.split('/').pop() || 'Document';
@@ -1725,6 +1759,38 @@ export function ApplicationDetail({
                               <Eye className="w-4 h-4 text-gray-500" />
                             </a>
                           )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  {/* Documents from raw_data */}
+                  {availableDocuments.map((doc, idx) => {
+                    // Don't duplicate if already in storage files
+                    const isDuplicate = storageFiles.some(sf => 
+                      (sf.public_url === doc.url) || (sf.storage_path === doc.url)
+                    );
+                    if (isDuplicate) return null;
+                    
+                    return (
+                      <div key={`doc-${idx}`} className="border border-gray-200 rounded-lg p-3 bg-white">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <FileText className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{doc.name}</p>
+                            <p className="text-xs text-gray-500">{doc.contentType}</p>
+                          </div>
+                          <a
+                            href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 hover:bg-gray-100 rounded transition-colors"
+                            title="View file"
+                          >
+                            <Eye className="w-4 h-4 text-gray-500" />
+                          </a>
                         </div>
                       </div>
                     );
