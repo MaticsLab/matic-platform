@@ -346,8 +346,8 @@ export async function callAIProvider(
     const fallbacks: Array<{ provider: ModelProvider; model: string }> = [
       { provider: 'openai', model: 'gpt-4o' },
       { provider: 'openai', model: 'gpt-4o-mini' },
-      { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
-      { provider: 'anthropic', model: 'claude-3-5-sonnet' },
+      { provider: 'anthropic', model: 'claude-sonnet-4-5' },
+      { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
       { provider: 'google', model: 'gemini-1.5-pro' },
       { provider: 'cohere', model: 'command-r-plus' },
     ];
