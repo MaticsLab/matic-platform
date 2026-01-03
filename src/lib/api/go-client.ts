@@ -36,24 +36,21 @@ export async function goFetch<T>(
     url += `?${searchParams.toString()}`
   }
 
-  // Get auth token - try auth-helpers first (more reliable), fallback to supabase
+  // Get auth token from Better Auth only
+  // Better Auth stores tokens in HTTP-only cookies, so we try to get it from the session
+  // If not available, we rely on cookies being sent automatically with credentials: 'include'
   let token: string | null = null
   try {
     const { getSessionToken: getTokenFromHelpers } = await import('@/lib/auth-helpers')
     token = await getTokenFromHelpers()
   } catch (error) {
-    console.debug('Failed to get token from auth-helpers, trying supabase:', error)
+    console.debug('Failed to get token from auth-helpers:', error)
   }
   
-  // Fallback to supabase version if auth-helpers didn't work
-  if (!token) {
-    try {
-      const { getSessionToken } = await import('@/lib/supabase')
-      token = await getSessionToken()
-    } catch (error) {
-      console.debug('Failed to get token from supabase:', error)
-    }
-  }
+  // Don't fallback to Supabase - we're using Better Auth only
+  // If token is not available, rely on cookies being sent with credentials: 'include'
+  // Better Auth tokens are stored in HTTP-only cookies which JavaScript can't read,
+  // but they will be sent automatically with credentials: 'include'
   
   // Debug: log if token is missing for non-public endpoints
   // Public portal forms and field-types endpoint don't require auth tokens
@@ -64,31 +61,22 @@ export async function goFetch<T>(
     endpoint.includes('/ending-pages/match')
   
   if (!token && !isPublicEndpoint) {
-    console.warn('⚠️ No auth token available for request:', endpoint)
-    // Additional debugging: try to get session info
-    if (typeof window !== 'undefined') {
-      try {
-        const { authClient } = await import('@/lib/better-auth-client')
-        const session = await authClient.getSession()
-        console.warn('🔍 Session debug info:', {
-          hasSession: !!session?.data?.session,
-          hasUser: !!session?.data?.user,
-          sessionKeys: session?.data?.session ? Object.keys(session.data.session) : [],
-          fullSession: session?.data
-        })
-      } catch (error) {
-        console.debug('Failed to get session for debugging:', error)
-      }
-    }
+    // Don't warn - cookies will be sent automatically
+    // Better Auth stores tokens in HTTP-only cookies which we can't read,
+    // but they'll be included in the request via credentials: 'include'
   }
 
   // Make request
   // Include credentials to send cookies (Better Auth stores tokens in HTTP-only cookies)
+  // Only include Authorization header if we have a token (Better Auth JWT)
+  // Otherwise, rely on cookies for session token authentication
   const response = await fetch(url, {
     ...fetchOptions,
     credentials: 'include', // Include cookies for Better Auth session tokens
     headers: {
       'Content-Type': 'application/json',
+      // Only send Authorization header if we have a Better Auth token
+      // Otherwise, rely on cookies (Better Auth session tokens are in HTTP-only cookies)
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...fetchOptions.headers,
     },
