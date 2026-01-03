@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { ChevronDown, Settings, LogOut, Building2, Bell, User, UserPlus, Building } from 'lucide-react'
+import { Settings, LogOut, UserPlus } from 'lucide-react'
 import { clearLastWorkspace } from '@/lib/utils'
 import { useWorkspaceDiscovery } from '@/hooks/useWorkspaceDiscovery'
 import { useOrganizationDiscovery } from '@/hooks/useOrganizationDiscovery'
@@ -15,16 +15,8 @@ import { InviteToWorkspaceSidebar } from './InviteToWorkspaceSidebar'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { toast } from 'sonner'
 import type { Workspace } from '@/types/workspaces'
-import { SearchProvider, SearchBar, SearchPanel, useSearch } from './Search'
+import { SearchProvider, SearchPanel } from './Search'
 import { useTabContext } from './WorkspaceTabProvider'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/ui-components/dropdown-menu'
 
 interface NavigationLayoutProps {
   children: React.ReactNode
@@ -193,189 +185,26 @@ function NavigationLayoutInner({
   getWorkspaceColorStyle: (workspace: any) => React.CSSProperties
   getUserName: (email: string | undefined) => string
 }) {
-  const { tabManager } = useTabContext()
-  const { expandToPanel } = useSearch()
   // For profile sidebar
   const [showProfileSidebar, setShowProfileSidebar] = useState(false)
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      {/* Top Navigation Bar */}
-      <nav className="bg-white border-b border-gray-200">
-        <div className="flex items-center justify-between gap-4 px-4 md:px-6 h-16">
-          {/* Left: Organization & Workspace Selectors */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Organization Selector - Only show if user has multiple organizations */}
-            {organizations.length > 1 && currentOrganization && (
-              <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-gray-100 transition-colors">
-                  <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Building className="h-3.5 w-3.5 text-white" />
-                  </div>
-                  <div className="hidden lg:flex items-center gap-1">
-                    <span className="text-xs text-gray-700 font-medium">{currentOrganization.name}</span>
-                    <ChevronDown className="h-3 w-3 text-gray-500" />
-                  </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-64 bg-white">
-                  <DropdownMenuLabel>Switch Organization</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {organizations.map((org) => {
-                    const isCurrent = org.id === currentOrganization?.id
-                    return (
-                      <DropdownMenuItem 
-                        key={org.id}
-                        onClick={() => !isCurrent && switchToOrganization(org.id)}
-                        className={isCurrent ? 'bg-gray-50' : ''}
-                      >
-                        <div className="flex items-center gap-3 w-full">
-                          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <Building className="h-4 w-4 text-white" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm">{org.name}</div>
-                            <div className="text-xs text-gray-500">
-                              {isCurrent ? 'Current organization' : 'Switch to this organization'}
-                            </div>
-                          </div>
-                        </div>
-                      </DropdownMenuItem>
-                    )
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-
-            {/* Workspace Selector */}
-            {currentWorkspace && (
-              <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
-                  <div 
-                    className={`w-8 h-8 ${getWorkspaceColorClass(currentWorkspace)} rounded-lg flex items-center justify-center flex-shrink-0`}
-                    style={getWorkspaceColorStyle(currentWorkspace)}
-                  >
-                    <Building2 className="h-4 w-4 text-white" />
-                  </div>
-                  <div className="hidden md:flex items-center gap-2">
-                    <span className="text-sm text-gray-900">{currentWorkspace.name}</span>
-                    <ChevronDown className="h-4 w-4 text-gray-500" />
-                  </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-64 bg-white">
-                  <DropdownMenuLabel>Switch Workspace</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {workspaces.map((ws) => {
-                    const isCurrent = ws.id === currentWorkspace?.id
-                    const workspaceColor = (ws as any).color || '#7C3AED'
-                    const colorClass = workspaceColor.startsWith('#') ? '' : `bg-${workspaceColor}`
-                    const colorStyle = workspaceColor.startsWith('#') ? { backgroundColor: workspaceColor } : {}
-                    return (
-                      <DropdownMenuItem 
-                        key={ws.id}
-                        onClick={() => !isCurrent && handleWorkspaceSwitch(ws.slug)}
-                        className={isCurrent ? 'bg-gray-50' : ''}
-                      >
-                        <div className="flex items-center gap-3 w-full">
-                          <div 
-                            className={`w-8 h-8 ${colorClass} rounded-lg flex items-center justify-center flex-shrink-0`}
-                            style={colorStyle}
-                          >
-                            <Building2 className="h-4 w-4 text-white" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm">{ws.name}</div>
-                            <div className="text-xs text-gray-500">
-                              {isCurrent ? 'Current workspace' : 'Switch to this workspace'}
-                            </div>
-                          </div>
-                        </div>
-                      </DropdownMenuItem>
-                    )
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-
-          {/* Center: Global Search */}
-          <SearchBar
-            workspaceId={currentWorkspace?.id}
-            workspaceSlug={currentWorkspace?.slug}
-            tabManager={tabManager}
-            onExpandToPanel={expandToPanel}
-          />
-
-          {/* Right: Notifications & Account */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Notifications */}
-            <button className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
-              <Bell className="h-5 w-5 text-gray-600" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
-
-            {/* Account Dropdown */}
-            {user && (
-              <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
-                  <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
-                    {user.user_metadata?.avatar_url ? (
-                      <img src={user.user_metadata.avatar_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <User className="h-4 w-4 text-white" />
-                    )}
-                  </div>
-                  <div className="hidden md:block text-left">
-                    <div className="text-sm text-gray-900">{user.user_metadata?.full_name || getUserName(user.email)}</div>
-                    <div className="text-xs text-gray-500">{user.user_metadata?.role || 'Member'}</div>
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-gray-500 hidden md:block" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 bg-white">
-                  <DropdownMenuLabel>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
-                        {user.user_metadata?.avatar_url ? (
-                          <img src={user.user_metadata.avatar_url} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <User className="h-5 w-5 text-white" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm">{user.user_metadata?.full_name || getUserName(user.email)}</div>
-                        <div className="text-xs text-gray-500 font-normal">{user.email}</div>
-                      </div>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowProfileSidebar(true)}>
-                    <User className="h-4 w-4 mr-2" />
-                    My Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleOpenSettings}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    Workspace Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowInviteSidebar(true)}>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Invite to Workspace
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut} variant="destructive">
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-        </div>
-      </nav>
-
       <div className="flex flex-1 overflow-hidden bg-gray-100">
         {/* Sidebar */}
         {currentWorkspace && (
           <div className="pl-2 py-2 pr-1">
-            <Sidebar workspaceId={currentWorkspace.id} />
+            <Sidebar 
+              workspaceId={currentWorkspace.id}
+              currentWorkspace={currentWorkspace}
+              workspaces={workspaces}
+              organizations={organizations}
+              currentOrganization={currentOrganization}
+              switchToOrganization={switchToOrganization}
+              handleWorkspaceSwitch={handleWorkspaceSwitch}
+              getWorkspaceColorClass={getWorkspaceColorClass}
+              getWorkspaceColorStyle={getWorkspaceColorStyle}
+            />
           </div>
         )}
 
@@ -384,7 +213,15 @@ function NavigationLayoutInner({
             {/* Tab Navigation Bar */}
             {currentWorkspace && (
               <div className="border-b border-gray-200">
-                <TabNavigation workspaceId={currentWorkspace.id} />
+                <TabNavigation 
+                  workspaceId={currentWorkspace.id}
+                  user={user}
+                  getUserName={getUserName}
+                  handleSignOut={handleSignOut}
+                  handleOpenSettings={handleOpenSettings}
+                  setShowProfileSidebar={setShowProfileSidebar}
+                  setShowInviteSidebar={setShowInviteSidebar}
+                />
               </div>
             )}
 

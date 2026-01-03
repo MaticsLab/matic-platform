@@ -1,16 +1,30 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Plus, FileText, Calendar, Users, Search, Settings, Workflow } from 'lucide-react'
+import { X, Plus, FileText, Calendar, Users, Search, Settings, Workflow, User, ChevronDown, LogOut, UserPlus, Bell } from 'lucide-react'
 import { TabManager, TabData } from '@/lib/tab-manager'
 import { useTabContext } from './WorkspaceTabProvider'
 import { cn } from '@/lib/utils'
 import { TabActionBar } from './TabActionBar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui-components/dropdown-menu'
 
 interface TabNavigationProps {
   workspaceId: string
   onTabChange?: (tab: TabData | null) => void
   tabManager?: TabManager | null
+  user?: any
+  getUserName?: (email: string | undefined) => string
+  handleSignOut?: () => void
+  handleOpenSettings?: () => void
+  setShowProfileSidebar?: (open: boolean) => void
+  setShowInviteSidebar?: (open: boolean) => void
 }
 
 const TAB_ICONS = {
@@ -22,7 +36,17 @@ const TAB_ICONS = {
   custom: Settings
 }
 
-export function TabNavigation({ workspaceId, onTabChange, tabManager: externalTabManager }: TabNavigationProps) {
+export function TabNavigation({ 
+  workspaceId, 
+  onTabChange, 
+  tabManager: externalTabManager,
+  user,
+  getUserName,
+  handleSignOut,
+  handleOpenSettings,
+  setShowProfileSidebar,
+  setShowInviteSidebar
+}: TabNavigationProps) {
   const { tabManager: contextTabManager, activeTab, tabs, triggerNavigation } = useTabContext()
   const tabManager = externalTabManager || contextTabManager
   
@@ -124,8 +148,77 @@ export function TabNavigation({ workspaceId, onTabChange, tabManager: externalTa
   return (
     <>
       <div className="flex items-end px-4 pt-2 pb-0 gap-1 bg-white border-b border-gray-200">
+        {/* User Dropdown on Left */}
+        {user && (
+          <div className="flex items-center gap-2 mr-2 flex-shrink-0">
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  {user.user_metadata?.avatar_url ? (
+                    <img src={user.user_metadata.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="h-4 w-4 text-white" />
+                  )}
+                </div>
+                {getUserName && (
+                  <>
+                    <div className="hidden md:block text-left">
+                      <div className="text-sm text-gray-900">{user.user_metadata?.full_name || getUserName(user.email)}</div>
+                      <div className="text-xs text-gray-500">{user.user_metadata?.role || 'Member'}</div>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-gray-500 hidden md:block" />
+                  </>
+                )}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56 bg-white">
+                <DropdownMenuLabel>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {user.user_metadata?.avatar_url ? (
+                        <img src={user.user_metadata.avatar_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <User className="h-5 w-5 text-white" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm">{user.user_metadata?.full_name || (getUserName && getUserName(user.email))}</div>
+                      <div className="text-xs text-gray-500 font-normal">{user.email}</div>
+                    </div>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {setShowProfileSidebar && (
+                  <DropdownMenuItem onClick={() => setShowProfileSidebar(true)}>
+                    <User className="h-4 w-4 mr-2" />
+                    My Profile
+                  </DropdownMenuItem>
+                )}
+                {handleOpenSettings && (
+                  <DropdownMenuItem onClick={handleOpenSettings}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Workspace Settings
+                  </DropdownMenuItem>
+                )}
+                {setShowInviteSidebar && (
+                  <DropdownMenuItem onClick={() => setShowInviteSidebar(true)}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Invite to Workspace
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                {handleSignOut && (
+                  <DropdownMenuItem onClick={handleSignOut} className="text-red-600">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+
         {/* Tab List */}
-        <div className="flex items-end overflow-x-auto scrollbar-hide gap-1">
+        <div className="flex items-end overflow-x-auto scrollbar-hide gap-1 flex-1">
           {currentTabs.map((tab) => {
             const IconComponent = TAB_ICONS[tab.type] || FileText
             const isActive = currentActiveTab?.id === tab.id
