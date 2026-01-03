@@ -9,10 +9,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/better-auth";
 import { headers } from "next/headers";
 
-// Initialize Resend
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-
-
 // Get base URL
 function getBaseURL(): string {
   if (process.env.NEXT_PUBLIC_APP_URL) {

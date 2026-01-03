@@ -50,18 +50,32 @@ func (s *BetterAuthSession) IsExpired() bool {
 	return time.Now().After(s.ExpiresAt)
 }
 
-// BetterAuthAccount represents an OAuth account in the Better Auth system
+// BetterAuthAccount represents an authentication account in the Better Auth system
+// This table stores accounts for both credential (email/password) and OAuth providers
+//
+// For CREDENTIAL (email/password) accounts:
+//   - provider_id = "credential"
+//   - password: Contains scrypt-hashed password (format: "salt:hash")
+//   - access_token, refresh_token, id_token: NULL (not used for credential auth)
+//   - account_id: Links to Supabase user ID for migration tracking
+//
+// For OAUTH providers (Google, GitHub, etc.):
+//   - provider_id = "google", "github", etc.
+//   - password: NULL (not used for OAuth)
+//   - access_token, refresh_token, id_token: OAuth tokens from provider
+//   - account_id: Provider's user ID
 type BetterAuthAccount struct {
 	ID                    string     `json:"id" gorm:"primaryKey;column:id"`
-	AccountID             string     `json:"accountId" gorm:"column:account_id"`
-	ProviderID            string     `json:"providerId" gorm:"column:provider_id"`
+	AccountID            string     `json:"accountId" gorm:"column:account_id"` // Provider's account ID or Supabase user ID for migrated users
+	ProviderID            string     `json:"providerId" gorm:"column:provider_id"` // "credential", "google", "github", etc.
 	UserID                string     `json:"userId" gorm:"column:user_id"`
-	AccessToken           *string    `json:"accessToken" gorm:"column:access_token"`
-	RefreshToken          *string    `json:"refreshToken" gorm:"column:refresh_token"`
-	IDToken               *string    `json:"idToken" gorm:"column:id_token"`
-	AccessTokenExpiresAt  *time.Time `json:"accessTokenExpiresAt" gorm:"column:access_token_expires_at"`
-	RefreshTokenExpiresAt *time.Time `json:"refreshTokenExpiresAt" gorm:"column:refresh_token_expires_at"`
-	Scope                 *string    `json:"scope" gorm:"column:scope"`
+	Password              *string    `json:"password,omitempty" gorm:"column:password"` // Scrypt-hashed password for credential auth
+	AccessToken           *string    `json:"accessToken,omitempty" gorm:"column:access_token"` // OAuth access token (NULL for credential)
+	RefreshToken          *string    `json:"refreshToken,omitempty" gorm:"column:refresh_token"` // OAuth refresh token (NULL for credential)
+	IDToken               *string    `json:"idToken,omitempty" gorm:"column:id_token"` // OAuth ID token (NULL for credential)
+	AccessTokenExpiresAt  *time.Time `json:"accessTokenExpiresAt,omitempty" gorm:"column:access_token_expires_at"`
+	RefreshTokenExpiresAt *time.Time `json:"refreshTokenExpiresAt,omitempty" gorm:"column:refresh_token_expires_at"`
+	Scope                 *string    `json:"scope,omitempty" gorm:"column:scope"` // OAuth scope (NULL for credential)
 	CreatedAt             time.Time  `json:"createdAt" gorm:"column:created_at"`
 	UpdatedAt             time.Time  `json:"updatedAt" gorm:"column:updated_at"`
 

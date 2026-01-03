@@ -64,139 +64,20 @@ interface MigrationStats {
 async function ensureBetterAuthTables(): Promise<void> {
   console.log("📋 Checking Better Auth tables...");
   
-  // Check if user table exists
+  // Check if ba_users table exists (using ba_ prefix as per migration 029)
   const tableCheck = await pool.query(`
     SELECT EXISTS (
       SELECT FROM information_schema.tables 
-      WHERE table_name = 'user'
+      WHERE table_schema = 'public' AND table_name = 'ba_users'
     );
   `);
   
   if (!tableCheck.rows[0].exists) {
-    console.log("📝 Creating Better Auth tables...");
-    
-    // Create user table with Better Auth schema + custom fields
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS "user" (
-        id TEXT PRIMARY KEY,
-        name TEXT,
-        email TEXT UNIQUE NOT NULL,
-        email_verified BOOLEAN NOT NULL DEFAULT FALSE,
-        image TEXT,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        supabase_user_id TEXT,
-        migrated_from_supabase BOOLEAN DEFAULT FALSE,
-        full_name TEXT,
-        avatar_url TEXT
-      );
-      
-      CREATE INDEX IF NOT EXISTS idx_user_email ON "user"(email);
-      CREATE INDEX IF NOT EXISTS idx_user_supabase_id ON "user"(supabase_user_id);
-    `);
-    
-    // Create session table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS "session" (
-        id TEXT PRIMARY KEY,
-        expires_at TIMESTAMPTZ NOT NULL,
-        token TEXT NOT NULL UNIQUE,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        ip_address TEXT,
-        user_agent TEXT,
-        user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
-        active_organization_id TEXT
-      );
-      
-      CREATE INDEX IF NOT EXISTS idx_session_user_id ON "session"(user_id);
-      CREATE INDEX IF NOT EXISTS idx_session_token ON "session"(token);
-    `);
-    
-    // Create account table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS "account" (
-        id TEXT PRIMARY KEY,
-        account_id TEXT NOT NULL,
-        provider_id TEXT NOT NULL,
-        user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
-        access_token TEXT,
-        refresh_token TEXT,
-        id_token TEXT,
-        access_token_expires_at TIMESTAMPTZ,
-        refresh_token_expires_at TIMESTAMPTZ,
-        scope TEXT,
-        password TEXT,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-      
-      CREATE INDEX IF NOT EXISTS idx_account_user_id ON "account"(user_id);
-    `);
-    
-    // Create verification table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS "verification" (
-        id TEXT PRIMARY KEY,
-        identifier TEXT NOT NULL,
-        value TEXT NOT NULL,
-        expires_at TIMESTAMPTZ NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-    `);
-    
-    // Create organization tables
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS "organization" (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        slug TEXT UNIQUE,
-        logo TEXT,
-        metadata JSONB DEFAULT '{}',
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-      
-      CREATE TABLE IF NOT EXISTS "member" (
-        id TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL REFERENCES "organization"(id) ON DELETE CASCADE,
-        user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
-        role TEXT NOT NULL DEFAULT 'member',
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE(organization_id, user_id)
-      );
-      
-      CREATE TABLE IF NOT EXISTS "invitation" (
-        id TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL REFERENCES "organization"(id) ON DELETE CASCADE,
-        email TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'member',
-        status TEXT NOT NULL DEFAULT 'pending',
-        expires_at TIMESTAMPTZ NOT NULL,
-        inviter_id TEXT REFERENCES "user"(id),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-    `);
-    
-    console.log("✅ Better Auth tables created");
+    console.log("⚠️  Better Auth tables (ba_*) not found!");
+    console.log("   Please run migration 029_better_auth.sql first");
+    throw new Error("Better Auth tables not found. Run migration 029_better_auth.sql");
   } else {
-    console.log("✅ Better Auth tables already exist");
-    
-    // Add custom columns if they don't exist
-    try {
-      await pool.query(`
-        ALTER TABLE "user" ADD COLUMN IF NOT EXISTS supabase_user_id TEXT;
-        ALTER TABLE "user" ADD COLUMN IF NOT EXISTS migrated_from_supabase BOOLEAN DEFAULT FALSE;
-        ALTER TABLE "user" ADD COLUMN IF NOT EXISTS full_name TEXT;
-        ALTER TABLE "user" ADD COLUMN IF NOT EXISTS avatar_url TEXT;
-      `);
-      console.log("✅ Custom columns verified");
-    } catch (err) {
-      // Columns may already exist
-    }
+    console.log("✅ Better Auth tables (ba_*) exist");
   }
 }
 
@@ -220,9 +101,9 @@ async function migrateUsers(): Promise<MigrationStats> {
   stats.total = supabaseUsers.users.length;
   console.log(`📊 Found ${stats.total} users in Supabase Auth\n`);
   
-  // Get existing Better Auth users
+  // Get existing Better Auth users (using ba_ prefix)
   const existingUsers = await pool.query(
-    'SELECT email, supabase_user_id FROM "user"'
+    'SELECT email, supabase_user_id FROM ba_users'
   );
   const existingEmails = new Set(
     existingUsers.rows.map((u) => u.email?.toLowerCase())
@@ -259,9 +140,9 @@ async function migrateUsers(): Promise<MigrationStats> {
       
       const userId = crypto.randomUUID();
       
-      // Insert user
+      // Insert user (using ba_users table with ba_ prefix)
       await pool.query(
-        `INSERT INTO "user" (id, name, email, email_verified, image, created_at, updated_at, supabase_user_id, migrated_from_supabase, full_name, avatar_url)
+        `INSERT INTO ba_users (id, name, email, email_verified, image, created_at, updated_at, supabase_user_id, migrated_from_supabase, full_name, avatar_url)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         [
           userId,
@@ -278,16 +159,24 @@ async function migrateUsers(): Promise<MigrationStats> {
         ]
       );
 
-      // Create credential account
+      // Create credential account (using ba_accounts table)
+      // NOTE: For credential (email/password) auth:
+      //   - password: Will be NULL initially (users must reset password)
+      //   - OAuth tokens (access_token, refresh_token, id_token): NULL (only for OAuth providers)
+      //   - account_id: Links to Supabase user ID for migration tracking
       const accountId = crypto.randomUUID();
       await pool.query(
-        `INSERT INTO "account" (id, account_id, provider_id, user_id, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+        `INSERT INTO ba_accounts (id, account_id, provider_id, user_id, password, access_token, refresh_token, id_token, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           accountId,
-          supabaseUser.id,
-          "credential",
+          supabaseUser.id, // Link to Supabase user ID
+          "credential", // Email/password authentication
           userId,
+          null, // Password cannot be migrated (different hash format: Supabase uses bcrypt, Better Auth uses scrypt)
+          null, // OAuth tokens are NULL for credential auth (only for OAuth providers like Google, GitHub)
+          null, // OAuth tokens are NULL for credential auth
+          null, // OAuth tokens are NULL for credential auth
           new Date().toISOString(),
           new Date().toISOString(),
         ]
@@ -334,8 +223,15 @@ async function main() {
 ║  Errors:                ${String(stats.errors).padStart(5)}                              ║
 ╚══════════════════════════════════════════════════════════════╝
 
-⚠️  Note: Migrated users will need to reset their password on first
+⚠️  IMPORTANT: Migrated users will need to reset their password on first
     Better Auth login, as password hashes cannot be migrated.
+    
+    Reason: Supabase uses bcrypt, Better Auth uses scrypt. These are
+    incompatible hash formats, so users must set a new password.
+    
+    OAuth Tokens: For credential (email/password) accounts, OAuth tokens
+    (access_token, refresh_token, id_token) are correctly set to NULL.
+    These tokens are only used for OAuth providers (Google, GitHub, etc.).
 `);
 
   } catch (error) {
