@@ -945,7 +945,7 @@ export function ApplicationDetail({
     <div className={cn(
       "bg-white flex flex-col h-full relative",
       viewMode === 'modal' && "max-w-5xl mx-auto my-8 rounded-lg shadow-xl border border-gray-200",
-      viewMode === 'fullscreen' && "fixed inset-0 z-50"
+      viewMode === 'fullscreen' && "w-full h-full"
     )}>
       {/* Split View: Overview (Left) + Activity (Right) - Always visible */}
       <div className={cn(
@@ -953,7 +953,7 @@ export function ApplicationDetail({
         viewMode === 'modal' && "rounded-lg"
       )}>
         {/* Application Details Panel */}
-        {!showActivityPanel && (
+        {(!showActivityPanel || viewMode === 'fullscreen') && (
           <div className={cn(
             "flex overflow-hidden transition-all duration-300",
             (viewMode === 'modal' || viewMode === 'fullscreen') && isActivityPanelCollapsed ? "flex-1 w-full" : "flex-1"
@@ -1075,8 +1075,8 @@ export function ApplicationDetail({
               </div>
             </div>
 
-            {/* Action Buttons - Right Side Vertical (only in sidebar mode) */}
-            {viewMode === 'sidebar' && (
+            {/* Action Buttons - Right Side Vertical (sidebar and fullscreen modes) */}
+            {(viewMode === 'sidebar' || viewMode === 'fullscreen') && (
               <div className="flex flex-col items-center gap-2 p-2 border-l border-gray-200 bg-gray-50">
                 <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
                   <Search className="w-4 h-4 text-gray-500" />
@@ -1145,8 +1145,9 @@ export function ApplicationDetail({
           </div>
         )}
 
-        {/* Activity Panel - Show in modal/fullscreen when not collapsed */}
-        {(viewMode === 'modal' || viewMode === 'fullscreen') && !showActivityPanel && !isActivityPanelCollapsed && (
+        {/* Activity Panel - Show in modal/fullscreen when not collapsed, or in fullscreen when showActivityPanel is true */}
+        {((viewMode === 'modal' || viewMode === 'fullscreen') && !showActivityPanel && !isActivityPanelCollapsed) || 
+         (viewMode === 'fullscreen' && showActivityPanel) ? (
           <>
             {/* Collapse Button */}
             <div className="flex items-center justify-center w-6 border-l border-gray-200 bg-gray-50">
@@ -1165,6 +1166,14 @@ export function ApplicationDetail({
               <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
                 <h2 className="text-sm font-semibold text-gray-900">Activity</h2>
                 <div className="flex items-center gap-1">
+                  {viewMode === 'fullscreen' && showActivityPanel && (
+                    <button 
+                      onClick={() => setShowActivityPanel(false)}
+                      className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                    >
+                      <X className="w-4 h-4 text-gray-500" />
+                    </button>
+                  )}
                   <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
                     <Search className="w-4 h-4 text-gray-500" />
                   </button>
@@ -1406,7 +1415,7 @@ export function ApplicationDetail({
               </div>
             </div>
           </>
-        )}
+        ) : null}
 
         {/* Expand Button - Show when activity panel is collapsed in modal/fullscreen */}
         {(viewMode === 'modal' || viewMode === 'fullscreen') && !showActivityPanel && isActivityPanelCollapsed && (
@@ -1421,8 +1430,8 @@ export function ApplicationDetail({
           </div>
         )}
 
-        {/* Activity Panel - Replaces details when active */}
-        {showActivityPanel && (
+        {/* Activity Panel - Replaces details when active (sidebar mode), or shows to the right (fullscreen mode) */}
+        {showActivityPanel && viewMode !== 'fullscreen' && (
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Activity Header */}
             <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">

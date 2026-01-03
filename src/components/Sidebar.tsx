@@ -105,12 +105,12 @@ export function Sidebar({
     <div 
       className={cn(
         "bg-white border border-gray-200 flex flex-col h-full flex-shrink-0 transition-all duration-300 ease-in-out relative group/sidebar rounded-xl shadow-sm",
-        isCollapsed ? "w-16" : "w-56"
+        isCollapsed ? "w-12" : "w-44"
       )}
     >
       {/* Workspace Dropdown at Top */}
       {!isCollapsed && currentWorkspace && (
-        <div className="p-2 border-b border-gray-200">
+        <div className="px-2 pt-1.5 pb-2 border-b border-gray-200">
           {/* Organization Selector - Only show if user has multiple organizations */}
           {organizations.length > 1 && currentOrganization && switchToOrganization && (
             <DropdownMenu>
@@ -204,7 +204,7 @@ export function Sidebar({
         </div>
       )}
 
-      <div className={cn("flex-1", isCollapsed ? "p-1" : "p-2")}>
+      <div className={cn("flex-1", isCollapsed ? "p-1" : "px-2 pt-1 pb-2")}>
         <div className={cn(
           "flex items-center justify-between mb-4 px-2",
           isCollapsed && "justify-center px-0"
