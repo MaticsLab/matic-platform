@@ -204,14 +204,14 @@ export function Sidebar({
         </div>
       )}
 
-      <div className="p-2 flex-1">
+      <div className={cn("flex-1", isCollapsed ? "p-1" : "p-2")}>
         <div className={cn(
           "flex items-center justify-between mb-4 px-2",
           isCollapsed && "justify-center px-0"
         )}>
         </div>
         
-        <nav className="space-y-1">
+        <nav className={cn("space-y-1", isCollapsed && "space-y-0.5")}>
           <TooltipProvider delayDuration={0}>
             {navItems.map((item) => {
               // Determine if active based on activeTab
@@ -253,7 +253,7 @@ export function Sidebar({
                     <button
                       onClick={() => handleNavigate(item)}
                       className={cn(
-                        "w-full flex items-center justify-center px-2 py-2 text-sm font-medium rounded-lg transition-colors",
+                        "w-full flex items-center justify-center px-1 py-1.5 text-sm font-medium rounded-lg transition-colors",
                         isActive 
                           ? "bg-blue-50 text-blue-700" 
                           : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
@@ -282,7 +282,7 @@ export function Sidebar({
       </div>
 
       {/* Collapse Toggle Button */}
-      <div className="p-2 border-t border-gray-200">
+      <div className={cn("border-t border-gray-200", isCollapsed ? "p-1" : "p-2")}>
         <Button
           variant="ghost"
           size="sm"
