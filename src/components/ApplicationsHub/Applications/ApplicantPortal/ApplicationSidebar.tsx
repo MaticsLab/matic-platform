@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, ChevronRight, Menu, X, HelpCircle, Mail } from 'lucide-react'
+import { Check, ChevronRight, Menu, X, HelpCircle, Mail, AlertCircle } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { cn } from '@/lib/utils'
 import { safeFieldString } from '@/components/Fields/types'
@@ -121,6 +121,8 @@ export function ApplicationSidebar({
                         "flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors text-sm font-medium",
                         isComplete
                           ? "bg-green-500 text-white"
+                          : completion < 100 && completion > 0
+                          ? "bg-orange-500 text-white"
                           : isCurrent
                           ? isExternal
                             ? "bg-gray-900 text-white"
@@ -130,6 +132,8 @@ export function ApplicationSidebar({
                     >
                       {isComplete ? (
                         <Check className="h-4 w-4" />
+                      ) : completion < 100 && completion > 0 ? (
+                        <AlertCircle className="h-4 w-4" />
                       ) : (
                         <span>{index + 1}</span>
                       )}

@@ -1165,11 +1165,28 @@ function ReviewSection({
   }
 
   const handleSubmit = async () => {
-    if (!agreedToTerms || !agreedToAccuracy) return
+    // Validate completion before submission
+    if (!status.isComplete) {
+      toast.error('Please complete all required fields before submitting')
+      // Scroll to top to show the completion status banner
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    
+    if (!agreedToTerms || !agreedToAccuracy) {
+      toast.error('Please agree to the terms and certify the accuracy of your information')
+      return
+    }
     
     setIsSubmitting(true)
-    await onSubmit()
-    setIsSubmitting(false)
+    try {
+      await onSubmit()
+    } catch (error) {
+      console.error('Submission error:', error)
+      toast.error('Failed to submit application. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Calculate completion status
@@ -1225,14 +1242,31 @@ function ReviewSection({
     if (!isDynamic || !formDefinition?.fields) return []
     
     const fields = formDefinition.fields
-    return sections.map(section => ({
-      ...section,
-      fields: fields.filter(f => {
+    return sections.map(section => {
+      const sectionFields = fields.filter(f => {
         const config = f.config as any
         if (sections.length === 1 && sections[0].id === 'default') return true
         return config?.section_id === section.id
       })
-    }))
+      
+      // Check which required fields in this section are incomplete
+      const requiredFields = sectionFields.filter(f => (f.config as any)?.is_required)
+      const incompleteFieldsInSection = requiredFields.filter(f => {
+        const val = formData[f.name]
+        return val === undefined || val === '' || val === null || (Array.isArray(val) && val.length === 0)
+      })
+      
+      const isComplete = incompleteFieldsInSection.length === 0 && requiredFields.length > 0
+      const hasIncomplete = incompleteFieldsInSection.length > 0
+      
+      return {
+        ...section,
+        fields: sectionFields,
+        incompleteFields: incompleteFieldsInSection,
+        isComplete,
+        hasIncomplete
+      }
+    })
   }
 
   const renderFieldValue = (field: any, value: any): React.ReactNode => {
@@ -1249,6 +1283,46 @@ function ReviewSection({
       
       // Handle array of objects (repeaters/groups)
       if (typeof value[0] === 'object' && value[0] !== null) {
+        // Get child fields from field config if available (for repeaters/groups)
+        // Child fields are the subfields defined in the repeater/group field config
+        const childFields = field?.config?.children || field?.children || []
+        const fieldMap = new Map<string, any>()
+        
+        // First, prioritize child fields from the repeater/group config (these are the actual subfields)
+        if (Array.isArray(childFields)) {
+          childFields.forEach((child: any) => {
+            if (!child) return
+            
+            // Map by ID (exact match)
+            if (child.id) {
+              fieldMap.set(child.id, child)
+              // Also map with "Field-" prefix if that's how data is stored
+              fieldMap.set(`Field-${child.id}`, child)
+            }
+            
+            // Map by name
+            if (child.name) {
+              fieldMap.set(child.name, child)
+            }
+          })
+        }
+        
+        // Fallback: also check all form fields (in case child fields reference other fields)
+        if (formDefinition?.fields) {
+          formDefinition.fields.forEach((f: any) => {
+            if (!f) return
+            
+            // Only add if not already in map (child fields take priority)
+            if (f.id && !fieldMap.has(f.id)) {
+              fieldMap.set(f.id, f)
+              fieldMap.set(`Field-${f.id}`, f)
+            }
+            if (f.name && !fieldMap.has(f.name)) {
+              fieldMap.set(f.name, f)
+            }
+          })
+        }
+        
         return (
           <div className="space-y-3">
             {value.map((item, idx) => (
@@ -1256,13 +1330,46 @@ function ReviewSection({
                 <div className="text-xs text-gray-500 mb-2 uppercase tracking-wide">Item {idx + 1}</div>
                 <div className="space-y-1.5">
                   {Object.entries(item)
-                    .filter(([k, v]) => v !== null && v !== undefined && v !== '')
-                    .map(([k, v]) => (
-                      <div key={k} className="flex gap-2 text-sm">
-                        <span className="text-gray-500 capitalize min-w-[120px]">{k.replace(/_/g, ' ')}:</span>
-                        <span className="text-gray-900 flex-1 break-words">{String(v)}</span>
-                      </div>
-                    ))}
+                    .filter(([k, v]) => {
+                      // Filter out system fields like 'id'
+                      if (k === 'id' || k.startsWith('_')) return false
+                      return v !== null && v !== undefined && v !== ''
+                    })
+                    .map(([k, v]) => {
+                      // Look up field definition to get the label
+                      // Try multiple lookup strategies:
+                      // 1. Direct key match
+                      // 2. Remove "Field-" prefix if present
+                      let fieldDef = fieldMap.get(k)
+                      
+                      if (!fieldDef && k.startsWith('Field-')) {
+                        const withoutPrefix = k.replace(/^Field-/, '')
+                        fieldDef = fieldMap.get(withoutPrefix)
+                      }
+                      
+                      // Get the label from field definition, or format the key as fallback
+                      const fieldLabel = fieldDef?.label || fieldDef?.name
+                      
+                      let displayLabel: string
+                      if (fieldLabel) {
+                        // Use the field label directly
+                        displayLabel = fieldLabel
+                      } else {
+                        // Fallback: format the key nicely
+                        displayLabel = k
+                          .replace(/^Field-/, '')
+                          .replace(/_/g, ' ')
+                          .replace(/\b\w/g, l => l.toUpperCase())
+                          .trim()
+                      }
+                      
+                      return (
+                        <div key={k} className="flex gap-2 text-sm">
+                          <span className="text-gray-500 capitalize min-w-[120px]">{displayLabel}:</span>
+                          <span className="text-gray-900 flex-1 break-words">{String(v)}</span>
+                        </div>
+                      )
+                    })}
                 </div>
               </div>
             ))}
@@ -1404,26 +1511,84 @@ function ReviewSection({
       <div className="space-y-6 print:space-y-4">
         {isDynamic ? (
           // Dynamic form review
-          sectionsByData.filter(s => s.fields.length > 0).map(section => (
-            <ReviewSectionCard 
-              key={section.id} 
-              title={section.title}
-              onEdit={() => onNavigateToSection(section.id)}
-            >
-              <div className="space-y-4">
-                {section.fields.filter((f: any) => f.type !== 'group' && f.type !== 'divider' && f.type !== 'paragraph').map((field: any) => (
-                  <div key={field.id} className="grid grid-cols-3 gap-4 text-sm">
-                    <dt className="text-gray-600">{field.label}</dt>
-                    <dd className="col-span-2 text-gray-900 break-words">{renderFieldValue(field, formData[field.name])}</dd>
+          sectionsByData.filter(s => s.fields.length > 0).map(section => {
+            const isSectionIncomplete = section.hasIncomplete || false
+            const incompleteFieldIds = new Set((section.incompleteFields || []).map((f: any) => f.id || f.name))
+            
+            return (
+              <div 
+                key={section.id}
+                className={cn(
+                  "border rounded-lg transition-all",
+                  isSectionIncomplete 
+                    ? "border-orange-300 bg-orange-50/30 shadow-sm" 
+                    : "border-gray-200 bg-white"
+                )}
+              >
+                <ReviewSectionCard 
+                  title={section.title}
+                  onEdit={() => onNavigateToSection(section.id)}
+                  isComplete={section.isComplete}
+                  hasIncomplete={isSectionIncomplete}
+                  incompleteCount={section.incompleteFields?.length || 0}
+                >
+                  <div className="space-y-4">
+                    {section.fields.filter((f: any) => f.type !== 'group' && f.type !== 'divider' && f.type !== 'paragraph').map((field: any) => {
+                      const isFieldIncomplete = (field.config as any)?.is_required && incompleteFieldIds.has(field.id || field.name)
+                      const fieldValue = formData[field.name]
+                      const isEmpty = fieldValue === undefined || fieldValue === null || fieldValue === '' || (Array.isArray(fieldValue) && fieldValue.length === 0)
+                      
+                      return (
+                        <div 
+                          key={field.id} 
+                          className={cn(
+                            "grid grid-cols-3 gap-4 text-sm p-3 rounded-md transition-colors",
+                            isFieldIncomplete && isEmpty && "bg-orange-100/50 border border-orange-200"
+                          )}
+                        >
+                          <dt className="text-gray-600 flex items-center gap-2">
+                            {field.label}
+                            {(field.config as any)?.is_required && (
+                              <span className="text-red-500 text-xs">*</span>
+                            )}
+                            {isFieldIncomplete && isEmpty && (
+                              <Badge variant="outline" className="text-xs py-0 px-1.5 h-5 border-orange-300 text-orange-700 bg-orange-50">
+                                Required
+                              </Badge>
+                            )}
+                            {!isEmpty && (field.config as any)?.is_required && (
+                              <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                            )}
+                          </dt>
+                          <dd className={cn(
+                            "col-span-2 break-words",
+                            isFieldIncomplete && isEmpty ? "text-orange-700 font-medium" : "text-gray-900"
+                          )}>
+                            {isEmpty && isFieldIncomplete ? (
+                              <span className="flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 text-orange-500" />
+                                <span className="italic">This field is required</span>
+                              </span>
+                            ) : (
+                              renderFieldValue(field, fieldValue)
+                            )}
+                          </dd>
+                        </div>
+                      )
+                    })}
                   </div>
-                ))}
+                </ReviewSectionCard>
               </div>
-            </ReviewSectionCard>
-          ))
+            )
+          })
         ) : (
           // Static form review
           <>
-            <ReviewSectionCard title="Personal Information" onEdit={() => onNavigateToSection('personal')}>
+            <ReviewSectionCard 
+              title="Personal Information" 
+              onEdit={() => onNavigateToSection('personal')}
+              isComplete={status.incompleteFields?.every((f: any) => f.sectionId !== 'personal') && status.incompleteFields?.some((f: any) => f.sectionId === 'personal') === false}
+            >
               <InfoRow label="Name" value={formData.personal?.studentName} />
               <InfoRow label="Email" value={formData.personal?.personalEmail || formData.personal?.cpsEmail} />
               <InfoRow label="Phone" value={formData.personal?.phone} />
@@ -1431,13 +1596,21 @@ function ReviewSection({
               <InfoRow label="Student ID" value={formData.personal?.studentId} />
             </ReviewSectionCard>
 
-            <ReviewSectionCard title="Academic Information" onEdit={() => onNavigateToSection('academic')}>
+            <ReviewSectionCard 
+              title="Academic Information" 
+              onEdit={() => onNavigateToSection('academic')}
+              isComplete={status.incompleteFields?.every((f: any) => f.sectionId !== 'academic') && status.incompleteFields?.some((f: any) => f.sectionId === 'academic') === false}
+            >
               <InfoRow label="GPA" value={formData.academic?.gpa} />
               <InfoRow label="Full-Time Status" value={formData.academic?.fullTime} />
               <InfoRow label="Top Universities" value={formData.academic?.top3?.filter(Boolean).join(', ')} />
             </ReviewSectionCard>
 
-            <ReviewSectionCard title="Essays" onEdit={() => onNavigateToSection('essays')}>
+            <ReviewSectionCard 
+              title="Essays" 
+              onEdit={() => onNavigateToSection('essays')}
+              isComplete={status.incompleteFields?.every((f: any) => f.sectionId !== 'essays') && status.incompleteFields?.some((f: any) => f.sectionId === 'essays') === false}
+            >
               {formData.essays?.whyScholarship && (
                 <div className="space-y-2">
                   <h4 className="text-sm font-medium text-gray-700">Why do you deserve this scholarship?</h4>
@@ -1533,16 +1706,39 @@ function ReviewSection({
 function ReviewSectionCard({ 
   title, 
   children, 
-  onEdit 
+  onEdit,
+  isComplete,
+  hasIncomplete,
+  incompleteCount
 }: { 
   title: string
   children: React.ReactNode
-  onEdit?: () => void 
+  onEdit?: () => void
+  isComplete?: boolean
+  hasIncomplete?: boolean
+  incompleteCount?: number
 }) {
   return (
-    <div className="border border-gray-200 rounded-lg p-6 print:border-0 print:p-4">
+    <div className="p-6 print:border-0 print:p-4">
       <div className="flex items-center justify-between mb-4 pb-2 border-b">
-        <h3 className="font-medium text-gray-900">{title}</h3>
+        <div className="flex items-center gap-3">
+          <h3 className="font-medium text-gray-900">{title}</h3>
+          {isComplete !== undefined && (
+            <div className="flex items-center gap-2">
+              {isComplete ? (
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  Complete
+                </Badge>
+              ) : hasIncomplete && incompleteCount ? (
+                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                  <AlertCircle className="w-3 h-3 mr-1" />
+                  {incompleteCount} incomplete
+                </Badge>
+              ) : null}
+            </div>
+          )}
+        </div>
         {onEdit && (
           <button
             onClick={onEdit}
