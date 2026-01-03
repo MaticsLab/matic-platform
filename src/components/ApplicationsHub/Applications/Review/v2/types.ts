@@ -111,6 +111,9 @@ export interface ApplicationListProps {
   filterStatus?: ApplicationStatus | 'all';
   onFilterChange?: (status: ApplicationStatus | 'all') => void;
   stages?: Stage[];
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 export interface ApplicationDetailProps {

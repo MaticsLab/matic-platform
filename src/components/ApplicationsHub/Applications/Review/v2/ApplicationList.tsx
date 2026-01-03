@@ -1,8 +1,9 @@
 'use client';
 
 import { Application, ApplicationListProps, ApplicationStatus } from './types';
-import { Users, Star, Clock, AlertCircle } from 'lucide-react';
+import { Users, Star, Clock, AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useEffect, useRef, useCallback } from 'react';
 
 const getStatusColor = (status: string) => {
   const statusLower = status.toLowerCase();
@@ -42,8 +43,35 @@ export function ApplicationList({
   onSortChange,
   filterStatus = 'all',
   onFilterChange,
-  stages = []
+  stages = [],
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore
 }: ApplicationListProps) {
+  const observerTarget = useRef<HTMLDivElement>(null);
+
+  // Infinite scroll with Intersection Observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore && onLoadMore) {
+          onLoadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasMore, isLoadingMore, onLoadMore]);
 
   return (
     <div className="bg-white border-r overflow-hidden flex flex-col h-full">
@@ -125,6 +153,20 @@ export function ApplicationList({
               </div>
             </button>
           ))
+        )}
+        
+        {/* Infinite scroll trigger */}
+        {hasMore && (
+          <div ref={observerTarget} className="py-4 flex items-center justify-center">
+            {isLoadingMore ? (
+              <div className="flex items-center gap-2 text-gray-500">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Loading more...</span>
+              </div>
+            ) : (
+              <div className="h-4" /> // Spacer to trigger observer
+            )}
+          </div>
         )}
       </div>
     </div>

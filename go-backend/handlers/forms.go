@@ -927,13 +927,33 @@ func ListFormSubmissions(c *gin.Context) {
 		tableID = parsedFormID
 	}
 
+	// Parse pagination parameters
+	limit := 100 // Default limit
+	if limitParam := c.Query("limit"); limitParam != "" {
+		if parsedLimit, err := strconv.Atoi(limitParam); err == nil && parsedLimit > 0 && parsedLimit <= 1000 {
+			limit = parsedLimit
+		}
+	}
+	
+	offset := 0
+	if offsetParam := c.Query("offset"); offsetParam != "" {
+		if parsedOffset, err := strconv.Atoi(offsetParam); err == nil && parsedOffset >= 0 {
+			offset = parsedOffset
+		}
+	}
+
 	var rows []models.Row
-	if err := database.DB.Where("table_id = ?", tableID).Order("created_at DESC").Find(&rows).Error; err != nil {
+	query := database.DB.Where("table_id = ?", tableID).Order("created_at DESC")
+	
+	// Apply pagination
+	query = query.Offset(offset).Limit(limit)
+	
+	if err := query.Find(&rows).Error; err != nil {
 		fmt.Printf("Error fetching submissions: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Printf("Found %d submissions for form %s\n", len(rows), formID)
+	fmt.Printf("Found %d submissions for form %s (limit: %d, offset: %d)\n", len(rows), formID, limit, offset)
 
 	// Get all portal applicants for this form to map emails to full_names
 	// portal_applicants.form_id can be either the table_id or any view_id for this table
