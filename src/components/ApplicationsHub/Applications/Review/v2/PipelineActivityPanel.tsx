@@ -203,7 +203,6 @@ export function PipelineActivityPanel({
         merge_tags: true,
         track_opens: true,
         attachments: selectedAttachments.length > 0 ? selectedAttachments : undefined,
-        from_email: selectedFromEmail || undefined,
         sender_account_id: selectedAccount?.id || undefined,
       };
 

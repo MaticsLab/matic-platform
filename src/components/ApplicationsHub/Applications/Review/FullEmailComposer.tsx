@@ -190,7 +190,6 @@ export function FullEmailComposer({
         is_html: true,
         merge_tags: true,
         track_opens: true,
-        from_email: selectedFromEmail || undefined,
         sender_account_id: selectedAccount?.id || undefined,
       };
 
