@@ -213,12 +213,30 @@ export function FullEmailComposer({
       // Find the account ID for the selected email
       const selectedAccount = accounts.find(acc => acc.email === selectedFromEmail);
       
+      // Process email body to extract signature content from data attributes
+      const processSignatureHTML = (html: string): string => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const signatureDivs = doc.querySelectorAll('div[data-type="emailSignature"]');
+        
+        signatureDivs.forEach((div) => {
+          const content = div.getAttribute('data-content');
+          if (content) {
+            div.innerHTML = content;
+          }
+        });
+        
+        return doc.body.innerHTML;
+      };
+      
+      const processedBody = processSignatureHTML(body.trim());
+      
       const request = {
         form_id: formId,
         submission_ids: submissionId ? [submissionId] : undefined,
         recipient_emails: emails,
         subject: subject.trim(),
-        body: body.trim(),
+        body: processedBody,
         is_html: true,
         merge_tags: true,
         track_opens: true,

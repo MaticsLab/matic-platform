@@ -848,12 +848,30 @@ export function ApplicationDetail({
       // Find the account ID for the selected email
       const selectedAccount = emailAccounts.find(acc => acc.email === selectedFromEmail);
       
+      // Process email body to extract signature content from data attributes
+      const processSignatureHTML = (html: string): string => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const signatureDivs = doc.querySelectorAll('div[data-type="emailSignature"]');
+        
+        signatureDivs.forEach((div) => {
+          const content = div.getAttribute('data-content');
+          if (content) {
+            div.innerHTML = content;
+          }
+        });
+        
+        return doc.body.innerHTML;
+      };
+      
+      const processedBody = processSignatureHTML(emailBody);
+      
       const request: SendEmailRequest = {
         form_id: formId || undefined,
         submission_ids: [application.id],
         recipient_emails: [recipientEmail], // Explicitly pass the recipient email
         subject: emailSubject,
-        body: emailBody,
+        body: processedBody,
         is_html: true, // Rich text editor produces HTML
         merge_tags: true,
         track_opens: true,

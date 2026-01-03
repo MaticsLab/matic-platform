@@ -186,8 +186,22 @@ export const EmailSignature = Node.create<EmailSignatureOptions>({
     ]
   },
 
-  renderHTML({ HTMLAttributes }) {
-    return ['div', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+  renderHTML({ HTMLAttributes, node }) {
+    // Get the signature content from node attributes
+    const signatureContent = node.attrs.content || ''
+    
+    // Create a wrapper div with the signature content as inner HTML
+    // We need to return the structure that includes the actual HTML content
+    const attrs = mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+      'data-type': 'emailSignature',
+      'data-signature-id': node.attrs.signatureId || '',
+      'data-signature-name': node.attrs.signatureName || '',
+      'data-content': signatureContent, // Store content in data attribute for parsing
+    })
+    
+    // Return div with signature content - for atom nodes, we need to include content in the return
+    // Since it's an atom, we'll use innerHTML approach by returning the content as a string
+    return ['div', attrs, signatureContent]
   },
 
   addNodeView() {
