@@ -10,15 +10,16 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Jsanchez767/matic-platform/database"
 	"github.com/Jsanchez767/matic-platform/models"
 	"github.com/gin-gonic/gin"
 )
 
 // ResendWebhookEvent represents a Resend webhook event payload
 type ResendWebhookEvent struct {
-	Type     string `json:"type"` // email.sent, email.delivered, email.delivery_delayed, email.complained, email.bounced, email.opened, email.clicked
+	Type      string `json:"type"` // email.sent, email.delivered, email.delivery_delayed, email.complained, email.bounced, email.opened, email.clicked
 	CreatedAt string `json:"created_at"`
-	Data     struct {
+	Data      struct {
 		EmailID   string `json:"email_id"`
 		From      string `json:"from"`
 		To        string `json:"to"`
@@ -155,4 +156,3 @@ func computeHMAC(data []byte, secret string) string {
 	h.Write(data)
 	return hex.EncodeToString(h.Sum(nil))
 }
-
