@@ -187,6 +187,7 @@ function NavigationLayoutInner({
 }) {
   // For profile sidebar
   const [showProfileSidebar, setShowProfileSidebar] = useState(false)
+  const { tabManager } = useTabContext()
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
