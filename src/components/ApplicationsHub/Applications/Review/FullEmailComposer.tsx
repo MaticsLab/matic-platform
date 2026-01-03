@@ -9,7 +9,9 @@ import { useSession } from '@/components/auth/provider';
 import { Button } from '@/ui-components/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui-components/dialog';
 import { RichTextEditor } from '@/components/PortalBuilder/RichTextEditor';
+import { EmailNovelEditor } from './EmailNovelEditor';
 import { cn } from '@/lib/utils';
+import type { EditorInstance } from 'novel';
 
 interface FullEmailComposerProps {
   open: boolean;
@@ -55,6 +57,7 @@ export function FullEmailComposer({
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [scheduledFor, setScheduledFor] = useState<string>('');
   const autoSaveIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const emailEditorRef = useRef<EditorInstance | null>(null);
 
   const { canSendEmail, sendBlockedReason, handleOAuthError, selectedFromEmail, accounts } = useEmailConnection(workspaceId);
   const { data: session } = useSession();
@@ -250,16 +253,34 @@ export function FullEmailComposer({
       ? (signature.content_html || signature.content)
       : signature.content;
     
-    // Insert signature at the end of the body
-    // Add a horizontal line separator before the signature if body is not empty
-    const separator = body.trim() ? '<hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;" />' : '';
-    const newBody = body.trim() 
-      ? `${body}${separator}${signatureContent}`
-      : signatureContent;
-    
-    setBody(newBody);
-    setShowSignatureDropdown(false);
-    toast.success('Signature added');
+    if (emailEditorRef.current) {
+      // Use Novel editor to insert HTML
+      const editor = emailEditorRef.current;
+      
+      // Add a horizontal line separator before signature if body is not empty
+      const currentHTML = editor.getHTML();
+      const separator = currentHTML.trim() 
+        ? '<hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;" />' 
+        : '';
+      
+      // Insert separator and signature HTML
+      if (separator) {
+        editor.commands.insertContent(separator);
+      }
+      editor.commands.insertContent(signatureContent);
+      
+      setShowSignatureDropdown(false);
+      toast.success('Signature added');
+    } else {
+      // Fallback for RichTextEditor
+      const separator = body.trim() ? '<hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;" />' : '';
+      const newBody = body.trim() 
+        ? `${body}${separator}${signatureContent}`
+        : signatureContent;
+      setBody(newBody);
+      setShowSignatureDropdown(false);
+      toast.success('Signature added');
+    }
   };
 
   return (
@@ -464,11 +485,12 @@ export function FullEmailComposer({
               </div>
             ) : (
               <div className="border rounded-md overflow-hidden">
-                <RichTextEditor
+                <EmailNovelEditor
                   value={body}
                   onChange={setBody}
                   placeholder="Your message... (merge tags like {{First Name}} will be replaced)"
                   minHeight="300px"
+                  editorRef={emailEditorRef}
                 />
               </div>
             )}

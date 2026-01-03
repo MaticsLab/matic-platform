@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Application, ApplicationStatus, ApplicationDetailProps, Stage, ReviewHistoryEntry } from './types';
 import { 
   X, Mail, Trash2, ChevronRight, ChevronDown, ChevronLeft,
@@ -29,6 +29,8 @@ import { recommendationsClient, RecommendationRequest } from '@/lib/api/recommen
 import { RefreshCw } from 'lucide-react';
 import { QuickReminderPanel } from '../QuickReminderPanel';
 import { FullEmailComposer } from '../FullEmailComposer';
+import { EmailNovelEditor } from '../EmailNovelEditor';
+import type { EditorInstance } from 'novel';
 
 // Icon mapping for actions
 const actionIcons: Record<string, React.ReactNode> = {
@@ -445,6 +447,7 @@ export function ApplicationDetail({
   const [isLoadingSignatures, setIsLoadingSignatures] = useState(false);
   const [showSignatureDropdown, setShowSignatureDropdown] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const emailEditorRef = useRef<EditorInstance | null>(null);
 
   // Gmail connection - use shared hook
   const { 
@@ -495,16 +498,34 @@ export function ApplicationDetail({
       ? (signature.content_html || signature.content)
       : signature.content;
     
-    // For textarea, we'll insert plain text version or HTML
-    // Add a separator if body is not empty
-    const separator = emailBody.trim() ? '\n\n---\n\n' : '';
-    const newBody = emailBody.trim() 
-      ? `${emailBody}${separator}${signatureContent.replace(/<[^>]*>/g, '')}`
-      : signatureContent.replace(/<[^>]*>/g, '');
-    
-    setEmailBody(newBody);
-    setShowSignatureDropdown(false);
-    toast.success('Signature added');
+    if (emailEditorRef.current) {
+      // Use Novel editor to insert HTML
+      const editor = emailEditorRef.current;
+      
+      // Add a horizontal line separator before signature if body is not empty
+      const currentHTML = editor.getHTML();
+      const separator = currentHTML.trim() 
+        ? '<hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;" />' 
+        : '';
+      
+      // Insert separator and signature HTML
+      if (separator) {
+        editor.commands.insertContent(separator);
+      }
+      editor.commands.insertContent(signatureContent);
+      
+      setShowSignatureDropdown(false);
+      toast.success('Signature added');
+    } else {
+      // Fallback for textarea (shouldn't happen with Novel editor, but just in case)
+      const separator = emailBody.trim() ? '\n\n---\n\n' : '';
+      const newBody = emailBody.trim() 
+        ? `${emailBody}${separator}${signatureContent.replace(/<[^>]*>/g, '')}`
+        : signatureContent.replace(/<[^>]*>/g, '');
+      setEmailBody(newBody);
+      setShowSignatureDropdown(false);
+      toast.success('Signature added');
+    }
   };
 
   // Update emailTo when application changes
@@ -1725,12 +1746,13 @@ export function ApplicationDetail({
 
                   {/* Email Body */}
                   <div className="ml-14 relative">
-                    <textarea
+                    <EmailNovelEditor
                       value={emailBody}
-                      onChange={(e) => setEmailBody(e.target.value)}
+                      onChange={setEmailBody}
                       placeholder="Say something, press 'space' for AI, '/' for commands"
-                      rows={6}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none bg-white"
+                      minHeight="200px"
+                      className="border border-gray-200 rounded-lg"
+                      editorRef={emailEditorRef}
                     />
                   </div>
 
@@ -2169,12 +2191,13 @@ export function ApplicationDetail({
 
               {/* Email Body */}
               <div className="ml-14 relative">
-                <textarea
+                <EmailNovelEditor
                   value={emailBody}
-                  onChange={(e) => setEmailBody(e.target.value)}
+                  onChange={setEmailBody}
                   placeholder="Say something, press 'space' for AI, '/' for commands"
-                  rows={6}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none bg-white"
+                  minHeight="200px"
+                  className="border border-gray-200 rounded-lg"
+                  editorRef={emailEditorRef}
                 />
               </div>
 
