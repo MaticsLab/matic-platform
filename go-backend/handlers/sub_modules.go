@@ -75,13 +75,14 @@ func CreateSubModule(c *gin.Context) {
 		return
 	}
 
-	// Get user ID
+	// Get user ID (Better Auth TEXT ID)
 	userIDStr, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	userID, _ := uuid.Parse(userIDStr)
+	legacyUserID := getLegacyUserID(userIDStr) // Legacy UUID (if available)
+	baUserID := userIDStr                      // Better Auth user ID (TEXT)
 
 	// Verify hub exists
 	var hub models.Table
@@ -125,17 +126,19 @@ func CreateSubModule(c *gin.Context) {
 		Settings:        settingsJSON,
 		IsEnabled:       true,
 		Position:        maxPosition + 1,
-		CreatedBy:       &userID,
+		CreatedBy:       legacyUserID,
+		BACreatedBy:     &baUserID, // Better Auth user ID (TEXT)
 	}
 
 	// If not using parent table, create a dedicated table
 	if !input.UsesParentTable {
 		dataTable := models.Table{
-			WorkspaceID: hub.WorkspaceID,
-			Name:        input.Name,
-			Slug:        subModuleSlug + "-data",
-			Description: "Data table for " + input.Name,
-			CreatedBy:   userID,
+			WorkspaceID:  hub.WorkspaceID,
+			Name:         input.Name,
+			Slug:         subModuleSlug + "-data",
+			Description:  "Data table for " + input.Name,
+			CreatedBy:    func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
+			BACreatedBy:  &baUserID, // Better Auth user ID (TEXT)
 		}
 		if err := database.DB.Create(&dataTable).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create data table"})

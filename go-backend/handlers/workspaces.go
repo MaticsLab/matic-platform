@@ -29,7 +29,7 @@ func ListWorkspaces(c *gin.Context) {
 	var workspaces []models.Workspace
 	query := database.DB.
 		Joins("JOIN workspace_members ON workspace_members.workspace_id = workspaces.id").
-		Where("workspace_members.user_id = ? AND workspace_members.status = ?", userID, "active")
+		Where("(workspace_members.user_id::text = ? OR workspace_members.ba_user_id = ?) AND workspace_members.status = ?", userID, userID, "active")
 
 	if organizationID != "" {
 		query = query.Where("workspaces.organization_id = ?", organizationID)
@@ -59,9 +59,10 @@ func GetWorkspace(c *gin.Context) {
 
 	var workspace models.Workspace
 	// Verify user is an active member of this workspace
+	// Check both user_id (Supabase UUID) and ba_user_id (Better Auth TEXT) for compatibility
 	if err := database.DB.
 		Joins("JOIN workspace_members ON workspace_members.workspace_id = workspaces.id").
-		Where("workspaces.id = ? AND workspace_members.user_id = ? AND workspace_members.status = ?", id, userID, "active").
+		Where("workspaces.id = ? AND (workspace_members.user_id::text = ? OR workspace_members.ba_user_id = ?) AND workspace_members.status = ?", id, userID, userID, "active").
 		Preload("Members").
 		Preload("Tables").
 		First(&workspace).Error; err != nil {
@@ -88,7 +89,7 @@ func GetWorkspaceBySlug(c *gin.Context) {
 	var workspace models.Workspace
 	query := database.DB.
 		Joins("JOIN workspace_members ON workspace_members.workspace_id = workspaces.id").
-		Where("workspace_members.user_id = ? AND workspace_members.status = ?", userID, "active").
+		Where("(workspace_members.user_id::text = ? OR workspace_members.ba_user_id = ?) AND workspace_members.status = ?", userID, userID, "active").
 		Preload("Members")
 
 	// Check if the input is a UUID (workspace ID) or a slug
@@ -126,18 +127,16 @@ func CreateWorkspace(c *gin.Context) {
 		return
 	}
 
-	// Get authenticated user ID from JWT token
+	// Get authenticated user ID from JWT token (Better Auth TEXT ID)
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: user ID not found"})
 		return
 	}
 
-	parsedUserID, err := uuid.Parse(userID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
-		return
-	}
+	// Get legacy UUID for backward compatibility
+	legacyUserID := getLegacyUserID(userID)
+	baUserID := userID // Better Auth user ID (TEXT)
 
 	// Check for duplicate slug within organization
 	var existing models.Workspace
@@ -157,14 +156,15 @@ func CreateWorkspace(c *gin.Context) {
 	}
 
 	workspace := models.Workspace{
-		OrganizationID: input.OrganizationID,
-		Name:           input.Name,
-		Slug:           input.Slug,
-		Description:    input.Description,
-		Color:          color,
-		Icon:           icon,
-		Settings:       mapToJSON(input.Settings),
-		CreatedBy:      parsedUserID,
+		OrganizationID:  input.OrganizationID,
+		Name:            input.Name,
+		Slug:            input.Slug,
+		Description:     input.Description,
+		Color:           color,
+		Icon:            icon,
+		Settings:        mapToJSON(input.Settings),
+		CreatedBy:       func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
+		BACreatedBy:     &baUserID, // Better Auth user ID (TEXT)
 	}
 
 	// Begin transaction to create workspace and add creator as member
@@ -179,7 +179,8 @@ func CreateWorkspace(c *gin.Context) {
 	// Add creator as owner member
 	member := models.WorkspaceMember{
 		WorkspaceID: workspace.ID,
-		UserID:      &parsedUserID,
+		UserID:      legacyUserID,
+		BAUserID:    &baUserID, // Better Auth user ID (TEXT)
 		Role:        "owner",
 		Status:      "active",
 	}
@@ -224,7 +225,7 @@ func UpdateWorkspace(c *gin.Context) {
 
 	// Check if user is owner or admin of this workspace
 	var member models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND role IN ('owner', 'admin')", workspace.ID, userID).First(&member).Error; err != nil {
+	if err := database.DB.Where("workspace_id = ? AND (user_id::text = ? OR ba_user_id = ?) AND role IN ('owner', 'admin')", workspace.ID, userID, userID).First(&member).Error; err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to update this workspace"})
 		return
 	}
@@ -349,7 +350,7 @@ func DeleteWorkspace(c *gin.Context) {
 
 	// Check if user is owner of this workspace (only owner can delete)
 	var member models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND role = ?", workspace.ID, userID, "owner").First(&member).Error; err != nil {
+	if err := database.DB.Where("workspace_id = ? AND (user_id::text = ? OR ba_user_id = ?) AND role = ?", workspace.ID, userID, userID, "owner").First(&member).Error; err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only the workspace owner can delete this workspace"})
 		return
 	}
@@ -455,7 +456,7 @@ func UpdateWorkspaceMember(c *gin.Context) {
 
 	// Check if user is owner or admin of this workspace
 	var requesterMember models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND role IN ('owner', 'admin')", member.WorkspaceID, userID).First(&requesterMember).Error; err != nil {
+	if err := database.DB.Where("workspace_id = ? AND (user_id::text = ? OR ba_user_id = ?) AND role IN ('owner', 'admin')", member.WorkspaceID, userID, userID).First(&requesterMember).Error; err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to update workspace members"})
 		return
 	}
@@ -515,7 +516,7 @@ func RemoveWorkspaceMember(c *gin.Context) {
 
 	// Check if user is owner or admin of this workspace
 	var requesterMember models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND role IN ('owner', 'admin')", member.WorkspaceID, currentUserID).First(&requesterMember).Error; err != nil {
+	if err := database.DB.Where("workspace_id = ? AND (user_id::text = ? OR ba_user_id = ?) AND role IN ('owner', 'admin')", member.WorkspaceID, currentUserID, currentUserID).First(&requesterMember).Error; err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to remove workspace members"})
 		return
 	}

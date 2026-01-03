@@ -57,6 +57,7 @@ func CreateInvitation(c *gin.Context) {
 	}
 
 	// Get the inviter's user ID from context
+	// Get authenticated user ID from context (Better Auth TEXT ID)
 	userID, exists := c.Get("user_id")
 	if !exists {
 		log.Printf("CreateInvitation: No user_id in context")
@@ -64,12 +65,10 @@ func CreateInvitation(c *gin.Context) {
 		return
 	}
 
-	inviterID, err := uuid.Parse(userID.(string))
-	if err != nil {
-		log.Printf("CreateInvitation: Invalid user_id format: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
+	userIDStr := userID.(string)
+	// Get legacy UUID for backward compatibility
+	inviterID := getLegacyUserID(userIDStr)
+	baInviterID := userIDStr // Better Auth user ID (TEXT)
 
 	workspaceID, err := uuid.Parse(req.WorkspaceID)
 	if err != nil {
@@ -88,7 +87,7 @@ func CreateInvitation(c *gin.Context) {
 
 	// Check if inviter has permission (is a member of the workspace)
 	var inviterMember models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", workspaceID, inviterID, "active").First(&inviterMember).Error; err != nil {
+	if err := database.DB.Where("workspace_id = ? AND (user_id::text = ? OR ba_user_id = ?) AND status = ?", workspaceID, userIDStr, userIDStr, "active").First(&inviterMember).Error; err != nil {
 		log.Printf("CreateInvitation: Inviter is not an active member of workspace: %v", err)
 		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to invite to this workspace"})
 		return
@@ -133,10 +132,12 @@ func CreateInvitation(c *gin.Context) {
 		ID:              uuid.New(),
 		WorkspaceID:     workspaceID,
 		UserID:          nil, // NULL until invitation is accepted
+		BAUserID:        nil, // NULL until invitation is accepted
 		Role:            role,
 		Status:          "pending",
 		InvitedEmail:    req.Email,
-		InvitedBy:       &inviterID,
+		InvitedBy:       inviterID,      // Legacy UUID (if available)
+		BAInvitedBy:     &baInviterID,  // Better Auth user ID (TEXT)
 		InviteToken:     token,
 		InviteExpiresAt: &expiresAt,
 		InvitedAt:       &invitedAt,
@@ -155,7 +156,7 @@ func CreateInvitation(c *gin.Context) {
 		// Don't fail the request if email fails - invitation is still created
 	}
 
-	invitedByStr := inviterID.String()
+	invitedByStr := userIDStr // Use Better Auth user ID
 	response := InvitationResponse{
 		ID:          pendingMember.ID.String(),
 		WorkspaceID: pendingMember.WorkspaceID.String(),
@@ -266,18 +267,16 @@ func AcceptInvitation(c *gin.Context) {
 		return
 	}
 
-	// Get the accepting user's ID
+	// Get the accepting user's ID (Better Auth TEXT ID)
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	acceptingUserID, err := uuid.Parse(userID.(string))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
+	acceptingUserIDStr := userID.(string)
+	acceptingUserID := getLegacyUserID(acceptingUserIDStr) // Legacy UUID (if available)
+	baAcceptingUserID := acceptingUserIDStr               // Better Auth user ID (TEXT)
 
 	var pendingMember models.WorkspaceMember
 	if err := database.DB.Where("invite_token = ? AND status = ?", token, "pending").First(&pendingMember).Error; err != nil {
@@ -293,7 +292,7 @@ func AcceptInvitation(c *gin.Context) {
 
 	// Check if user is already an active member of this workspace
 	var existingMember models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", pendingMember.WorkspaceID, acceptingUserID, "active").First(&existingMember).Error; err == nil {
+	if err := database.DB.Where("workspace_id = ? AND (user_id::text = ? OR ba_user_id = ?) AND status = ?", pendingMember.WorkspaceID, acceptingUserIDStr, acceptingUserIDStr, "active").First(&existingMember).Error; err == nil {
 		// User is already a member, delete the pending invitation
 		database.DB.Delete(&pendingMember)
 		c.JSON(http.StatusConflict, gin.H{"error": "You are already a member of this workspace"})
@@ -302,7 +301,8 @@ func AcceptInvitation(c *gin.Context) {
 
 	// Update the pending member to active
 	now := time.Now()
-	pendingMember.UserID = &acceptingUserID
+	pendingMember.UserID = acceptingUserID      // Legacy UUID (if available)
+	pendingMember.BAUserID = &baAcceptingUserID // Better Auth user ID (TEXT)
 	pendingMember.Status = "active"
 	pendingMember.InviteToken = "" // Clear the token
 	pendingMember.AcceptedAt = &now
@@ -342,18 +342,15 @@ func RevokeInvitation(c *gin.Context) {
 		return
 	}
 
-	// Get the revoker's user ID
+	// Get the revoker's user ID (Better Auth TEXT ID)
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	revokerID, err := uuid.Parse(userID.(string))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
+	revokerIDStr := userID.(string)
+	// revokerID not needed - we use revokerIDStr in the query
 
 	var pendingMember models.WorkspaceMember
 	if err := database.DB.Where("id = ? AND status = ?", id, "pending").First(&pendingMember).Error; err != nil {
@@ -363,7 +360,7 @@ func RevokeInvitation(c *gin.Context) {
 
 	// Check if revoker has permission (is an active member of the workspace)
 	var revokerMember models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", pendingMember.WorkspaceID, revokerID, "active").First(&revokerMember).Error; err != nil {
+	if err := database.DB.Where("workspace_id = ? AND (user_id::text = ? OR ba_user_id = ?) AND status = ?", pendingMember.WorkspaceID, revokerIDStr, revokerIDStr, "active").First(&revokerMember).Error; err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to revoke this invitation"})
 		return
 	}
@@ -398,11 +395,9 @@ func ResendInvitation(c *gin.Context) {
 		return
 	}
 
-	resenderID, err := uuid.Parse(userID.(string))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
+	// Get resender's user ID (Better Auth TEXT ID)
+	resenderIDStr := userID.(string)
+	// resenderID not needed - we use resenderIDStr in the query
 
 	var pendingMember models.WorkspaceMember
 	if err := database.DB.Preload("Workspace").Where("id = ? AND status = ?", id, "pending").First(&pendingMember).Error; err != nil {
@@ -412,7 +407,7 @@ func ResendInvitation(c *gin.Context) {
 
 	// Check if resender has permission
 	var resenderMember models.WorkspaceMember
-	if err := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", pendingMember.WorkspaceID, resenderID, "active").First(&resenderMember).Error; err != nil {
+	if err := database.DB.Where("workspace_id = ? AND (user_id::text = ? OR ba_user_id = ?) AND status = ?", pendingMember.WorkspaceID, resenderIDStr, resenderIDStr, "active").First(&resenderMember).Error; err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to resend this invitation"})
 		return
 	}

@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { ChevronDown, Settings, LogOut, Building2, Bell, User, UserPlus } from 'lucide-react'
+import { ChevronDown, Settings, LogOut, Building2, Bell, User, UserPlus, Building } from 'lucide-react'
 import { clearLastWorkspace } from '@/lib/utils'
 import { useWorkspaceDiscovery } from '@/hooks/useWorkspaceDiscovery'
+import { useOrganizationDiscovery } from '@/hooks/useOrganizationDiscovery'
 import { useSession, signOut as betterAuthSignOut } from '@/lib/better-auth-client'
 import { Sidebar } from './Sidebar'
 import { TabNavigation } from './TabNavigation'
@@ -45,6 +46,7 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
   const [fullWorkspace, setFullWorkspace] = useState<Workspace | null>(null)
   
   const { workspaces, currentWorkspace, setCurrentWorkspaceBySlug } = useWorkspaceDiscovery()
+  const { organizations, currentOrganization, switchToOrganization } = useOrganizationDiscovery()
 
   useEffect(() => {
     if (workspaceSlug && workspaces.length > 0) {
@@ -127,6 +129,9 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
         user={user}
         currentWorkspace={currentWorkspace}
         workspaces={workspaces}
+        organizations={organizations}
+        currentOrganization={currentOrganization}
+        switchToOrganization={switchToOrganization}
         showSettingsModal={showSettingsModal}
         setShowSettingsModal={setShowSettingsModal}
         showInviteSidebar={showInviteSidebar}
@@ -152,6 +157,9 @@ function NavigationLayoutInner({
   user,
   currentWorkspace,
   workspaces,
+  organizations,
+  currentOrganization,
+  switchToOrganization,
   showSettingsModal,
   setShowSettingsModal,
   showInviteSidebar,
@@ -169,6 +177,9 @@ function NavigationLayoutInner({
   user: any
   currentWorkspace: any
   workspaces: any[]
+  organizations: any[]
+  currentOrganization: any
+  switchToOrganization: (id: string) => void
   showSettingsModal: boolean
   setShowSettingsModal: (open: boolean) => void
   showInviteSidebar: boolean

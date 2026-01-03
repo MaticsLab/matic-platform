@@ -32,14 +32,14 @@ func ListDataTables(c *gin.Context) {
 		}
 
 		// Get user's hub access restrictions for this workspace
-		var member models.WorkspaceMember
 		wsID, err := uuid.Parse(workspaceID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace ID"})
 			return
 		}
 
-		memberExists := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", wsID, userID, "active").First(&member).Error == nil
+		// Check workspace membership using helper function
+		member, memberExists := checkWorkspaceMembership(wsID, userID)
 		if !memberExists {
 			c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
 			return
@@ -106,16 +106,10 @@ func CreateDataTable(c *gin.Context) {
 		return
 	}
 
-	// Get authenticated user ID from JWT token
+	// Get authenticated user ID from JWT token (Better Auth TEXT ID)
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: user ID not found"})
-		return
-	}
-
-	parsedUserID, err := uuid.Parse(userID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
 		return
 	}
 
@@ -147,6 +141,12 @@ func CreateDataTable(c *gin.Context) {
 		}
 	}
 
+	// Try to get legacy UUID for backward compatibility, but prioritize Better Auth
+	var legacyUserID *uuid.UUID
+	if parsedUUID, err := uuid.Parse(userID); err == nil {
+		legacyUserID = &parsedUUID
+	}
+
 	table := models.Table{
 		WorkspaceID: input.WorkspaceID,
 		Name:        input.Name,
@@ -156,7 +156,8 @@ func CreateDataTable(c *gin.Context) {
 		Color:       "#10B981", // Default green color
 		Settings:    mapToJSON(input.Settings),
 		RowCount:    0,
-		CreatedBy:   parsedUserID,
+		CreatedBy:   func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
+		BACreatedBy: &userID, // Better Auth user ID (TEXT)
 	}
 
 	if err := database.DB.Create(&table).Error; err != nil {
@@ -274,24 +275,23 @@ func CreateTableRow(c *gin.Context) {
 		return
 	}
 
-	// Get authenticated user ID from JWT token
+	// Get authenticated user ID from JWT token (Better Auth TEXT ID)
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: user ID not found"})
 		return
 	}
 
-	parsedUserID, err := uuid.Parse(userID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
-		return
-	}
+	// Get legacy UUID for backward compatibility
+	legacyUserID := getLegacyUserID(userID)
+	baUserID := userID // Better Auth user ID (TEXT)
 
 	row := models.Row{
-		TableID:   parsedTableID,
-		Data:      mapToJSON(input.Data),
-		Position:  input.Position,
-		CreatedBy: &parsedUserID,
+		TableID:     parsedTableID,
+		Data:        mapToJSON(input.Data),
+		Position:    input.Position,
+		CreatedBy:   legacyUserID,
+		BACreatedBy: &baUserID, // Better Auth user ID (TEXT)
 	}
 
 	if err := database.DB.Create(&row).Error; err != nil {
@@ -308,7 +308,7 @@ func CreateTableRow(c *gin.Context) {
 			Data:         input.Data,
 			ChangeType:   models.ChangeTypeCreate,
 			ChangeReason: "Row created",
-			ChangedBy:    &parsedUserID,
+			ChangedBy:    legacyUserID,
 		})
 	}()
 
@@ -343,12 +343,9 @@ func UpdateTableRow(c *gin.Context) {
 		return
 	}
 
-	// Get user ID for version tracking
+	// Get user ID for version tracking (Better Auth TEXT ID)
 	userIDStr, _ := middleware.GetUserID(c)
-	var userID *uuid.UUID
-	if parsedUserID, err := uuid.Parse(userIDStr); err == nil {
-		userID = &parsedUserID
-	}
+	legacyUserID := getLegacyUserID(userIDStr) // For backward compatibility with version history
 
 	// Parse IDs
 	parsedTableID, err := uuid.Parse(tableID)
@@ -419,7 +416,7 @@ func UpdateTableRow(c *gin.Context) {
 			Data:         mergedData,
 			ChangeType:   models.ChangeTypeUpdate,
 			ChangeReason: changeReason,
-			ChangedBy:    userID,
+			ChangedBy:    legacyUserID,
 		})
 		if versionErr != nil {
 			tx.Rollback()

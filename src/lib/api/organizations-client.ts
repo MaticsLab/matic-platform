@@ -1,4 +1,9 @@
-import { goFetch } from './go-client'
+/**
+ * Organizations API Client
+ * Uses Better Auth organizations (ba_organizations) for multi-tenant support
+ */
+
+import { goClient } from './go-client'
 
 export interface Organization {
   id: string
@@ -6,49 +11,66 @@ export interface Organization {
   slug: string
   description?: string
   logo_url?: string
-  settings?: Record<string, any>
-  subscription_tier?: 'free' | 'pro' | 'enterprise'
+  settings: Record<string, any>
+  subscription_tier?: string
   created_at: string
   updated_at: string
+  // Relations
   members?: OrganizationMember[]
-  workspaces?: any[]
+  workspaces?: any[] // Workspaces belong to this organization
 }
 
 export interface OrganizationMember {
   id: string
   organization_id: string
-  user_id: string
-  role: 'owner' | 'admin' | 'editor' | 'member'
+  user_id?: string | null // Legacy UUID (nullable)
+  ba_user_id?: string | null // Better Auth user ID (TEXT)
+  role: 'owner' | 'admin' | 'member' | 'viewer'
   permissions?: Record<string, any>
   joined_at: string
+  updated_at: string
+}
+
+export interface CreateOrganizationInput {
+  name: string
+  slug: string
+  description?: string
+  settings?: Record<string, any>
+}
+
+export interface UpdateOrganizationInput {
+  name?: string
+  slug?: string
+  description?: string
+  settings?: Record<string, any>
 }
 
 export const organizationsClient = {
-  list: () => goFetch<Organization[]>('/organizations'),
-  
-  get: (id: string) => goFetch<Organization>(`/organizations/${id}`),
-  
-  create: (data: {
-    name: string
-    slug: string
-    description?: string
-    settings?: Record<string, any>
-  }) => goFetch<Organization>('/organizations', {
-    method: 'POST',
-    body: JSON.stringify(data)
-  }),
-  
-  update: (id: string, data: {
-    name?: string
-    slug?: string
-    description?: string
-    settings?: Record<string, any>
-  }) => goFetch<Organization>(`/organizations/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(data)
-  }),
-  
-  delete: (id: string) => goFetch<void>(`/organizations/${id}`, {
-    method: 'DELETE'
-  })
+  /**
+   * List all organizations the current user is a member of
+   */
+  list: () => goClient.get<Organization[]>('/organizations'),
+
+  /**
+   * Get a single organization by ID
+   */
+  get: (id: string) => goClient.get<Organization>(`/organizations/${id}`),
+
+  /**
+   * Create a new organization
+   */
+  create: (data: CreateOrganizationInput) => 
+    goClient.post<Organization>('/organizations', data),
+
+  /**
+   * Update an organization
+   */
+  update: (id: string, data: UpdateOrganizationInput) => 
+    goClient.patch<Organization>(`/organizations/${id}`, data),
+
+  /**
+   * Delete an organization (only owners can delete)
+   */
+  delete: (id: string) => 
+    goClient.delete(`/organizations/${id}`),
 }

@@ -149,18 +149,16 @@ func CreateAutomationWorkflow(c *gin.Context) {
 		return
 	}
 
-	// Get user ID from context
+	// Get user ID from context (Better Auth TEXT ID)
 	userIDStr, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	userID, err := uuid.Parse(userIDStr.(string))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
+	userIDString := userIDStr.(string)
+	legacyUserID := getLegacyUserID(userIDString) // Legacy UUID (if available)
+	baUserID := userIDString                      // Better Auth user ID (TEXT)
 
 	// Convert nodes and edges to JSON
 	nodesJSON, _ := json.Marshal(req.Nodes)
@@ -181,7 +179,8 @@ func CreateAutomationWorkflow(c *gin.Context) {
 		Name:        req.Name,
 		Description: req.Description,
 		WorkspaceID: wsID,
-		UserID:      userID,
+		UserID:      func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
+		BAUserID:    &baUserID, // Better Auth user ID (TEXT)
 		Nodes:       nodesJSON,
 		Edges:       edgesJSON,
 		Visibility:  visibility,
@@ -383,18 +382,16 @@ func DuplicateAutomationWorkflow(c *gin.Context) {
 		return
 	}
 
-	// Get user ID from context
+	// Get user ID from context (Better Auth TEXT ID)
 	userIDStr, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	userID, err := uuid.Parse(userIDStr.(string))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
+	userIDString := userIDStr.(string)
+	legacyUserID := getLegacyUserID(userIDString) // Legacy UUID (if available)
+	baUserID := userIDString                      // Better Auth user ID (TEXT)
 
 	// Find original workflow
 	var original models.AutomationWorkflow
@@ -404,8 +401,14 @@ func DuplicateAutomationWorkflow(c *gin.Context) {
 		return
 	}
 
-	// Check access (owner or public)
-	isOwner := original.UserID.String() == userIDStr.(string)
+	// Check access (owner or public) - check both legacy and Better Auth user IDs
+	isOwner := false
+	if legacyUserID != nil {
+		isOwner = original.UserID == *legacyUserID
+	}
+	if !isOwner && original.BAUserID != nil {
+		isOwner = *original.BAUserID == userIDString
+	}
 	if !isOwner && original.Visibility == "private" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Workflow not found"})
 		return
@@ -416,7 +419,8 @@ func DuplicateAutomationWorkflow(c *gin.Context) {
 		Name:        original.Name + " (Copy)",
 		Description: original.Description,
 		WorkspaceID: original.WorkspaceID,
-		UserID:      userID,
+		UserID:      func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
+		BAUserID:    &baUserID, // Better Auth user ID (TEXT)
 		Nodes:       original.Nodes,
 		Edges:       original.Edges,
 		Visibility:  "private",

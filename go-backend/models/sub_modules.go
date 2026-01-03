@@ -33,7 +33,8 @@ type SubModule struct {
 	Position  int            `gorm:"default:0" json:"position"`
 
 	// Metadata
-	CreatedBy *uuid.UUID `gorm:"type:uuid" json:"created_by,omitempty"`
+	CreatedBy *uuid.UUID `gorm:"type:uuid" json:"created_by,omitempty"` // Legacy Supabase UUID
+	BACreatedBy *string   `gorm:"type:text;index" json:"ba_created_by,omitempty"` // Better Auth user ID (TEXT)
 	CreatedAt time.Time  `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
 

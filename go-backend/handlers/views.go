@@ -148,18 +148,15 @@ func CreateView(c *gin.Context) {
 		return
 	}
 
-	// Get user ID
+	// Get user ID (Better Auth TEXT ID)
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
+	legacyUserID := getLegacyUserID(userID) // Legacy UUID (if available)
+	baUserID := userID                      // Better Auth user ID (TEXT)
 
 	// Validate view type
 	validTypes := []string{
@@ -200,7 +197,8 @@ func CreateView(c *gin.Context) {
 		Sorts:       datatypes.JSON(sortsJSON),
 		IsShared:    input.IsShared,
 		IsLocked:    input.IsLocked,
-		CreatedBy:   userUUID,
+		CreatedBy:   func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
+		BACreatedBy: &baUserID, // Better Auth user ID (TEXT)
 	}
 
 	if err := database.DB.Create(&view).Error; err != nil {
@@ -419,18 +417,15 @@ func CreatePortalView(c *gin.Context) {
 		return
 	}
 
-	// Get user ID
+	// Get user ID (Better Auth TEXT ID)
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
+	legacyUserID := getLegacyUserID(userID) // Legacy UUID (if available)
+	baUserID := userID                      // Better Auth user ID (TEXT)
 
 	// Create default portal configuration
 	defaultConfig := map[string]interface{}{
@@ -466,7 +461,8 @@ func CreatePortalView(c *gin.Context) {
 		Grouping:    datatypes.JSON([]byte("{}")),
 		IsShared:    true,
 		IsLocked:    false,
-		CreatedBy:   userUUID,
+		CreatedBy:   func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
+		BACreatedBy: &baUserID, // Better Auth user ID (TEXT)
 	}
 
 	if err := database.DB.Create(&view).Error; err != nil {

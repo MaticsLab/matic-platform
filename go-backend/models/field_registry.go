@@ -211,7 +211,8 @@ type ChangeApproval struct {
 	RequestedAt time.Time `gorm:"autoCreateTime" json:"requested_at"`
 
 	// Approver
-	ReviewedBy  *uuid.UUID `gorm:"type:uuid" json:"reviewed_by,omitempty"`
+	ReviewedBy  *uuid.UUID `gorm:"type:uuid" json:"reviewed_by,omitempty"` // Legacy Supabase UUID
+	BAReviewedBy *string   `gorm:"type:text;index" json:"ba_reviewed_by,omitempty"` // Better Auth user ID (TEXT)
 	ReviewedAt  *time.Time `json:"reviewed_at,omitempty"`
 	ReviewNotes string     `json:"review_notes,omitempty"`
 
@@ -260,7 +261,8 @@ type AIFieldSuggestion struct {
 	Status string `gorm:"default:'pending'" json:"status"` // pending, accepted, rejected, dismissed, auto_applied
 
 	// Review
-	ReviewedBy  *uuid.UUID `gorm:"type:uuid" json:"reviewed_by,omitempty"`
+	ReviewedBy  *uuid.UUID `gorm:"type:uuid" json:"reviewed_by,omitempty"` // Legacy Supabase UUID
+	BAReviewedBy *string   `gorm:"type:text;index" json:"ba_reviewed_by,omitempty"` // Better Auth user ID (TEXT)
 	ReviewedAt  *time.Time `json:"reviewed_at,omitempty"`
 	ReviewNotes string     `json:"review_notes,omitempty"`
 
@@ -356,14 +358,16 @@ type ChangeRequest struct {
 	ChangeSummary string `json:"change_summary,omitempty"`
 
 	// Requester
-	RequestedBy uuid.UUID `gorm:"type:uuid;not null" json:"requested_by"`
+	RequestedBy uuid.UUID `gorm:"type:uuid;not null" json:"requested_by"` // Legacy Supabase UUID
+	BARequestedBy *string `gorm:"type:text;index" json:"ba_requested_by,omitempty"` // Better Auth user ID (TEXT)
 	RequestedAt time.Time `gorm:"default:now()" json:"requested_at"`
 
 	// Approval workflow
 	Status string `gorm:"default:'pending'" json:"status"` // pending, approved, rejected, cancelled, expired
 
 	// Reviewer
-	ReviewedBy  *uuid.UUID `gorm:"type:uuid" json:"reviewed_by,omitempty"`
+	ReviewedBy  *uuid.UUID `gorm:"type:uuid" json:"reviewed_by,omitempty"` // Legacy Supabase UUID
+	BAReviewedBy *string   `gorm:"type:text;index" json:"ba_reviewed_by,omitempty"` // Better Auth user ID (TEXT)
 	ReviewedAt  *time.Time `json:"reviewed_at,omitempty"`
 	ReviewNotes string     `json:"review_notes,omitempty"`
 

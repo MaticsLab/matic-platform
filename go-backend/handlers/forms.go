@@ -285,10 +285,14 @@ func CreateForm(c *gin.Context) {
 		CreatedBy:   uuid.Nil,
 	}
 
+	// Set Better Auth user ID for table creation
 	if userID, exists := middleware.GetUserID(c); exists {
-		if parsedUserID, err := uuid.Parse(userID); err == nil {
-			table.CreatedBy = parsedUserID
+		legacyUserID := getLegacyUserID(userID)
+		baUserID := userID
+		if legacyUserID != nil {
+			table.CreatedBy = *legacyUserID
 		}
+		table.BACreatedBy = &baUserID // Better Auth user ID (TEXT)
 	}
 
 	if err := database.DB.Create(&table).Error; err != nil {
@@ -301,11 +305,12 @@ func CreateForm(c *gin.Context) {
 	}
 
 	view := models.View{
-		TableID:   table.ID,
-		Name:      "Form View",
-		Type:      "form",
-		Config:    mapToJSON(viewConfig),
-		CreatedBy: table.CreatedBy,
+		TableID:     table.ID,
+		Name:        "Form View",
+		Type:        "form",
+		Config:      mapToJSON(viewConfig),
+		CreatedBy:   table.CreatedBy,
+		BACreatedBy: table.BACreatedBy, // Better Auth user ID (TEXT)
 	}
 
 	database.DB.Create(&view)

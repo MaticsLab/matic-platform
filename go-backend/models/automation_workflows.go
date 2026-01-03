@@ -13,7 +13,8 @@ type AutomationWorkflow struct {
 	Name        string         `gorm:"type:varchar(255);not null" json:"name"`
 	Description string         `gorm:"type:text" json:"description"`
 	WorkspaceID uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
-	UserID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"`
+	UserID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"` // Legacy Supabase UUID
+	BAUserID    *string        `gorm:"type:text;index" json:"ba_user_id,omitempty"` // Better Auth user ID (TEXT)
 	Nodes       datatypes.JSON `gorm:"type:jsonb;not null;default:'[]'" json:"nodes"`
 	Edges       datatypes.JSON `gorm:"type:jsonb;not null;default:'[]'" json:"edges"`
 	Visibility  string         `gorm:"type:varchar(20);not null;default:'private'" json:"visibility"` // private, public, workspace
@@ -35,7 +36,8 @@ func (AutomationWorkflow) TableName() string {
 type AutomationWorkflowExecution struct {
 	ID          uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	WorkflowID  uuid.UUID      `gorm:"type:uuid;not null;index" json:"workflow_id"`
-	UserID      *uuid.UUID     `gorm:"type:uuid;index" json:"user_id"`
+	UserID      *uuid.UUID     `gorm:"type:uuid;index" json:"user_id"` // Legacy Supabase UUID
+	BAUserID    *string        `gorm:"type:text;index" json:"ba_user_id,omitempty"` // Better Auth user ID (TEXT)
 	Status      string         `gorm:"type:varchar(20);not null;default:'pending'" json:"status"` // pending, running, completed, failed, cancelled
 	TriggerType string         `gorm:"type:varchar(50)" json:"trigger_type"`
 	TriggerData datatypes.JSON `gorm:"type:jsonb" json:"trigger_data"`

@@ -197,7 +197,7 @@ func GetActivitiesHub(c *gin.Context) {
 
 	// Check if user has access to this hub
 	var member models.WorkspaceMember
-	memberExists := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", table.WorkspaceID, userID, "active").First(&member).Error == nil
+	memberExists := database.DB.Where("workspace_id = ? AND (user_id::text = ? OR ba_user_id = ?) AND status = ?", table.WorkspaceID, userID, userID, "active").First(&member).Error == nil
 	if !memberExists {
 		c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
 		return
@@ -252,7 +252,7 @@ func GetActivitiesHubBySlug(c *gin.Context) {
 		return
 	}
 
-	memberExists := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", wsID, userID, "active").First(&member).Error == nil
+	memberExists := database.DB.Where("workspace_id = ? AND (user_id::text = ? OR ba_user_id = ?) AND status = ?", wsID, userID, userID, "active").First(&member).Error == nil
 	if !memberExists {
 		c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
 		return
@@ -304,16 +304,16 @@ func CreateActivitiesHub(c *gin.Context) {
 		return
 	}
 
+	// Get authenticated user ID from JWT token (Better Auth TEXT ID)
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: user ID not found"})
 		return
 	}
-	parsedUserID, err := uuid.Parse(userID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
-		return
-	}
+
+	// Get legacy UUID for backward compatibility
+	legacyUserID := getLegacyUserID(userID)
+	baUserID := userID // Better Auth user ID (TEXT)
 
 	// Build settings
 	settings := input.Settings
@@ -340,16 +340,17 @@ func CreateActivitiesHub(c *gin.Context) {
 	settingsJSON, _ := json.Marshal(settings)
 
 	table := models.Table{
-		WorkspaceID: input.WorkspaceID,
-		Name:        input.Name,
-		Slug:        input.Slug,
-		Description: input.Description,
-		Icon:        "calendar",
-		Color:       "#10B981",
-		HubType:     "activities",
-		EntityType:  "event",
-		Settings:    datatypes.JSON(settingsJSON),
-		CreatedBy:   parsedUserID,
+		WorkspaceID:  input.WorkspaceID,
+		Name:         input.Name,
+		Slug:         input.Slug,
+		Description:  input.Description,
+		Icon:         "calendar",
+		Color:        "#10B981",
+		HubType:      "activities",
+		EntityType:   "event",
+		Settings:     datatypes.JSON(settingsJSON),
+		CreatedBy:    func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
+		BACreatedBy:  &baUserID, // Better Auth user ID (TEXT)
 	}
 
 	if err := database.DB.Create(&table).Error; err != nil {
@@ -576,12 +577,16 @@ func CreateActivitiesHubTab(c *gin.Context) {
 		return
 	}
 
+	// Get authenticated user ID from JWT token (Better Auth TEXT ID)
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	parsedUserID, _ := uuid.Parse(userID)
+
+	// Get legacy UUID for backward compatibility
+	legacyUserID := getLegacyUserID(userID)
+	baUserID := userID // Better Auth user ID (TEXT)
 
 	// Build config
 	config := input.Config
@@ -600,11 +605,12 @@ func CreateActivitiesHubTab(c *gin.Context) {
 	configJSON, _ := json.Marshal(config)
 
 	view := models.View{
-		TableID:   hubUUID,
-		Name:      input.Name,
-		Type:      "tab",
-		Config:    datatypes.JSON(configJSON),
-		CreatedBy: parsedUserID,
+		TableID:     hubUUID,
+		Name:         input.Name,
+		Type:         "tab",
+		Config:       datatypes.JSON(configJSON),
+		CreatedBy:    func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
+		BACreatedBy:  &baUserID, // Better Auth user ID (TEXT)
 	}
 
 	if err := database.DB.Create(&view).Error; err != nil {

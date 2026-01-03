@@ -49,7 +49,8 @@ type Organization struct {
 type OrganizationMember struct {
 	ID             uuid.UUID `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
 	OrganizationID uuid.UUID `gorm:"type:uuid;not null;index" json:"organization_id"`
-	UserID         uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
+	UserID         uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"` // Legacy Supabase UUID
+	BAUserID       *string   `gorm:"type:text;index" json:"ba_user_id,omitempty"` // Better Auth user ID (TEXT)
 	Role           string    `gorm:"type:varchar(50);default:'member'" json:"role"` // owner, admin, member
 	// Permissions JSONB structure:
 	// {
@@ -74,7 +75,8 @@ func (m *OrganizationMember) BeforeCreate(tx *gorm.DB) error {
 // Maps to workspaces in database
 type Workspace struct {
 	BaseModel
-	OrganizationID  uuid.UUID         `gorm:"type:uuid;not null;index" json:"organization_id"`
+	OrganizationID  uuid.UUID         `gorm:"type:uuid;not null;index" json:"organization_id"` // Legacy organization UUID
+	BAOrganizationID *string          `gorm:"type:text;index" json:"ba_organization_id,omitempty"` // Better Auth organization ID (TEXT)
 	Name            string            `gorm:"not null" json:"name"`
 	Slug            string            `gorm:"not null;index" json:"slug"`
 	CustomSubdomain *string           `gorm:"uniqueIndex" json:"custom_subdomain,omitempty"` // Custom subdomain for pretty portal URLs
@@ -83,7 +85,8 @@ type Workspace struct {
 	Icon            string            `gorm:"default:'folder'" json:"icon"`
 	Settings        datatypes.JSON    `gorm:"type:jsonb;default:'{}'" json:"settings"`
 	IsArchived      bool              `gorm:"default:false" json:"is_archived"`
-	CreatedBy       uuid.UUID         `gorm:"type:uuid;not null" json:"created_by"`
+	CreatedBy       uuid.UUID         `gorm:"type:uuid;not null" json:"created_by"` // Legacy Supabase UUID
+	BACreatedBy     *string           `gorm:"type:text;index" json:"ba_created_by,omitempty"` // Better Auth user ID (TEXT)
 	LogoURL         string            `json:"logo_url,omitempty"`
 	AIDescription   string            `gorm:"column:ai_description" json:"ai_description,omitempty"`
 	DataSummary     datatypes.JSON    `gorm:"type:jsonb" json:"data_summary,omitempty"`
@@ -94,7 +97,8 @@ type Workspace struct {
 type WorkspaceMember struct {
 	ID          uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
 	WorkspaceID uuid.UUID      `gorm:"type:uuid;not null;index" json:"workspace_id"`
-	UserID      *uuid.UUID     `gorm:"type:uuid;index" json:"user_id,omitempty"`      // Nullable for pending invites
+	UserID      *uuid.UUID     `gorm:"type:uuid;index" json:"user_id,omitempty"`      // Nullable for pending invites - Supabase user ID (UUID)
+	BAUserID    *string        `gorm:"type:text;index" json:"ba_user_id,omitempty"`  // Better Auth user ID (TEXT) - populated for migrated users
 	Role        string         `gorm:"type:varchar(50);default:'viewer'" json:"role"` // owner, editor, viewer
 	HubAccess   pq.StringArray `gorm:"type:text[]" json:"hub_access,omitempty"`       // List of hub IDs user can access, empty = all
 	// Permissions JSONB structure:
@@ -109,7 +113,8 @@ type WorkspaceMember struct {
 	// Invitation fields
 	Status          string     `gorm:"type:varchar(20);default:'active'" json:"status"` // pending, active, declined, expired
 	InvitedEmail    string     `gorm:"index" json:"invited_email,omitempty"`            // Email for pending invites
-	InvitedBy       *uuid.UUID `gorm:"type:uuid" json:"invited_by,omitempty"`
+	InvitedBy       *uuid.UUID `gorm:"type:uuid" json:"invited_by,omitempty"` // Legacy Supabase UUID
+	BAInvitedBy     *string    `gorm:"type:text;index" json:"ba_invited_by,omitempty"` // Better Auth user ID (TEXT)
 	InviteToken     string     `gorm:"uniqueIndex" json:"invite_token,omitempty"`
 	InviteExpiresAt *time.Time `json:"invite_expires_at,omitempty"`
 	InvitedAt       *time.Time `json:"invited_at,omitempty"`
@@ -189,7 +194,8 @@ type Table struct {
 	HistorySettings  datatypes.JSON `gorm:"type:jsonb" json:"history_settings,omitempty"`               // Version history config
 	ApprovalSettings datatypes.JSON `gorm:"type:jsonb" json:"approval_settings,omitempty"`              // Change approval config
 	AISettings       datatypes.JSON `gorm:"column:ai_settings;type:jsonb" json:"ai_settings,omitempty"` // AI suggestion settings
-	CreatedBy        uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`
+	CreatedBy        uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"` // Legacy Supabase UUID
+	BACreatedBy     *string        `gorm:"type:text;index" json:"ba_created_by,omitempty"` // Better Auth user ID (TEXT)
 
 	// Share preview metadata (for forms/portals)
 	PreviewTitle       *string `json:"preview_title,omitempty"`
@@ -258,8 +264,10 @@ type Row struct {
 	Position     int64          `gorm:"default:0" json:"position"` // bigint in database
 	StageGroupID *uuid.UUID     `gorm:"type:uuid" json:"stage_group_id,omitempty"`
 	Tags         datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"tags"`
-	CreatedBy    *uuid.UUID     `gorm:"type:uuid" json:"created_by,omitempty"`
-	UpdatedBy    *uuid.UUID     `gorm:"type:uuid" json:"updated_by,omitempty"`
+	CreatedBy    *uuid.UUID     `gorm:"type:uuid" json:"created_by,omitempty"` // Legacy Supabase UUID
+	UpdatedBy    *uuid.UUID     `gorm:"type:uuid" json:"updated_by,omitempty"` // Legacy Supabase UUID
+	BACreatedBy  *string        `gorm:"type:text;index" json:"ba_created_by,omitempty"` // Better Auth user ID (TEXT)
+	BAUpdatedBy  *string        `gorm:"type:text;index" json:"ba_updated_by,omitempty"` // Better Auth user ID (TEXT)
 }
 
 func (Row) TableName() string {
@@ -292,7 +300,8 @@ type View struct {
 	Config      datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"config"` // For portal: sections, translations, theme
 	IsShared    bool           `gorm:"default:false" json:"is_shared"`
 	IsLocked    bool           `gorm:"default:false" json:"is_locked"`
-	CreatedBy   uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`
+	CreatedBy   uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"` // Legacy Supabase UUID
+	BACreatedBy *string        `gorm:"type:text;index" json:"ba_created_by,omitempty"` // Better Auth user ID (TEXT)
 }
 
 func (View) TableName() string {

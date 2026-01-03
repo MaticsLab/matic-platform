@@ -23,10 +23,10 @@ func ListOrganizations(c *gin.Context) {
 
 	var organizations []models.Organization
 
-	// Get all organizations where the user is a member
+	// Get all organizations where the user is a member (check both legacy UUID and Better Auth TEXT IDs)
 	if err := database.DB.
 		Joins("JOIN organization_members ON organization_members.organization_id = organizations.id").
-		Where("organization_members.user_id = ?", userID).
+		Where("(organization_members.user_id::text = ? OR organization_members.ba_user_id = ?)", userID, userID).
 		Preload("Members").
 		Order("organizations.created_at DESC").
 		Find(&organizations).Error; err != nil {
@@ -47,10 +47,10 @@ func GetOrganization(c *gin.Context) {
 
 	var organization models.Organization
 
-	// Verify user is a member of this organization
+	// Verify user is a member of this organization (check both legacy UUID and Better Auth TEXT IDs)
 	if err := database.DB.
 		Joins("JOIN organization_members ON organization_members.organization_id = organizations.id").
-		Where("organizations.id = ? AND organization_members.user_id = ?", id, userID).
+		Where("organizations.id = ? AND (organization_members.user_id::text = ? OR organization_members.ba_user_id = ?)", id, userID, userID).
 		Preload("Members").
 		Preload("Workspaces").
 		First(&organization).Error; err != nil {
@@ -75,17 +75,15 @@ func CreateOrganization(c *gin.Context) {
 		return
 	}
 
+	// Get authenticated user ID (Better Auth TEXT ID)
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	parsedUserID, err := uuid.Parse(userID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
+	legacyUserID := getLegacyUserID(userID) // Legacy UUID (if available)
+	baUserID := userID                      // Better Auth user ID (TEXT)
 
 	// Check for duplicate slug
 	var existing models.Organization
@@ -114,12 +112,13 @@ func CreateOrganization(c *gin.Context) {
 	// Add creator as owner
 	member := models.OrganizationMember{
 		OrganizationID: organization.ID,
-		UserID:         parsedUserID,
+		UserID:         func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
+		BAUserID:       &baUserID, // Better Auth user ID (TEXT)
 		Role:           "owner",
 	}
 
 	// Log the attempt for debugging
-	fmt.Printf("Attempting to add member: OrgID=%s, UserID=%s, Role=%s\n", organization.ID, parsedUserID, member.Role)
+	fmt.Printf("Attempting to add member: OrgID=%s, UserID=%s, BAUserID=%s, Role=%s\n", organization.ID, legacyUserID, baUserID, member.Role)
 
 	if err := tx.Create(&member).Error; err != nil {
 		tx.Rollback()
@@ -148,9 +147,9 @@ func UpdateOrganization(c *gin.Context) {
 		return
 	}
 
-	// Check if user is admin or owner
+	// Check if user is admin or owner (check both legacy UUID and Better Auth TEXT IDs)
 	var member models.OrganizationMember
-	if err := database.DB.Where("organization_id = ? AND user_id = ? AND role IN ('owner', 'admin')", id, userID).First(&member).Error; err != nil {
+	if err := database.DB.Where("organization_id = ? AND (user_id::text = ? OR ba_user_id = ?) AND role IN ('owner', 'admin')", id, userID, userID).First(&member).Error; err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only owners and admins can update organizations"})
 		return
 	}
@@ -203,9 +202,9 @@ func DeleteOrganization(c *gin.Context) {
 		return
 	}
 
-	// Only owners can delete organizations
+	// Only owners can delete organizations (check both legacy UUID and Better Auth TEXT IDs)
 	var member models.OrganizationMember
-	if err := database.DB.Where("organization_id = ? AND user_id = ? AND role = 'owner'", id, userID).First(&member).Error; err != nil {
+	if err := database.DB.Where("organization_id = ? AND (user_id::text = ? OR ba_user_id = ?) AND role = 'owner'", id, userID, userID).First(&member).Error; err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only owners can delete organizations"})
 		return
 	}
