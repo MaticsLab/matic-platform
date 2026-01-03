@@ -153,9 +153,9 @@ export function CampaignComposer({
       
       // Filter to only selected submissions and extract email/name
       const recipientList: Recipient[] = selectedSubmissionIds
-        .map((id) => {
+        .flatMap((id) => {
           const submission = allSubmissions.find((s) => s.id === id);
-          if (!submission) return null;
+          if (!submission) return [];
 
           // Parse data if it's a string
           const data = typeof submission.data === 'string' 
@@ -169,14 +169,13 @@ export function CampaignComposer({
             console.warn(`No email found for submission ${id}`);
           }
 
-          return {
+          return [{
             id,
             email: email || `No email (${id.slice(0, 8)})`,
             name: name || undefined,
             selected: true,
-          };
-        })
-        .filter((r): r is Recipient => r !== null);
+          }];
+        });
 
       setRecipients(recipientList);
     } catch (error) {
@@ -282,7 +281,6 @@ export function CampaignComposer({
         is_html: true,
         merge_tags: true,
         track_opens: true,
-        from_email: selectedFromEmail || undefined,
         sender_account_id: selectedAccount?.id || undefined,
       };
 

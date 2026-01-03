@@ -203,7 +203,6 @@ export function PipelineActivityPanel({
         merge_tags: true,
         track_opens: true,
         attachments: selectedAttachments.length > 0 ? selectedAttachments : undefined,
-        from_email: selectedFromEmail || undefined,
         sender_account_id: selectedAccount?.id || undefined,
       };
 
@@ -322,7 +321,7 @@ export function PipelineActivityPanel({
               {/* Quick Action Buttons */}
               <div className="flex flex-col gap-2 mt-3">
                 {applications.length === 1 ? (
-                          <button
+                  <button
                     onClick={() => setShowFullComposer(true)}
                     className="w-full flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                   >
@@ -334,12 +333,12 @@ export function PipelineActivityPanel({
                       </div>
                     </div>
                     <ArrowRight className="w-4 h-4 text-gray-400" />
-                        </button>
-                      ) : (
-                        <button
+                  </button>
+                ) : (
+                  <button
                     onClick={() => setShowCampaignComposer(true)}
                     className="w-full flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
+                  >
                     <div className="flex items-center gap-3">
                       <Users className="w-5 h-5 text-blue-600" />
                       <div className="text-left">
@@ -462,17 +461,17 @@ export function PipelineActivityPanel({
             
             {/* Send button - only for comments */}
             {activeCommentTab === 'comment' && (
-            <button
+              <button
                 onClick={handleAddComment}
                 disabled={!comment.trim()}
-              className={cn(
-                "p-1.5 rounded transition-colors",
+                className={cn(
+                  "p-1.5 rounded transition-colors",
                   !comment.trim() ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-100 text-blue-600"
-              )}
-            >
+                )}
+              >
                 <Send className="w-4 h-4" />
               </button>
-              )}
+            )}
           </div>
         </div>
       </div>

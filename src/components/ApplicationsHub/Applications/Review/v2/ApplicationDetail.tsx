@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Application, ApplicationStatus, ApplicationDetailProps, Stage, ReviewHistoryEntry } from './types';
 import { 
-  X, Mail, Trash2, ChevronRight, ChevronDown, 
+  X, Mail, Trash2, ChevronRight, ChevronDown, ChevronLeft,
   User, FileText, Star, MessageSquare,
   CheckCircle2, ArrowRight, AlertCircle, Users, Send,
   Paperclip, Sparkles, AtSign, Plus, Tag, Loader2, FileEdit, Settings,
@@ -406,7 +406,7 @@ export function ApplicationDetail({
   fields = [],
   onActivityCreated
 }: ApplicationDetailProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'documents' | 'reviews'>('overview');
+  const [isActivityPanelExpanded, setIsActivityPanelExpanded] = useState(true);
   const [selectedStage, setSelectedStage] = useState(application.stageId || application.status);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [activeCommentTab, setActiveCommentTab] = useState<'comment' | 'email'>('comment');
@@ -748,7 +748,6 @@ export function ApplicationDetail({
         merge_tags: true,
         track_opens: true,
         attachments: selectedAttachments.length > 0 ? selectedAttachments : undefined,
-        from_email: selectedFromEmail || undefined,
         sender_account_id: selectedAccount?.id || undefined,
       };
 
@@ -898,7 +897,7 @@ export function ApplicationDetail({
         items.push({
           id: `review-${idx}`,
           type: 'review',
-          message: `Review submitted${review.total_score ? ` (Score: ${review.total_score})` : ''}`,
+          message: review.total_score ? `Review submitted (Score: ${review.total_score})` : 'Review submitted',
           user: review.reviewer_name || getReviewerName(review.reviewer_id) || 'Reviewer',
           time: formatRelativeTime(review.reviewed_at),
           timestamp: review.reviewed_at ? new Date(review.reviewed_at).getTime() : 0,
@@ -941,413 +940,410 @@ export function ApplicationDetail({
 
   return (
     <div className="bg-white flex flex-col h-full">
-      {/* Header with User Info */}
-      <div className="px-6 py-4 border-b flex-shrink-0">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              {application.name || 'Unknown'}
-            </h2>
-            <p className="text-sm text-gray-600">{application.email}</p>
+      {/* Header with Close Button */}
+      <div className="px-6 py-3 border-b flex-shrink-0 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onClose}
+            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+          <div className="h-6 w-px bg-gray-200" />
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-gray-400" />
+            <span className="text-xs text-gray-500">ID</span>
           </div>
         </div>
-
-        {/* Tabs */}
-        <div className="flex gap-6 border-b -mb-px">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={cn(
-              "pb-3 border-b-2 transition-colors text-sm font-medium",
-              activeTab === 'overview'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            )}
-          >
-            Overview
+        <div className="flex items-center gap-2">
+          <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+            <MessageSquare className="w-4 h-4 text-gray-500" />
+            <span className="ml-1 text-xs text-gray-600">2</span>
           </button>
-          <button
-            onClick={() => setActiveTab('activity')}
-            className={cn(
-              "pb-3 border-b-2 transition-colors text-sm font-medium",
-              activeTab === 'activity'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            )}
-          >
-            Activity
+          <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+            <RefreshCw className="w-4 h-4 text-gray-500" />
+            <span className="ml-1 text-xs text-gray-600">1</span>
           </button>
-          <button
-            onClick={() => setActiveTab('documents')}
-            className={cn(
-              "pb-3 border-b-2 transition-colors text-sm font-medium flex items-center gap-2",
-              activeTab === 'documents'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            )}
-          >
-            Documents
-            {documentCounts.uploaded > 0 && (
-              <span className={cn(
-                "px-1.5 py-0.5 text-xs rounded-full",
-                activeTab === 'documents' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
-              )}>
-                {documentCounts.uploaded}
-              </span>
-            )}
-            {documentCounts.missing > 0 && (
-              <span className="px-1.5 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700">
-                {documentCounts.missing} missing
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('reviews')}
-            className={cn(
-              "pb-3 border-b-2 transition-colors text-sm font-medium",
-              activeTab === 'reviews'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            )}
-          >
-            Reviews
+          <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+            <Settings className="w-4 h-4 text-gray-500" />
           </button>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 min-h-0 flex flex-col">
-        {activeTab === 'overview' && (
-          <div className="flex-1 min-h-0 flex flex-col">
-            <div className="flex-1 min-h-0 overflow-y-auto p-6">
-              <div className="space-y-6">
-                {/* Review Progress */}
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4">Review Progress</h3>
-                  <div className="flex items-center justify-between gap-4">
-                    {displayStages.slice(0, 4).map((stage, index) => (
-                      <div key={stage} className="flex flex-col items-center flex-1">
-                        <div className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all mb-2",
-                          currentStageIndex === index
-                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                            : currentStageIndex > index
-                            ? 'bg-green-100 text-green-600'
-                            : 'bg-gray-100 text-gray-400'
-                        )}>
-                          {currentStageIndex > index ? (
-                            <CheckCircle2 className="w-5 h-5" />
-                          ) : (
-                            index + 1
-                          )}
-                        </div>
-                        <span className={cn(
-                          "text-xs text-center font-medium",
-                          currentStageIndex === index ? 'text-blue-600' : 'text-gray-600'
-                        )}>
-                          {stage}
-                        </span>
-                        <span className={cn(
-                          "text-xs mt-0.5",
-                          currentStageIndex === index ? 'text-blue-500' : 'text-gray-400'
-                        )}>
-                          {currentStageIndex === index ? 'Current' : currentStageIndex > index ? 'Done' : 'Pending'}
-                        </span>
-                      </div>
-                    ))}
+      {/* Split View: Overview (Left) + Activity (Right) - Always visible */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        {/* Left Panel: Overview */}
+        <div className={cn(
+          "border-r overflow-y-auto transition-all duration-300",
+          isActivityPanelExpanded ? "w-1/2" : "flex-1"
+        )}>
+          <div className="p-6">
+            {/* Name */}
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">
+              {application.name || 'Unknown'}
+            </h1>
+
+            {/* AI Prompt Box */}
+            <div className="mb-6 p-3 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+              <div className="flex items-start gap-2">
+                <Sparkles className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-gray-700">
+                  Ask Brain to write a description, create a summary or find similar people.
+                </p>
+              </div>
+            </div>
+
+            {/* Key Fields */}
+            <div className="space-y-3 mb-6">
+              {/* Status */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Status</span>
+                <button 
+                  onClick={() => {
+                    const currentStage = stages.find(s => s.id === application.stageId);
+                    if (currentStage) {
+                      const nextStageIndex = stages.findIndex(s => s.id === currentStage.id) + 1;
+                      if (nextStageIndex < stages.length) {
+                        onStatusChange?.(application.id, stages[nextStageIndex].name as ApplicationStatus);
+                      }
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-200 transition-colors"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  {application.stageName?.toUpperCase() || 'FOLLOW UP'}
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Assignees */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Assignees</span>
+                <span className="text-sm text-gray-400">Empty</span>
+              </div>
+
+              {/* Dates */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Dates</span>
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <Clock className="w-4 h-4" />
+                  <span>Start</span>
+                  <ArrowRight className="w-3 h-3" />
+                  <Clock className="w-4 h-4" />
+                  <span>Due</span>
+                </div>
+              </div>
+
+              {/* Priority */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Priority</span>
+                <span className="text-sm text-gray-400">Empty</span>
+              </div>
+
+              {/* Time estimate */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Time estimate</span>
+                <span className="text-sm text-gray-400">Empty</span>
+              </div>
+
+              {/* Track time */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Track time</span>
+                <button className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-full text-sm font-medium flex items-center gap-2 hover:bg-gray-200 transition-colors">
+                  <Play className="w-3.5 h-3.5" />
+                  Start
+                </button>
+              </div>
+
+              {/* Tags */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Tags</span>
+                <span className="text-sm text-gray-400">Empty</span>
+              </div>
+            </div>
+
+            {/* Description Section */}
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                <span className="text-sm font-medium text-gray-700">Description</span>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 min-h-[100px]">
+                <p className="text-sm text-gray-500">Add description, or write with AI</p>
+              </div>
+            </div>
+
+            {/* Custom Fields Section */}
+            <div className="border-t pt-4">
+              <button className="flex items-center justify-between w-full text-left">
+                <span className="text-sm font-medium text-gray-700">Custom Fields</span>
+                <div className="flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-gray-400" />
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                  <Plus className="w-4 h-4 text-gray-400" />
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel: Activity - Collapsible */}
+        {isActivityPanelExpanded && (
+          <div className="w-1/2 flex flex-col overflow-hidden border-l">
+            {/* Activity Header */}
+            <div className="px-6 py-3 border-b flex items-center justify-between flex-shrink-0">
+              <h2 className="text-sm font-semibold text-gray-900">Activity</h2>
+              <div className="flex items-center gap-2">
+                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+                  <Settings className="w-4 h-4 text-gray-500" />
+                </button>
+                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+                  <Bell className="w-4 h-4 text-gray-500" />
+                  <span className="ml-1 text-xs text-gray-600">1</span>
+                </button>
+                <button
+                  onClick={() => setIsActivityPanelExpanded(false)}
+                  className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                  title="Collapse activity panel"
+                >
+                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
+            </div>
+
+          {/* Activity Feed */}
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="space-y-4">
+              {activities.map((activity) => (
+                <div key={activity.id} className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <User className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-gray-900">{activity.user}</span>
+                      <span className="text-xs text-gray-500">{activity.time}</span>
+                    </div>
+                    <p className="text-sm text-gray-700 mb-3">{activity.message}</p>
+                    <div className="flex items-center gap-3">
+                      <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+                        <CheckCircle2 className="w-4 h-4 text-gray-400" />
+                      </button>
+                      <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+                        <MessageSquare className="w-4 h-4 text-gray-400" />
+                      </button>
+                      <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+                        <Sparkles className="w-4 h-4 text-gray-400" />
+                      </button>
+                      <button className="ml-auto px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded transition-colors">
+                        Reply
+                      </button>
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
+          </div>
 
-                {/* Ready to Review Card */}
-                <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-5 text-white shadow-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-base font-semibold mb-1">Ready to Review</h3>
-                      <p className="text-sm text-blue-100">Complete your review to move this application forward</p>
-                    </div>
-                    <button 
-                      onClick={handleReview}
-                      className="px-5 py-2.5 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-semibold shadow-md text-sm"
-                    >
-                      Start Review
-                    </button>
-                  </div>
-                </div>
-
-                {/* Application Fields - Organized by Sections */}
-                {fieldSections.length > 0 ? (
-                  fieldSections.map((section, sectionIdx) => (
-                    <div key={sectionIdx}>
-                      <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-blue-600" />
-                        {section.name}
-                      </h3>
-                      <div className="bg-white border rounded-xl overflow-hidden">
-                        <div className="divide-y divide-gray-100">
-                          {section.fields.map((field) => {
-                            const value = application.raw_data?.[field.id] || 
-                                         application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
-                                         application.raw_data?.[field.label] || '';
-                            if (!value && value !== 0) return null;
-                            
-                            return (
-                              <div key={field.id} className="px-4 py-3 flex items-start gap-4">
-                                <div className="w-1/3 flex-shrink-0">
-                                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                                    {field.label}
-                                  </span>
-                                </div>
-                                <div className="flex-1 text-sm">
-                                  {renderFieldValue(value)}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  /* Fallback: Show raw_data organized nicely */
-                  application.raw_data && Object.keys(application.raw_data).length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-blue-600" />
-                        Application Details
-                      </h3>
-                      <div className="bg-white border rounded-xl overflow-hidden">
-                        <div className="divide-y divide-gray-100">
-                          {Object.entries(application.raw_data)
-                            .filter(([key]) => !key.startsWith('_'))
-                            .map(([key, value]) => {
-                              if (!value && value !== 0) return null;
-                              
-                              return (
-                                <div key={key} className="px-4 py-3 flex items-start gap-4">
-                                  <div className="w-1/3 flex-shrink-0">
-                                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                                      {key.replace(/_/g, ' ')}
-                                    </span>
-                                  </div>
-                                  <div className="flex-1 text-sm">
-                                    {renderFieldValue(value)}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                )}
-
-                {/* Letters of Recommendation Section */}
-                {(recommendations.length > 0 || loadingRecommendations) && (
-                  <div className="mt-6 pt-4 border-t">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                      <UserPlus className="w-4 h-4 text-purple-600" />
-                      Letters of Recommendation
-                      {recommendations.length > 0 && (
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                          {recommendations.filter(r => r.status === 'submitted').length}/{recommendations.length} received
-                        </span>
+          {/* Email Composer - Fixed at Bottom */}
+          <div className="border-t bg-white flex-shrink-0 p-4">
+            <div className="space-y-3">
+              {/* From field */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 w-12">From</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="flex-1 flex items-center gap-2 text-sm text-gray-900 hover:bg-gray-50 rounded px-2 py-1 transition-colors">
+                      <span>{selectedFromEmail || gmailConnection?.email || 'Select sender...'}</span>
+                      {selectedFromEmail && (
+                        <span className="text-gray-500">&lt;{selectedFromEmail}&gt;</span>
                       )}
-                    </h3>
-                    
-                    {loadingRecommendations ? (
-                      <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 rounded-lg p-4">
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        Loading recommendation requests...
+                      <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-auto" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-0 bg-white border border-gray-200 shadow-lg" align="start">
+                    <div className="max-h-48 overflow-y-auto">
+                      {emailAccounts.map((account) => (
+                        <button
+                          key={account.email}
+                          onClick={() => setSelectedFromEmail(account.email)}
+                          className={cn(
+                            "w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center gap-2",
+                            selectedFromEmail === account.email && "bg-blue-50"
+                          )}
+                        >
+                          <Mail className="w-4 h-4 text-gray-400" />
+                          <span className="truncate">{account.email}</span>
+                        </button>
+                      ))}
+                      {emailAccounts.length === 0 && (
+                        <div className="px-3 py-2 text-sm text-gray-500">
+                          No email accounts connected
+                        </div>
+                      )}
+                      <div className="border-t">
+                        <button
+                          onClick={() => setShowEmailSettings(true)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-600"
+                        >
+                          <Settings className="w-4 h-4" />
+                          Configure Email Settings
+                        </button>
                       </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {recommendations.map((rec) => {
-                          const isExpanded = expandedRecommendations.has(rec.id);
-                          const hasResponse = rec.status === 'submitted' && rec.response && Object.keys(rec.response).length > 0;
-                          
-                          return (
-                            <div 
-                              key={rec.id} 
-                              className={cn(
-                                "rounded-lg border",
-                                rec.status === 'submitted' ? "bg-green-50 border-green-200" :
-                                rec.status === 'expired' ? "bg-red-50 border-red-200" :
-                                rec.status === 'cancelled' ? "bg-gray-50 border-gray-200" :
-                                "bg-yellow-50 border-yellow-200"
-                              )}
-                            >
-                              <div className="p-3">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      {rec.status === 'submitted' ? (
-                                        <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
-                                      ) : rec.status === 'expired' ? (
-                                        <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
-                                      ) : rec.status === 'cancelled' ? (
-                                        <XCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                      ) : (
-                                        <Clock3 className="w-4 h-4 text-yellow-600 flex-shrink-0" />
-                                      )}
-                                      <span className="font-medium text-sm text-gray-900 truncate">
-                                        {rec.recommender_name}
-                                      </span>
-                                    </div>
-                                    <div className="mt-1 text-xs text-gray-500 truncate">
-                                      {rec.recommender_email}
-                                      {rec.recommender_relationship && ` • ${rec.recommender_relationship}`}
-                                    </div>
-                                    <div className="mt-1 flex items-center gap-2 text-xs">
-                                      <span className={cn(
-                                        "px-1.5 py-0.5 rounded",
-                                        rec.status === 'submitted' ? "bg-green-100 text-green-700" :
-                                        rec.status === 'expired' ? "bg-red-100 text-red-700" :
-                                        rec.status === 'cancelled' ? "bg-gray-100 text-gray-500" :
-                                        "bg-yellow-100 text-yellow-700"
-                                      )}>
-                                        {rec.status === 'submitted' ? 'Received' :
-                                         rec.status === 'expired' ? 'Expired' :
-                                         rec.status === 'cancelled' ? 'Cancelled' : 'Pending'}
-                                      </span>
-                                      {rec.submitted_at && (
-                                        <span className="text-gray-400">
-                                          Submitted {new Date(rec.submitted_at).toLocaleDateString()}
-                                        </span>
-                                      )}
-                                      {rec.status === 'pending' && rec.reminder_count > 0 && (
-                                        <span className="text-gray-400">
-                                          {rec.reminder_count} reminder{rec.reminder_count > 1 ? 's' : ''} sent
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="flex items-center gap-2">
-                                    {hasResponse && (
-                                      <button
-                                        onClick={() => {
-                                          const newExpanded = new Set(expandedRecommendations);
-                                          if (isExpanded) {
-                                            newExpanded.delete(rec.id);
-                                          } else {
-                                            newExpanded.add(rec.id);
-                                          }
-                                          setExpandedRecommendations(newExpanded);
-                                        }}
-                                        className="flex-shrink-0 text-xs px-2 py-1 border rounded hover:bg-white transition-colors flex items-center gap-1"
-                                      >
-                                        {isExpanded ? (
-                                          <>
-                                            <ChevronUp className="w-3 h-3" />
-                                            Hide
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Eye className="w-3 h-3" />
-                                            View
-                                          </>
-                                        )}
-                                      </button>
-                                    )}
-                                    {rec.status === 'pending' && (
-                                      <button
-                                        onClick={() => handleSendReminder(rec.id)}
-                                        disabled={sendingReminder === rec.id}
-                                        className="flex-shrink-0 text-xs px-2 py-1 border rounded hover:bg-white transition-colors flex items-center gap-1"
-                                      >
-                                        {sendingReminder === rec.id ? (
-                                          <RefreshCw className="w-3 h-3 animate-spin" />
-                                        ) : (
-                                          <>
-                                            <Mail className="w-3 h-3" />
-                                            Remind
-                                          </>
-                                        )}
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                                
-                                {/* Expanded response content */}
-                                {isExpanded && hasResponse && (
-                                  <div className="mt-3 pt-3 border-t border-green-200 space-y-3">
-                                    <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
-                                      Recommendation Content
-                                    </h4>
-                                    <div className="space-y-3 bg-white rounded border p-3">
-                                      {Object.entries(rec.response || {}).map(([key, value]) => {
-                                        // Skip internal fields
-                                        if (key.startsWith('_')) return null;
-                                        
-                                        // Handle uploaded document
-                                        if (key === 'uploaded_document' || key === 'document') {
-                                          const doc = typeof value === 'object' ? value : {};
-                                          const docUrl = doc.url || doc.URL || doc.Url || (typeof value === 'string' ? value : '');
-                                          const docName = doc.filename || doc.name || doc.Name || 'Document';
-                                          
-                                          if (!docUrl) return null;
-                                          
-                                          return (
-                                            <div key={key} className="space-y-1">
-                                              <label className="text-xs font-medium text-gray-700">Uploaded Document</label>
-                                              <div className="flex items-center gap-2 p-2 bg-gray-50 rounded border">
-                                                <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                                <span className="text-sm text-gray-900 flex-1 truncate">{docName}</span>
-                                                <a
-                                                  href={docUrl}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                  className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                                                >
-                                                  <ExternalLink className="w-3 h-3" />
-                                                  Open
-                                                </a>
-                                              </div>
-                                            </div>
-                                          );
-                                        }
-                                        
-                                        // Handle relationship field
-                                        if (key === 'relationship') {
-                                          return (
-                                            <div key={key} className="space-y-1">
-                                              <label className="text-xs font-medium text-gray-700">How do you know the applicant?</label>
-                                              <p className="text-sm text-gray-900">{String(value)}</p>
-                                            </div>
-                                          );
-                                        }
-                                        
-                                        // Handle question responses (by question ID)
-                                        // For now, display as key-value pairs
-                                        // In the future, we could fetch field config to get question labels
-                                        const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                                        const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
-                                        
-                                        return (
-                                          <div key={key} className="space-y-1">
-                                            <label className="text-xs font-medium text-gray-700">{displayKey}</label>
-                                            <div className="text-sm text-gray-900 whitespace-pre-wrap">
-                                              {displayValue}
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* To field */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 w-12">To</span>
+                <input
+                  type="text"
+                  value={emailTo}
+                  onChange={(e) => setEmailTo(e.target.value)}
+                  placeholder={application.email}
+                  className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <button
+                  onClick={() => setShowCcBcc(!showCcBcc)}
+                  className="text-xs text-gray-500 hover:text-gray-700 px-2"
+                >
+                  Cc Bcc
+                </button>
+              </div>
+
+              {/* Suggested Emails */}
+              {application.email && (
+                <div className="ml-14">
+                  <p className="text-xs text-gray-500 mb-1">SUGGESTED EMAILS:</p>
+                  <button
+                    onClick={() => setEmailTo(application.email || '')}
+                    className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                  >
+                    {application.email}
+                  </button>
+                </div>
+              )}
+              
+              {showCcBcc && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 w-12">Cc</span>
+                    <input
+                      type="text"
+                      value={emailCc}
+                      onChange={(e) => setEmailCc(e.target.value)}
+                      className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
                   </div>
-                )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 w-12">Bcc</span>
+                    <input
+                      type="text"
+                      value={emailBcc}
+                      onChange={(e) => setEmailBcc(e.target.value)}
+                      className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </>
+              )}
+              
+              {/* Subject field */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 w-12">Subject</span>
+                <input
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  placeholder="Email subject..."
+                  className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              {/* Add Signature Button */}
+              <div className="ml-14">
+                <button className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1 hover:bg-gray-50 rounded transition-colors">
+                  Add signature
+                </button>
+              </div>
+
+              {/* Email Body */}
+              <div className="ml-14">
+                <textarea
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  placeholder="Write your message..."
+                  rows={6}
+                  className="w-full px-3 py-2 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                />
+              </div>
+
+              {/* Bottom Toolbar */}
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div className="flex items-center gap-1">
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                    <Plus className="w-4 h-4" />
+                  </button>
+                  <button className="px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded transition-colors flex items-center gap-1">
+                    Email
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-purple-600">
+                    <Sparkles className="w-4 h-4" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                    <Tag className="w-4 h-4" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                    <Sparkles className="w-4 h-4" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                    <Clock className="w-4 h-4" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                    <Settings className="w-4 h-4" />
+                  </button>
+                </div>
+                <button
+                  onClick={handleSendEmail}
+                  disabled={isSending}
+                  className={cn(
+                    "p-1.5 rounded transition-colors",
+                    isSending ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-100 text-blue-600"
+                  )}
+                >
+                  {isSending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
               </div>
             </div>
           </div>
         )}
+        
+        {/* Collapsed Activity Panel Button */}
+        {!isActivityPanelExpanded && (
+          <div className="border-l bg-gray-50 flex items-center justify-center w-12 flex-shrink-0">
+            <button
+              onClick={() => setIsActivityPanelExpanded(true)}
+              className="p-2 hover:bg-gray-200 rounded transition-colors"
+              title="Expand activity panel"
+            >
+              <ChevronLeft className="w-5 h-5 text-gray-600" />
+            </button>
+          </div>
+        )}
+      </div>
 
-        {activeTab === 'documents' && (
+      {/* Documents and Reviews tabs - removed, now in split view */}
+      {false && (
           <div className="flex-1 min-h-0 overflow-y-auto p-6">
             {(() => {
               // Extract all documents from fields and raw_data
@@ -1388,7 +1384,7 @@ export function ApplicationDetail({
               
               // Also scan raw_data for any file values not in fields
               if (application.raw_data) {
-                Object.entries(application.raw_data).forEach(([key, value]) => {
+                Object.entries(application.raw_data as Record<string, any>).forEach(([key, value]) => {
                   const parsedValue = parseValueIfNeeded(value);
                   if (isFileValue(parsedValue)) {
                     // Check if we already have this document
@@ -1531,113 +1527,113 @@ export function ApplicationDetail({
                       </p>
                     </div>
                   ) : null}
-
+                  
                   {/* Recommendations Section */}
                   <div className="mt-8 pt-8 border-t border-gray-200">
-              <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                         <UserPlus className="w-5 h-5 text-purple-600" />
-                  Letters of Recommendation
-                  {recommendations.length > 0 && (
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                      {recommendations.filter(r => r.status === 'submitted').length}/{recommendations.length} received
-                    </span>
-                  )}
-                </h3>
-              </div>
-              
-              {loadingRecommendations ? (
-                <div className="flex items-center justify-center gap-2 text-sm text-gray-500 bg-gray-50 rounded-lg p-8">
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Loading recommendation requests...
-                </div>
-              ) : recommendations.length > 0 ? (
-                <div className="space-y-3">
-                  {recommendations.map((rec) => (
-                    <div 
-                      key={rec.id} 
-                      className={cn(
-                        "p-4 rounded-lg border",
-                        rec.status === 'submitted' ? "bg-green-50 border-green-200" :
-                        rec.status === 'expired' ? "bg-red-50 border-red-200" :
-                        rec.status === 'cancelled' ? "bg-gray-50 border-gray-200" :
-                        "bg-yellow-50 border-yellow-200"
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            {rec.status === 'submitted' ? (
-                              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-                            ) : rec.status === 'expired' ? (
-                              <XCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                            ) : rec.status === 'cancelled' ? (
-                              <XCircle className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                            ) : (
-                              <Clock3 className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-                            )}
-                            <span className="font-semibold text-gray-900">
-                              {rec.recommender_name}
-                            </span>
-                            <span className={cn(
-                              "px-2 py-0.5 rounded text-xs font-medium",
-                              rec.status === 'submitted' ? "bg-green-100 text-green-700" :
-                              rec.status === 'expired' ? "bg-red-100 text-red-700" :
-                              rec.status === 'cancelled' ? "bg-gray-100 text-gray-500" :
-                              "bg-yellow-100 text-yellow-700"
-                            )}>
-                              {rec.status === 'submitted' ? 'Received' :
-                               rec.status === 'expired' ? 'Expired' :
-                               rec.status === 'cancelled' ? 'Cancelled' : 'Pending'}
-                            </span>
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            {rec.recommender_email}
-                          </div>
-                          {rec.recommender_relationship && (
-                            <div className="text-sm text-gray-500 mt-1">
-                              Relationship: {rec.recommender_relationship}
-                            </div>
-                          )}
-                          <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-                            {rec.submitted_at ? (
-                              <span>Submitted {new Date(rec.submitted_at).toLocaleDateString()}</span>
-                            ) : (
-                              <span>Requested {new Date(rec.created_at).toLocaleDateString()}</span>
-                            )}
-                            {rec.reminder_count > 0 && (
-                              <span className="flex items-center gap-1">
-                                <Bell className="w-3 h-3" />
-                                {rec.reminder_count} reminder{rec.reminder_count > 1 ? 's' : ''} sent
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {rec.status === 'pending' && (
-                          <button
-                            onClick={() => handleSendReminder(rec.id)}
-                            disabled={sendingReminder === rec.id}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 rounded-lg transition-colors disabled:opacity-50"
-                          >
-                            {sendingReminder === rec.id ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Bell className="w-3.5 h-3.5" />
-                            )}
-                            Send Reminder
-                          </button>
+                        Letters of Recommendation
+                        {recommendations.length > 0 && (
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                            {recommendations.filter(r => r.status === 'submitted').length}/{recommendations.length} received
+                          </span>
                         )}
-                      </div>
+                      </h3>
                     </div>
-                  ))}
-                </div>
-              ) : (
+                    
+                    {loadingRecommendations ? (
+                      <div className="flex items-center justify-center gap-2 text-sm text-gray-500 bg-gray-50 rounded-lg p-8">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Loading recommendation requests...
+                      </div>
+                    ) : recommendations.length > 0 ? (
+                      <div className="space-y-3">
+                        {recommendations.map((rec) => (
+                          <div 
+                            key={rec.id} 
+                            className={cn(
+                              "p-4 rounded-lg border",
+                              rec.status === 'submitted' ? "bg-green-50 border-green-200" :
+                              rec.status === 'expired' ? "bg-red-50 border-red-200" :
+                              rec.status === 'cancelled' ? "bg-gray-50 border-gray-200" :
+                              "bg-yellow-50 border-yellow-200"
+                            )}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  {rec.status === 'submitted' ? (
+                                    <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                                  ) : rec.status === 'expired' ? (
+                                    <XCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                                  ) : rec.status === 'cancelled' ? (
+                                    <XCircle className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                                  ) : (
+                                    <Clock3 className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+                                  )}
+                                  <span className="font-semibold text-gray-900">
+                                    {rec.recommender_name}
+                                  </span>
+                                  <span className={cn(
+                                    "px-2 py-0.5 rounded text-xs font-medium",
+                                    rec.status === 'submitted' ? "bg-green-100 text-green-700" :
+                                    rec.status === 'expired' ? "bg-red-100 text-red-700" :
+                                    rec.status === 'cancelled' ? "bg-gray-100 text-gray-500" :
+                                    "bg-yellow-100 text-yellow-700"
+                                  )}>
+                                    {rec.status === 'submitted' ? 'Received' :
+                                     rec.status === 'expired' ? 'Expired' :
+                                     rec.status === 'cancelled' ? 'Cancelled' : 'Pending'}
+                                  </span>
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  {rec.recommender_email}
+                                </div>
+                                {rec.recommender_relationship && (
+                                  <div className="text-sm text-gray-500 mt-1">
+                                    Relationship: {rec.recommender_relationship}
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                                  {rec.submitted_at ? (
+                                    <span>Submitted {new Date(rec.submitted_at).toLocaleDateString()}</span>
+                                  ) : (
+                                    <span>Requested {new Date(rec.created_at).toLocaleDateString()}</span>
+                                  )}
+                                  {rec.reminder_count > 0 && (
+                                    <span className="flex items-center gap-1">
+                                      <Bell className="w-3 h-3" />
+                                      {rec.reminder_count} reminder{rec.reminder_count > 1 ? 's' : ''} sent
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {rec.status === 'pending' && (
+                                <button
+                                  onClick={() => handleSendReminder(rec.id)}
+                                  disabled={sendingReminder === rec.id}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 rounded-lg transition-colors disabled:opacity-50"
+                                >
+                                  {sendingReminder === rec.id ? (
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Bell className="w-3.5 h-3.5" />
+                                  )}
+                                  Send Reminder
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
                       <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
-                  <UserPlus className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Recommendations Requested</h3>
-                  <p className="text-gray-500 text-sm">
-                    Letters of recommendation for this applicant will appear here
-                  </p>
+                        <UserPlus className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Recommendations Requested</h3>
+                        <p className="text-gray-500 text-sm">
+                          Letters of recommendation for this applicant will appear here
+                        </p>
                       </div>
                     )}
                   </div>
@@ -1647,8 +1643,10 @@ export function ApplicationDetail({
           </div>
         )}
 
-        {activeTab === 'reviews' && (
+      {/* Reviews Tab */}
+      {activeTab === 'reviews' && (
           <div className="flex-1 min-h-0 overflow-y-auto p-6">
+
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-gray-900">
@@ -1656,9 +1654,9 @@ export function ApplicationDetail({
                 </h3>
               </div>
               
-              {application.reviewHistory && application.reviewHistory.length > 0 ? (
+              {(application.reviewHistory?.length ?? 0) > 0 ? (
                 <div className="space-y-4">
-                  {application.reviewHistory.map((review, idx) => {
+                  {(application.reviewHistory ?? []).map((review, idx) => {
                     const totalScore = review.total_score || Object.values(review.scores || {}).reduce((a, b) => a + b, 0);
                     const reviewerName = review.reviewer_name || getReviewerName(review.reviewer_id);
                     return (
@@ -1699,357 +1697,9 @@ export function ApplicationDetail({
             </div>
           </div>
         )}
-
-        {activeTab === 'activity' && (
-          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
-            {/* Activity Feed */}
-            <div className="flex-shrink-0 p-6">
-              <div className="space-y-3">
-                {activities.map((activity) => (
-                  <div key={activity.id} className="flex items-start gap-2 text-sm">
-                    <div className={cn(
-                      "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
-                      activity.type === 'status' ? 'bg-blue-100 text-blue-600' :
-                      activity.type === 'review' ? 'bg-green-100 text-green-600' :
-                      'bg-gray-100 text-gray-600'
-                    )}>
-                      {activity.type === 'status' ? <ArrowRight className="w-3 h-3" /> :
-                       activity.type === 'review' ? <Star className="w-3 h-3" /> :
-                       <MessageSquare className="w-3 h-3" />}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-gray-900">{activity.message}</p>
-                      <div className="flex items-center gap-1.5 text-gray-500 mt-0.5 text-xs">
-                        <span>{activity.user}</span>
-                        <span>•</span>
-                        <span>{activity.time}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Comment/Email Input */}
-            <div className="border-t bg-white flex-shrink-0 p-4 pb-20">
-              <div className="bg-gray-50 rounded-xl border border-gray-200 p-3">
-                {activeCommentTab === 'email' ? (
-                  <>
-                    {/* From field */}
-                    <div className="flex items-center gap-3 py-2 border-b border-gray-200">
-                      <span className="text-gray-600 text-sm w-16">From</span>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button className="flex-1 flex items-center gap-2 hover:bg-gray-100 rounded px-1 py-0.5 transition-colors text-left">
-                            <span className="text-gray-900 text-sm">
-                              {selectedFromEmail || gmailConnection?.email || 'Select sender...'}
-                            </span>
-                            <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-auto" />
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 p-0 bg-white border border-gray-200 shadow-lg" align="start">
-                          <div className="max-h-48 overflow-y-auto">
-                            {emailAccounts.map((account) => (
-                              <button
-                                key={account.email}
-                                onClick={() => setSelectedFromEmail(account.email)}
-                                className={cn(
-                                  "w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center gap-2",
-                                  selectedFromEmail === account.email && "bg-blue-50"
-                                )}
-                              >
-                                <Mail className="w-4 h-4 text-gray-400" />
-                                <span className="truncate">{account.email}</span>
-                              </button>
-                            ))}
-                            {emailAccounts.length === 0 && (
-                              <div className="px-3 py-2 text-sm text-gray-500">
-                                No email accounts connected
-                              </div>
-                            )}
-                            <div className="border-t">
-                              <button
-                                onClick={() => setShowEmailSettings(true)}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center gap-2 text-gray-600"
-                              >
-                                <Settings className="w-4 h-4" />
-                                Configure Email Settings
-                              </button>
-                            </div>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                      <button
-                        onClick={() => setShowEmailSettings(true)}
-                        className="p-1 hover:bg-gray-200 rounded transition-colors"
-                        title="Email settings"
-                      >
-                        <Settings className="w-4 h-4 text-gray-500" />
-                      </button>
-                    </div>
-
-                    {/* To field */}
-                    <div className="flex items-center gap-3 py-2 border-b border-gray-200">
-                      <span className="text-gray-600 text-sm w-16">To</span>
-                      <input
-                        type="text"
-                        value={emailTo}
-                        onChange={(e) => setEmailTo(e.target.value)}
-                        placeholder={application.email}
-                        className="flex-1 px-0 bg-transparent border-0 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 text-sm"
-                      />
-                      <button
-                        onClick={() => setShowCcBcc(!showCcBcc)}
-                        className="text-gray-400 hover:text-gray-600 transition-colors text-xs"
-                      >
-                        Cc Bcc
-                      </button>
-                    </div>
-                    
-                    {showCcBcc && (
-                      <>
-                        <div className="flex items-center gap-3 py-2 border-b border-gray-200">
-                          <span className="text-gray-600 text-sm w-16">Cc</span>
-                          <input
-                            type="text"
-                            value={emailCc}
-                            onChange={(e) => setEmailCc(e.target.value)}
-                            className="flex-1 px-0 bg-transparent border-0 text-gray-900 focus:outline-none focus:ring-0 text-sm"
-                          />
-                        </div>
-                        <div className="flex items-center gap-3 py-2 border-b border-gray-200">
-                          <span className="text-gray-600 text-sm w-16">Bcc</span>
-                          <input
-                            type="text"
-                            value={emailBcc}
-                            onChange={(e) => setEmailBcc(e.target.value)}
-                            className="flex-1 px-0 bg-transparent border-0 text-gray-900 focus:outline-none focus:ring-0 text-sm"
-                          />
-                        </div>
-                      </>
-                    )}
-                    
-                    {/* Subject field */}
-                    <div className="flex items-center gap-3 py-2 border-b border-gray-200">
-                      <span className="text-gray-600 text-sm w-16">Subject</span>
-                      <input
-                        type="text"
-                        value={emailSubject}
-                        onChange={(e) => setEmailSubject(e.target.value)}
-                        className="flex-1 px-0 bg-transparent border-0 text-gray-900 focus:outline-none focus:ring-0 text-sm"
-                      />
-                    </div>
-
-                    {/* Merge Tags Button */}
-                    {availableMergeTags.length > 0 && (
-                      <div className="py-2 border-b border-gray-200">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 px-2 py-1 hover:bg-blue-50 rounded transition-colors">
-                              <Tag className="w-3 h-3" />
-                              Insert Field
-                              <ChevronDown className="w-3 h-3" />
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-56 p-0 bg-white border border-gray-200 shadow-lg" align="start">
-                            <div className="max-h-48 overflow-y-auto">
-                              {availableMergeTags.map((field, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={() => insertMergeTag(field.label)}
-                                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center justify-between bg-white"
-                                >
-                                  <span className="truncate">{field.label}</span>
-                                  <span className="text-xs text-gray-400 ml-2">{field.tag}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                    )}
-
-                    {/* Attachments Section */}
-                    {(availableDocuments.length > 0 || selectedAttachments.length > 0) && (
-                      <div className="py-2 border-b border-gray-200">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {/* Attachment picker */}
-                          {availableDocuments.length > 0 && (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <button className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-800 px-2 py-1 hover:bg-gray-100 rounded transition-colors">
-                                  <Paperclip className="w-3 h-3" />
-                                  Attach Document
-                                  <ChevronDown className="w-3 h-3" />
-                                </button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-64 p-2 bg-white border border-gray-200 shadow-lg" align="start">
-                                <p className="text-xs text-gray-500 mb-2">Select documents to attach:</p>
-                                <div className="max-h-48 overflow-y-auto space-y-1">
-                                  {availableDocuments.map((doc, idx) => {
-                                    const isSelected = selectedAttachments.some(a => a.url === doc.url);
-                                    return (
-                                      <button
-                                        key={idx}
-                                        onClick={() => toggleAttachment(doc)}
-                                        className={cn(
-                                          "w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 transition-colors",
-                                          isSelected ? "bg-blue-50 text-blue-700" : "hover:bg-gray-100 text-gray-700"
-                                        )}
-                                      >
-                                        {doc.contentType.includes('pdf') ? (
-                                          <FileText className="w-4 h-4 text-red-500 flex-shrink-0" />
-                                        ) : doc.contentType.includes('image') ? (
-                                          <Image className="w-4 h-4 text-green-500 flex-shrink-0" />
-                                        ) : (
-                                          <File className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                        )}
-                                        <span className="truncate flex-1">{doc.name}</span>
-                                        <Checkbox checked={isSelected} className="flex-shrink-0" />
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                          )}
-
-                          {/* Show selected attachments */}
-                          {selectedAttachments.map((att, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs"
-                            >
-                              <Paperclip className="w-3 h-3" />
-                              <span className="truncate max-w-[120px]">{att.filename}</span>
-                              <button
-                                onClick={() => setSelectedAttachments(prev => prev.filter((_, i) => i !== idx))}
-                                className="ml-1 hover:bg-blue-100 rounded p-0.5"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Email body */}
-                    <textarea
-                      value={emailBody}
-                      onChange={(e) => setEmailBody(e.target.value)}
-                      placeholder="Write your message. Use Insert Field to add personalized content like {{First Name}}"
-                      rows={3}
-                      className="w-full px-0 py-3 bg-transparent border-0 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 resize-none text-sm"
-                    />
-                  </>
-                ) : (
-                  <textarea
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    placeholder="Write a comment..."
-                    rows={2}
-                    className="w-full px-0 py-2 bg-transparent border-0 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 resize-none text-sm"
-                  />
-                )}
-                
-                {/* Action bar */}
-                <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200">
-                  <div className="flex items-center gap-1">
-                    <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                      <Plus className="w-4 h-4" />
-                    </button>
-                    
-                    <div className="relative">
-                      <button
-                        onClick={() => setShowTypeDropdown(!showTypeDropdown)}
-                        className="flex items-center gap-1 px-2 py-1.5 hover:bg-gray-200 rounded transition-colors text-gray-700 text-sm"
-                      >
-                        <span className="capitalize">{activeCommentTab}</span>
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      </button>
-                      
-                      {showTypeDropdown && (
-                        <div className="absolute left-0 bottom-full mb-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10 min-w-[120px]">
-                          <button
-                            onClick={() => {
-                              setActiveCommentTab('comment');
-                              setShowTypeDropdown(false);
-                            }}
-                            className={cn(
-                              "w-full text-left px-3 py-2 hover:bg-gray-100 transition-colors text-sm",
-                              activeCommentTab === 'comment' ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
-                            )}
-                          >
-                            Comment
-                          </button>
-                          <button
-                            onClick={() => {
-                              setActiveCommentTab('email');
-                              setShowTypeDropdown(false);
-                            }}
-                            className={cn(
-                              "w-full text-left px-3 py-2 hover:bg-gray-100 transition-colors text-sm",
-                              activeCommentTab === 'email' ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
-                            )}
-                          >
-                            Email
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-purple-600">
-                      <Sparkles className="w-4 h-4" />
-                    </button>
-                    
-                    <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                      <Paperclip className="w-4 h-4" />
-                    </button>
-                    
-                    <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                      <AtSign className="w-4 h-4" />
-                    </button>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setShowFullComposer(true)}
-                      className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600"
-                      title="Open full composer"
-                    >
-                      <Mail className="w-4 h-4" />
-                    </button>
-                  <button
-                    onClick={() => {
-                      if (activeCommentTab === 'comment') {
-                        toast.success('Comment added');
-                        setComment('');
-                      } else {
-                        handleSendEmail();
-                      }
-                    }}
-                    disabled={isSending}
-                    className={cn(
-                      "p-1.5 rounded transition-colors",
-                      isSending ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-100 text-blue-600"
-                    )}
-                  >
-                    {isSending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                  </button>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
-        )}
 
-        {/* Action Buttons - Fixed at bottom for overview tab only */}
-        {activeTab === 'overview' && (
+      {/* Action Buttons - Fixed at bottom */}
         <div className="p-4 border-t bg-white flex-shrink-0">
           <div className="flex items-center gap-3">
             {/* Dynamic Action Button with Dropdown */}
@@ -2249,8 +1899,6 @@ export function ApplicationDetail({
               </button>
             </div>
           </div>
-        </div>
-        )}
       </div>
 
       {/* Click outside to close dropdown */}
