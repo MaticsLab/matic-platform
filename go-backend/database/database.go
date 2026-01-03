@@ -98,6 +98,10 @@ func AutoMigrate() error {
 		&models.SentEmail{},
 		&models.EmailTemplate{},
 		&models.EmailSignature{},
+		&models.EmailDraft{},
+		&models.EmailQueueItem{},
+		&models.ResendIntegration{},
+		&models.EmailServiceHealth{},
 
 		// Ending Pages
 		&models.EndingPage{},
