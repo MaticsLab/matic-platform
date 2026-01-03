@@ -945,8 +945,81 @@ export function ApplicationDetail({
     <div className={cn(
       "bg-white flex flex-col h-full relative",
       viewMode === 'modal' && "max-w-5xl mx-auto my-8 rounded-lg shadow-xl border border-gray-200",
-      viewMode === 'fullscreen' && "w-full h-full"
+      viewMode === 'fullscreen' && "fixed inset-0 z-50 w-full h-full"
     )}>
+      {/* Header - All modes */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0 bg-white">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onClose}
+            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+            title="Close"
+          >
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+          <div className="h-4 w-px bg-gray-300" />
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors">
+                <Maximize2 className="w-4 h-4 text-gray-500" />
+                <span className="capitalize">{viewMode === 'fullscreen' ? 'Full screen' : viewMode}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-2" align="start">
+              <div className="space-y-1">
+                <button
+                  onClick={() => setViewMode('sidebar')}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
+                    viewMode === 'sidebar' && "bg-purple-50 text-purple-700"
+                  )}
+                >
+                  <div className="w-8 h-6 border border-gray-300 rounded flex gap-0.5 p-0.5">
+                    <div className="flex-1 bg-gray-100 rounded"></div>
+                    <div className="w-2 bg-gray-200 rounded"></div>
+                  </div>
+                  <span className={cn("text-sm", viewMode === 'sidebar' && "text-purple-700 font-medium")}>Sidebar</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('modal')}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
+                    viewMode === 'modal' && "bg-purple-50 text-purple-700"
+                  )}
+                >
+                  <div className="w-8 h-6 border border-gray-300 rounded flex items-center justify-center bg-white">
+                    <div className="w-4 h-3 border border-gray-200 rounded"></div>
+                  </div>
+                  <span className={cn("text-sm", viewMode === 'modal' && "text-purple-700 font-medium")}>Modal</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('fullscreen')}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
+                    viewMode === 'fullscreen' && "bg-purple-50 text-purple-700"
+                  )}
+                >
+                  <div className="w-8 h-6 border-2 border-gray-400 rounded bg-gray-50"></div>
+                  <span className={cn("text-sm", viewMode === 'fullscreen' && "text-purple-700 font-medium")}>Full screen</span>
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-500">
+            <Sparkles className="w-4 h-4" />
+          </button>
+          <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-500">
+            <Users className="w-4 h-4" />
+          </button>
+          <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-500">
+            <MoreVertical className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
       {/* Split View: Overview (Left) + Activity (Right) - Always visible */}
       <div className={cn(
         "flex-1 min-h-0 flex overflow-hidden",
@@ -1085,52 +1158,6 @@ export function ApplicationDetail({
                   <Bell className="w-4 h-4 text-gray-500" />
                   <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">1</span>
                 </button>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
-                      <Maximize2 className="w-4 h-4 text-gray-500" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-48 p-2" align="end">
-                    <div className="space-y-1">
-                      <button
-                        onClick={() => setViewMode('modal')}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
-                          (viewMode as 'modal' | 'fullscreen' | 'sidebar') === 'modal' && "bg-purple-50 text-purple-700"
-                        )}
-                      >
-                        <div className="w-8 h-6 border border-gray-300 rounded flex items-center justify-center bg-white">
-                          <div className="w-4 h-3 border border-gray-200 rounded"></div>
-                        </div>
-                        <span className={cn("text-sm", (viewMode as 'modal' | 'fullscreen' | 'sidebar') === 'modal' && "text-purple-700 font-medium")}>Modal</span>
-                      </button>
-                      <button
-                        onClick={() => setViewMode('fullscreen')}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
-                          (viewMode as 'modal' | 'fullscreen' | 'sidebar') === 'fullscreen' && "bg-purple-50 text-purple-700"
-                        )}
-                      >
-                        <div className="w-8 h-6 border-2 border-gray-400 rounded bg-gray-50"></div>
-                        <span className={cn("text-sm", (viewMode as 'modal' | 'fullscreen' | 'sidebar') === 'fullscreen' && "text-purple-700 font-medium")}>Full screen</span>
-                      </button>
-                      <button
-                        onClick={() => setViewMode('sidebar')}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
-                          (viewMode as 'modal' | 'fullscreen' | 'sidebar') === 'sidebar' && "bg-purple-50 text-purple-700"
-                        )}
-                      >
-                        <div className="w-8 h-6 border border-gray-300 rounded flex gap-0.5 p-0.5">
-                          <div className="flex-1 bg-gray-100 rounded"></div>
-                          <div className="w-2 bg-gray-200 rounded"></div>
-                        </div>
-                        <span className={cn("text-sm", (viewMode as 'modal' | 'fullscreen' | 'sidebar') === 'sidebar' && "text-purple-700 font-medium")}>Sidebar</span>
-                      </button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
                 <button 
                   onClick={() => setShowActivityPanel(true)}
                   className={cn(
@@ -1728,7 +1755,7 @@ export function ApplicationDetail({
     </>
   );
 
-  // For modal and fullscreen, wrap in portal-like container
+  // For modal, wrap in portal-like container with backdrop
   if (viewMode === 'modal') {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1737,6 +1764,7 @@ export function ApplicationDetail({
     );
   }
 
+  // For fullscreen, it's already fixed positioned in mainContent
   if (viewMode === 'fullscreen') {
     return contentWithDialogs;
   }
