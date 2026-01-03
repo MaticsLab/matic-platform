@@ -224,49 +224,51 @@ export async function POST(req: Request): Promise<Response> {
   };
 
   // Enhanced stop sequences to prevent unwanted prefixes
+  // NOTE: Anthropic requires each stop sequence to contain non-whitespace
   const getStopSequences = (task: string): string[] | undefined => {
-    const commonStops = [
-      "\n\n\n", // Triple newline (indicates end of response)
-    ];
-    
     switch (task) {
       case "improve":
         return [
-          ...commonStops,
-          "Here's",
-          "Here is",
-          "Here you go",
-          "Improved version:",
-          "Improved text:",
-          "The improved",
-          "I've improved",
-          "I improved",
-          "Note:",
-          "Note that",
-          "---",
+          "\n\nHere's",
+          "\n\nHere is",
+          "\n\nHere you go",
+          "\n\nImproved version:",
+          "\n\nImproved text:",
+          "\n\nThe improved",
+          "\n\nI've improved",
+          "\n\nI improved",
+          "\n\nNote:",
+          "\n\nNote that",
+          "\n---",
+          "Here's the",
+          "Here is the",
         ];
       case "fix":
         return [
-          ...commonStops,
-          "Here's",
-          "Here is",
-          "Fixed version:",
-          "Corrected text:",
-          "Corrected version:",
-          "I've fixed",
-          "I fixed",
-          "---",
+          "\n\nHere's",
+          "\n\nHere is",
+          "\n\nFixed version:",
+          "\n\nCorrected text:",
+          "\n\nCorrected version:",
+          "\n\nI've fixed",
+          "\n\nI fixed",
+          "\n---",
+          "Here's the",
         ];
       case "shorter":
       case "longer":
         return [
-          ...commonStops,
-          "Here's",
-          "Here is",
-          "---",
+          "\n\nHere's",
+          "\n\nHere is",
+          "\n---",
+        ];
+      case "continue":
+        return [
+          "\n\nHere's",
+          "\n---",
         ];
       default:
-        return commonStops;
+        return undefined; // No stop sequences for other tasks
     }
   };
 

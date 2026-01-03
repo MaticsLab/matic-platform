@@ -680,18 +680,16 @@ export function ApplicationDetail({
   // Fetch files from table_files (uploaded to Supabase storage)
   useEffect(() => {
     const fetchStorageFiles = async () => {
-      if (!formId) return;
+      if (!application.id) return;
       
       setIsLoadingFiles(true);
       try {
-        // Try to fetch files by workspace_id first, then filter by storage_path containing form_id
-        const allFiles = await filesClient.list({ workspace_id: workspaceId });
-        // Filter files that belong to this form's submissions
-        const formFiles = allFiles.filter(f => 
-          f.storage_path?.includes(`submissions/${formId}/`) ||
-          f.storage_path?.includes(`uploads/${formId}/`)
-        );
-        setStorageFiles(formFiles);
+        // Fetch files by row_id (submission/application ID) and workspace_id
+        const files = await filesClient.list({ 
+          row_id: application.id,
+          workspace_id: workspaceId 
+        });
+        setStorageFiles(files || []);
       } catch (error) {
         console.error('Failed to fetch storage files:', error);
         setStorageFiles([]);
@@ -701,7 +699,7 @@ export function ApplicationDetail({
     };
     
     fetchStorageFiles();
-  }, [formId, workspaceId]);
+  }, [application.id, workspaceId]);
 
   // Fetch recommendation requests for this submission
   useEffect(() => {
@@ -1554,31 +1552,37 @@ export function ApplicationDetail({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {storageFiles.map((file) => (
-                      <div key={file.id} className="border border-gray-200 rounded-lg p-3 bg-white">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                            <FileText className="w-5 h-5 text-gray-600" />
+                    {storageFiles.map((file) => {
+                      const fileUrl = file.public_url || file.storage_path;
+                      const fileName = file.filename || file.original_filename || file.storage_path?.split('/').pop() || 'Document';
+                      
+                      return (
+                        <div key={file.id} className="border border-gray-200 rounded-lg p-3 bg-white">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                              <FileText className="w-5 h-5 text-gray-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{fileName}</p>
+                              <p className="text-xs text-gray-500">
+                                {file.mime_type} {file.size_bytes && `• ${formatFileSize(file.size_bytes)}`}
+                              </p>
+                            </div>
+                            {fileUrl && (
+                              <a
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 hover:bg-gray-100 rounded transition-colors"
+                                title="View file"
+                              >
+                                <Eye className="w-4 h-4 text-gray-500" />
+                              </a>
+                            )}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{file.filename || file.storage_path?.split('/').pop()}</p>
-                            <p className="text-xs text-gray-500">
-                              {file.mime_type} {file.size_bytes && `• ${formatFileSize(file.size_bytes)}`}
-                            </p>
-                          </div>
-                          {file.storage_path && (
-                            <a
-                              href={file.storage_path}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-2 hover:bg-gray-100 rounded transition-colors"
-                            >
-                              <Eye className="w-4 h-4 text-gray-500" />
-                            </a>
-                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1692,31 +1696,37 @@ export function ApplicationDetail({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {storageFiles.map((file) => (
-                    <div key={file.id} className="border border-gray-200 rounded-lg p-3 bg-white">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                          <FileText className="w-5 h-5 text-gray-600" />
+                  {storageFiles.map((file) => {
+                    const fileUrl = file.public_url || file.storage_path;
+                    const fileName = file.filename || file.original_filename || file.storage_path?.split('/').pop() || 'Document';
+                    
+                    return (
+                      <div key={file.id} className="border border-gray-200 rounded-lg p-3 bg-white">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                            <FileText className="w-5 h-5 text-gray-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{fileName}</p>
+                            <p className="text-xs text-gray-500">
+                              {file.mime_type} {file.size_bytes && `• ${formatFileSize(file.size_bytes)}`}
+                            </p>
+                          </div>
+                          {fileUrl && (
+                            <a
+                              href={fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 hover:bg-gray-100 rounded transition-colors"
+                              title="View file"
+                            >
+                              <Eye className="w-4 h-4 text-gray-500" />
+                            </a>
+                          )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{file.filename || file.storage_path?.split('/').pop()}</p>
-                          <p className="text-xs text-gray-500">
-                            {file.mime_type} {file.size_bytes && `• ${formatFileSize(file.size_bytes)}`}
-                          </p>
-                        </div>
-                        {file.storage_path && (
-                          <a
-                            href={file.storage_path}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 hover:bg-gray-100 rounded transition-colors"
-                          >
-                            <Eye className="w-4 h-4 text-gray-500" />
-                          </a>
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
