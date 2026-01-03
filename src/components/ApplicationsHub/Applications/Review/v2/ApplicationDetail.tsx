@@ -939,8 +939,8 @@ export function ApplicationDetail({
     return items;
   }, [application.stageHistory, application.reviewHistory, application.stageName, application.stageId, application.lastActivity, application.submittedDate, application.name, application.email, stages]);
 
-  // Handle view mode rendering
-  const content = (
+  // Main content JSX
+  const mainContent = (
     <div className={cn(
       "bg-white flex flex-col h-full relative",
       viewMode === 'modal' && "max-w-5xl mx-auto my-8 rounded-lg shadow-xl border border-gray-200",
@@ -1132,6 +1132,7 @@ export function ApplicationDetail({
                 </div>
               </button>
             </div>
+          </div>
           </div>
         )}
 
@@ -1389,19 +1390,71 @@ export function ApplicationDetail({
     </div>
   );
 
+  // Wrap content with dialogs
+  const contentWithDialogs = (
+    <>
+      {mainContent}
+      
+      {/* Email Settings Dialog */}
+      {workspaceId && (
+        <EmailSettingsDialog
+          workspaceId={workspaceId}
+          open={showEmailSettings}
+          onOpenChange={setShowEmailSettings}
+          onAccountsUpdated={refreshConnection}
+        />
+      )}
+
+      {/* Quick Reminder Panel */}
+      {workspaceId && application.id && (
+        <QuickReminderPanel
+          open={showQuickReminder}
+          onClose={() => setShowQuickReminder(false)}
+          workspaceId={workspaceId}
+          formId={formId || undefined}
+          submissionId={application.id}
+          recipientEmail={application.email || ''}
+          recipientName={application.name}
+          onSent={() => {
+            if (onActivityCreated) {
+              onActivityCreated();
+            }
+          }}
+        />
+      )}
+
+      {/* Full Email Composer */}
+      {workspaceId && (
+        <FullEmailComposer
+          open={showFullComposer}
+          onClose={() => setShowFullComposer(false)}
+          workspaceId={workspaceId}
+          formId={formId || undefined}
+          submissionId={application.id}
+          recipientEmails={application.email ? [application.email] : []}
+          onSent={() => {
+            if (onActivityCreated) {
+              onActivityCreated();
+            }
+          }}
+        />
+      )}
+    </>
+  );
+
   // For modal and fullscreen, wrap in portal-like container
   if (viewMode === 'modal') {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        {content}
+        {contentWithDialogs}
       </div>
     );
   }
 
   if (viewMode === 'fullscreen') {
-    return content;
+    return contentWithDialogs;
   }
 
   // Default sidebar view
-  return content;
+  return contentWithDialogs;
 }
