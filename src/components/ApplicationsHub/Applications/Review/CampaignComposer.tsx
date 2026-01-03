@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { X, Send, Mail, Loader2, ChevronDown, Clock, Users, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Send, Mail, Loader2, ChevronDown, Clock, Users, CheckCircle2, AlertCircle, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { emailClient, EmailTemplate, EmailQueueItem } from '@/lib/api/email-client';
 import { useEmailConnection } from '@/hooks/useEmailConnection';
@@ -71,6 +71,71 @@ export function CampaignComposer({
     }
   };
 
+  // Helper function to extract email from submission data
+  const extractEmail = (data: Record<string, any>): string => {
+    // Check common email field names
+    const emailFields = [
+      '_applicant_email', 'email', 'Email', 'EMAIL',
+      'personal_email', 'personalEmail', 'work_email', 'workEmail',
+      'contact_email', 'contactEmail', 'email_address', 'emailAddress',
+      'Email Address', 'email_address'
+    ];
+    
+    for (const field of emailFields) {
+      const value = data[field];
+      if (typeof value === 'string' && value.includes('@')) {
+        return value;
+      }
+    }
+    
+    // Check nested personal object
+    if (data.personal && typeof data.personal === 'object') {
+      const personalEmail = (data.personal as any).personalEmail || (data.personal as any).email;
+      if (personalEmail && typeof personalEmail === 'string' && personalEmail.includes('@')) {
+        return personalEmail;
+      }
+    }
+    
+    // Search all fields for email-like values
+    for (const [key, value] of Object.entries(data)) {
+      if (typeof value === 'string' && value.includes('@') && value.includes('.')) {
+        return value;
+      }
+    }
+    
+    return '';
+  };
+
+  // Helper function to extract name from submission data
+  const extractName = (data: Record<string, any>, submission: any): string => {
+    // Check for applicant_full_name from portal_applicants
+    if (submission.applicant_full_name) {
+      return submission.applicant_full_name;
+    }
+    
+    // Check common name fields
+    const nameFields = [
+      'name', 'Name', 'full_name', 'fullName', 'Full Name',
+      'applicant_name', 'applicantName'
+    ];
+    
+    for (const field of nameFields) {
+      const value = data[field];
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+    
+    // Try first + last name
+    const firstName = data['First Name'] || data.first_name || data.firstName || '';
+    const lastName = data['Last Name'] || data.last_name || data.lastName || '';
+    if (firstName || lastName) {
+      return `${firstName} ${lastName}`.trim();
+    }
+    
+    return '';
+  };
+
   const loadRecipients = async () => {
     if (!formId || selectedSubmissionIds.length === 0) {
       setRecipients([]);
@@ -80,29 +145,38 @@ export function CampaignComposer({
     setIsLoadingRecipients(true);
     try {
       // Fetch all submissions for the form
-      const allSubmissions = await formsClient.getSubmissions(formId) as Array<{ id: string; data?: Record<string, any> }>;
+      const allSubmissions = await formsClient.getSubmissions(formId) as Array<{ 
+        id: string; 
+        data?: Record<string, any> | string;
+        applicant_full_name?: string;
+      }>;
       
       // Filter to only selected submissions and extract email/name
       const recipientList: Recipient[] = selectedSubmissionIds
-        .flatMap((id) => {
+        .map((id) => {
           const submission = allSubmissions.find((s) => s.id === id);
-          if (!submission) return [];
+          if (!submission) return null;
 
-          // Extract email from submission data (common field names)
-          const data = submission.data || {};
-          const email = data.email || data.Email || data['Email Address'] || data['email_address'] || '';
+          // Parse data if it's a string
+          const data = typeof submission.data === 'string' 
+            ? JSON.parse(submission.data) 
+            : (submission.data || {});
           
-          // Extract name from submission data
-          const name = data.name || data.Name || data['Full Name'] || data['full_name'] || 
-                      `${data['First Name'] || data.first_name || ''} ${data['Last Name'] || data.last_name || ''}`.trim() || '';
+          const email = extractEmail(data);
+          const name = extractName(data, submission);
 
-          return [{
+          if (!email) {
+            console.warn(`No email found for submission ${id}`);
+          }
+
+          return {
             id,
-            email: email || `submission-${id.slice(0, 8)}`,
+            email: email || `No email (${id.slice(0, 8)})`,
             name: name || undefined,
             selected: true,
-          }];
-        });
+          };
+        })
+        .filter((r): r is Recipient => r !== null);
 
       setRecipients(recipientList);
     } catch (error) {
@@ -137,6 +211,13 @@ export function CampaignComposer({
     return recipients.filter(r => r.selected);
   }, [recipients]);
 
+  const validRecipients = useMemo(() => {
+    return selectedRecipients.filter(r => {
+      const email = r.email.trim();
+      return email && email.includes('@') && !email.startsWith('No email');
+    });
+  }, [selectedRecipients]);
+
   const toggleRecipient = (id: string) => {
     setRecipients(prev =>
       prev.map(r => r.id === id ? { ...r, selected: !r.selected } : r)
@@ -162,6 +243,22 @@ export function CampaignComposer({
       return;
     }
 
+    // Filter out recipients without valid emails
+    const validRecipients = selectedRecipients.filter(r => {
+      const email = r.email.trim();
+      return email && email.includes('@') && !email.startsWith('No email');
+    });
+
+    if (validRecipients.length === 0) {
+      toast.error('No recipients with valid email addresses selected');
+      return;
+    }
+
+    if (validRecipients.length < selectedRecipients.length) {
+      const invalidCount = selectedRecipients.length - validRecipients.length;
+      toast.warning(`${invalidCount} recipient${invalidCount !== 1 ? 's' : ''} without email addresses will be skipped`);
+    }
+
     if (!subject.trim() || !body.trim()) {
       toast.error('Please enter a subject and message');
       return;
@@ -170,10 +267,9 @@ export function CampaignComposer({
     setIsSending(true);
     try {
       // Create campaign and queue emails
-      const recipientEmails = selectedRecipients.map(r => r.email).filter(Boolean);
-      const submissionIds = selectedRecipients.map(r => r.id);
+      const recipientEmails = validRecipients.map(r => r.email.trim()).filter(Boolean);
+      const submissionIds = validRecipients.map(r => r.id);
 
-      // For now, send directly (you can enhance this to use the queue)
       const request = {
         form_id: formId,
         submission_ids: submissionIds,
@@ -188,7 +284,7 @@ export function CampaignComposer({
       const result = await emailClient.send(workspaceId, request);
 
       if (result.success) {
-        toast.success(`Successfully sent ${result.sent_count} emails!`);
+        toast.success(`Successfully sent ${result.sent_count} email${result.sent_count !== 1 ? 's' : ''}!`);
         onSent?.();
         onClose();
       } else {
@@ -217,10 +313,10 @@ export function CampaignComposer({
           </p>
         </DialogHeader>
 
-        <div className="flex-1 overflow-auto p-6 space-y-4">
+        <div className="flex-1 overflow-auto p-6 space-y-6">
           {/* Template Selector */}
           <div>
-            <label className="block text-sm font-medium mb-2">Template (optional)</label>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">Template (optional)</label>
             <div className="relative">
               <button
                 onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
@@ -280,52 +376,95 @@ export function CampaignComposer({
 
           {/* Recipients Selection */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium">
-                Recipients ({selectedRecipients.length} selected)
-              </label>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <label className="block text-sm font-semibold text-gray-900">
+                  Recipients
+                </label>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-xs text-gray-600">
+                    {selectedRecipients.length} of {recipients.length} selected
+                  </span>
+                  {validRecipients.length < selectedRecipients.length && (
+                    <>
+                      <span className="text-gray-300">•</span>
+                      <span className="text-xs text-amber-600 font-medium">
+                        {selectedRecipients.length - validRecipients.length} without email
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
               <div className="flex gap-2">
                 <button
                   onClick={selectAll}
-                  className="text-xs text-blue-600 hover:text-blue-700"
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
                 >
                   Select All
                 </button>
+                <span className="text-gray-300">|</span>
                 <button
                   onClick={deselectAll}
-                  className="text-xs text-gray-600 hover:text-gray-700"
+                  className="text-xs font-medium text-gray-600 hover:text-gray-700 hover:underline"
                 >
                   Deselect All
                 </button>
               </div>
             </div>
-            <div className="border rounded-md max-h-48 overflow-auto">
+            <div className="border border-gray-200 rounded-lg bg-white shadow-sm max-h-64 overflow-auto">
               {isLoadingRecipients ? (
-                <div className="p-4 text-center text-sm text-gray-500">
-                  <Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" />
-                  Loading recipients...
+                <div className="p-6 text-center">
+                  <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-blue-600" />
+                  <p className="text-sm text-gray-500">Loading recipients...</p>
                 </div>
               ) : recipients.length === 0 ? (
-                <div className="p-4 text-center text-sm text-gray-500">
-                  No recipients found. Select applications first.
+                <div className="p-6 text-center">
+                  <Users className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm text-gray-500">No recipients found. Select applications first.</p>
                 </div>
               ) : (
-                <div className="divide-y">
+                <div className="divide-y divide-gray-100">
                   {recipients.map((recipient) => (
                     <label
                       key={recipient.id}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer"
+                      className={cn(
+                        "flex items-start gap-3 p-4 hover:bg-gray-50 cursor-pointer transition-colors",
+                        recipient.selected && "bg-blue-50/50"
+                      )}
                     >
-                      <Checkbox
-                        checked={recipient.selected}
-                        onChange={() => toggleRecipient(recipient.id)}
-                      />
+                      <div className="pt-0.5">
+                        <Checkbox
+                          checked={recipient.selected}
+                          onChange={() => toggleRecipient(recipient.id)}
+                        />
+                      </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-gray-900">
-                          {recipient.name || recipient.email || `Submission ${recipient.id.slice(0, 8)}`}
+                        <div className="flex items-center gap-2 mb-1">
+                          <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            {recipient.name ? (
+                              <>
+                                <div className="text-sm font-medium text-gray-900 truncate">
+                                  {recipient.name}
+                                </div>
+                                <div className="text-xs text-gray-500 truncate mt-0.5">
+                                  {recipient.email}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-sm font-medium text-gray-900 truncate">
+                                {recipient.email}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        {recipient.name && recipient.email && (
-                          <div className="text-xs text-gray-500">{recipient.email}</div>
+                        {recipient.email.startsWith('No email') && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              No email address
+                            </span>
+                          </div>
                         )}
                       </div>
                     </label>
@@ -337,79 +476,131 @@ export function CampaignComposer({
 
           {/* Subject */}
           <div>
-            <label className="block text-sm font-medium mb-2">Subject</label>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">Subject</label>
             <input
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="Email subject..."
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter email subject..."
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
             />
           </div>
 
           {/* Body */}
           <div>
-            <label className="block text-sm font-medium mb-2">Message</label>
-            <div className="border rounded-md overflow-hidden">
+            <label className="block text-sm font-semibold text-gray-900 mb-2">Message</label>
+            <div className="border border-gray-300 rounded-lg overflow-hidden shadow-sm">
               <RichTextEditor
                 value={body}
                 onChange={setBody}
                 placeholder="Your message... (merge tags like {{First Name}} will be replaced for each recipient)"
-                minHeight="300px"
+                minHeight="320px"
               />
             </div>
-            <div className="mt-2 text-xs text-gray-500">
-              Tip: Use merge tags like {'{{First Name}}'} to personalize your message for each recipient.
+            <div className="mt-2 flex items-start gap-2 text-xs text-gray-500 bg-blue-50 p-2 rounded-md">
+              <AlertCircle className="w-3.5 h-3.5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <span>
+                <strong>Tip:</strong> Use merge tags like {'{{First Name}}'}, {'{{Last Name}}'}, {'{{Email}}'} to personalize your message for each recipient.
+              </span>
             </div>
           </div>
 
           {/* Staggering Configuration */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                Stagger Delay (seconds)
+              <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-gray-600" />
+                Stagger Delay
               </label>
-              <input
-                type="number"
-                value={staggerDelay}
-                onChange={(e) => setStaggerDelay(Math.max(0, parseInt(e.target.value) || 0))}
-                min="0"
-                max="3600"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="mt-1 text-xs text-gray-500">
+              <div className="relative">
+                <input
+                  type="number"
+                  value={staggerDelay}
+                  onChange={(e) => setStaggerDelay(Math.max(0, parseInt(e.target.value) || 0))}
+                  min="0"
+                  max="3600"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  placeholder="0"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">seconds</span>
+              </div>
+              <div className="mt-2 text-xs text-gray-500">
                 Delay between each email (0 = send all at once)
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Schedule for later (optional)</label>
+              <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-gray-600" />
+                Schedule for later (optional)
+              </label>
               <input
                 type="datetime-local"
                 value={scheduledFor}
                 onChange={(e) => setScheduledFor(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
               />
+              <div className="mt-2 text-xs text-gray-500">
+                Leave empty to send immediately
+              </div>
             </div>
           </div>
 
           {/* Campaign Summary */}
           {selectedRecipients.length > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5 shadow-sm">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="w-6 h-6 text-white" />
+                </div>
                 <div className="flex-1">
-                  <h4 className="font-medium text-blue-900 mb-1">Campaign Ready</h4>
-                  <div className="text-sm text-blue-700 space-y-1">
-                    <div>• {selectedRecipients.length} recipient{selectedRecipients.length !== 1 ? 's' : ''} selected</div>
+                  <h4 className="font-semibold text-gray-900 mb-3 text-base">Campaign Summary</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-blue-600" />
+                      <div>
+                        <div className="text-xs text-gray-600">Valid Recipients</div>
+                        <div className="text-sm font-semibold text-gray-900">
+                          {validRecipients.length} {validRecipients.length === 1 ? 'recipient' : 'recipients'}
+                        </div>
+                        {validRecipients.length < selectedRecipients.length && (
+                          <div className="text-xs text-amber-600 mt-0.5">
+                            {selectedRecipients.length - validRecipients.length} without email
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     {staggerDelay > 0 && (
-                      <div>• Staggered: {staggerDelay}s delay between emails</div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-blue-600" />
+                        <div>
+                          <div className="text-xs text-gray-600">Stagger Delay</div>
+                          <div className="text-sm font-semibold text-gray-900">
+                            {staggerDelay}s between emails
+                          </div>
+                        </div>
+                      </div>
                     )}
                     {staggerDelay > 0 && selectedRecipients.length > 1 && (
-                      <div>• Total time: ~{Math.ceil((staggerDelay * (selectedRecipients.length - 1)) / 60)} minutes</div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-blue-600" />
+                        <div>
+                          <div className="text-xs text-gray-600">Total Duration</div>
+                          <div className="text-sm font-semibold text-gray-900">
+                            ~{Math.ceil((staggerDelay * (selectedRecipients.length - 1)) / 60)} minutes
+                          </div>
+                        </div>
+                      </div>
                     )}
                     {scheduledFor && (
-                      <div>• Scheduled for: {new Date(scheduledFor).toLocaleString()}</div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-blue-600" />
+                        <div>
+                          <div className="text-xs text-gray-600">Scheduled</div>
+                          <div className="text-sm font-semibold text-gray-900">
+                            {new Date(scheduledFor).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -418,31 +609,51 @@ export function CampaignComposer({
           )}
         </div>
 
-        <DialogFooter className="p-6 border-t bg-gray-50">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isSending}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSend}
-            disabled={isSending || !subject.trim() || !body.trim() || selectedRecipients.length === 0}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            {isSending ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Sending...
-              </>
+        <DialogFooter className="p-6 border-t bg-gray-50 flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            {selectedRecipients.length > 0 ? (
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-600" />
+                <span>
+                  Ready to send to <strong className="text-gray-900">{validRecipients.length}</strong> recipient{validRecipients.length !== 1 ? 's' : ''}
+                  {validRecipients.length < selectedRecipients.length && (
+                    <span className="text-amber-600 ml-1">
+                      ({selectedRecipients.length - validRecipients.length} without email will be skipped)
+                    </span>
+                  )}
+                </span>
+              </div>
             ) : (
-              <>
-                <Send className="w-4 h-4 mr-2" />
-                Send to {selectedRecipients.length} Recipient{selectedRecipients.length !== 1 ? 's' : ''}
-              </>
+              <span className="text-gray-400">Select recipients to continue</span>
             )}
-          </Button>
+          </div>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={isSending}
+              className="px-6"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSend}
+              disabled={isSending || !subject.trim() || !body.trim() || validRecipients.length === 0}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send to {validRecipients.length} Recipient{validRecipients.length !== 1 ? 's' : ''}
+                </>
+              )}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

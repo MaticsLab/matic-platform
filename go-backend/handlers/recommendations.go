@@ -348,6 +348,37 @@ func CreateRecommendationRequest(c *gin.Context) {
 		First(&existingRequest).Error; err == nil {
 		// Request already exists - send a reminder if still pending
 		if existingRequest.Status == "pending" {
+			// Check if the request has expired or is about to expire
+			// If expired or expiring soon, extend the expiration date
+			now := time.Now()
+			shouldExtend := false
+			var newExpiresAt *time.Time
+
+			if existingRequest.ExpiresAt != nil {
+				// If already expired or expiring within 3 days, extend it
+				if now.After(*existingRequest.ExpiresAt) || existingRequest.ExpiresAt.Sub(now) < 3*24*time.Hour {
+					shouldExtend = true
+				}
+			} else {
+				// If no expiration was set, set one now (30 days from reminder)
+				shouldExtend = true
+			}
+
+			if shouldExtend {
+				// Extend expiration by 30 days from now, or use the field config deadline if available
+				deadlineDays := fieldConfig.DeadlineDays
+				if deadlineDays == 0 {
+					deadlineDays = fieldConfig.DeadlineDaysFE
+				}
+				if deadlineDays == 0 {
+					deadlineDays = 30 // Default to 30 days if no deadline configured
+				}
+				expiry := now.AddDate(0, 0, deadlineDays)
+				newExpiresAt = &expiry
+				existingRequest.ExpiresAt = newExpiresAt
+				fmt.Printf("[Recommendations] Extended expiration date to %v for reminder\n", newExpiresAt)
+			}
+
 			// Send reminder email
 			if err := sendRecommendationReminderEmail(&existingRequest, &submission, &form, &fieldConfig); err != nil {
 				fmt.Printf("[Recommendations] Failed to send reminder email: %v\n", err)
@@ -356,7 +387,6 @@ func CreateRecommendationRequest(c *gin.Context) {
 			}
 
 			// Update reminder count and timestamp
-			now := time.Now()
 			existingRequest.ReminderCount++
 			existingRequest.RemindedAt = &now
 			database.DB.Save(&existingRequest)
@@ -918,14 +948,44 @@ func SendRecommendationReminder(c *gin.Context) {
 		}
 	}
 
+	// Check if the request has expired or is about to expire
+	// If expired or expiring soon, extend the expiration date
+	now := time.Now()
+	shouldExtend := false
+	var newExpiresAt *time.Time
+
+	if request.ExpiresAt != nil {
+		// If already expired or expiring within 3 days, extend it
+		if now.After(*request.ExpiresAt) || request.ExpiresAt.Sub(now) < 3*24*time.Hour {
+			shouldExtend = true
+		}
+	} else {
+		// If no expiration was set, set one now (30 days from reminder)
+		shouldExtend = true
+	}
+
+	if shouldExtend {
+		// Extend expiration by 30 days from now, or use the field config deadline if available
+		deadlineDays := fieldConfig.DeadlineDays
+		if deadlineDays == 0 {
+			deadlineDays = fieldConfig.DeadlineDaysFE
+		}
+		if deadlineDays == 0 {
+			deadlineDays = 30 // Default to 30 days if no deadline configured
+		}
+		expiry := now.AddDate(0, 0, deadlineDays)
+		newExpiresAt = &expiry
+		request.ExpiresAt = newExpiresAt
+		fmt.Printf("[Recommendations] Extended expiration date to %v for reminder\n", newExpiresAt)
+	}
+
 	// Send reminder email
 	if err := sendRecommendationReminderEmail(&request, &submission, &form, &fieldConfig); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send reminder email"})
 		return
 	}
 
-	// Update reminder tracking
-	now := time.Now()
+	// Update reminder tracking and expiration
 	request.RemindedAt = &now
 	request.ReminderCount++
 	database.DB.Save(&request)
