@@ -1336,62 +1336,6 @@ export function ApplicationDetail({
           </div>
         )}
 
-        {/* Action Buttons - Vertical Icons on the right of application details - Always visible */}
-        <div className="flex flex-col items-center gap-2 p-2 border-l border-gray-200 bg-gray-50 flex-shrink-0">
-          <button 
-            onClick={() => {
-              setShowActivityPanel(!showActivityPanel);
-              setShowRecommendersPanel(false);
-              setShowDocumentsPanel(false);
-            }}
-            className={cn(
-              "p-1.5 hover:bg-gray-100 rounded transition-colors",
-              showActivityPanel && "bg-blue-50"
-            )}
-            title="Activity"
-          >
-            <MessageSquare className="w-4 h-4 text-gray-500" />
-          </button>
-          <button 
-            onClick={() => {
-              setShowRecommendersPanel(!showRecommendersPanel);
-              setShowActivityPanel(false);
-              setShowDocumentsPanel(false);
-            }}
-            className={cn(
-              "p-1.5 hover:bg-gray-100 rounded transition-colors relative",
-              showRecommendersPanel && "bg-blue-50"
-            )}
-            title="Recommenders"
-          >
-            <UserPlus className="w-4 h-4 text-gray-500" />
-            {recommendations.length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
-                {recommendations.filter(r => r.status === 'pending').length}
-              </span>
-            )}
-          </button>
-          <button 
-            onClick={() => {
-              setShowDocumentsPanel(!showDocumentsPanel);
-              setShowActivityPanel(false);
-              setShowRecommendersPanel(false);
-            }}
-            className={cn(
-              "p-1.5 hover:bg-gray-100 rounded transition-colors relative",
-              showDocumentsPanel && "bg-blue-50"
-            )}
-            title="Documents"
-          >
-            <FileText className="w-4 h-4 text-gray-500" />
-            {documentCounts.uploaded > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
-                {documentCounts.uploaded}
-              </span>
-            )}
-          </button>
-        </div>
-
         {/* Recommenders Panel - Show in fullscreen when showRecommendersPanel is true */}
         {viewMode === 'fullscreen' && showRecommendersPanel && (
           <div className="w-80 flex flex-col overflow-hidden border-l border-gray-200">
@@ -1533,7 +1477,7 @@ export function ApplicationDetail({
         {/* Recommenders Panel - Replaces details when active (sidebar mode), or shows to the right (fullscreen mode) */}
         {showRecommendersPanel && viewMode !== 'fullscreen' && (
           <div className="flex-1 flex flex-col overflow-hidden border-l border-gray-200">
-            <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
+            <div className="px-4 py-2 border-b border-t border-l bg-white flex items-center justify-between flex-shrink-0">
               <h2 className="text-sm font-semibold text-gray-900">Recommenders</h2>
               <button 
                 onClick={() => setShowRecommendersPanel(false)}
@@ -1616,7 +1560,7 @@ export function ApplicationDetail({
         {/* Documents Panel - Replaces details when active (sidebar mode), or shows to the right (fullscreen mode) */}
         {showDocumentsPanel && viewMode !== 'fullscreen' && (
           <div className="flex-1 flex flex-col overflow-hidden border-l border-gray-200">
-            <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
+            <div className="px-4 py-2 border-b border-t border-l bg-white flex items-center justify-between flex-shrink-0">
               <h2 className="text-sm font-semibold text-gray-900">Documents</h2>
               <button 
                 onClick={() => setShowDocumentsPanel(false)}
@@ -1671,7 +1615,7 @@ export function ApplicationDetail({
         {showActivityPanel && viewMode !== 'fullscreen' ? (
           <div className="flex-1 flex flex-col overflow-hidden border-l border-gray-200">
             {/* Activity Header */}
-            <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
+            <div className="px-4 py-2 border-b border-t border-l bg-white flex items-center justify-between flex-shrink-0">
               <h2 className="text-sm font-semibold text-gray-900">Activity</h2>
               <button 
                 onClick={() => setShowActivityPanel(false)}
@@ -1952,6 +1896,62 @@ export function ApplicationDetail({
           </div>
           </div>
         ) : null}
+
+        {/* Action Buttons - Vertical Icons - Always visible, positioned after left panel */}
+        <div className="flex flex-col items-center gap-2 p-2 border-l border-gray-200 bg-gray-50 flex-shrink-0">
+          <button 
+            onClick={() => {
+              setShowActivityPanel(!showActivityPanel);
+              setShowRecommendersPanel(false);
+              setShowDocumentsPanel(false);
+            }}
+            className={cn(
+              "p-1.5 hover:bg-gray-100 rounded transition-colors",
+              showActivityPanel && "bg-blue-50"
+            )}
+            title="Activity"
+          >
+            <MessageSquare className="w-4 h-4 text-gray-500" />
+          </button>
+          <button 
+            onClick={() => {
+              setShowRecommendersPanel(!showRecommendersPanel);
+              setShowActivityPanel(false);
+              setShowDocumentsPanel(false);
+            }}
+            className={cn(
+              "p-1.5 hover:bg-gray-100 rounded transition-colors relative",
+              showRecommendersPanel && "bg-blue-50"
+            )}
+            title="Recommenders"
+          >
+            <UserPlus className="w-4 h-4 text-gray-500" />
+            {recommendations.length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
+                {recommendations.filter(r => r.status === 'pending').length}
+              </span>
+            )}
+          </button>
+          <button 
+            onClick={() => {
+              setShowDocumentsPanel(!showDocumentsPanel);
+              setShowActivityPanel(false);
+              setShowRecommendersPanel(false);
+            }}
+            className={cn(
+              "p-1.5 hover:bg-gray-100 rounded transition-colors relative",
+              showDocumentsPanel && "bg-blue-50"
+            )}
+            title="Documents"
+          >
+            <FileText className="w-4 h-4 text-gray-500" />
+            {documentCounts.uploaded > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
+                {documentCounts.uploaded}
+              </span>
+            )}
+          </button>
+        </div>
 
         {/* Activity Panel - Show on the right in modal/fullscreen */}
         {((viewMode === 'modal' || viewMode === 'fullscreen') && !showActivityPanel && !showRecommendersPanel && !showDocumentsPanel) || 
