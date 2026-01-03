@@ -46,18 +46,45 @@ async function callOpenAI(config: ModelConfig, request: AIRequest): Promise<AIRe
   // Transform OpenAI SSE stream to plain text
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
+  let buffer = '';
 
   const transformStream = new TransformStream({
     async transform(chunk, controller) {
-      const text = decoder.decode(chunk);
-      const lines = text.split('\n').filter((line) => line.trim() !== '');
+      const text = decoder.decode(chunk, { stream: true });
+      buffer += text;
+      
+      const lines = buffer.split('\n');
+      // Keep the last partial line in the buffer
+      buffer = lines.pop() || '';
 
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') {
-            return;
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        
+        if (trimmed.startsWith('data: ')) {
+          const data = trimmed.slice(6);
+          if (data === '[DONE]') continue;
+          
+          try {
+            const json = JSON.parse(data);
+            const content = json.choices?.[0]?.delta?.content;
+            if (content) {
+              controller.enqueue(encoder.encode(content));
+            }
+          } catch (e) {
+            // Log parse errors in dev
+            if (process.env.NODE_ENV !== 'production') {
+              console.error('Failed to parse OpenAI stream data:', data.substring(0, 100), e);
+            }
           }
+        }
+      }
+    },
+    flush(controller) {
+      // Process any remaining data in buffer
+      if (buffer.trim() && buffer.trim().startsWith('data: ')) {
+        const data = buffer.trim().slice(6);
+        if (data !== '[DONE]') {
           try {
             const json = JSON.parse(data);
             const content = json.choices?.[0]?.delta?.content;
@@ -65,11 +92,11 @@ async function callOpenAI(config: ModelConfig, request: AIRequest): Promise<AIRe
               controller.enqueue(encoder.encode(content));
             }
           } catch {
-            // Ignore JSON parse errors
+            // Ignore
           }
         }
       }
-    },
+    }
   });
 
   return {
@@ -378,8 +405,33 @@ export async function callAIProvider(
   const recommendation = getRecommendedModel(task, true);
   
   // Determine which provider/model to use
-  let provider: ModelProvider = preferredProvider || recommendation.provider;
-  let modelId: string = preferredModel || recommendation.model;
+  let provider: ModelProvider;
+  let modelId: string;
+  
+  if (preferredProvider && !preferredModel) {
+    // If provider is specified but not model, use default model for that provider
+    provider = preferredProvider;
+    switch (preferredProvider) {
+      case 'openai':
+        modelId = 'gpt-4o';
+        break;
+      case 'anthropic':
+        modelId = 'claude-sonnet-4-5';
+        break;
+      case 'google':
+        modelId = 'gemini-1.5-pro';
+        break;
+      case 'cohere':
+        modelId = 'command-r-plus';
+        break;
+      default:
+        modelId = recommendation.model;
+    }
+  } else {
+    // Use provided values or recommendation
+    provider = preferredProvider || recommendation.provider;
+    modelId = preferredModel || recommendation.model;
+  }
 
   // Try to find the model config
   let config = findModel(provider, modelId);

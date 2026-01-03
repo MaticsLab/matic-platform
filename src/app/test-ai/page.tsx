@@ -46,8 +46,15 @@ export default function TestAIPage() {
         inputLength: input.length,
         outputLength: text.length,
       });
+      
+      // If status is not 2xx, treat response as error
+      if (!response.ok) {
+        console.error('API Error Response:', text);
+      }
     } catch (error) {
-      setResult(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      setResult(`Error: ${errorMsg}`);
+      console.error('Test AI Error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -154,9 +161,19 @@ export default function TestAIPage() {
 
         {result && (
           <Card className="p-6">
-            <h3 className="font-semibold mb-3">AI Output</h3>
-            <div className="bg-white border rounded-lg p-4">
-              <p className="text-gray-900 whitespace-pre-wrap">{result}</p>
+            <h3 className="font-semibold mb-3">
+              {debugInfo?.status && debugInfo.status >= 400 ? 'Error Response' : 'AI Output'}
+            </h3>
+            <div className={`border rounded-lg p-4 ${
+              debugInfo?.status && debugInfo.status >= 400 
+                ? 'bg-red-50 border-red-200' 
+                : 'bg-white'
+            }`}>
+              <p className={`whitespace-pre-wrap ${
+                debugInfo?.status && debugInfo.status >= 400 
+                  ? 'text-red-900 font-mono text-sm' 
+                  : 'text-gray-900'
+              }`}>{result}</p>
             </div>
             
             <div className="mt-4 pt-4 border-t">
