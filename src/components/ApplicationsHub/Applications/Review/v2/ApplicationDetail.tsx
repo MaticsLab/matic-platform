@@ -406,7 +406,7 @@ export function ApplicationDetail({
   fields = [],
   onActivityCreated
 }: ApplicationDetailProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'documents' | 'reviews'>('overview');
+  const [isActivityPanelExpanded, setIsActivityPanelExpanded] = useState(true);
   const [selectedStage, setSelectedStage] = useState(application.stageId || application.status);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [activeCommentTab, setActiveCommentTab] = useState<'comment' | 'email'>('comment');
@@ -970,140 +970,147 @@ export function ApplicationDetail({
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200 flex-shrink-0">
-        <div className="flex items-center gap-1 px-6">
+      {/* Split View: Overview (Left) + Activity (Right) - Always visible */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        {/* Left Panel: Overview */}
+        <div className={cn(
+          "border-r overflow-y-auto transition-all duration-300",
+          isActivityPanelExpanded ? "w-1/2" : "flex-1"
+        )}>
+          <div className="p-6">
+            {/* Name */}
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">
+              {application.name || 'Unknown'}
+            </h1>
+
+            {/* AI Prompt Box */}
+            <div className="mb-6 p-3 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+              <div className="flex items-start gap-2">
+                <Sparkles className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-gray-700">
+                  Ask Brain to write a description, create a summary or find similar people.
+                </p>
+              </div>
+            </div>
+
+            {/* Key Fields */}
+            <div className="space-y-3 mb-6">
+              {/* Status */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Status</span>
                 <button 
-            onClick={() => setActiveTab('overview')}
-            className={cn(
-              "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-              activeTab === 'overview'
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            )}
-          >
-            Overview
-          </button>
-          <button
-            onClick={() => setActiveTab('activity')}
-            className={cn(
-              "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-              activeTab === 'activity'
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            )}
-          >
-            Activity
-          </button>
-          <button
-            onClick={() => setActiveTab('documents')}
-            className={cn(
-              "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-              activeTab === 'documents'
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            )}
-          >
-            Documents
-            {documentCounts.uploaded > 0 && (
-              <span className="ml-2 text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">
-                {documentCounts.uploaded}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('reviews')}
-            className={cn(
-              "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-              activeTab === 'reviews'
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            )}
-          >
-            Reviews
-            {application.reviewedCount > 0 && (
-              <span className="ml-2 text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">
-                {application.reviewedCount}/{application.totalReviewers}
-              </span>
-            )}
+                  onClick={() => {
+                    const currentStage = stages.find(s => s.id === application.stageId);
+                    if (currentStage) {
+                      const nextStageIndex = stages.findIndex(s => s.id === currentStage.id) + 1;
+                      if (nextStageIndex < stages.length) {
+                        onStatusChange?.(application.id, stages[nextStageIndex].name as ApplicationStatus);
+                      }
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-200 transition-colors"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  {application.stageName?.toUpperCase() || 'FOLLOW UP'}
+                  <CheckCircle2 className="w-3.5 h-3.5" />
                 </button>
               </div>
+
+              {/* Assignees */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Assignees</span>
+                <span className="text-sm text-gray-400">Empty</span>
               </div>
 
-      {/* Tab Content */}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {/* Overview Tab */}
-        {activeTab === 'overview' && (
-          <div className="flex-1 min-h-0 overflow-y-auto p-6">
-            <div className="max-w-4xl mx-auto">
-              {/* Application Name */}
-              <h1 className="text-2xl font-bold text-gray-900 mb-6">
-                {application.name || 'Unknown'}
-              </h1>
-
-              {/* Application Fields by Section */}
-              {fieldSections.length > 0 ? (
-                <div className="space-y-6">
-                  {fieldSections.map((section, sectionIdx) => (
-                    <div key={sectionIdx} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                        <h3 className="text-sm font-semibold text-gray-900">{section.name}</h3>
-              </div>
-                      <div className="p-4 space-y-4">
-                        {section.fields.map((field) => {
-                          const value = application.raw_data?.[field.id] || 
-                                       application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
-                                       application.raw_data?.[field.label] ||
-                                       '';
-                          
-                          if (!value || (typeof value === 'string' && value.trim() === '')) {
-                            return null;
-                          }
-
-                          return (
-                            <div key={field.id} className="space-y-1">
-                              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">
-                                {field.label || field.id}
-                              </label>
-                              <div className="text-sm text-gray-900">
-                                {renderFieldValue(value, 0, field.label)}
-              </div>
-              </div>
-                          );
-                        })}
-            </div>
-              </div>
-                  ))}
-              </div>
-              ) : (
-                // Fallback: Show all raw_data fields if no field definitions
-                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                  <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                    <h3 className="text-sm font-semibold text-gray-900">Application Data</h3>
-            </div>
-                  <div className="p-4 space-y-4">
-                    {application.raw_data && Object.entries(application.raw_data)
-                      .filter(([key]) => !key.startsWith('_'))
-                      .map(([key, value]) => (
-                        <div key={key} className="space-y-1">
-                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">
-                            {formatFieldLabel(key)}
-                          </label>
-                          <div className="text-sm text-gray-900">
-                            {renderFieldValue(value, 0, key)}
+              {/* Dates */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Dates</span>
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <Clock className="w-4 h-4" />
+                  <span>Start</span>
+                  <ArrowRight className="w-3 h-3" />
+                  <Clock className="w-4 h-4" />
+                  <span>Due</span>
                 </div>
+              </div>
+
+              {/* Priority */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Priority</span>
+                <span className="text-sm text-gray-400">Empty</span>
+              </div>
+
+              {/* Time estimate */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Time estimate</span>
+                <span className="text-sm text-gray-400">Empty</span>
+              </div>
+
+              {/* Track time */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Track time</span>
+                <button className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-full text-sm font-medium flex items-center gap-2 hover:bg-gray-200 transition-colors">
+                  <Play className="w-3.5 h-3.5" />
+                  Start
+                </button>
+              </div>
+
+              {/* Tags */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Tags</span>
+                <span className="text-sm text-gray-400">Empty</span>
+              </div>
             </div>
-                      ))}
+
+            {/* Description Section */}
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                <span className="text-sm font-medium text-gray-700">Description</span>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 min-h-[100px]">
+                <p className="text-sm text-gray-500">Add description, or write with AI</p>
+              </div>
+            </div>
+
+            {/* Custom Fields Section */}
+            <div className="border-t pt-4">
+              <button className="flex items-center justify-between w-full text-left">
+                <span className="text-sm font-medium text-gray-700">Custom Fields</span>
+                <div className="flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-gray-400" />
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                  <Plus className="w-4 h-4 text-gray-400" />
+                </div>
+              </button>
+            </div>
           </div>
         </div>
-              )}
+
+        {/* Right Panel: Activity - Collapsible */}
+        {isActivityPanelExpanded && (
+          <div className="w-1/2 flex flex-col overflow-hidden border-l">
+            {/* Activity Header */}
+            <div className="px-6 py-3 border-b flex items-center justify-between flex-shrink-0">
+              <h2 className="text-sm font-semibold text-gray-900">Activity</h2>
+              <div className="flex items-center gap-2">
+                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+                  <Settings className="w-4 h-4 text-gray-500" />
+                </button>
+                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+                  <Bell className="w-4 h-4 text-gray-500" />
+                  <span className="ml-1 text-xs text-gray-600">1</span>
+                </button>
+                <button
+                  onClick={() => setIsActivityPanelExpanded(false)}
+                  className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                  title="Collapse activity panel"
+                >
+                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                </button>
               </div>
             </div>
-        )}
 
-        {/* Activity Tab */}
-        {activeTab === 'activity' && (
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {/* Activity Feed */}
           <div className="flex-1 overflow-y-auto p-6">
             <div className="space-y-4">
@@ -1117,14 +1124,28 @@ export function ApplicationDetail({
                       <span className="text-sm font-medium text-gray-900">{activity.user}</span>
                       <span className="text-xs text-gray-500">{activity.time}</span>
                     </div>
-                      <p className="text-sm text-gray-700">{activity.message}</p>
+                    <p className="text-sm text-gray-700 mb-3">{activity.message}</p>
+                    <div className="flex items-center gap-3">
+                      <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+                        <CheckCircle2 className="w-4 h-4 text-gray-400" />
+                      </button>
+                      <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+                        <MessageSquare className="w-4 h-4 text-gray-400" />
+                      </button>
+                      <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+                        <Sparkles className="w-4 h-4 text-gray-400" />
+                      </button>
+                      <button className="ml-auto px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded transition-colors">
+                        Reply
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-            {/* Email Composer - Separate Section */}
+          {/* Email Composer - Fixed at Bottom */}
           <div className="border-t bg-white flex-shrink-0 p-4">
             <div className="space-y-3">
               {/* From field */}
@@ -1134,6 +1155,9 @@ export function ApplicationDetail({
                   <PopoverTrigger asChild>
                     <button className="flex-1 flex items-center gap-2 text-sm text-gray-900 hover:bg-gray-50 rounded px-2 py-1 transition-colors">
                       <span>{selectedFromEmail || gmailConnection?.email || 'Select sender...'}</span>
+                      {selectedFromEmail && (
+                        <span className="text-gray-500">&lt;{selectedFromEmail}&gt;</span>
+                      )}
                       <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-auto" />
                     </button>
                   </PopoverTrigger>
@@ -1188,6 +1212,19 @@ export function ApplicationDetail({
                   Cc Bcc
                 </button>
               </div>
+
+              {/* Suggested Emails */}
+              {application.email && (
+                <div className="ml-14">
+                  <p className="text-xs text-gray-500 mb-1">SUGGESTED EMAILS:</p>
+                  <button
+                    onClick={() => setEmailTo(application.email || '')}
+                    className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                  >
+                    {application.email}
+                  </button>
+                </div>
+              )}
               
               {showCcBcc && (
                 <>
@@ -1224,39 +1261,65 @@ export function ApplicationDetail({
                 />
               </div>
 
+              {/* Add Signature Button */}
+              <div className="ml-14">
+                <button className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1 hover:bg-gray-50 rounded transition-colors">
+                  Add signature
+                </button>
+              </div>
+
               {/* Email Body */}
-                <div>
+              <div className="ml-14">
                 <textarea
                   value={emailBody}
                   onChange={(e) => setEmailBody(e.target.value)}
                   placeholder="Write your message..."
-                    rows={4}
+                  rows={6}
                   className="w-full px-3 py-2 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                 />
               </div>
 
-                {/* Send Button */}
-                <div className="flex items-center justify-end gap-2 pt-2 border-t">
+              {/* Bottom Toolbar */}
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div className="flex items-center gap-1">
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                    <Plus className="w-4 h-4" />
+                  </button>
+                  <button className="px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded transition-colors flex items-center gap-1">
+                    Email
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-purple-600">
+                    <Sparkles className="w-4 h-4" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                    <Tag className="w-4 h-4" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                    <Sparkles className="w-4 h-4" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                    <Clock className="w-4 h-4" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                    <Settings className="w-4 h-4" />
+                  </button>
+                </div>
                 <button
                   onClick={handleSendEmail}
                   disabled={isSending}
                   className={cn(
-                      "px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2",
-                      isSending 
-                        ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500" 
-                        : "bg-blue-600 text-white hover:bg-blue-700"
+                    "p-1.5 rounded transition-colors",
+                    isSending ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-100 text-blue-600"
                   )}
                 >
                   {isSending ? (
-                      <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                        Sending...
-                      </>
                   ) : (
-                      <>
                     <Send className="w-4 h-4" />
-                        Send
-                      </>
                   )}
                 </button>
               </div>
@@ -1264,9 +1327,23 @@ export function ApplicationDetail({
           </div>
           </div>
         )}
+        
+        {/* Collapsed Activity Panel Button */}
+        {!isActivityPanelExpanded && (
+          <div className="border-l bg-gray-50 flex items-center justify-center w-12 flex-shrink-0">
+            <button
+              onClick={() => setIsActivityPanelExpanded(true)}
+              className="p-2 hover:bg-gray-200 rounded transition-colors"
+              title="Expand activity panel"
+            >
+              <ChevronLeft className="w-5 h-5 text-gray-600" />
+            </button>
+          </div>
+        )}
+      </div>
 
-      {/* Documents Tab */}
-      {activeTab === 'documents' && (
+      {/* Documents and Reviews tabs - removed, now in split view */}
+      {false && (
           <div className="flex-1 min-h-0 overflow-y-auto p-6">
             {(() => {
               // Extract all documents from fields and raw_data
@@ -1622,9 +1699,8 @@ export function ApplicationDetail({
         )}
       </div>
 
-        {/* Action Buttons - Fixed at bottom for overview tab only */}
-        {activeTab === 'overview' && (
-        <div className="p-4 border-t bg-white flex-shrink-0">
+      {/* Action Buttons - Fixed at bottom */}
+      <div className="p-4 border-t bg-white flex-shrink-0">
           <div className="flex items-center gap-3">
             {/* Dynamic Action Button with Dropdown */}
             <div className="relative flex-1 max-w-sm">
@@ -1824,7 +1900,6 @@ export function ApplicationDetail({
             </div>
           </div>
         </div>
-        )}
 
       {/* Click outside to close dropdown */}
       {showActionsDropdown && (
