@@ -18,7 +18,7 @@ import {
   handleImagePaste,
   handleImageDrop,
 } from 'novel'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDebouncedCallback } from 'use-debounce'
 import { defaultExtensions } from '@/components/novel-editor/extensions'
 import { ColorSelector } from '@/components/novel-editor/selectors/color-selector'
@@ -28,6 +28,8 @@ import { Separator } from '@/components/novel-editor/ui/separator'
 import { TextButtons } from '@/components/novel-editor/selectors/text-buttons'
 import { slashCommand, suggestionItems } from '@/components/novel-editor/slash-command'
 import { uploadFn } from '@/components/novel-editor/image-upload'
+import GenerativeMenuSwitch from '@/components/novel-editor/generative/generative-menu-switch'
+import { MathSelector } from '@/components/novel-editor/selectors/math-selector'
 
 // @ts-ignore - type compatibility
 const extensions = [...defaultExtensions, slashCommand] as any
@@ -83,13 +85,18 @@ export function EmailNovelEditor({
     isInternalUpdateRef.current = false
   }, [value, editorRef])
 
+  const [openNode, setOpenNode] = useState(false)
+  const [openColor, setOpenColor] = useState(false)
+  const [openLink, setOpenLink] = useState(false)
+  const [openAI, setOpenAI] = useState(false)
+
   return (
-    <div className={`relative w-full ${className}`} style={{ minHeight }}>
+    <div className={`relative w-full h-full flex flex-col ${className}`} style={{ minHeight }}>
       <EditorRoot>
         <EditorContent
           immediatelyRender={false}
           extensions={extensions}
-          className={`relative w-full border-gray-200 bg-white rounded-lg border`}
+          className="relative w-full h-full border-gray-200 bg-white rounded-lg border flex-1"
           editorProps={{
             handleDOMEvents: {
               keydown: (_view, event) => handleCommandNavigation(event),
@@ -97,7 +104,7 @@ export function EmailNovelEditor({
             handlePaste: (view, event) => handleImagePaste(view, event, uploadFn),
             handleDrop: (view, event, _slice, moved) => handleImageDrop(view, event, moved, uploadFn),
             attributes: {
-              class: 'prose prose-sm max-w-none focus:outline-none p-4',
+              class: 'prose prose-sm max-w-none focus:outline-none p-4 h-full',
               'data-placeholder': placeholder,
             },
           }}
@@ -137,15 +144,18 @@ export function EmailNovelEditor({
             </EditorCommandList>
           </EditorCommand>
 
-          <div className="flex items-center gap-1 border-t border-gray-200 p-2 bg-gray-50">
-            <NodeSelector open={false} onOpenChange={() => {}} />
+          <GenerativeMenuSwitch open={openAI} onOpenChange={setOpenAI}>
             <Separator orientation="vertical" />
-            <LinkSelector open={false} onOpenChange={() => {}} />
+            <NodeSelector open={openNode} onOpenChange={setOpenNode} />
+            <Separator orientation="vertical" />
+            <LinkSelector open={openLink} onOpenChange={setOpenLink} />
+            <Separator orientation="vertical" />
+            <MathSelector />
             <Separator orientation="vertical" />
             <TextButtons />
             <Separator orientation="vertical" />
-            <ColorSelector open={false} onOpenChange={() => {}} />
-          </div>
+            <ColorSelector open={openColor} onOpenChange={setOpenColor} />
+          </GenerativeMenuSwitch>
         </EditorContent>
       </EditorRoot>
     </div>

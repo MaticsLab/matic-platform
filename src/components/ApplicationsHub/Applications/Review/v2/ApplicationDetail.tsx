@@ -516,15 +516,6 @@ export function ApplicationDetail({
       
       setShowSignatureDropdown(false);
       toast.success('Signature added');
-    } else {
-      // Fallback for textarea (shouldn't happen with Novel editor, but just in case)
-      const separator = emailBody.trim() ? '\n\n---\n\n' : '';
-      const newBody = emailBody.trim() 
-        ? `${emailBody}${separator}${signatureContent.replace(/<[^>]*>/g, '')}`
-        : signatureContent.replace(/<[^>]*>/g, '');
-      setEmailBody(newBody);
-      setShowSignatureDropdown(false);
-      toast.success('Signature added');
     }
   };
 
@@ -1745,13 +1736,13 @@ export function ApplicationDetail({
                   </div>
 
                   {/* Email Body */}
-                  <div className="ml-14 relative">
+                  <div className="ml-14 relative flex-1 flex flex-col min-h-[200px]">
                     <EmailNovelEditor
                       value={emailBody}
                       onChange={setEmailBody}
                       placeholder="Say something, press 'space' for AI, '/' for commands"
                       minHeight="200px"
-                      className="border border-gray-200 rounded-lg"
+                      className="flex-1"
                       editorRef={emailEditorRef}
                     />
                   </div>
@@ -2190,13 +2181,13 @@ export function ApplicationDetail({
               </div>
 
               {/* Email Body */}
-              <div className="ml-14 relative">
+              <div className="ml-14 relative flex-1 flex flex-col min-h-[200px]">
                 <EmailNovelEditor
                   value={emailBody}
                   onChange={setEmailBody}
                   placeholder="Say something, press 'space' for AI, '/' for commands"
                   minHeight="200px"
-                  className="border border-gray-200 rounded-lg"
+                  className="flex-1"
                   editorRef={emailEditorRef}
                 />
               </div>

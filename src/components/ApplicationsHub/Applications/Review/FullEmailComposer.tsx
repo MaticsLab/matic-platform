@@ -1,14 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Send, Mail, Loader2, ChevronDown, Clock, Paperclip, Eye, Save, FileSignature } from 'lucide-react';
+import { X, Send, Mail, Loader2, ChevronDown, Clock, Eye, Save, FileSignature } from 'lucide-react';
 import { toast } from 'sonner';
 import { emailClient, EmailTemplate, EmailDraft, CreateEmailDraftRequest, EmailSignature } from '@/lib/api/email-client';
 import { useEmailConnection } from '@/hooks/useEmailConnection';
 import { useSession } from '@/components/auth/provider';
 import { Button } from '@/ui-components/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui-components/dialog';
-import { RichTextEditor } from '@/components/PortalBuilder/RichTextEditor';
 import { EmailNovelEditor } from './EmailNovelEditor';
 import { cn } from '@/lib/utils';
 import type { EditorInstance } from 'novel';
@@ -271,15 +270,6 @@ export function FullEmailComposer({
       
       setShowSignatureDropdown(false);
       toast.success('Signature added');
-    } else {
-      // Fallback for RichTextEditor
-      const separator = body.trim() ? '<hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;" />' : '';
-      const newBody = body.trim() 
-        ? `${body}${separator}${signatureContent}`
-        : signatureContent;
-      setBody(newBody);
-      setShowSignatureDropdown(false);
-      toast.success('Signature added');
     }
   };
 
@@ -484,12 +474,13 @@ export function FullEmailComposer({
                 <div dangerouslySetInnerHTML={{ __html: body }} />
               </div>
             ) : (
-              <div className="border rounded-md overflow-hidden">
+              <div className="border rounded-md overflow-hidden flex-1 flex flex-col min-h-[300px]">
                 <EmailNovelEditor
                   value={body}
                   onChange={setBody}
                   placeholder="Your message... (merge tags like {{First Name}} will be replaced)"
                   minHeight="300px"
+                  className="flex-1"
                   editorRef={emailEditorRef}
                 />
               </div>
