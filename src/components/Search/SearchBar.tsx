@@ -85,7 +85,7 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
     if (hubContext && searchScope === 'hub') {
       return hubContext.placeholder
     }
-    return 'Search activities, requests, staff...'
+    return 'Search activities, applications, tables...'
   }
 
   // Get hub-specific actions
@@ -152,11 +152,7 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
         type: 'navigation',
         category: 'Navigate',
         action: () => navigateTo(`/workspace/${workspaceSlug}/applications`, 'Applications Hub', 'custom')
-      },
-      {
-        id: 'nav-requests',
-        title: 'Request Hub',
-        subtitle: 'Handle requests and submissions',
+      }
     ]
   }, [workspaceSlug, navigateTo])
 
@@ -173,7 +169,6 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
     // Hub-specific icons
     if (hubType === 'applications') return GraduationCap
     if (hubType === 'activities') return Layout
-    if (hubType === 'request') return Inbox
     
     // Entity type icons
     switch (entityType) {
