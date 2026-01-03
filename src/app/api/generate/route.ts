@@ -312,10 +312,26 @@ export async function POST(req: Request): Promise<Response> {
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error('AI API Error:', errorMessage);
+    const errorStack = error instanceof Error ? error.stack : '';
+    
+    // Log full error details
+    console.error('=== AI API Error ===');
+    console.error('Error message:', errorMessage);
+    console.error('Error stack:', errorStack);
+    console.error('Request params:', { option, provider, model, promptLength: prompt?.length });
+    
     if (debug) {
-      console.error('Full error:', error);
+      console.error('Full error object:', error);
+      console.error('Stop sequences:', aiRequest.stop);
+      console.error('Messages:', aiRequest.messages);
     }
-    return new Response(`AI API error: ${errorMessage}`, { status: 500 });
+    
+    return new Response(`AI API error: ${errorMessage}`, { 
+      status: 500,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Error-Details": errorMessage.substring(0, 200), // First 200 chars
+      }
+    });
   }
 }

@@ -112,35 +112,78 @@ async function callAnthropic(config: ModelConfig, request: AIRequest): Promise<A
 
   if (!response.ok) {
     const error = await response.text();
+    console.error('Anthropic API Error Response:', {
+      status: response.status,
+      statusText: response.statusText,
+      body: error,
+      model: config.modelId,
+    });
     throw new Error(`Anthropic API error: ${error}`);
   }
 
   // Transform Anthropic SSE stream
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
+  
+  let buffer = '';
 
   const transformStream = new TransformStream({
     async transform(chunk, controller) {
-      const text = decoder.decode(chunk);
-      const lines = text.split('\n').filter((line) => line.trim() !== '');
+      const text = decoder.decode(chunk, { stream: true });
+      buffer += text;
+      
+      const lines = buffer.split('\n');
+      // Keep the last partial line in the buffer
+      buffer = lines.pop() || '';
 
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') {
-            return;
+        const trimmed = line.trim();
+        if (!trimmed || trimmed === 'event: ping') continue;
+        
+        if (trimmed.startsWith('data: ')) {
+          const data = trimmed.slice(6);
+          if (data === '[DONE]') continue;
+          
+          try {
+            const json = JSON.parse(data);
+            
+            // Log for debugging
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('Anthropic stream event:', json.type);
+            }
+            
+            // Handle different event types
+            if (json.type === 'content_block_delta' && json.delta?.text) {
+              controller.enqueue(encoder.encode(json.delta.text));
+            } else if (json.type === 'content_block_start' && json.content_block?.text) {
+              controller.enqueue(encoder.encode(json.content_block.text));
+            }
+          } catch (e) {
+            // Log parse errors in dev
+            if (process.env.NODE_ENV !== 'production') {
+              console.error('Failed to parse Anthropic stream data:', data, e);
+            }
           }
+        }
+      }
+    },
+    flush(controller) {
+      // Process any remaining data in buffer
+      if (buffer.trim()) {
+        const trimmed = buffer.trim();
+        if (trimmed.startsWith('data: ')) {
+          const data = trimmed.slice(6);
           try {
             const json = JSON.parse(data);
             if (json.type === 'content_block_delta' && json.delta?.text) {
               controller.enqueue(encoder.encode(json.delta.text));
             }
           } catch {
-            // Ignore parse errors
+            // Ignore
           }
         }
       }
-    },
+    }
   });
 
   return {
