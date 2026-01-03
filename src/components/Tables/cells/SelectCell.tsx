@@ -94,7 +94,7 @@ export function SelectCell({
   
   const handleSelect = (optionValue: string) => {
     if (isMulti) {
-      const newValues = selectedValues.includes(optionValue)
+      const newValues: string[] = selectedValues.includes(optionValue)
         ? selectedValues.filter(v => v !== optionValue)
         : [...selectedValues, optionValue];
       onChange?.(newValues);
@@ -109,7 +109,7 @@ export function SelectCell({
   const handleRemove = (optionValue: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (isMulti) {
-      const newValues = selectedValues.filter(v => v !== optionValue);
+      const newValues: string[] = selectedValues.filter(v => v !== optionValue);
       onChange?.(newValues);
       onSave?.(newValues);
     }

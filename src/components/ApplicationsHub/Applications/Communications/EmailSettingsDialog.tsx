@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Mail, ChevronDown, Plus, Trash2, Edit2, Check, Settings, Users, User, Shield, Globe } from 'lucide-react'
+import { X, Mail, ChevronDown, Plus, Trash2, Edit2, Check, Settings, Users, User, Shield, Globe, Eye } from 'lucide-react'
 import { emailClient, GmailAccount, EmailSignature, EmailTemplate } from '@/lib/api/email-client'
 import { supabase } from '@/lib/supabase'
+import { RichTextEditor } from '@/components/PortalBuilder/RichTextEditor'
 
 interface EmailSettingsDialogProps {
   workspaceId: string
@@ -34,6 +35,7 @@ export function EmailSettingsDialog({ workspaceId, open, onOpenChange, onAccount
   const [editingSignatureName, setEditingSignatureName] = useState('')
   const [editingSignatureContent, setEditingSignatureContent] = useState('')
   const [editingSignatureHTML, setEditingSignatureHTML] = useState('')
+  const [showHTMLPreview, setShowHTMLPreview] = useState(false)
   
   // Templates state
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
@@ -157,6 +159,7 @@ export function EmailSettingsDialog({ workspaceId, open, onOpenChange, onAccount
     setEditingSignatureContent(sig.content)
     setEditingSignatureHTML(sig.content_html || sig.content)
     setSignatureEditMode(sig.is_html ? 'html' : 'richtext')
+    setShowHTMLPreview(false)
   }
 
   const handleCreateSignature = async () => {
@@ -453,7 +456,10 @@ export function EmailSettingsDialog({ workspaceId, open, onOpenChange, onAccount
                       <button className="text-sm text-gray-600 hover:text-gray-900">Edit</button>
                       <div className="flex rounded-lg overflow-hidden border border-gray-300">
                         <button
-                          onClick={() => setSignatureEditMode('richtext')}
+                          onClick={() => {
+                            setSignatureEditMode('richtext')
+                            setShowHTMLPreview(false)
+                          }}
                           className={`px-3 py-1 text-sm ${
                             signatureEditMode === 'richtext'
                               ? 'bg-gray-100 text-gray-900'
@@ -463,7 +469,10 @@ export function EmailSettingsDialog({ workspaceId, open, onOpenChange, onAccount
                           Use rich text
                         </button>
                         <button
-                          onClick={() => setSignatureEditMode('html')}
+                          onClick={() => {
+                            setSignatureEditMode('html')
+                            setShowHTMLPreview(false)
+                          }}
                           className={`px-3 py-1 text-sm ${
                             signatureEditMode === 'html'
                               ? 'bg-violet-600 text-white'
@@ -488,30 +497,37 @@ export function EmailSettingsDialog({ workspaceId, open, onOpenChange, onAccount
 
                       {signatureEditMode === 'richtext' ? (
                         <div className="border border-gray-300 rounded-lg overflow-hidden">
-                          <div className="bg-gray-50 border-b border-gray-300 px-3 py-2 flex gap-2">
-                            <button className="p-1 hover:bg-gray-200 rounded text-sm font-bold">B</button>
-                            <button className="p-1 hover:bg-gray-200 rounded text-sm italic">I</button>
-                            <button className="p-1 hover:bg-gray-200 rounded text-sm underline">U</button>
-                          </div>
-                          <textarea
+                          <RichTextEditor
                             value={editingSignatureContent}
-                            onChange={(e) => setEditingSignatureContent(e.target.value)}
+                            onChange={setEditingSignatureContent}
                             placeholder="Type your signature here..."
-                            className="w-full p-4 min-h-[200px] text-sm focus:outline-none resize-none"
+                            minHeight="200px"
                           />
                         </div>
                       ) : (
                         <div className="border border-gray-300 rounded-lg overflow-hidden">
-                          <div className="bg-gray-50 border-b border-gray-300 px-3 py-2 flex justify-between">
+                          <div className="bg-gray-50 border-b border-gray-300 px-3 py-2 flex justify-between items-center">
                             <span className="text-sm text-gray-600">HTML Editor</span>
-                            <button className="text-sm text-violet-600">Preview</button>
+                            <button
+                              onClick={() => setShowHTMLPreview(!showHTMLPreview)}
+                              className="text-sm text-violet-600 hover:text-violet-700 flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3" />
+                              {showHTMLPreview ? 'Edit' : 'Preview'}
+                            </button>
                           </div>
-                          <textarea
-                            value={editingSignatureHTML}
-                            onChange={(e) => setEditingSignatureHTML(e.target.value)}
-                            placeholder="<table>...</table>"
-                            className="w-full p-4 min-h-[200px] text-sm font-mono focus:outline-none resize-none"
-                          />
+                          {showHTMLPreview ? (
+                            <div className="w-full min-h-[200px] px-4 py-3 border-t bg-gray-50 overflow-auto">
+                              <div dangerouslySetInnerHTML={{ __html: editingSignatureHTML }} />
+                            </div>
+                          ) : (
+                            <textarea
+                              value={editingSignatureHTML}
+                              onChange={(e) => setEditingSignatureHTML(e.target.value)}
+                              placeholder="<table>...</table>"
+                              className="w-full p-4 min-h-[200px] text-sm font-mono focus:outline-none resize-none"
+                            />
+                          )}
                         </div>
                       )}
                     </div>

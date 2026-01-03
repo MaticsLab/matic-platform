@@ -8,11 +8,11 @@ import {
   CheckCircle2, ArrowRight, AlertCircle, Users, Send,
   Paperclip, Sparkles, AtSign, Plus, Tag, Loader2, FileEdit, Settings,
   Play, Archive, XCircle, Clock, Folder, ChevronUp, Download, ExternalLink,
-  Image, File, FileImage, Bell, Upload, Eye, Search, Link, Smile, PenTool, MoreVertical, Maximize2, Square, PanelRight, UserPlus, Clock3
+  Image, File, FileImage, Bell, Upload, Eye, Search, Link, Smile, PenTool, MoreVertical, Maximize2, Square, PanelRight, UserPlus, Clock3, FileSignature
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { emailClient, SendEmailRequest, EmailAttachment } from '@/lib/api/email-client';
+import { emailClient, SendEmailRequest, EmailAttachment, EmailSignature } from '@/lib/api/email-client';
 import { workflowsClient, StageAction, WorkflowAction } from '@/lib/api/workflows-client';
 import { dashboardClient } from '@/lib/api/dashboard-client';
 import {
@@ -441,6 +441,10 @@ export function ApplicationDetail({
   // Email composer state
   const [showQuickReminder, setShowQuickReminder] = useState(false);
   const [showFullComposer, setShowFullComposer] = useState(false);
+  const [signatures, setSignatures] = useState<EmailSignature[]>([]);
+  const [isLoadingSignatures, setIsLoadingSignatures] = useState(false);
+  const [showSignatureDropdown, setShowSignatureDropdown] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
   // Gmail connection - use shared hook
   const { 
@@ -454,6 +458,54 @@ export function ApplicationDetail({
     handleOAuthError,
     refresh: refreshConnection
   } = useEmailConnection(workspaceId);
+
+  // Get user ID on mount
+  useEffect(() => {
+    const getUser = async () => {
+      const { authClient } = await import('@/lib/better-auth-client');
+      const session = await authClient.getSession();
+      setUserId(session?.data?.user?.id || null);
+    };
+    getUser();
+  }, []);
+
+  // Load signatures when userId is available
+  useEffect(() => {
+    if (userId && workspaceId) {
+      loadSignatures();
+    }
+  }, [userId, workspaceId]);
+
+  const loadSignatures = async () => {
+    if (!userId || !workspaceId) return;
+    setIsLoadingSignatures(true);
+    try {
+      const data = await emailClient.listSignatures(workspaceId, userId);
+      setSignatures(data || []);
+    } catch (error) {
+      console.error('Failed to load signatures:', error);
+      setSignatures([]);
+    } finally {
+      setIsLoadingSignatures(false);
+    }
+  };
+
+  const handleInsertSignature = (signature: EmailSignature) => {
+    const signatureContent = signature.is_html 
+      ? (signature.content_html || signature.content)
+      : signature.content;
+    
+    // For textarea, we'll insert plain text version or HTML
+    // Add a separator if body is not empty
+    const separator = emailBody.trim() ? '\n\n---\n\n' : '';
+    const newBody = emailBody.trim() 
+      ? `${emailBody}${separator}${signatureContent.replace(/<[^>]*>/g, '')}`
+      : signatureContent.replace(/<[^>]*>/g, '');
+    
+    setEmailBody(newBody);
+    setShowSignatureDropdown(false);
+    toast.success('Signature added');
+  };
 
   // Update emailTo when application changes
   useEffect(() => {
@@ -1716,9 +1768,59 @@ export function ApplicationDetail({
                       <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                         <Settings className="w-4 h-4" />
                       </button>
-                      <button className="px-2 py-1.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors">
-                        Add signature
-                      </button>
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowSignatureDropdown(!showSignatureDropdown)}
+                          disabled={isLoadingSignatures || signatures.length === 0}
+                          className="px-2 py-1.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                        >
+                          <FileSignature className="w-3 h-3" />
+                          Add signature
+                        </button>
+                        {showSignatureDropdown && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-10"
+                              onClick={() => setShowSignatureDropdown(false)}
+                            />
+                            <div className="absolute bottom-full right-0 mb-1 z-20 bg-white border rounded-md shadow-lg min-w-[200px] max-h-60 overflow-auto">
+                              {isLoadingSignatures ? (
+                                <div className="p-3 text-sm text-gray-500">Loading signatures...</div>
+                              ) : signatures.length === 0 ? (
+                                <div className="p-3 text-sm text-gray-500">
+                                  No signatures available.
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setShowSignatureDropdown(false);
+                                      setShowEmailSettings(true);
+                                    }}
+                                    className="text-blue-600 hover:underline ml-1"
+                                  >
+                                    Create one in settings
+                                  </button>
+                                </div>
+                              ) : (
+                                signatures.map((signature) => (
+                                  <button
+                                    key={signature.id}
+                                    onClick={() => handleInsertSignature(signature)}
+                                    className={cn(
+                                      "w-full text-left px-3 py-2 text-sm hover:bg-gray-50",
+                                      signature.is_default && "font-medium"
+                                    )}
+                                  >
+                                    {signature.name}
+                                    {signature.is_default && (
+                                      <span className="ml-2 text-xs text-gray-500">(Default)</span>
+                                    )}
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                     <button
                       onClick={handleSendEmail}
@@ -2110,9 +2212,59 @@ export function ApplicationDetail({
                   <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                     <Settings className="w-4 h-4" />
                   </button>
-                  <button className="px-2 py-1.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors">
-                    Add signature
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowSignatureDropdown(!showSignatureDropdown)}
+                      disabled={isLoadingSignatures || signatures.length === 0}
+                      className="px-2 py-1.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                    >
+                      <FileSignature className="w-3 h-3" />
+                      Add signature
+                    </button>
+                    {showSignatureDropdown && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={() => setShowSignatureDropdown(false)}
+                        />
+                        <div className="absolute bottom-full right-0 mb-1 z-20 bg-white border rounded-md shadow-lg min-w-[200px] max-h-60 overflow-auto">
+                          {isLoadingSignatures ? (
+                            <div className="p-3 text-sm text-gray-500">Loading signatures...</div>
+                          ) : signatures.length === 0 ? (
+                            <div className="p-3 text-sm text-gray-500">
+                              No signatures available.
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setShowSignatureDropdown(false);
+                                  setShowEmailSettings(true);
+                                }}
+                                className="text-blue-600 hover:underline ml-1"
+                              >
+                                Create one in settings
+                              </button>
+                            </div>
+                          ) : (
+                            signatures.map((signature) => (
+                              <button
+                                key={signature.id}
+                                onClick={() => handleInsertSignature(signature)}
+                                className={cn(
+                                  "w-full text-left px-3 py-2 text-sm hover:bg-gray-50",
+                                  signature.is_default && "font-medium"
+                                )}
+                              >
+                                {signature.name}
+                                {signature.is_default && (
+                                  <span className="ml-2 text-xs text-gray-500">(Default)</span>
+                                )}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <button
                   onClick={handleSendEmail}

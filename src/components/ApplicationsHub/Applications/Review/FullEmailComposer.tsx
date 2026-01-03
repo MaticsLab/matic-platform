@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Send, Mail, Loader2, ChevronDown, Clock, Paperclip, Eye, Save } from 'lucide-react';
+import { X, Send, Mail, Loader2, ChevronDown, Clock, Paperclip, Eye, Save, FileSignature } from 'lucide-react';
 import { toast } from 'sonner';
-import { emailClient, EmailTemplate, EmailDraft, CreateEmailDraftRequest } from '@/lib/api/email-client';
+import { emailClient, EmailTemplate, EmailDraft, CreateEmailDraftRequest, EmailSignature } from '@/lib/api/email-client';
 import { useEmailConnection } from '@/hooks/useEmailConnection';
 import { useSession } from '@/components/auth/provider';
 import { Button } from '@/ui-components/button';
@@ -38,6 +38,9 @@ export function FullEmailComposer({
 }: FullEmailComposerProps) {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);
+  const [signatures, setSignatures] = useState<EmailSignature[]>([]);
+  const [isLoadingSignatures, setIsLoadingSignatures] = useState(false);
+  const [showSignatureDropdown, setShowSignatureDropdown] = useState(false);
   const [to, setTo] = useState<string>('');
   const [cc, setCc] = useState<string>('');
   const [bcc, setBcc] = useState<string>('');
@@ -72,6 +75,7 @@ export function FullEmailComposer({
       setDraftId(null);
       setLastSaved(null);
       loadTemplates();
+      loadSignatures();
       if (templateId) {
         loadTemplate(templateId);
       }
@@ -103,6 +107,20 @@ export function FullEmailComposer({
       setTemplates([]);
     } finally {
       setIsLoadingTemplates(false);
+    }
+  };
+
+  const loadSignatures = async () => {
+    if (!userId) return;
+    setIsLoadingSignatures(true);
+    try {
+      const data = await emailClient.listSignatures(workspaceId, userId);
+      setSignatures(data || []);
+    } catch (error) {
+      console.error('Failed to load signatures:', error);
+      setSignatures([]);
+    } finally {
+      setIsLoadingSignatures(false);
     }
   };
 
@@ -225,6 +243,23 @@ export function FullEmailComposer({
     setSubject(template.subject || '');
     setBody(template.body_html || template.body || '');
     setShowTemplateDropdown(false);
+  };
+
+  const handleInsertSignature = (signature: EmailSignature) => {
+    const signatureContent = signature.is_html 
+      ? (signature.content_html || signature.content)
+      : signature.content;
+    
+    // Insert signature at the end of the body
+    // Add a horizontal line separator before the signature if body is not empty
+    const separator = body.trim() ? '<hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;" />' : '';
+    const newBody = body.trim() 
+      ? `${body}${separator}${signatureContent}`
+      : signatureContent;
+    
+    setBody(newBody);
+    setShowSignatureDropdown(false);
+    toast.success('Signature added');
   };
 
   return (
@@ -358,13 +393,70 @@ export function FullEmailComposer({
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium">Message</label>
-              <button
-                onClick={() => setShowPreview(!showPreview)}
-                className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
-              >
-                <Eye className="w-3 h-3" />
-                {showPreview ? 'Edit' : 'Preview'}
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <button
+                    onClick={() => setShowSignatureDropdown(!showSignatureDropdown)}
+                    disabled={isLoadingSignatures || signatures.length === 0}
+                    className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Add signature"
+                  >
+                    <FileSignature className="w-3 h-3" />
+                    Add signature
+                  </button>
+                  {showSignatureDropdown && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => setShowSignatureDropdown(false)}
+                      />
+                      <div className="absolute right-0 z-20 mt-1 bg-white border rounded-md shadow-lg min-w-[200px] max-h-60 overflow-auto">
+                        {isLoadingSignatures ? (
+                          <div className="p-3 text-sm text-gray-500">Loading signatures...</div>
+                        ) : signatures.length === 0 ? (
+                          <div className="p-3 text-sm text-gray-500">
+                            No signatures available. 
+                            <a 
+                              href="#" 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setShowSignatureDropdown(false);
+                                // You could open email settings here
+                              }}
+                              className="text-blue-600 hover:underline ml-1"
+                            >
+                              Create one in settings
+                            </a>
+                          </div>
+                        ) : (
+                          signatures.map((signature) => (
+                            <button
+                              key={signature.id}
+                              onClick={() => handleInsertSignature(signature)}
+                              className={cn(
+                                "w-full text-left px-3 py-2 text-sm hover:bg-gray-50",
+                                signature.is_default && "font-medium"
+                              )}
+                            >
+                              {signature.name}
+                              {signature.is_default && (
+                                <span className="ml-2 text-xs text-gray-500">(Default)</span>
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowPreview(!showPreview)}
+                  className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                >
+                  <Eye className="w-3 h-3" />
+                  {showPreview ? 'Edit' : 'Preview'}
+                </button>
+              </div>
             </div>
             {showPreview ? (
               <div className="w-full min-h-[300px] px-3 py-2 border rounded-md bg-gray-50 overflow-auto">
