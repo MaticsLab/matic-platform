@@ -1016,6 +1016,64 @@ export function ApplicationDetail({
         "flex-1 min-h-0 flex overflow-hidden",
         viewMode === 'modal' && "rounded-lg"
       )}>
+        {/* Action Buttons - Right Side Vertical (sidebar and fullscreen modes) - Always visible */}
+        {(viewMode === 'sidebar' || viewMode === 'fullscreen') && (
+          <div className="flex flex-col items-center gap-2 p-2 border-l border-gray-200 bg-gray-50 flex-shrink-0 order-last">
+            <button 
+              onClick={() => {
+                setShowActivityPanel(!showActivityPanel);
+                setShowRecommendersPanel(false);
+                setShowDocumentsPanel(false);
+              }}
+              className={cn(
+                "p-1.5 hover:bg-gray-100 rounded transition-colors",
+                showActivityPanel && "bg-blue-50"
+              )}
+              title="Activity"
+            >
+              <MessageSquare className="w-4 h-4 text-gray-500" />
+            </button>
+            <button 
+              onClick={() => {
+                setShowRecommendersPanel(!showRecommendersPanel);
+                setShowActivityPanel(false);
+                setShowDocumentsPanel(false);
+              }}
+              className={cn(
+                "p-1.5 hover:bg-gray-100 rounded transition-colors relative",
+                showRecommendersPanel && "bg-blue-50"
+              )}
+              title="Recommenders"
+            >
+              <UserPlus className="w-4 h-4 text-gray-500" />
+              {recommendations.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
+                  {recommendations.filter(r => r.status === 'pending').length}
+                </span>
+              )}
+            </button>
+            <button 
+              onClick={() => {
+                setShowDocumentsPanel(!showDocumentsPanel);
+                setShowActivityPanel(false);
+                setShowRecommendersPanel(false);
+              }}
+              className={cn(
+                "p-1.5 hover:bg-gray-100 rounded transition-colors relative",
+                showDocumentsPanel && "bg-blue-50"
+              )}
+              title="Documents"
+            >
+              <FileText className="w-4 h-4 text-gray-500" />
+              {documentCounts.uploaded > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
+                  {documentCounts.uploaded}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Application Details Panel */}
         {(!showActivityPanel && !showRecommendersPanel && !showDocumentsPanel || viewMode === 'fullscreen') && (
           <div className={cn(
@@ -1029,16 +1087,6 @@ export function ApplicationDetail({
               <h1 className="text-2xl font-bold text-gray-900 mb-4">
                 {application.name || 'Unknown'}
               </h1>
-
-            {/* AI Prompt Box */}
-            <div className="mb-6 p-3 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
-              <div className="flex items-start gap-2">
-                <Sparkles className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-gray-700">
-                  Ask Brain to write a description, create a summary or find similar people.
-                </p>
-              </div>
-            </div>
 
             {/* Key Fields */}
             <div className="space-y-3 mb-6">
@@ -1240,64 +1288,6 @@ export function ApplicationDetail({
             )}
               </div>
             </div>
-
-            {/* Action Buttons - Right Side Vertical (sidebar and fullscreen modes) */}
-            {(viewMode === 'sidebar' || viewMode === 'fullscreen') && (
-              <div className="flex flex-col items-center gap-2 p-2 border-l border-gray-200 bg-gray-50">
-                <button 
-                  onClick={() => {
-                    setShowActivityPanel(!showActivityPanel);
-                    setShowRecommendersPanel(false);
-                    setShowDocumentsPanel(false);
-                  }}
-                  className={cn(
-                    "p-1.5 hover:bg-gray-100 rounded transition-colors",
-                    showActivityPanel && "bg-blue-50"
-                  )}
-                  title="Activity"
-                >
-                  <MessageSquare className="w-4 h-4 text-gray-500" />
-                </button>
-                <button 
-                  onClick={() => {
-                    setShowRecommendersPanel(!showRecommendersPanel);
-                    setShowActivityPanel(false);
-                    setShowDocumentsPanel(false);
-                  }}
-                  className={cn(
-                    "p-1.5 hover:bg-gray-100 rounded transition-colors relative",
-                    showRecommendersPanel && "bg-blue-50"
-                  )}
-                  title="Recommenders"
-                >
-                  <UserPlus className="w-4 h-4 text-gray-500" />
-                  {recommendations.length > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
-                      {recommendations.filter(r => r.status === 'pending').length}
-                    </span>
-                  )}
-                </button>
-                <button 
-                  onClick={() => {
-                    setShowDocumentsPanel(!showDocumentsPanel);
-                    setShowActivityPanel(false);
-                    setShowRecommendersPanel(false);
-                  }}
-                  className={cn(
-                    "p-1.5 hover:bg-gray-100 rounded transition-colors relative",
-                    showDocumentsPanel && "bg-blue-50"
-                  )}
-                  title="Documents"
-                >
-                  <FileText className="w-4 h-4 text-gray-500" />
-                  {documentCounts.uploaded > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
-                      {documentCounts.uploaded}
-                    </span>
-                  )}
-                </button>
-              </div>
-            )}
           </div>
         )}
 
