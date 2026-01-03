@@ -1216,14 +1216,14 @@ export function ApplicationDetail({
               </div>
 
               {/* Email Composer - Fixed at Bottom */}
-              <div className="border-t bg-white flex-shrink-0 p-2">
-                <div className="space-y-3">
+              <div className="border-t bg-white flex-shrink-0 p-3">
+                <div className="bg-gray-50 rounded-lg p-3 space-y-2">
                   {/* From field */}
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-600 w-12">From</span>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <button className="flex-1 flex items-center gap-2 text-sm text-gray-900 hover:bg-gray-50 rounded px-2 py-1 transition-colors">
+                        <button className="flex-1 flex items-center gap-2 text-sm text-gray-900 hover:bg-gray-100 rounded-lg px-2 py-1.5 transition-colors bg-white border border-gray-200">
                           {(() => {
                             const email = selectedFromEmail || gmailConnection?.email;
                             if (!email) return <span>Select sender...</span>;
@@ -1281,7 +1281,7 @@ export function ApplicationDetail({
                       value={emailTo}
                       onChange={(e) => setEmailTo(e.target.value)}
                       placeholder={application.email}
-                      className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                     />
                     <button
                       onClick={() => setShowCcBcc(!showCcBcc)}
@@ -1294,10 +1294,9 @@ export function ApplicationDetail({
                   {/* Suggested Emails */}
                   {application.email && (
                     <div className="ml-14">
-                      <p className="text-xs text-gray-500 mb-1">SUGGESTED EMAILS:</p>
                       <button
                         onClick={() => setEmailTo(application.email || '')}
-                        className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                        className="text-xs text-blue-600 hover:text-blue-700 hover:underline bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors"
                       >
                         {application.email}
                       </button>
@@ -1312,7 +1311,7 @@ export function ApplicationDetail({
                           type="text"
                           value={emailCc}
                           onChange={(e) => setEmailCc(e.target.value)}
-                          className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                         />
                       </div>
                       <div className="flex items-center gap-2">
@@ -1321,7 +1320,7 @@ export function ApplicationDetail({
                           type="text"
                           value={emailBcc}
                           onChange={(e) => setEmailBcc(e.target.value)}
-                          className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                         />
                       </div>
                     </>
@@ -1335,64 +1334,57 @@ export function ApplicationDetail({
                       value={emailSubject}
                       onChange={(e) => setEmailSubject(e.target.value)}
                       placeholder="Email subject..."
-                      className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                     />
-                  </div>
-
-                  {/* Add Signature Button */}
-                  <div className="ml-14">
-                    <button className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1 hover:bg-gray-50 rounded transition-colors">
-                      Add signature
-                    </button>
                   </div>
 
                   {/* Email Body */}
                   <div className="ml-14 relative">
-                    <div className="absolute left-2 top-2">
-                      <Plus className="w-4 h-4 text-gray-400" />
-                    </div>
                     <textarea
                       value={emailBody}
                       onChange={(e) => setEmailBody(e.target.value)}
-                      placeholder="Write your message..."
+                      placeholder="Say something, press 'space' for AI, '/' for commands"
                       rows={6}
-                      className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none bg-white"
                     />
                   </div>
 
                   {/* Bottom Toolbar */}
                   <div className="flex items-center justify-between pt-2 border-t">
                     <div className="flex items-center gap-1">
-                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                      <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                         <Plus className="w-4 h-4" />
                       </button>
-                      <button className="px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded transition-colors flex items-center gap-1">
+                      <button className="px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded transition-colors flex items-center gap-1">
                         Email
                         <ChevronDown className="w-3.5 h-3.5" />
                       </button>
-                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-purple-600">
+                      <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-purple-600">
                         <Sparkles className="w-4 h-4" />
                       </button>
-                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                      <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                         <AtSign className="w-4 h-4" />
                       </button>
-                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
-                        <Link className="w-4 h-4" />
-                      </button>
-                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                      <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                         <Paperclip className="w-4 h-4" />
                       </button>
-                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                      <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
+                        <Paperclip className="w-4 h-4" />
+                      </button>
+                      <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                         <AtSign className="w-4 h-4" />
                       </button>
-                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                      <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                         <Smile className="w-4 h-4" />
                       </button>
-                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                      <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                         <PenTool className="w-4 h-4" />
                       </button>
-                      <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                      <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                         <Settings className="w-4 h-4" />
+                      </button>
+                      <button className="px-2 py-1.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors">
+                        Add signature
                       </button>
                     </div>
                     <button
@@ -1481,14 +1473,14 @@ export function ApplicationDetail({
           </div>
 
           {/* Email Composer - Fixed at Bottom */}
-          <div className="border-t bg-white flex-shrink-0 p-2">
-            <div className="space-y-3">
+          <div className="border-t bg-white flex-shrink-0 p-3">
+            <div className="bg-gray-50 rounded-lg p-3 space-y-2">
               {/* From field */}
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600 w-12">From</span>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button className="flex-1 flex items-center gap-2 text-sm text-gray-900 hover:bg-gray-50 rounded px-2 py-1 transition-colors">
+                    <button className="flex-1 flex items-center gap-2 text-sm text-gray-900 hover:bg-gray-100 rounded-lg px-2 py-1.5 transition-colors bg-white border border-gray-200">
                       {(() => {
                         const email = selectedFromEmail || gmailConnection?.email;
                         if (!email) return <span>Select sender...</span>;
@@ -1546,7 +1538,7 @@ export function ApplicationDetail({
                   value={emailTo}
                   onChange={(e) => setEmailTo(e.target.value)}
                   placeholder={application.email}
-                  className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                 />
                 <button
                   onClick={() => setShowCcBcc(!showCcBcc)}
@@ -1559,10 +1551,9 @@ export function ApplicationDetail({
               {/* Suggested Emails */}
               {application.email && (
                 <div className="ml-14">
-                  <p className="text-xs text-gray-500 mb-1">SUGGESTED EMAILS:</p>
                   <button
                     onClick={() => setEmailTo(application.email || '')}
-                    className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                    className="text-xs text-blue-600 hover:text-blue-700 hover:underline bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors"
                   >
                     {application.email}
                   </button>
@@ -1577,7 +1568,7 @@ export function ApplicationDetail({
                       type="text"
                       value={emailCc}
                       onChange={(e) => setEmailCc(e.target.value)}
-                      className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                     />
                   </div>
                   <div className="flex items-center gap-2">
@@ -1586,7 +1577,7 @@ export function ApplicationDetail({
                       type="text"
                       value={emailBcc}
                       onChange={(e) => setEmailBcc(e.target.value)}
-                      className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                     />
                   </div>
                 </>
@@ -1600,64 +1591,57 @@ export function ApplicationDetail({
                   value={emailSubject}
                   onChange={(e) => setEmailSubject(e.target.value)}
                   placeholder="Email subject..."
-                  className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                 />
-              </div>
-
-              {/* Add Signature Button */}
-              <div className="ml-14">
-                <button className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1 hover:bg-gray-50 rounded transition-colors">
-                  Add signature
-                </button>
               </div>
 
               {/* Email Body */}
               <div className="ml-14 relative">
-                <div className="absolute left-2 top-2">
-                  <Plus className="w-4 h-4 text-gray-400" />
-                </div>
                 <textarea
                   value={emailBody}
                   onChange={(e) => setEmailBody(e.target.value)}
-                  placeholder="Write your message..."
+                  placeholder="Say something, press 'space' for AI, '/' for commands"
                   rows={6}
-                  className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none bg-white"
                 />
               </div>
 
               {/* Bottom Toolbar */}
               <div className="flex items-center justify-between pt-2 border-t">
                 <div className="flex items-center gap-1">
-                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                     <Plus className="w-4 h-4" />
                   </button>
-                  <button className="px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded transition-colors flex items-center gap-1">
+                  <button className="px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded transition-colors flex items-center gap-1">
                     Email
                     <ChevronDown className="w-3.5 h-3.5" />
                   </button>
-                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-purple-600">
+                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-purple-600">
                     <Sparkles className="w-4 h-4" />
                   </button>
-                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                     <AtSign className="w-4 h-4" />
                   </button>
-                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
-                    <Link className="w-4 h-4" />
-                  </button>
-                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                     <Paperclip className="w-4 h-4" />
                   </button>
-                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                     <AtSign className="w-4 h-4" />
                   </button>
-                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                     <Smile className="w-4 h-4" />
                   </button>
-                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                     <PenTool className="w-4 h-4" />
                   </button>
-                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600">
+                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
                     <Settings className="w-4 h-4" />
+                  </button>
+                  <button className="px-2 py-1.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors">
+                    Add signature
                   </button>
                 </div>
                 <button
@@ -1675,8 +1659,8 @@ export function ApplicationDetail({
                   )}
                 </button>
               </div>
-              </div>
             </div>
+          </div>
           </div>
         )}
       </div>
