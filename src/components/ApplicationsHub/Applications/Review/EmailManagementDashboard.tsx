@@ -36,7 +36,7 @@ export function EmailManagementDashboard({
 }: EmailManagementDashboardProps) {
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [analytics, setAnalytics] = useState<EmailAnalytics | null>(null);
-  const [serviceHealth, setServiceHealth] = useState<EmailServiceHealth[]>([]);
+  const [serviceHealth, setServiceHealth] = useState<EmailServiceHealth | null>(null);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [emailHistory, setEmailHistory] = useState<SentEmail[]>([]);
   const [campaigns, setCampaigns] = useState<EmailCampaign[]>([]);
@@ -53,17 +53,28 @@ export function EmailManagementDashboard({
   const loadDashboardData = async () => {
     setIsLoading(true);
     try {
+      // Calculate date range
+      let startDate: string | undefined;
+      let endDate: string | undefined;
+      if (dateRange !== 'all') {
+        const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90;
+        const start = new Date();
+        start.setDate(start.getDate() - days);
+        startDate = start.toISOString().split('T')[0];
+        endDate = new Date().toISOString().split('T')[0];
+      }
+
       // Load all data in parallel
       const [analyticsData, healthData, templatesData, historyData, campaignsData] = await Promise.all([
-        emailClient.getAnalytics(workspaceId, formId, dateRange).catch(() => null),
-        emailClient.listServiceHealth(workspaceId).catch(() => []),
+        emailClient.getAnalytics(workspaceId, formId, startDate, endDate).catch(() => null),
+        emailClient.getServiceHealth(workspaceId).catch(() => null),
         emailClient.getTemplates(workspaceId, formId).catch(() => []),
         emailClient.getHistory(workspaceId, formId).catch(() => []),
         emailClient.getCampaigns(workspaceId, formId).catch(() => []),
       ]);
 
       setAnalytics(analyticsData);
-      setServiceHealth(healthData || []);
+      setServiceHealth(healthData);
       setTemplates(templatesData || []);
       setEmailHistory(historyData || []);
       setCampaigns(campaignsData || []);
@@ -91,7 +102,7 @@ export function EmailManagementDashboard({
     return (
       template.name?.toLowerCase().includes(query) ||
       template.subject?.toLowerCase().includes(query) ||
-      template.category?.toLowerCase().includes(query)
+      template.type?.toLowerCase().includes(query)
     );
   });
 
@@ -208,38 +219,65 @@ export function EmailManagementDashboard({
                   </div>
 
                   {/* Service Health Summary */}
-                  <div className="bg-white border rounded-lg p-4">
-                    <h3 className="text-lg font-semibold mb-4">Service Health</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {serviceHealth.map((health) => (
-                        <div
-                          key={health.id}
-                          className={cn(
-                            "p-4 rounded-lg border",
-                            getHealthStatusColor(health.status)
-                          )}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="font-medium capitalize">{health.service_type}</div>
-                              <div className="text-sm opacity-75 mt-1">
-                                {health.last_checked_at
-                                  ? new Date(health.last_checked_at).toLocaleString()
-                                  : 'Never checked'}
+                  {serviceHealth && (
+                    <div className="bg-white border rounded-lg p-4">
+                      <h3 className="text-lg font-semibold mb-4">Service Health</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {serviceHealth.gmail && (
+                          <div
+                            className={cn(
+                              "p-4 rounded-lg border",
+                              getHealthStatusColor(serviceHealth.gmail.status)
+                            )}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-medium capitalize">Gmail</div>
+                                <div className="text-sm opacity-75 mt-1">
+                                  {serviceHealth.gmail.last_checked_at
+                                    ? new Date(serviceHealth.gmail.last_checked_at).toLocaleString()
+                                    : 'Never checked'}
+                                </div>
+                              </div>
+                              <div className={cn("flex items-center gap-2", getHealthStatusColor(serviceHealth.gmail.status))}>
+                                {getStatusIcon(serviceHealth.gmail.status)}
+                                <span className="capitalize">{serviceHealth.gmail.status}</span>
                               </div>
                             </div>
-                            <div className={cn("flex items-center gap-2", getHealthStatusColor(health.status))}>
-                              {getStatusIcon(health.status)}
-                              <span className="capitalize">{health.status}</span>
-                            </div>
+                            {serviceHealth.gmail.error_message && (
+                              <div className="mt-2 text-xs opacity-75">{serviceHealth.gmail.error_message}</div>
+                            )}
                           </div>
-                          {health.error_message && (
-                            <div className="mt-2 text-xs opacity-75">{health.error_message}</div>
-                          )}
-                        </div>
-                      ))}
+                        )}
+                        {serviceHealth.resend && (
+                          <div
+                            className={cn(
+                              "p-4 rounded-lg border",
+                              getHealthStatusColor(serviceHealth.resend.status)
+                            )}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-medium capitalize">Resend</div>
+                                <div className="text-sm opacity-75 mt-1">
+                                  {serviceHealth.resend.last_checked_at
+                                    ? new Date(serviceHealth.resend.last_checked_at).toLocaleString()
+                                    : 'Never checked'}
+                                </div>
+                              </div>
+                              <div className={cn("flex items-center gap-2", getHealthStatusColor(serviceHealth.resend.status))}>
+                                {getStatusIcon(serviceHealth.resend.status)}
+                                <span className="capitalize">{serviceHealth.resend.status}</span>
+                              </div>
+                            </div>
+                            {serviceHealth.resend.error_message && (
+                              <div className="mt-2 text-xs opacity-75">{serviceHealth.resend.error_message}</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Recent Activity */}
                   <div className="bg-white border rounded-lg p-4">
@@ -293,23 +331,16 @@ export function EmailManagementDashboard({
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1">
                             <h4 className="font-semibold">{template.name}</h4>
-                            {template.category && (
-                              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded mt-1 inline-block">
-                                {template.category}
+                            {template.type && (
+                              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded mt-1 inline-block capitalize">
+                                {template.type}
                               </span>
                             )}
                           </div>
-                          {template.usage_count > 0 && (
-                            <span className="text-xs text-gray-500">
-                              {template.usage_count} uses
-                            </span>
-                          )}
                         </div>
-                        <div className="text-sm text-gray-600 mb-2">{template.subject}</div>
+                        <div className="text-sm text-gray-600 mb-2">{template.subject || 'No subject'}</div>
                         <div className="text-xs text-gray-500">
-                          Last used: {template.last_used_at 
-                            ? new Date(template.last_used_at).toLocaleDateString()
-                            : 'Never'}
+                          Created: {new Date(template.created_at).toLocaleDateString()}
                         </div>
                       </div>
                     ))}
@@ -360,8 +391,8 @@ export function EmailManagementDashboard({
                               </td>
                               <td className="px-4 py-3 text-sm">{email.subject}</td>
                               <td className="px-4 py-3">
-                                <span className="text-xs px-2 py-1 bg-gray-100 rounded capitalize">
-                                  {email.service_type || 'gmail'}
+                                <span className="text-xs px-2 py-1 bg-gray-100 rounded">
+                                  Gmail
                                 </span>
                               </td>
                               <td className="px-4 py-3">
@@ -412,16 +443,16 @@ export function EmailManagementDashboard({
                           {campaigns.map((campaign) => (
                             <tr key={campaign.id} className="hover:bg-gray-50">
                               <td className="px-4 py-3">
-                                <div className="text-sm font-medium">{campaign.name || 'Untitled Campaign'}</div>
+                                <div className="text-sm font-medium">{campaign.subject || 'Untitled Campaign'}</div>
                                 <div className="text-xs text-gray-500">{campaign.subject}</div>
                               </td>
-                              <td className="px-4 py-3 text-sm">{campaign.recipient_count || 0}</td>
+                              <td className="px-4 py-3 text-sm">{campaign.total_recipients || 0}</td>
                               <td className="px-4 py-3">
                                 <span className={cn(
                                   "text-xs px-2 py-1 rounded capitalize",
                                   campaign.status === 'sent' 
                                     ? "bg-green-100 text-green-700" 
-                                    : campaign.status === 'scheduled'
+                                    : campaign.status === 'sending'
                                     ? "bg-blue-100 text-blue-700"
                                     : "bg-gray-100 text-gray-700"
                                 )}>
@@ -449,45 +480,78 @@ export function EmailManagementDashboard({
               {/* Health Tab */}
               {activeTab === 'health' && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {serviceHealth.map((health) => (
-                      <div
-                        key={health.id}
-                        className={cn(
-                          "p-6 rounded-lg border-2",
-                          health.status === 'healthy' ? "border-green-200 bg-green-50" :
-                          health.status === 'degraded' ? "border-yellow-200 bg-yellow-50" :
-                          "border-red-200 bg-red-50"
-                        )}
-                      >
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-lg font-semibold capitalize">{health.service_type}</h3>
-                          <div className={cn("flex items-center gap-2 px-3 py-1 rounded", getHealthStatusColor(health.status))}>
-                            {getStatusIcon(health.status)}
-                            <span className="capitalize font-medium">{health.status}</span>
-                          </div>
-                        </div>
-                        <div className="space-y-2 text-sm">
-                          <div>
-                            <span className="text-gray-600">Last checked:</span>{' '}
-                            <span className="font-medium">
-                              {health.last_checked_at
-                                ? new Date(health.last_checked_at).toLocaleString()
-                                : 'Never'}
-                            </span>
-                          </div>
-                          {health.error_message && (
-                            <div className="mt-3 p-3 bg-white rounded border">
-                              <div className="text-xs font-medium text-red-600 mb-1">Error:</div>
-                              <div className="text-xs text-gray-700">{health.error_message}</div>
-                            </div>
+                  {serviceHealth ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {serviceHealth.gmail && (
+                        <div
+                          className={cn(
+                            "p-6 rounded-lg border-2",
+                            serviceHealth.gmail.status === 'healthy' ? "border-green-200 bg-green-50" :
+                            serviceHealth.gmail.status === 'degraded' ? "border-yellow-200 bg-yellow-50" :
+                            "border-red-200 bg-red-50"
                           )}
+                        >
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold">Gmail</h3>
+                            <div className={cn("flex items-center gap-2 px-3 py-1 rounded", getHealthStatusColor(serviceHealth.gmail.status))}>
+                              {getStatusIcon(serviceHealth.gmail.status)}
+                              <span className="capitalize font-medium">{serviceHealth.gmail.status}</span>
+                            </div>
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            <div>
+                              <span className="text-gray-600">Last checked:</span>{' '}
+                              <span className="font-medium">
+                                {serviceHealth.gmail.last_checked_at
+                                  ? new Date(serviceHealth.gmail.last_checked_at).toLocaleString()
+                                  : 'Never'}
+                              </span>
+                            </div>
+                            {serviceHealth.gmail.error_message && (
+                              <div className="mt-3 p-3 bg-white rounded border">
+                                <div className="text-xs font-medium text-red-600 mb-1">Error:</div>
+                                <div className="text-xs text-gray-700">{serviceHealth.gmail.error_message}</div>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {serviceHealth.length === 0 && (
+                      )}
+                      {serviceHealth.resend && (
+                        <div
+                          className={cn(
+                            "p-6 rounded-lg border-2",
+                            serviceHealth.resend.status === 'healthy' ? "border-green-200 bg-green-50" :
+                            serviceHealth.resend.status === 'degraded' ? "border-yellow-200 bg-yellow-50" :
+                            "border-red-200 bg-red-50"
+                          )}
+                        >
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold">Resend</h3>
+                            <div className={cn("flex items-center gap-2 px-3 py-1 rounded", getHealthStatusColor(serviceHealth.resend.status))}>
+                              {getStatusIcon(serviceHealth.resend.status)}
+                              <span className="capitalize font-medium">{serviceHealth.resend.status}</span>
+                            </div>
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            <div>
+                              <span className="text-gray-600">Last checked:</span>{' '}
+                              <span className="font-medium">
+                                {serviceHealth.resend.last_checked_at
+                                  ? new Date(serviceHealth.resend.last_checked_at).toLocaleString()
+                                  : 'Never'}
+                              </span>
+                            </div>
+                            {serviceHealth.resend.error_message && (
+                              <div className="mt-3 p-3 bg-white rounded border">
+                                <div className="text-xs font-medium text-red-600 mb-1">Error:</div>
+                                <div className="text-xs text-gray-700">{serviceHealth.resend.error_message}</div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
                     <div className="text-center py-12 text-gray-500">
                       No service health data available.
                     </div>
