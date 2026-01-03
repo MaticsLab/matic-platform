@@ -18,6 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui-components/dropdown-menu'
+import { SidebarHoverPanel } from './SidebarHoverPanel'
 
 interface SidebarProps {
   workspaceId: string
@@ -44,6 +45,7 @@ export function Sidebar({
 }: SidebarProps) {
   const { tabManager, activeTab } = useTabContext()
   const [isCollapsed, setIsCollapsed] = useState(true)
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   
   const navItems = [
     {
@@ -236,14 +238,40 @@ export function Sidebar({
 
               if (isCollapsed) {
                 return (
-                  <Tooltip key={item.id}>
-                    <TooltipTrigger asChild>
-                      {ButtonContent}
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="font-medium">
-                      {item.label}
-                    </TooltipContent>
-                  </Tooltip>
+                  <div
+                    key={item.id}
+                    className="relative"
+                    onMouseEnter={() => setHoveredItem(item.id)}
+                    onMouseLeave={(e) => {
+                      // Only close if we're not moving to the hover panel
+                      const relatedTarget = e.relatedTarget as HTMLElement
+                      if (!relatedTarget?.closest('.sidebar-hover-panel')) {
+                        setHoveredItem(null)
+                      }
+                    }}
+                  >
+                    <button
+                      onClick={() => handleNavigate(item)}
+                      className={cn(
+                        "w-full flex items-center justify-center px-2 py-2 text-sm font-medium rounded-lg transition-colors",
+                        isActive 
+                          ? "bg-blue-50 text-blue-700" 
+                          : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                      )}
+                    >
+                      <item.icon size={18} className={isActive ? 'text-blue-600' : 'text-gray-400'} />
+                    </button>
+                    {hoveredItem === item.id && (
+                      <div className="absolute left-full top-0 ml-2 z-50 sidebar-hover-panel">
+                        <SidebarHoverPanel
+                          hubType={item.id as 'data' | 'applications' | 'workflows'}
+                          workspaceId={workspaceId}
+                          isVisible={true}
+                          onClose={() => setHoveredItem(null)}
+                        />
+                      </div>
+                    )}
+                  </div>
                 )
               }
 
