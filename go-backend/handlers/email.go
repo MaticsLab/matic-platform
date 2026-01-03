@@ -441,10 +441,10 @@ func SendEmail(c *gin.Context) {
 	if err := query.First(&connection).Error; err != nil {
 		// If specific email/account not found, fall back to default connection
 		if req.FromEmail != "" || req.SenderAccountID != "" {
-			if err := database.DB.Where("workspace_id = ?", workspaceID).First(&connection).Error; err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Gmail not connected. Please connect your Gmail account first."})
-				return
-			}
+	if err := database.DB.Where("workspace_id = ?", workspaceID).First(&connection).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Gmail not connected. Please connect your Gmail account first."})
+		return
+	}
 			fmt.Printf("[Email] Specific account not found, using default connection: %s\n", connection.Email)
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Gmail not connected. Please connect your Gmail account first."})
