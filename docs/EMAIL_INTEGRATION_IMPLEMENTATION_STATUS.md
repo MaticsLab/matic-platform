@@ -66,18 +66,95 @@ This document tracks the implementation progress of the Unified Email Integratio
 **Files modified:**
 - `go-backend/services/email_router.go` (completed `sendViaResend()`)
 
+### Phase 3: Draft Management Endpoints ✅
+**Status:** Complete
+
+**What was implemented:**
+- `ListEmailDrafts` - List all drafts for a user/workspace (with 30-day retention)
+- `GetEmailDraft` - Get single draft by ID
+- `CreateEmailDraft` - Create new draft
+- `UpdateEmailDraft` - Update draft (auto-save)
+- `DeleteEmailDraft` - Delete draft
+- `CleanupOldDrafts` - Cleanup drafts older than 30 days
+
+**Files created:**
+- `go-backend/handlers/email_drafts.go`
+- Routes added to `/api/v1/email/drafts/*`
+
+### Phase 4: Resend Integration Management ✅
+**Status:** Complete
+
+**What was implemented:**
+- `GetResendIntegration` - Get Resend integration for workspace
+- `CreateResendIntegration` - Create/update Resend integration
+- `UpdateResendIntegration` - Update Resend integration
+- `DeleteResendIntegration` - Delete Resend integration
+- `TestResendIntegration` - Test Resend API connection
+
+**Files created:**
+- `go-backend/handlers/resend_integration.go`
+- Routes added to `/api/v1/email/resend/integration/*`
+
+### Phase 5: Email Queue Management ✅
+**Status:** Complete
+
+**What was implemented:**
+- `ListEmailQueueItems` - List queued emails (with status filter)
+- `GetEmailQueueItem` - Get single queue item
+- `RetryEmailQueueItem` - Retry failed queue item
+- `CancelEmailQueueItem` - Cancel pending queue item
+- `GetEmailQueueStats` - Get queue statistics
+
+**Files created:**
+- `go-backend/handlers/email_queue.go`
+- Routes added to `/api/v1/email/queue/*`
+
+### Phase 6: Resend Webhook Handlers ✅
+**Status:** Complete
+
+**What was implemented:**
+- `HandleResendWebhook` - Process Resend webhook events
+- Support for events: sent, delivered, opened, clicked, bounced, complained
+- Updates `sent_emails` table with delivery status
+- Public endpoint at `/api/v1/email/resend/webhook`
+
+**Files created:**
+- `go-backend/handlers/resend_webhooks.go`
+
+### Phase 7: Analytics Endpoints ✅
+**Status:** Complete
+
+**What was implemented:**
+- `GetEmailAnalytics` - Get email performance metrics (delivery rate, open rate, click rate, bounce rate)
+- `GetEmailServiceHealth` - Get health status for Gmail and Resend services
+- `GetEmailCampaignAnalytics` - Get analytics for specific campaign
+- Supports date range filtering
+
+**Files created:**
+- `go-backend/handlers/email_analytics.go`
+- Routes added to `/api/v1/email/analytics`, `/api/v1/email/service-health`, `/api/v1/email/campaigns/:id/analytics`
+
 ## 🚧 In Progress / Next Steps
 
-### Phase 3: Template Engine Improvements
+### Phase 8: Template Engine Improvements
 **Status:** Not Started
 
 **What needs to be done:**
 - Merge field validation system
 - Preview system for templates
-- Improved merge tag processing
+- Improved merge tag processing (extract to service)
 - Template categorization UI
 
-### Phase 4: Quick Reminder Panel
+### Phase 9: Gmail Router Integration
+**Status:** In Progress
+
+**What needs to be done:**
+- Complete `sendViaGmail` method in EmailRouter
+- Extract Gmail sending logic to reusable function
+- Integrate EmailRouter into SendEmail handler
+- Add service routing logic based on email type
+
+### Phase 10: Quick Reminder Panel
 **Status:** Not Started
 
 **What needs to be done:**
@@ -86,63 +163,60 @@ This document tracks the implementation progress of the Unified Email Integratio
 - Quick send functionality
 - Template selection for reminders
 
-### Phase 5: Full Email Composer Modal
+### Phase 11: Full Email Composer Modal
 **Status:** Not Started
 
 **What needs to be done:**
 - Rich text editor component
-- Draft auto-save (every 10 seconds)
+- Draft auto-save (every 10 seconds) - backend ready
 - Template selector
 - Merge field preview
 - Scheduling UI
 
-### Phase 6: Campaign Composer
+### Phase 12: Campaign Composer
 **Status:** Not Started
 
 **What needs to be done:**
 - Campaign composer UI
 - Bulk recipient selection
 - Staggering configuration
-- Job queue processor
+- Job queue processor (backend queue ready)
 - Campaign tracking dashboard
 
-### Phase 8: Email Management Dashboard
+### Phase 13: Email Management Dashboard
 **Status:** Not Started
 
 **What needs to be done:**
 - Template library UI
 - Email history view
-- Campaign performance metrics
-- Service health monitoring UI
-- Analytics charts
-
-### Phase 9: Analytics and Reporting
-**Status:** Not Started
-
-**What needs to be done:**
-- Analytics endpoints
-- Performance metrics aggregation
-- Reporting API
-- Dashboard data endpoints
+- Campaign performance metrics (backend ready)
+- Service health monitoring UI (backend ready)
+- Analytics charts (backend ready)
 
 ## Integration Points
 
-### Backend Integration
-The new email router service needs to be integrated into the existing `handlers/email.go`:
-1. Update `SendEmail()` handler to use `EmailRouter`
-2. Add Resend integration management endpoints
-3. Add draft management endpoints
-4. Add queue management endpoints
-5. Add health monitoring endpoints
+### Backend Integration ✅ (Partially Complete)
+**Completed:**
+1. ✅ Resend integration management endpoints
+2. ✅ Draft management endpoints
+3. ✅ Queue management endpoints
+4. ✅ Health monitoring endpoints (via analytics)
+5. ✅ Resend webhook handlers
+6. ✅ Analytics endpoints
+
+**Still Needed:**
+1. Update `SendEmail()` handler to use `EmailRouter` (in progress)
+2. Complete Gmail integration in EmailRouter
+3. Queue worker process to process queued emails
 
 ### Frontend Integration
 The frontend needs:
-1. API client updates for new endpoints
+1. API client updates for new endpoints (drafts, resend, queue, analytics)
 2. Quick Reminder Panel component
-3. Full Email Composer component
+3. Full Email Composer component (with draft auto-save)
 4. Campaign Composer component
-5. Email Management Dashboard
-6. Template management UI
+5. Email Management Dashboard (analytics endpoints ready)
+6. Template management UI (with categorization)
 
 ## Database Migration
 

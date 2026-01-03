@@ -148,6 +148,121 @@ export type UpdateEmailTemplateRequest = Partial<CreateEmailTemplateRequest>;
 export type CreateSignatureRequest = Omit<EmailSignature, 'id' | 'created_at' | 'updated_at'>;
 export type UpdateSignatureRequest = Partial<CreateSignatureRequest>;
 
+// Email Draft
+export interface EmailDraft {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  form_id?: string;
+  submission_id?: string;
+  recipient_emails: string[];
+  subject?: string;
+  body?: string;
+  body_html?: string;
+  template_id?: string;
+  merge_fields?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  auto_saved_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type CreateEmailDraftRequest = Omit<EmailDraft, 'id' | 'auto_saved_at' | 'created_at' | 'updated_at'>;
+export type UpdateEmailDraftRequest = Partial<CreateEmailDraftRequest>;
+
+// Resend Integration
+export interface ResendIntegration {
+  id: string;
+  workspace_id: string;
+  from_email: string;
+  from_name?: string;
+  is_active: boolean;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export type CreateResendIntegrationRequest = {
+  api_key: string;
+  from_email: string;
+  from_name?: string;
+  is_active?: boolean;
+};
+
+export type UpdateResendIntegrationRequest = Partial<CreateResendIntegrationRequest>;
+
+// Email Queue
+export interface EmailQueueItem {
+  id: string;
+  workspace_id: string;
+  campaign_id?: string;
+  recipient_email: string;
+  recipient_name?: string;
+  subject: string;
+  body: string;
+  body_html?: string;
+  sender_email: string;
+  submission_id?: string;
+  form_id?: string;
+  service_type: 'gmail' | 'resend';
+  priority: number;
+  status: 'pending' | 'processing' | 'sent' | 'failed' | 'retrying';
+  scheduled_for: string;
+  attempt_count: number;
+  max_attempts: number;
+  error_message?: string;
+  sent_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmailQueueStats {
+  pending: number;
+  processing: number;
+  sent: number;
+  failed: number;
+  retrying: number;
+}
+
+// Email Analytics
+export interface EmailAnalytics {
+  total_sent: number;
+  total_delivered: number;
+  total_opened: number;
+  total_clicked: number;
+  total_bounced: number;
+  total_failed: number;
+  delivery_rate: number;
+  open_rate: number;
+  click_rate: number;
+  bounce_rate: number;
+}
+
+export interface EmailServiceHealth {
+  gmail: {
+    id: string;
+    workspace_id: string;
+    service_type: string;
+    status: 'healthy' | 'degraded' | 'down' | 'unknown';
+    last_checked_at: string;
+    last_success_at?: string;
+    last_failure_at?: string;
+    failure_count: number;
+    error_message?: string;
+  };
+  resend: {
+    id: string;
+    workspace_id: string;
+    service_type: string;
+    status: 'healthy' | 'degraded' | 'down' | 'unknown';
+    last_checked_at: string;
+    last_success_at?: string;
+    last_failure_at?: string;
+    failure_count: number;
+    error_message?: string;
+  };
+}
+
 // API Client
 export const emailClient = {
   // Gmail Connection / OAuth
@@ -267,6 +382,102 @@ export const emailClient = {
     const query = params.toString() ? `?${params}` : '';
     return goFetch<ActivityItem[]>(`/email/submission/${submissionId}/activity${query}`);
   },
+
+  // Email Drafts
+  listDrafts: (workspaceId: string, userId?: string) => {
+    const params = new URLSearchParams({ workspace_id: workspaceId });
+    if (userId) params.append('user_id', userId);
+    return goFetch<EmailDraft[]>(`/email/drafts?${params}`);
+  },
+
+  getDraft: (id: string) =>
+    goFetch<EmailDraft>(`/email/drafts/${id}`),
+
+  createDraft: (data: CreateEmailDraftRequest) =>
+    goFetch<EmailDraft>('/email/drafts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateDraft: (id: string, data: UpdateEmailDraftRequest) =>
+    goFetch<EmailDraft>(`/email/drafts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  deleteDraft: (id: string) =>
+    goFetch<{ success: boolean }>(`/email/drafts/${id}`, {
+      method: 'DELETE',
+    }),
+
+  cleanupOldDrafts: (workspaceId: string) =>
+    goFetch<{ success: boolean; deleted_count: number }>(`/email/drafts/cleanup?workspace_id=${workspaceId}`, {
+      method: 'POST',
+    }),
+
+  // Resend Integration
+  getResendIntegration: (workspaceId: string) =>
+    goFetch<ResendIntegration>(`/email/resend/integration?workspace_id=${workspaceId}`),
+
+  createResendIntegration: (workspaceId: string, data: CreateResendIntegrationRequest) =>
+    goFetch<ResendIntegration>(`/email/resend/integration?workspace_id=${workspaceId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateResendIntegration: (workspaceId: string, data: UpdateResendIntegrationRequest) =>
+    goFetch<ResendIntegration>(`/email/resend/integration?workspace_id=${workspaceId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  deleteResendIntegration: (workspaceId: string) =>
+    goFetch<{ success: boolean }>(`/email/resend/integration?workspace_id=${workspaceId}`, {
+      method: 'DELETE',
+    }),
+
+  testResendIntegration: (workspaceId: string) =>
+    goFetch<{ success: boolean; message: string }>(`/email/resend/integration/test?workspace_id=${workspaceId}`, {
+      method: 'POST',
+    }),
+
+  // Email Queue
+  listQueueItems: (workspaceId: string, status?: string) => {
+    const params = new URLSearchParams({ workspace_id: workspaceId });
+    if (status) params.append('status', status);
+    return goFetch<EmailQueueItem[]>(`/email/queue?${params}`);
+  },
+
+  getQueueItem: (id: string) =>
+    goFetch<EmailQueueItem>(`/email/queue/${id}`),
+
+  retryQueueItem: (id: string) =>
+    goFetch<EmailQueueItem>(`/email/queue/${id}/retry`, {
+      method: 'POST',
+    }),
+
+  cancelQueueItem: (id: string) =>
+    goFetch<EmailQueueItem>(`/email/queue/${id}/cancel`, {
+      method: 'POST',
+    }),
+
+  getQueueStats: (workspaceId: string) =>
+    goFetch<EmailQueueStats>(`/email/queue/stats?workspace_id=${workspaceId}`),
+
+  // Analytics
+  getAnalytics: (workspaceId: string, formId?: string, startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams({ workspace_id: workspaceId });
+    if (formId) params.append('form_id', formId);
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    return goFetch<EmailAnalytics>(`/email/analytics?${params}`);
+  },
+
+  getServiceHealth: (workspaceId: string) =>
+    goFetch<EmailServiceHealth>(`/email/service-health?workspace_id=${workspaceId}`),
+
+  getCampaignAnalytics: (campaignId: string) =>
+    goFetch<EmailAnalytics>(`/email/campaigns/${campaignId}/analytics`),
 };
 
 // Activity types

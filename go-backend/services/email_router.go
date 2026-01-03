@@ -255,16 +255,48 @@ func (r *EmailRouter) sendViaResend(ctx context.Context, req EmailSendRequest) (
 	}, nil
 }
 
-// sendViaGmail sends an email via Gmail API (delegates to existing handler)
+// sendViaGmail sends an email via Gmail API
 func (r *EmailRouter) sendViaGmail(ctx context.Context, req EmailSendRequest) (*EmailSendResult, error) {
-	// This will delegate to the existing Gmail sending logic
-	// For now, return a placeholder
-	// The actual implementation will integrate with the existing email.go handler
+	// Build from address
+	fromName := req.FromName
+	if fromName == "" {
+		fromName = req.From
+	}
+
+	// Send via Gmail
+	messageID, threadID, err := SendGmailEmail(
+		ctx,
+		req.WorkspaceID,
+		req.To,
+		req.ToName,
+		req.From,
+		fromName,
+		req.Subject,
+		req.Body,
+		req.BodyHTML,
+		req.ThreadID,
+		req.InReplyTo,
+		req.References,
+	)
+
+	if err != nil {
+		// Update health status
+		r.UpdateServiceHealth(ctx, req.WorkspaceID, ServiceTypeGmail, "down", err.Error())
+		return &EmailSendResult{
+			Success:      false,
+			ServiceType:  ServiceTypeGmail,
+			ErrorMessage: err.Error(),
+		}, err
+	}
+
+	// Update health status to healthy
+	r.UpdateServiceHealth(ctx, req.WorkspaceID, ServiceTypeGmail, "healthy", "")
+
 	return &EmailSendResult{
-		Success:      false,
-		ServiceType:  ServiceTypeGmail,
-		ErrorMessage: "Gmail sending should use existing handler",
-	}, fmt.Errorf("use existing Gmail handler")
+		Success:     true,
+		MessageID:   messageID,
+		ServiceType: ServiceTypeGmail,
+	}, nil
 }
 
 // checkServiceHealth checks the health status of an email service

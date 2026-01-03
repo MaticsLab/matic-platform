@@ -244,6 +244,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.GET("/email/track/:tracking_id", handlers.TrackEmailOpen)
 		api.GET("/email/oauth/callback", handlers.HandleGmailCallback)
 
+		// Public Resend Webhook (must be public for Resend to send events)
+		api.POST("/email/resend/webhook", handlers.HandleResendWebhook)
+
 		// External Review Routes (Public with Token)
 		api.GET("/external-review/:token", handlers.GetExternalReviewData)
 		api.POST("/external-review/:token/submit/:submission_id", handlers.SubmitExternalReview)
@@ -692,6 +695,33 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				// Submission-specific email history
 				email.GET("/submission/:id/history", handlers.GetSubmissionEmailHistory)
 				email.GET("/submission/:id/activity", handlers.GetSubmissionActivity)
+
+				// Analytics
+				email.GET("/analytics", handlers.GetEmailAnalytics)
+				email.GET("/service-health", handlers.GetEmailServiceHealth)
+				email.GET("/campaigns/:id/analytics", handlers.GetEmailCampaignAnalytics)
+
+				// Email Drafts
+				email.GET("/drafts", handlers.ListEmailDrafts)
+				email.GET("/drafts/:id", handlers.GetEmailDraft)
+				email.POST("/drafts", handlers.CreateEmailDraft)
+				email.PATCH("/drafts/:id", handlers.UpdateEmailDraft)
+				email.DELETE("/drafts/:id", handlers.DeleteEmailDraft)
+				email.POST("/drafts/cleanup", handlers.CleanupOldDrafts)
+
+				// Resend Integration
+				email.GET("/resend/integration", handlers.GetResendIntegration)
+				email.POST("/resend/integration", handlers.CreateResendIntegration)
+				email.PATCH("/resend/integration", handlers.UpdateResendIntegration)
+				email.DELETE("/resend/integration", handlers.DeleteResendIntegration)
+				email.POST("/resend/integration/test", handlers.TestResendIntegration)
+
+				// Email Queue
+				email.GET("/queue", handlers.ListEmailQueueItems)
+				email.GET("/queue/:id", handlers.GetEmailQueueItem)
+				email.POST("/queue/:id/retry", handlers.RetryEmailQueueItem)
+				email.POST("/queue/:id/cancel", handlers.CancelEmailQueueItem)
+				email.GET("/queue/stats", handlers.GetEmailQueueStats)
 			}
 
 			// Change Requests (Approval Workflow)
