@@ -62,6 +62,18 @@ export function FullEmailComposer({
   const { data: session } = useSession();
   const userId = session?.user?.id || null;
 
+  // Helper to check if HTML body has actual content (strips HTML tags and checks for text)
+  const hasBodyContent = (html: string): boolean => {
+    if (!html || !html.trim()) return false;
+    // Remove HTML tags, entities, and check for actual text content
+    const textContent = html
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/&nbsp;/g, ' ') // Replace non-breaking spaces
+      .replace(/&[a-z]+;/gi, ' ') // Replace other HTML entities
+      .trim();
+    return textContent.length > 0;
+  };
+
   // Initialize form
   useEffect(() => {
     if (open) {
@@ -86,7 +98,7 @@ export function FullEmailComposer({
 
   // Auto-save draft every 10 seconds
   useEffect(() => {
-    if (open && (subject.trim() || body.trim())) {
+    if (open && (subject.trim() || hasBodyContent(body))) {
       autoSaveIntervalRef.current = setInterval(() => {
         saveDraft();
       }, 10000); // 10 seconds
@@ -142,7 +154,7 @@ export function FullEmailComposer({
 
   const saveDraft = useCallback(async () => {
     if (!workspaceId || !userId) return;
-    if (!subject.trim() && !body.trim()) return; // Don't save empty drafts
+    if (!subject.trim() && !hasBodyContent(body)) return; // Don't save empty drafts
 
     setIsSavingDraft(true);
     try {
@@ -189,7 +201,7 @@ export function FullEmailComposer({
       return;
     }
 
-    if (!subject.trim() || !body.trim()) {
+    if (!subject.trim() || !hasBodyContent(body)) {
       toast.error('Please enter a subject and message');
       return;
     }
@@ -542,7 +554,7 @@ export function FullEmailComposer({
           </Button>
           <Button
             onClick={handleSend}
-            disabled={isSending || !subject.trim() || !body.trim() || !to.trim()}
+            disabled={isSending || !subject.trim() || !hasBodyContent(body) || !to.trim()}
             className="bg-blue-600 hover:bg-blue-700"
           >
             {isSending ? (
