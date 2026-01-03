@@ -406,7 +406,7 @@ export function ApplicationDetail({
   fields = [],
   onActivityCreated
 }: ApplicationDetailProps) {
-  const [isActivityPanelExpanded, setIsActivityPanelExpanded] = useState(true);
+  const [showActivityPanel, setShowActivityPanel] = useState(false); // Toggle between details and activity
   const [viewMode, setViewMode] = useState<'modal' | 'fullscreen' | 'sidebar'>('sidebar');
   const [selectedStage, setSelectedStage] = useState(application.stageId || application.status);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -951,16 +951,80 @@ export function ApplicationDetail({
         "flex-1 min-h-0 flex overflow-hidden",
         viewMode === 'modal' && "rounded-lg"
       )}>
-        {/* Left Panel: Overview */}
-        <div className={cn(
-          "border-r overflow-y-auto transition-all duration-300",
-          isActivityPanelExpanded ? "w-1/2" : "flex-1"
-        )}>
-          <div className="p-6">
-            {/* Name */}
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">
-              {application.name || 'Unknown'}
-            </h1>
+        {/* Application Details Panel */}
+        {!showActivityPanel && (
+          <div className="flex-1 overflow-y-auto relative">
+            {/* Action Buttons - Top Right */}
+            <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+              <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+                <Search className="w-4 h-4 text-gray-500" />
+              </button>
+              <button className="p-1.5 hover:bg-gray-100 rounded transition-colors relative">
+                <Bell className="w-4 h-4 text-gray-500" />
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">1</span>
+              </button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
+                    <Maximize2 className="w-4 h-4 text-gray-500" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-2" align="end">
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => setViewMode('modal')}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
+                        viewMode === 'modal' && "bg-purple-50 text-purple-700"
+                      )}
+                    >
+                      <div className="w-8 h-6 border border-gray-300 rounded flex items-center justify-center bg-white">
+                        <div className="w-4 h-3 border border-gray-200 rounded"></div>
+                      </div>
+                      <span className={cn("text-sm", viewMode === 'modal' && "text-purple-700 font-medium")}>Modal</span>
+                    </button>
+                    <button
+                      onClick={() => setViewMode('fullscreen')}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
+                        viewMode === 'fullscreen' && "bg-purple-50 text-purple-700"
+                      )}
+                    >
+                      <div className="w-8 h-6 border-2 border-gray-400 rounded bg-gray-50"></div>
+                      <span className={cn("text-sm", viewMode === 'fullscreen' && "text-purple-700 font-medium")}>Full screen</span>
+                    </button>
+                    <button
+                      onClick={() => setViewMode('sidebar')}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
+                        viewMode === 'sidebar' && "bg-purple-50 text-purple-700"
+                      )}
+                    >
+                      <div className="w-8 h-6 border border-gray-300 rounded flex gap-0.5 p-0.5">
+                        <div className="flex-1 bg-gray-100 rounded"></div>
+                        <div className="w-2 bg-gray-200 rounded"></div>
+                      </div>
+                      <span className={cn("text-sm", viewMode === 'sidebar' && "text-purple-700 font-medium")}>Sidebar</span>
+                    </button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <button 
+                onClick={() => setShowActivityPanel(true)}
+                className={cn(
+                  "p-1.5 hover:bg-gray-100 rounded transition-colors",
+                  showActivityPanel && "bg-blue-50"
+                )}
+              >
+                <MessageSquare className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              {/* Name */}
+              <h1 className="text-2xl font-bold text-gray-900 mb-4">
+                {application.name || 'Unknown'}
+              </h1>
 
             {/* AI Prompt Box */}
             <div className="mb-6 p-3 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
@@ -1069,69 +1133,20 @@ export function ApplicationDetail({
               </button>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Right Panel: Activity - Collapsible */}
-        {isActivityPanelExpanded && (
-          <div className="w-1/2 flex flex-col overflow-hidden border-l">
+        {/* Activity Panel - Replaces details when active */}
+        {showActivityPanel && (
+          <div className="flex-1 flex flex-col overflow-hidden">
             {/* Activity Header */}
             <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
               <h2 className="text-sm font-semibold text-gray-900">Activity</h2>
-              <div className="flex items-center gap-1">
-                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
-                  <Search className="w-4 h-4 text-gray-500" />
-                </button>
-                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors relative">
-                  <Bell className="w-4 h-4 text-gray-500" />
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">1</span>
-                </button>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
-                      <Maximize2 className="w-4 h-4 text-gray-500" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-48 p-2" align="end">
-                    <div className="space-y-1">
-                      <button
-                        onClick={() => setViewMode('modal')}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
-                          viewMode === 'modal' && "bg-purple-50 text-purple-700"
-                        )}
-                      >
-                        <div className="w-8 h-6 border border-gray-300 rounded flex items-center justify-center bg-white">
-                          <div className="w-4 h-3 border border-gray-200 rounded"></div>
-                        </div>
-                        <span className={cn("text-sm", viewMode === 'modal' && "text-purple-700 font-medium")}>Modal</span>
-                      </button>
-                      <button
-                        onClick={() => setViewMode('fullscreen')}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
-                          viewMode === 'fullscreen' && "bg-purple-50 text-purple-700"
-                        )}
-                      >
-                        <div className="w-8 h-6 border-2 border-gray-400 rounded bg-gray-50"></div>
-                        <span className={cn("text-sm", viewMode === 'fullscreen' && "text-purple-700 font-medium")}>Full screen</span>
-                      </button>
-                      <button
-                        onClick={() => setViewMode('sidebar')}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 transition-colors text-left",
-                          viewMode === 'sidebar' && "bg-purple-50 text-purple-700"
-                        )}
-                      >
-                        <div className="w-8 h-6 border border-gray-300 rounded flex gap-0.5 p-0.5">
-                          <div className="flex-1 bg-gray-100 rounded"></div>
-                          <div className="w-2 bg-gray-200 rounded"></div>
-                        </div>
-                        <span className={cn("text-sm", viewMode === 'sidebar' && "text-purple-700 font-medium")}>Sidebar</span>
-                      </button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
+              <button 
+                onClick={() => setShowActivityPanel(false)}
+                className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+              >
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
             </div>
 
           {/* Activity Feed */}
@@ -1370,381 +1385,7 @@ export function ApplicationDetail({
             </div>
           </div>
         )}
-        
-        {/* Collapsed Activity Panel - Fixed Icon Buttons */}
-        {!isActivityPanelExpanded && (
-          <div className="border-l bg-white flex flex-col items-center py-2 w-12 flex-shrink-0 gap-1">
-            <button
-              onClick={() => setIsActivityPanelExpanded(true)}
-              className="p-2 hover:bg-gray-100 rounded transition-colors"
-              title="Activity"
-            >
-              <MessageSquare className="w-4 h-4 text-gray-500" />
-            </button>
-            <button className="p-2 hover:bg-gray-100 rounded transition-colors relative" title="Notifications">
-              <Bell className="w-4 h-4 text-gray-500" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-blue-600 rounded-full"></span>
-            </button>
-            <button className="p-2 hover:bg-gray-100 rounded transition-colors" title="More">
-              <Settings className="w-4 h-4 text-gray-500" />
-            </button>
-          </div>
-        )}
       </div>
-
-      {/* Documents and Reviews tabs - removed, now in split view */}
-      {false && (
-          <div className="flex-1 min-h-0 overflow-y-auto p-6">
-            {(() => {
-              // Extract all documents from fields and raw_data
-              const documents: { fieldId: string; fieldLabel: string; value: any; required?: boolean }[] = [];
-              const missingDocuments: { fieldId: string; fieldLabel: string }[] = [];
-              
-              // Check fields for file/image upload types
-              if (fields && fields.length > 0) {
-                fields.forEach(field => {
-                  const isFileField = field.type === 'file_upload' || field.type === 'image_upload' || 
-                                     field.type === 'file' || field.type === 'image' ||
-                                     field.label?.toLowerCase().includes('upload') ||
-                                     field.label?.toLowerCase().includes('document') ||
-                                     field.label?.toLowerCase().includes('attachment');
-                  
-                  if (isFileField) {
-                    const value = application.raw_data?.[field.id] || 
-                                 application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
-                                 application.raw_data?.[field.label];
-                    const parsedValue = parseValueIfNeeded(value);
-                    
-                    if (parsedValue && isFileValue(parsedValue)) {
-                      documents.push({
-                        fieldId: field.id,
-                        fieldLabel: field.label || field.id,
-                        value: parsedValue
-                      });
-                    } else {
-                      // No document uploaded for this field - it's missing
-                      missingDocuments.push({
-                        fieldId: field.id,
-                        fieldLabel: field.label || field.id
-                      });
-                    }
-                  }
-                });
-              }
-              
-              // Also scan raw_data for any file values not in fields
-              if (application.raw_data) {
-                Object.entries(application.raw_data as Record<string, any>).forEach(([key, value]) => {
-                  const parsedValue = parseValueIfNeeded(value);
-                  if (isFileValue(parsedValue)) {
-                    // Check if we already have this document
-                    const exists = documents.some(d => d.fieldId === key || d.fieldLabel === key);
-                    if (!exists) {
-                      documents.push({
-                        fieldId: key,
-                        fieldLabel: formatFieldLabel(key),
-                        value: parsedValue
-                      });
-                    }
-                  }
-                });
-              }
-              
-              // Add files from storage (table_files) that have proper URLs
-              const storageDocuments = storageFiles.map(file => ({
-                fieldId: file.id,
-                fieldLabel: file.original_filename || file.filename || 'Document',
-                value: {
-                  url: file.public_url,
-                  name: file.original_filename || file.filename,
-                  size: file.size_bytes,
-                  type: file.mime_type,
-                  mimeType: file.mime_type,
-                }
-              }));
-              
-              // Combine documents - prefer storage files with proper URLs
-              const allDocuments = [...storageDocuments];
-              
-              // Add documents from raw_data only if they have non-blob URLs
-              documents.forEach(doc => {
-                const parsedValue = parseValueIfNeeded(doc.value);
-                const url = parsedValue?.url || parsedValue?.Url || parsedValue?.URL || '';
-                // Only add if it's not a blob URL and not already in storage files
-                if (url && !url.startsWith('blob:')) {
-                  const alreadyExists = allDocuments.some(d => 
-                    d.value?.url === url || d.fieldLabel === doc.fieldLabel
-                  );
-                  if (!alreadyExists) {
-                    allDocuments.push(doc);
-                  }
-                }
-              });
-              
-              const hasDocuments = allDocuments.length > 0;
-              const hasMissing = missingDocuments.length > 0;
-              
-              return (
-                <div className="space-y-6">
-                  {/* Loading state */}
-                  {isLoadingFiles && (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                      <span className="ml-2 text-gray-500">Loading documents...</span>
-                    </div>
-                  )}
-                  
-                  {/* Header with send reminder button */}
-                  {!isLoadingFiles && (
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          Documents {hasDocuments && `(${allDocuments.length})`}
-                        </h3>
-                        <p className="text-sm text-gray-500 mt-0.5">
-                          Files and documents uploaded by the applicant
-                        </p>
-                      </div>
-                      {hasMissing && (
-                        <button 
-                          onClick={() => {
-                            setShowQuickReminder(true);
-                          }}
-                          className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors text-sm font-medium border border-amber-200"
-                        >
-                          <Bell className="w-4 h-4" />
-                          Send Reminder
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Missing Documents Alert */}
-                  {hasMissing && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
-                          <AlertCircle className="w-4 h-4 text-amber-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-amber-900 mb-1">Missing Documents</h4>
-                          <p className="text-sm text-amber-700 mb-3">
-                            The following required documents have not been uploaded yet:
-                          </p>
-                          <div className="space-y-2">
-                            {missingDocuments.map((doc, idx) => (
-                              <div key={idx} className="flex items-center gap-2 text-sm">
-                                <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center">
-                                  <Upload className="w-3 h-3 text-amber-600" />
-                                </div>
-                                <span className="text-amber-800 font-medium">{doc.fieldLabel}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Uploaded Documents */}
-                  {hasDocuments ? (
-                    <div className="space-y-4">
-                      {allDocuments.map((doc, idx) => (
-                        <div key={idx} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                          <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-sm font-semibold text-gray-800 uppercase tracking-wide flex items-center gap-2">
-                                <Paperclip className="w-4 h-4 text-blue-600" />
-                                {doc.fieldLabel.replace(/_/g, ' ')}
-                              </h4>
-                              <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full font-medium">
-                                Uploaded
-                              </span>
-                            </div>
-                          </div>
-                          <div className="p-4">
-                            <InlineDocumentPreview value={doc.value} fieldLabel={doc.fieldLabel} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : !hasMissing && !isLoadingFiles ? (
-                    <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
-                      <Paperclip className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No Documents</h3>
-                      <p className="text-gray-500 text-sm">
-                        This application doesn&apos;t have any file upload fields or documents
-                      </p>
-                    </div>
-                  ) : null}
-                  
-                  {/* Recommendations Section */}
-                  <div className="mt-8 pt-8 border-t border-gray-200">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                        <UserPlus className="w-5 h-5 text-purple-600" />
-                        Letters of Recommendation
-                        {recommendations.length > 0 && (
-                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                            {recommendations.filter(r => r.status === 'submitted').length}/{recommendations.length} received
-                          </span>
-                        )}
-                      </h3>
-                    </div>
-                    
-                    {loadingRecommendations ? (
-                      <div className="flex items-center justify-center gap-2 text-sm text-gray-500 bg-gray-50 rounded-lg p-8">
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        Loading recommendation requests...
-                      </div>
-                    ) : recommendations.length > 0 ? (
-                      <div className="space-y-3">
-                        {recommendations.map((rec) => (
-                          <div 
-                            key={rec.id} 
-                            className={cn(
-                              "p-4 rounded-lg border",
-                              rec.status === 'submitted' ? "bg-green-50 border-green-200" :
-                              rec.status === 'expired' ? "bg-red-50 border-red-200" :
-                              rec.status === 'cancelled' ? "bg-gray-50 border-gray-200" :
-                              "bg-yellow-50 border-yellow-200"
-                            )}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  {rec.status === 'submitted' ? (
-                                    <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-                                  ) : rec.status === 'expired' ? (
-                                    <XCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                                  ) : rec.status === 'cancelled' ? (
-                                    <XCircle className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                                  ) : (
-                                    <Clock3 className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-                                  )}
-                                  <span className="font-semibold text-gray-900">
-                                    {rec.recommender_name}
-                                  </span>
-                                  <span className={cn(
-                                    "px-2 py-0.5 rounded text-xs font-medium",
-                                    rec.status === 'submitted' ? "bg-green-100 text-green-700" :
-                                    rec.status === 'expired' ? "bg-red-100 text-red-700" :
-                                    rec.status === 'cancelled' ? "bg-gray-100 text-gray-500" :
-                                    "bg-yellow-100 text-yellow-700"
-                                  )}>
-                                    {rec.status === 'submitted' ? 'Received' :
-                                     rec.status === 'expired' ? 'Expired' :
-                                     rec.status === 'cancelled' ? 'Cancelled' : 'Pending'}
-                                  </span>
-                                </div>
-                                <div className="text-sm text-gray-600">
-                                  {rec.recommender_email}
-                                </div>
-                                {rec.recommender_relationship && (
-                                  <div className="text-sm text-gray-500 mt-1">
-                                    Relationship: {rec.recommender_relationship}
-                                  </div>
-                                )}
-                                <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-                                  {rec.submitted_at ? (
-                                    <span>Submitted {new Date(rec.submitted_at).toLocaleDateString()}</span>
-                                  ) : (
-                                    <span>Requested {new Date(rec.created_at).toLocaleDateString()}</span>
-                                  )}
-                                  {rec.reminder_count > 0 && (
-                                    <span className="flex items-center gap-1">
-                                      <Bell className="w-3 h-3" />
-                                      {rec.reminder_count} reminder{rec.reminder_count > 1 ? 's' : ''} sent
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              {rec.status === 'pending' && (
-                                <button
-                                  onClick={() => handleSendReminder(rec.id)}
-                                  disabled={sendingReminder === rec.id}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 rounded-lg transition-colors disabled:opacity-50"
-                                >
-                                  {sendingReminder === rec.id ? (
-                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                  ) : (
-                                    <Bell className="w-3.5 h-3.5" />
-                                  )}
-                                  Send Reminder
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
-                        <UserPlus className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Recommendations Requested</h3>
-                        <p className="text-gray-500 text-sm">
-                          Letters of recommendation for this applicant will appear here
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
-      {/* Reviews Tab - removed, now in split view */}
-      {false && (
-          <div className="flex-1 min-h-0 overflow-y-auto p-6">
-            {/* Reviews content removed - not part of split view */}
-          </div>
-        )}
-
-
-      {/* Email Settings Dialog */}
-      {workspaceId && (
-        <EmailSettingsDialog
-          workspaceId={workspaceId}
-          open={showEmailSettings}
-          onOpenChange={setShowEmailSettings}
-          onAccountsUpdated={refreshConnection}
-        />
-      )}
-
-      {/* Quick Reminder Panel */}
-      {workspaceId && application.id && (
-        <QuickReminderPanel
-          open={showQuickReminder}
-          onClose={() => setShowQuickReminder(false)}
-          workspaceId={workspaceId}
-          formId={formId || undefined}
-          submissionId={application.id}
-          recipientEmail={application.email || ''}
-          recipientName={application.name}
-          onSent={() => {
-            if (onActivityCreated) {
-              onActivityCreated();
-            }
-          }}
-        />
-      )}
-
-      {/* Full Email Composer */}
-      {workspaceId && (
-        <FullEmailComposer
-          open={showFullComposer}
-          onClose={() => setShowFullComposer(false)}
-          workspaceId={workspaceId}
-          formId={formId || undefined}
-          submissionId={application.id}
-          recipientEmails={application.email ? [application.email] : []}
-          onSent={() => {
-            if (onActivityCreated) {
-              onActivityCreated();
-            }
-          }}
-        />
-      )}
     </div>
   );
 
