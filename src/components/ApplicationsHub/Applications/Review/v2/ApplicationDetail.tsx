@@ -8,7 +8,7 @@ import {
   CheckCircle2, ArrowRight, AlertCircle, Users, Send,
   Paperclip, Sparkles, AtSign, Plus, Tag, Loader2, FileEdit, Settings,
   Play, Archive, XCircle, Clock, Folder, ChevronUp, Download, ExternalLink,
-  Image, File, FileImage, Bell, Upload, Eye, Search, Link, Smile, PenTool, MoreVertical, Maximize2, Square, PanelRight
+  Image, File, FileImage, Bell, Upload, Eye, Search, Link, Smile, PenTool, MoreVertical, Maximize2, Square, PanelRight, UserPlus, Clock3
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -26,7 +26,7 @@ import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
 import { filesClient } from '@/lib/api/files-client';
 import type { TableFileResponse } from '@/types/files';
 import { recommendationsClient, RecommendationRequest } from '@/lib/api/recommendations-client';
-import { RefreshCw, UserPlus, Clock3 } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { QuickReminderPanel } from '../QuickReminderPanel';
 import { FullEmailComposer } from '../FullEmailComposer';
 
@@ -407,6 +407,8 @@ export function ApplicationDetail({
   onActivityCreated
 }: ApplicationDetailProps) {
   const [showActivityPanel, setShowActivityPanel] = useState(false); // Toggle between details and activity
+  const [showRecommendersPanel, setShowRecommendersPanel] = useState(false); // Toggle recommenders panel
+  const [showDocumentsPanel, setShowDocumentsPanel] = useState(false); // Toggle documents panel
   const [isActivityPanelCollapsed, setIsActivityPanelCollapsed] = useState(false); // For modal/fullscreen collapse
   const [viewMode, setViewMode] = useState<'modal' | 'fullscreen' | 'sidebar'>('sidebar');
   const [selectedStage, setSelectedStage] = useState(application.stageId || application.status);
@@ -1007,17 +1009,6 @@ export function ApplicationDetail({
             </PopoverContent>
           </Popover>
         </div>
-        <div className="flex items-center gap-2">
-          <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-500">
-            <Sparkles className="w-4 h-4" />
-          </button>
-          <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-500">
-            <Users className="w-4 h-4" />
-          </button>
-          <button className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-500">
-            <MoreVertical className="w-4 h-4" />
-          </button>
-        </div>
       </div>
 
       {/* Split View: Overview (Left) + Activity (Right) - Always visible */}
@@ -1026,7 +1017,7 @@ export function ApplicationDetail({
         viewMode === 'modal' && "rounded-lg"
       )}>
         {/* Application Details Panel */}
-        {(!showActivityPanel || viewMode === 'fullscreen') && (
+        {(!showActivityPanel && !showRecommendersPanel && !showDocumentsPanel || viewMode === 'fullscreen') && (
           <div className={cn(
             "flex overflow-hidden transition-all duration-300",
             (viewMode === 'modal' || viewMode === 'fullscreen') && isActivityPanelCollapsed ? "flex-1 w-full" : "flex-1"
@@ -1134,46 +1125,343 @@ export function ApplicationDetail({
               </div>
             )}
 
-            {/* Custom Fields Section */}
-            <div className="border-t pt-4">
-              <button className="flex items-center justify-between w-full text-left">
-                <span className="text-sm font-medium text-gray-700">Custom Fields</span>
-                <div className="flex items-center gap-2">
-                  <Settings className="w-4 h-4 text-gray-400" />
-                  <ChevronDown className="w-4 h-4 text-gray-400" />
-                  <Plus className="w-4 h-4 text-gray-400" />
+            {/* Reviewers Section */}
+            {reviewersMap && Object.keys(reviewersMap).length > 0 && (
+              <div className="border-t pt-4 mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium text-gray-700">Reviewers</span>
                 </div>
-              </button>
-            </div>
+                <div className="space-y-2">
+                  {Object.entries(reviewersMap).map(([reviewerId, reviewer]) => (
+                    <div key={reviewerId} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                        <User className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-gray-900">{reviewer.name || 'Reviewer'}</div>
+                        {reviewer.email && (
+                          <div className="text-xs text-gray-500">{reviewer.email}</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Custom Fields Section - Show all fields */}
+            {fields && fields.length > 0 && (
+              <div className="border-t pt-4 mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium text-gray-700">Application Data</span>
+                  <div className="flex items-center gap-2">
+                    <Settings className="w-4 h-4 text-gray-400" />
+                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {fieldSections.map((section, sectionIdx) => (
+                    <div key={sectionIdx} className="space-y-3">
+                      {fieldSections.length > 1 && (
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          {section.name}
+                        </h3>
+                      )}
+                      {section.fields.map((field) => {
+                        const value = application.raw_data?.[field.id] || 
+                                     application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
+                                     application.raw_data?.[field.label];
+                        if (value === null || value === undefined || value === '') return null;
+                        
+                        return (
+                          <div key={field.id} className="flex flex-col gap-1">
+                            <span className="text-xs font-medium text-gray-500">{field.label || field.id}</span>
+                            <div className="text-sm text-gray-900">
+                              {renderFieldValue(value, 0, field.label)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Actions Section */}
+            {(stageActions.length > 0 || workflowActions.length > 0) && (
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium text-gray-700">Actions</span>
+                </div>
+                <div className="space-y-2">
+                  {[...stageActions, ...workflowActions].map((action) => {
+                    const icon = actionIcons[action.icon || 'arrow-right'] || <ArrowRight className="w-4 h-4" />;
+                    const isStageAction = stageActions.some(a => a.id === action.id);
+                    return (
+                      <button
+                        key={action.id}
+                        onClick={async () => {
+                          if (!formId) {
+                            toast.error('Form ID is required');
+                            return;
+                          }
+                          try {
+                            await workflowsClient.executeAction({
+                              form_id: formId,
+                              submission_id: application.id,
+                              action_type: isStageAction ? 'stage_action' : 'workflow_action',
+                              action_id: action.id,
+                            });
+                            toast.success(`Action "${action.name}" executed successfully`);
+                            if (action.target_stage_id) {
+                              const targetStage = stages.find(s => s.id === action.target_stage_id);
+                              if (targetStage) {
+                                onStatusChange?.(application.id, targetStage.name as ApplicationStatus);
+                              }
+                            }
+                          } catch (error) {
+                            console.error('Failed to execute action:', error);
+                            toast.error('Failed to execute action');
+                          }
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
+                      >
+                        {icon}
+                        <span className="flex-1">{action.name}</span>
+                        {action.target_stage_id && (
+                          <ChevronRight className="w-4 h-4 text-gray-400" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
               </div>
             </div>
 
             {/* Action Buttons - Right Side Vertical (sidebar and fullscreen modes) */}
             {(viewMode === 'sidebar' || viewMode === 'fullscreen') && (
               <div className="flex flex-col items-center gap-2 p-2 border-l border-gray-200 bg-gray-50">
-                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
-                  <Search className="w-4 h-4 text-gray-500" />
-                </button>
-                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors relative">
-                  <Bell className="w-4 h-4 text-gray-500" />
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">1</span>
-                </button>
                 <button 
-                  onClick={() => setShowActivityPanel(true)}
+                  onClick={() => {
+                    setShowActivityPanel(!showActivityPanel);
+                    setShowRecommendersPanel(false);
+                    setShowDocumentsPanel(false);
+                  }}
                   className={cn(
                     "p-1.5 hover:bg-gray-100 rounded transition-colors",
                     showActivityPanel && "bg-blue-50"
                   )}
+                  title="Activity"
                 >
                   <MessageSquare className="w-4 h-4 text-gray-500" />
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowRecommendersPanel(!showRecommendersPanel);
+                    setShowActivityPanel(false);
+                    setShowDocumentsPanel(false);
+                  }}
+                  className={cn(
+                    "p-1.5 hover:bg-gray-100 rounded transition-colors relative",
+                    showRecommendersPanel && "bg-blue-50"
+                  )}
+                  title="Recommenders"
+                >
+                  <UserPlus className="w-4 h-4 text-gray-500" />
+                  {recommendations.length > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
+                      {recommendations.filter(r => r.status === 'pending').length}
+                    </span>
+                  )}
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowDocumentsPanel(!showDocumentsPanel);
+                    setShowActivityPanel(false);
+                    setShowRecommendersPanel(false);
+                  }}
+                  className={cn(
+                    "p-1.5 hover:bg-gray-100 rounded transition-colors relative",
+                    showDocumentsPanel && "bg-blue-50"
+                  )}
+                  title="Documents"
+                >
+                  <FileText className="w-4 h-4 text-gray-500" />
+                  {documentCounts.uploaded > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
+                      {documentCounts.uploaded}
+                    </span>
+                  )}
                 </button>
               </div>
             )}
           </div>
         )}
 
+        {/* Recommenders Panel - Show in fullscreen when showRecommendersPanel is true */}
+        {viewMode === 'fullscreen' && showRecommendersPanel && (
+          <>
+            <div className="flex items-center justify-center w-6 border-l border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setShowRecommendersPanel(false)}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                title="Close recommenders panel"
+              >
+                <ChevronRight className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="w-80 flex flex-col overflow-hidden border-l border-gray-200">
+              <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
+                <h2 className="text-sm font-semibold text-gray-900">Recommenders</h2>
+                <button 
+                  onClick={() => setShowRecommendersPanel(false)}
+                  className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                >
+                  <X className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                {loadingRecommendations ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+                  </div>
+                ) : recommendations.length === 0 ? (
+                  <div className="text-center py-8 text-sm text-gray-500">
+                    No recommendation requests found
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {recommendations.map((rec) => (
+                      <div 
+                        key={rec.id} 
+                        className={cn(
+                          "p-3 rounded-lg border",
+                          rec.status === 'submitted' ? "bg-green-50 border-green-200" :
+                          rec.status === 'expired' ? "bg-red-50 border-red-200" :
+                          rec.status === 'cancelled' ? "bg-gray-50 border-gray-200" :
+                          "bg-yellow-50 border-yellow-200"
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              {rec.status === 'submitted' ? (
+                                <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                              ) : rec.status === 'expired' ? (
+                                <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                              ) : rec.status === 'cancelled' ? (
+                                <XCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                              ) : (
+                                <Clock3 className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+                              )}
+                              <span className="font-medium text-sm text-gray-900 truncate">
+                                {rec.recommender_name}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-500 truncate">
+                              {rec.recommender_email}
+                              {rec.recommender_relationship && ` • ${rec.recommender_relationship}`}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              Status: <span className="capitalize">{rec.status}</span>
+                              {rec.created_at && (
+                                <> • Requested {new Date(rec.created_at).toLocaleDateString()}</>
+                              )}
+                            </div>
+                          </div>
+                          {rec.status === 'pending' && (
+                            <button
+                              onClick={() => handleSendReminder(rec.id)}
+                              disabled={sendingReminder === rec.id}
+                              className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            >
+                              {sendingReminder === rec.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                'Remind'
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Documents Panel - Show in fullscreen when showDocumentsPanel is true */}
+        {viewMode === 'fullscreen' && showDocumentsPanel && (
+          <>
+            <div className="flex items-center justify-center w-6 border-l border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setShowDocumentsPanel(false)}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                title="Close documents panel"
+              >
+                <ChevronRight className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="w-80 flex flex-col overflow-hidden border-l border-gray-200">
+              <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
+                <h2 className="text-sm font-semibold text-gray-900">Documents</h2>
+                <button 
+                  onClick={() => setShowDocumentsPanel(false)}
+                  className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                >
+                  <X className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                {isLoadingFiles ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+                  </div>
+                ) : storageFiles.length === 0 && documentCounts.uploaded === 0 ? (
+                  <div className="text-center py-8 text-sm text-gray-500">
+                    No documents found
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {storageFiles.map((file) => (
+                      <div key={file.id} className="border border-gray-200 rounded-lg p-3 bg-white">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                            <FileText className="w-5 h-5 text-gray-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{file.filename || file.storage_path?.split('/').pop()}</p>
+                            <p className="text-xs text-gray-500">
+                              {file.mime_type} {file.size_bytes && `• ${formatFileSize(file.size_bytes)}`}
+                            </p>
+                          </div>
+                          {file.storage_path && (
+                            <a
+                              href={file.storage_path}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 hover:bg-gray-100 rounded transition-colors"
+                            >
+                              <Eye className="w-4 h-4 text-gray-500" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Activity Panel - Show in modal/fullscreen when not collapsed, or in fullscreen when showActivityPanel is true */}
-        {((viewMode === 'modal' || viewMode === 'fullscreen') && !showActivityPanel && !isActivityPanelCollapsed) || 
+        {((viewMode === 'modal' || viewMode === 'fullscreen') && !showActivityPanel && !showRecommendersPanel && !showDocumentsPanel && !isActivityPanelCollapsed) || 
          (viewMode === 'fullscreen' && showActivityPanel) ? (
           <>
             {/* Collapse Button */}
@@ -1193,9 +1481,13 @@ export function ApplicationDetail({
               <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
                 <h2 className="text-sm font-semibold text-gray-900">Activity</h2>
                 <div className="flex items-center gap-1">
-                  {viewMode === 'fullscreen' && showActivityPanel && (
+                  {viewMode === 'fullscreen' && (showActivityPanel || showRecommendersPanel || showDocumentsPanel) && (
                     <button 
-                      onClick={() => setShowActivityPanel(false)}
+                      onClick={() => {
+                        setShowActivityPanel(false);
+                        setShowRecommendersPanel(false);
+                        setShowDocumentsPanel(false);
+                      }}
                       className="p-1.5 hover:bg-gray-100 rounded transition-colors"
                     >
                       <X className="w-4 h-4 text-gray-500" />
@@ -1454,6 +1746,143 @@ export function ApplicationDetail({
             >
               <ChevronLeft className="w-4 h-4 text-gray-500" />
             </button>
+          </div>
+        )}
+
+        {/* Recommenders Panel - Replaces details when active (sidebar mode), or shows to the right (fullscreen mode) */}
+        {showRecommendersPanel && viewMode !== 'fullscreen' && (
+          <div className="flex-1 flex flex-col overflow-hidden border-l border-gray-200">
+            <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
+              <h2 className="text-sm font-semibold text-gray-900">Recommenders</h2>
+              <button 
+                onClick={() => setShowRecommendersPanel(false)}
+                className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+              >
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {loadingRecommendations ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+                </div>
+              ) : recommendations.length === 0 ? (
+                <div className="text-center py-8 text-sm text-gray-500">
+                  No recommendation requests found
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recommendations.map((rec) => (
+                    <div 
+                      key={rec.id} 
+                      className={cn(
+                        "p-3 rounded-lg border",
+                        rec.status === 'submitted' ? "bg-green-50 border-green-200" :
+                        rec.status === 'expired' ? "bg-red-50 border-red-200" :
+                        rec.status === 'cancelled' ? "bg-gray-50 border-gray-200" :
+                        "bg-yellow-50 border-yellow-200"
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            {rec.status === 'submitted' ? (
+                              <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                            ) : rec.status === 'expired' ? (
+                              <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                            ) : rec.status === 'cancelled' ? (
+                              <XCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            ) : (
+                              <Clock3 className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+                            )}
+                            <span className="font-medium text-sm text-gray-900 truncate">
+                              {rec.recommender_name}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {rec.recommender_email}
+                            {rec.recommender_relationship && ` • ${rec.recommender_relationship}`}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Status: <span className="capitalize">{rec.status}</span>
+                            {rec.created_at && (
+                              <> • Requested {new Date(rec.created_at).toLocaleDateString()}</>
+                            )}
+                          </div>
+                        </div>
+                        {rec.status === 'pending' && (
+                          <button
+                            onClick={() => handleSendReminder(rec.id)}
+                            disabled={sendingReminder === rec.id}
+                            className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          >
+                            {sendingReminder === rec.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              'Remind'
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Documents Panel - Replaces details when active (sidebar mode), or shows to the right (fullscreen mode) */}
+        {showDocumentsPanel && viewMode !== 'fullscreen' && (
+          <div className="flex-1 flex flex-col overflow-hidden border-l border-gray-200">
+            <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
+              <h2 className="text-sm font-semibold text-gray-900">Documents</h2>
+              <button 
+                onClick={() => setShowDocumentsPanel(false)}
+                className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+              >
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {isLoadingFiles ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+                </div>
+              ) : storageFiles.length === 0 && documentCounts.uploaded === 0 ? (
+                <div className="text-center py-8 text-sm text-gray-500">
+                  No documents found
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {storageFiles.map((file) => (
+                    <div key={file.id} className="border border-gray-200 rounded-lg p-3 bg-white">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                          <FileText className="w-5 h-5 text-gray-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{file.filename || file.storage_path?.split('/').pop()}</p>
+                          <p className="text-xs text-gray-500">
+                            {file.mime_type} {file.size_bytes && `• ${formatFileSize(file.size_bytes)}`}
+                          </p>
+                        </div>
+                        {file.storage_path && (
+                          <a
+                            href={file.storage_path}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 hover:bg-gray-100 rounded transition-colors"
+                          >
+                            <Eye className="w-4 h-4 text-gray-500" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
