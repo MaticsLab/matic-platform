@@ -37,9 +37,11 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    if (result.error) {
+    // Better Auth's resetPassword returns { status: boolean }
+    // If status is false, the password reset failed
+    if (!result.status) {
       return NextResponse.json(
-        { error: result.error.message || "Failed to reset password" },
+        { error: "Failed to reset password. The token may be invalid or expired." },
         { status: 400 }
       );
     }
