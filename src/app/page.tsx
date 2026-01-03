@@ -4,11 +4,13 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { getLastWorkspace } from '@/lib/utils'
-import { useHybridAuth } from '@/hooks/use-hybrid-auth'
+import { useSession } from '@/lib/better-auth-client'
 
 export default function Home() {
   const router = useRouter()
-  const { user, isLoading, isAuthenticated } = useHybridAuth()
+  const { data, isPending: isLoading } = useSession()
+  const user = data?.user || null
+  const isAuthenticated = !!user
 
   useEffect(() => {
     if (isLoading) return // Wait for auth to finish loading

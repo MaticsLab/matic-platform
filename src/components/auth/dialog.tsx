@@ -1,14 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { createBrowserClient } from "@supabase/ssr";
+import { signIn } from "@/lib/better-auth-client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/ui-components/dialog";
 import { Button } from "@/ui-components/button";
-
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // Export for workflow components that check this
 export const isSingleProviderSignInInitiated = { current: false };
@@ -32,11 +27,9 @@ export function AuthDialog({ open, onOpenChange, children }: AuthDialogProps) {
     setIsLoading(true);
     isSingleProviderSignInInitiated.current = true;
     try {
-      await supabase.auth.signInWithOAuth({
+      await signIn.social({
         provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`
-        }
+        callbackURL: `${window.location.origin}/auth/callback`
       });
     } catch (error) {
       console.error('Sign in error:', error);
@@ -49,11 +42,9 @@ export function AuthDialog({ open, onOpenChange, children }: AuthDialogProps) {
     setIsLoading(true);
     isSingleProviderSignInInitiated.current = true;
     try {
-      await supabase.auth.signInWithOAuth({
+      await signIn.social({
         provider: 'github',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`
-        }
+        callbackURL: `${window.location.origin}/auth/callback`
       });
     } catch (error) {
       console.error('Sign in error:', error);

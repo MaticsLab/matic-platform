@@ -3,10 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
 import { authClient } from '@/lib/better-auth-client'
 import { getLastWorkspace } from '@/lib/utils'
-import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
+import { workspacesClient } from '@/lib/api/workspaces-client'
 import { Loader2, Eye, EyeOff, Mail, Lock } from 'lucide-react'
 
 export default function LoginPage() {
@@ -14,7 +13,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [authMethod, setAuthMethod] = useState<'auto' | 'supabase' | 'better-auth'>('auto')
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -26,90 +24,39 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      let user = null
-      let usedBetterAuth = false
+      // Use Better Auth for authentication
+      const result = await authClient.signIn.email({
+        email: formData.email,
+        password: formData.password,
+      })
 
-      // Try Better Auth first (for new users)
-      if (authMethod === 'auto' || authMethod === 'better-auth') {
-        try {
-          console.log('Attempting Better Auth login...')
-          const result = await authClient.signIn.email({
-            email: formData.email,
-            password: formData.password,
-          })
-          
-          console.log('Better Auth result:', result)
-
-          if (result.data?.user) {
-            user = result.data.user
-            usedBetterAuth = true
-            console.log('Logged in with Better Auth successfully')
-          } else if (result.error) {
-            console.log('Better Auth error:', result.error)
-            // Don't throw here - let Supabase fallback handle it
-            // The user might exist in Supabase but not in Better Auth yet
-          }
-        } catch (err: any) {
-          console.log('Better Auth login exception:', err)
-          // Don't throw - try Supabase fallback for legacy users
-        }
+      if (result.error) {
+        throw new Error(result.error.message || 'Invalid email or password')
       }
 
-      // Fall back to Supabase (for legacy users) if Better Auth didn't work
-      if (!user && (authMethod === 'auto' || authMethod === 'supabase')) {
-        console.log('Trying Supabase fallback...')
-        const { data, error: signInError } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password,
-        })
-
-        if (signInError) throw signInError
-        if (!data.user) throw new Error('Login failed')
-        
-        user = data.user
-        console.log('Logged in with Supabase')
-      }
-
-      if (!user) {
+      if (!result.data?.user) {
         throw new Error('Invalid email or password')
       }
 
       // Get user's workspaces to ensure we redirect to one they have access to
-      // For Supabase users, use existing method
-      if (!usedBetterAuth) {
-        const workspaces = await workspacesSupabase.getWorkspacesForUser(user.id)
-        
-        if (workspaces && workspaces.length > 0) {
-          const lastWorkspace = getLastWorkspace()
-          const hasAccessToLast = lastWorkspace && workspaces.some(w => w.slug === lastWorkspace)
-          
-          if (hasAccessToLast) {
-            router.push(`/workspace/${lastWorkspace}`)
-          } else {
-            router.push(`/workspace/${workspaces[0].slug}`)
-          }
-        } else {
-          router.push('/')
-        }
-      } else {
-        // For Better Auth users, use window.location for a full page navigation
-        // This ensures cookies are properly sent with the request
-        console.log('Better Auth login successful, redirecting with full page load...')
-        
-        // Small delay to ensure cookies are set before redirect
-        await new Promise(resolve => setTimeout(resolve, 200))
-        
+      const workspaces = await workspacesClient.list()
+      
+      if (workspaces && workspaces.length > 0) {
         const lastWorkspace = getLastWorkspace()
-        if (lastWorkspace) {
+        const hasAccessToLast = lastWorkspace && workspaces.some(w => w.slug === lastWorkspace)
+        
+        if (hasAccessToLast) {
+          // Use window.location for full page navigation to ensure cookies are set
           window.location.href = `/workspace/${lastWorkspace}`
         } else {
-          window.location.href = '/'
+          window.location.href = `/workspace/${workspaces[0].slug}`
         }
+      } else {
+        window.location.href = '/'
       }
     } catch (err: any) {
       console.error('Login error:', err)
       setError(err.message || 'Failed to sign in')
-    } finally {
       setLoading(false)
     }
   }

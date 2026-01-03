@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { authClient } from '@/lib/better-auth-client'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
@@ -21,38 +21,23 @@ function SetPasswordForm() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  const tokenHash = searchParams.get('token_hash')
-  const type = searchParams.get('type')
+  const token = searchParams.get('token')
 
   useEffect(() => {
     async function verifyToken() {
-      if (!tokenHash || !type) {
+      if (!token) {
         setError('Invalid or missing invitation token')
         setIsVerifying(false)
         return
       }
 
-      try {
-        // Verify the OTP token to establish a session
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: type as 'invite' | 'signup' | 'recovery' | 'email',
-        })
-
-        if (verifyError) {
-          console.error('Token verification error:', verifyError)
-          setError(verifyError.message)
-        }
-      } catch (err) {
-        console.error('Token verification failed:', err)
-        setError('Failed to verify invitation token')
-      } finally {
-        setIsVerifying(false)
-      }
+      // Better Auth handles token verification differently
+      // For now, we'll verify when setting the password
+      setIsVerifying(false)
     }
 
     verifyToken()
-  }, [tokenHash, type])
+  }, [token])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,17 +56,28 @@ function SetPasswordForm() {
     setIsLoading(true)
 
     try {
-      // Update the user's password and metadata with names
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: password,
-        data: {
-          first_name: firstName,
-          last_name: lastName
-        }
+      if (!token) {
+        throw new Error('Missing invitation token')
+      }
+
+      // Use Better Auth to set password via invitation token
+      // Better Auth handles this through the reset password flow
+      const fullName = `${firstName} ${lastName}`.trim()
+      
+      const result = await authClient.resetPassword({
+        token: token,
+        newPassword: password,
       })
 
-      if (updateError) {
-        throw updateError
+      if (result.error) {
+        throw new Error(result.error.message || 'Failed to set password')
+      }
+
+      // Update user name if provided
+      if (fullName) {
+        await authClient.updateUser({
+          name: fullName,
+        })
       }
 
       setSuccess(true)

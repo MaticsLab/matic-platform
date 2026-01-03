@@ -254,17 +254,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         }
       },
       {
-        id: 'nav-requests',
-        title: 'Request Hub',
-        icon: Inbox,
-        type: 'navigation',
-        category: 'Navigate',
-        action: () => {
-          router.push(`/workspace/${workspaceSlug}/request-hub`)
-          onClose()
-        }
-      },
-      {
         id: 'nav-workflows',
         title: 'Workflows',
         icon: GitCompare,

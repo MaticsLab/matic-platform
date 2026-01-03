@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { requireAuth } from "@/lib/api-auth";
 import { getIntegrations, createIntegration } from "@/lib/db/workflow-db";
 import type {
   IntegrationConfig,
   IntegrationType,
 } from "@/lib/types/integration";
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 
 export type GetIntegrationsResponse = {
   id: string;
@@ -33,57 +31,17 @@ export type CreateIntegrationResponse = {
 };
 
 /**
- * Get authenticated user from either Better Auth or Supabase
- */
-async function getAuthUser(request: Request) {
-  // Try Better Auth first
-  try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-    if (session?.user) {
-      return { id: session.user.id, email: session.user.email };
-    }
-  } catch (error) {
-    console.debug("[Integrations API] Better Auth session not found");
-  }
-
-  // Fall back to Supabase
-  try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-        },
-      }
-    );
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (user && !error) {
-      return { id: user.id, email: user.email! };
-    }
-  } catch (error) {
-    console.debug("[Integrations API] Supabase session not found");
-  }
-
-  return null;
-}
-
-/**
  * GET /api/integrations
  * List all integrations for the authenticated user
  */
 export async function GET(request: Request) {
   try {
-    const user = await getAuthUser(request);
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
+
+    const { user } = authResult.context;
 
     // Get optional type filter from query params
     const { searchParams } = new URL(request.url);
@@ -125,11 +83,12 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    const user = await getAuthUser(request);
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
+
+    const { user } = authResult.context;
 
     const body: CreateIntegrationRequest = await request.json();
 

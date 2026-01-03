@@ -1,5 +1,7 @@
 -- Migration: Add invitation columns to workspace_members table
 -- This simplifies the invitation system by using a single table instead of separate workspace_invitations
+-- NOTE: This is the ACTUAL implementation - invitations are stored in workspace_members with status='pending'
+--       See handlers/invitations.go for the implementation
 
 -- Add new columns for invitation tracking
 ALTER TABLE workspace_members 

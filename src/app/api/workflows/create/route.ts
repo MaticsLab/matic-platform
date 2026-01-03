@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { requireAuth } from "@/lib/api-auth";
 import {
   createWorkflow,
   getWorkflowCount,
@@ -25,13 +25,12 @@ function createDefaultTriggerNode() {
 
 export async function POST(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
+
+    const { user } = authResult.context;
 
     const body = await request.json();
 
@@ -45,7 +44,7 @@ export async function POST(request: Request) {
     // Validate that all integrationIds in nodes belong to the current user
     const validation = await validateWorkflowIntegrations(
       body.nodes,
-      session.user.id
+      user.id
     );
     if (!validation.valid) {
       return NextResponse.json(
@@ -63,14 +62,14 @@ export async function POST(request: Request) {
     // Generate "Untitled N" name if the provided name is "Untitled Workflow"
     let workflowName = body.name;
     if (body.name === "Untitled Workflow") {
-      const count = await getWorkflowCount(session.user.id);
+      const count = await getWorkflowCount(user.id);
       workflowName = `Untitled ${count + 1}`;
     }
 
     // Use the workspace_id from body or default to user's default workspace
-    const workspaceId = body.workspaceId || body.workspace_id || session.user.id;
+    const workspaceId = body.workspaceId || body.workspace_id || user.id;
 
-    const newWorkflow = await createWorkflow(session.user.id, workspaceId, {
+    const newWorkflow = await createWorkflow(user.id, workspaceId, {
       name: workflowName,
       description: body.description,
       nodes,

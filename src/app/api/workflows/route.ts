@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { optionalAuth } from "@/lib/api-auth";
 import { getWorkflows } from "@/lib/db/workflow-db";
 
 export async function GET(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
+    const authContext = await optionalAuth(request);
 
-    if (!session?.user) {
+    if (!authContext) {
       return NextResponse.json([], { status: 200 });
     }
 
-    const userWorkflows = await getWorkflows(session.user.id);
+    const userWorkflows = await getWorkflows(authContext.user.id);
 
     const mappedWorkflows = userWorkflows.map((workflow) => ({
       id: workflow.id,

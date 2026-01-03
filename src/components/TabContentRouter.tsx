@@ -11,8 +11,6 @@ import { AttendanceView } from './ActivitiesHub/AttendanceView'
 import { EnrolledView } from './ActivitiesHub/EnrolledView'
 import { AddParticipantDialog } from './ActivitiesHub/AddParticipantDialog'
 import { ParticipantDetailPanel } from './ActivitiesHub/ParticipantDetailPanel'
-import { RequestHubViewer } from './RequestHub/RequestHubViewer'
-import { RequestHubListPage } from './RequestHub/RequestHubListPage'
 import { ApplicationsHub } from './ApplicationsHub/ApplicationsHub'
 import { useState, useEffect } from 'react'
 import { activitiesSupabase } from '@/lib/api/activities-supabase'
@@ -88,7 +86,9 @@ function EnrolledViewWrapper({ workspaceId }: { workspaceId: string }) {
         // Get or create participants table and activities table
         const { getOrCreateParticipantsTable } = await import('@/lib/api/participants-setup')
         const { supabase } = await import('@/lib/supabase')
-        const { data: { user } } = await supabase.auth.getUser()
+        const { authClient } = await import('@/lib/better-auth-client')
+        const session = await authClient.getSession()
+        const user = session?.data?.user
         
         if (user) {
           const table = await getOrCreateParticipantsTable(workspaceId, user.id)
@@ -199,7 +199,9 @@ function EnrolledViewWrapper({ workspaceId }: { workspaceId: string }) {
       const { participantsGoClient, rowLinksGoClient } = await import('@/lib/api/participants-go-client')
       const { getOrCreateActivitiesTable } = await import('@/lib/api/activities-table-setup')
       const { supabase } = await import('@/lib/supabase')
-      const { data: { user } } = await supabase.auth.getUser()
+      const { authClient } = await import('@/lib/better-auth-client')
+      const session = await authClient.getSession()
+      const user = session?.data?.user
       
       if (!user) return
       
@@ -333,7 +335,9 @@ function EnrolledViewWrapper({ workspaceId }: { workspaceId: string }) {
       const { tablesSupabase } = await import('@/lib/api/tables-supabase')
       const { getOrCreateActivitiesTable } = await import('@/lib/api/activities-table-setup')
       const { supabase } = await import('@/lib/supabase')
-      const { data: { user } } = await supabase.auth.getUser()
+      const { authClient } = await import('@/lib/better-auth-client')
+      const session = await authClient.getSession()
+      const user = session?.data?.user
       
       if (!user) return
       
@@ -512,18 +516,6 @@ export function TabContentRouter({ tab: propTab, workspaceId }: TabContentRouter
         return <ActivitiesHubListPage workspaceId={workspaceId} />
       }
 
-      // Handle Request Hub list page
-      if (tab.url?.includes('/request-hubs') && !tab.url?.includes('/request-hubs/')) {
-        return <RequestHubListPage workspaceId={workspaceId} />
-      }
-
-      // Handle Request Hub viewer
-      if (tab.url?.includes('/request-hub/')) {
-        const hubId = tab.metadata?.hubId
-        if (hubId) {
-          return <RequestHubViewer hubId={hubId} workspaceId={workspaceId} />
-        }
-      }
 
       // Handle Overview - show Dashboard
       if (tab.url === `/w/${workspaceId}` || tab.url === `/workspace/${workspaceId}` || tab.title === 'Overview') {
@@ -794,7 +786,9 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
         
         // Check if current user is admin
         const { supabase } = await import('@/lib/supabase')
-        const { data: { user } } = await supabase.auth.getUser()
+        const { authClient } = await import('@/lib/better-auth-client')
+        const session = await authClient.getSession()
+        const user = session?.data?.user
         if (user) {
           const { listWorkspaceMembers } = await import('@/lib/api/invitations-client')
           const members = await listWorkspaceMembers(workspaceId).catch(() => [])
@@ -856,15 +850,6 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
           url: `/workspace/${workspaceId}/applications`,
           workspaceId,
           metadata: { hub: 'applications' }
-        })
-        break
-      case 'requests':
-        tabManager.addTab({
-          title: 'Request Hub',
-          type: 'custom',
-          url: `/workspace/${workspaceId}/request-hubs`,
-          workspaceId,
-          metadata: { hub: 'requests' }
         })
         break
       case 'data':

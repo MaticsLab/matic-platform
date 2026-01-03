@@ -28,6 +28,34 @@ func generateRecommendationToken() string {
 	return hex.EncodeToString(bytes)
 }
 
+// rewriteLocalhostURLs fixes old localhost URLs in recommendation response JSONB
+func rewriteLocalhostURLs(response []byte) ([]byte, error) {
+	if len(response) == 0 {
+		return response, nil
+	}
+
+	var responseData map[string]interface{}
+	if err := json.Unmarshal(response, &responseData); err != nil {
+		return response, nil // Return original if can't parse
+	}
+
+	// Check if uploaded_document exists and has a url
+	if uploadedDoc, ok := responseData["uploaded_document"].(map[string]interface{}); ok {
+		if url, ok := uploadedDoc["url"].(string); ok {
+			// Rewrite localhost URLs
+			if strings.Contains(url, "localhost:8080") || strings.Contains(url, "localhost:8000") {
+				url = strings.ReplaceAll(url, "http://localhost:8080", "https://backend.maticslab.com")
+				url = strings.ReplaceAll(url, "http://localhost:8000", "https://backend.maticslab.com")
+				url = strings.ReplaceAll(url, "https://localhost:8080", "https://backend.maticslab.com")
+				uploadedDoc["url"] = url
+				responseData["uploaded_document"] = uploadedDoc
+			}
+		}
+	}
+
+	return json.Marshal(responseData)
+}
+
 // GetRecommendationRequests returns all recommendation requests for a submission
 func GetRecommendationRequests(c *gin.Context) {
 	submissionID := c.Query("submission_id")
@@ -44,6 +72,16 @@ func GetRecommendationRequests(c *gin.Context) {
 		return
 	}
 
+	// Rewrite localhost URLs in responses
+	for i := range requests {
+		if len(requests[i].Response) > 0 {
+			rewritten, err := rewriteLocalhostURLs(requests[i].Response)
+			if err == nil {
+				requests[i].Response = rewritten
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, requests)
 }
 
@@ -55,6 +93,14 @@ func GetRecommendationRequest(c *gin.Context) {
 	if err := database.DB.First(&request, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Recommendation request not found"})
 		return
+	}
+
+	// Rewrite localhost URLs in response
+	if len(request.Response) > 0 {
+		rewritten, err := rewriteLocalhostURLs(request.Response)
+		if err == nil {
+			request.Response = rewritten
+		}
 	}
 
 	c.JSON(http.StatusOK, request)
@@ -213,6 +259,14 @@ func GetRecommendationByToken(c *gin.Context) {
 					}
 				}
 			}
+		}
+	}
+
+	// Rewrite localhost URLs in response before returning
+	if len(request.Response) > 0 {
+		rewritten, err := rewriteLocalhostURLs(request.Response)
+		if err == nil {
+			request.Response = rewritten
 		}
 	}
 
@@ -1033,6 +1087,16 @@ func GetRecommendationsForReview(c *gin.Context) {
 		Find(&requests).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch recommendations"})
 		return
+	}
+
+	// Rewrite localhost URLs in responses
+	for i := range requests {
+		if len(requests[i].Response) > 0 {
+			rewritten, err := rewriteLocalhostURLs(requests[i].Response)
+			if err == nil {
+				requests[i].Response = rewritten
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, requests)

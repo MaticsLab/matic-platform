@@ -102,18 +102,6 @@ export class WorkspaceSearchService {
             : undefined
           break
 
-        case 'request-hub':
-          uiResult.action = () => {
-            this.router.push(`/workspace/${this.workspaceSlug}/request-hub/${result.id}`)
-          }
-          uiResult.secondaryActions = [
-            {
-              label: 'Open in new tab',
-              icon: 'external-link',
-              action: () => window.open(`/workspace/${this.workspaceSlug}/request-hub/${result.id}`, '_blank')
-            }
-          ]
-          break
 
         case 'row':
           uiResult.action = () => {
@@ -158,7 +146,6 @@ export class WorkspaceSearchService {
     const iconMap: Record<string, string> = {
       'table': 'table-2',
       'form': 'file-text',
-      'request-hub': 'inbox',
       'row': 'list',
       'submission': 'check-square',
       'column': 'columns',
@@ -174,7 +161,6 @@ export class WorkspaceSearchService {
     const categoryMap: Record<string, string> = {
       'table': 'Tables',
       'form': 'Forms',
-      'request-hub': 'Request Hubs',
       'row': 'Table Rows',
       'submission': 'Form Submissions',
       'column': 'Table Columns',

@@ -1,6 +1,8 @@
 -- Migration: Add is_hidden column to data_tables for hub visibility control
 -- This allows admins to hide hubs from the workspace navigation and overview
 -- Hidden hubs are not visible to any user in the workspace
+-- NOTE: This field is now part of the Table model (IsHidden field)
+--       This migration adds it to the database schema
 
 -- Add is_hidden column to data_tables
 ALTER TABLE data_tables 

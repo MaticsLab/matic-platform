@@ -56,7 +56,9 @@ function ActivityCard({ activity, isSelected, onClick, workspaceId }: {
       const { getOrCreateActivitiesTable } = await import('@/lib/api/activities-table-setup');
       const { getOrCreateParticipantsTable } = await import('@/lib/api/participants-setup');
       const { supabase } = await import('@/lib/supabase');
-      const { data: { user } } = await supabase.auth.getUser();
+      const { authClient } = await import('@/lib/better-auth-client')
+      const session = await authClient.getSession()
+      const user = session?.data?.user
       
       if (!user) return;
       
@@ -182,7 +184,9 @@ function ActivityListItem({ activity, isSelected, onClick, workspaceId }: {
       const { getOrCreateActivitiesTable } = await import('@/lib/api/activities-table-setup');
       const { getOrCreateParticipantsTable } = await import('@/lib/api/participants-setup');
       const { supabase } = await import('@/lib/supabase');
-      const { data: { user } } = await supabase.auth.getUser();
+      const { authClient } = await import('@/lib/better-auth-client')
+      const session = await authClient.getSession()
+      const user = session?.data?.user
       
       if (!user) return;
       
@@ -328,7 +332,9 @@ export function ActivitiesHubListPage({ workspaceId, onSelectActivity }: Activit
       if (!linkEnsuredRef.current.has(workspaceId)) {
         try {
           const { supabase } = await import('@/lib/supabase');
-          const { data: { user } } = await supabase.auth.getUser();
+          const { authClient } = await import('@/lib/better-auth-client')
+          const session = await authClient.getSession()
+          const user = session?.data?.user
           if (user) {
             const { ensureParticipantsActivitiesLink } = await import('@/lib/api/participants-activities-link');
             await ensureParticipantsActivitiesLink(workspaceId, user.id);

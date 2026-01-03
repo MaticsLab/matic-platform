@@ -36,13 +36,20 @@ func ListPortalDocuments(c *gin.Context) {
 		return
 	}
 
-	// Convert to response format
+	// Convert to response format with URL rewriting for old localhost URLs
 	response := make([]gin.H, len(documents))
 	for i, doc := range documents {
+		url := doc.URL
+		// Rewrite old localhost URLs to production URL
+		if strings.Contains(url, "localhost:8080") || strings.Contains(url, "localhost:8000") {
+			url = strings.ReplaceAll(url, "http://localhost:8080", "https://backend.maticslab.com")
+			url = strings.ReplaceAll(url, "http://localhost:8000", "https://backend.maticslab.com")
+			url = strings.ReplaceAll(url, "https://localhost:8080", "https://backend.maticslab.com")
+		}
 		response[i] = gin.H{
 			"id":         doc.ID,
 			"name":       doc.Name,
-			"url":        doc.URL,
+			"url":        url,
 			"size":       doc.Size,
 			"mime_type":  doc.MimeType,
 			"uploadedAt": doc.UploadedAt.Format(time.RFC3339),

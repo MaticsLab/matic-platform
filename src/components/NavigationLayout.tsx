@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { ChevronDown, Settings, LogOut, Building2, Bell, User, UserPlus } from 'lucide-react'
 import { clearLastWorkspace } from '@/lib/utils'
 import { useWorkspaceDiscovery } from '@/hooks/useWorkspaceDiscovery'
-import { useHybridAuth } from '@/hooks/use-hybrid-auth'
+import { useSession, signOut as betterAuthSignOut } from '@/lib/better-auth-client'
 import { Sidebar } from './Sidebar'
 import { TabNavigation } from './TabNavigation'
 import { WorkspaceSettingsSidebar } from './WorkspaceSettingsSidebar'
@@ -33,7 +33,12 @@ interface NavigationLayoutProps {
 export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const { user: hybridUser, isLoading: authLoading, signOut: hybridSignOut } = useHybridAuth()
+  const { data, isPending: authLoading } = useSession()
+  const hybridUser = data?.user || null
+  
+  const hybridSignOut = async () => {
+    await betterAuthSignOut()
+  }
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showProfileSidebar, setShowProfileSidebar] = useState(false)
   const [showInviteSidebar, setShowInviteSidebar] = useState(false)
@@ -107,12 +112,12 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
     return name.charAt(0).toUpperCase() + name.slice(1)
   }
 
-  // Convert hybrid user to the format expected by child components
+  // Convert Better Auth user to the format expected by child components
   const user = hybridUser ? {
     email: hybridUser.email,
     user_metadata: {
       full_name: hybridUser.name,
-      avatar_url: hybridUser.avatarUrl
+      avatar_url: hybridUser.image || hybridUser.avatarUrl
     }
   } : null
 

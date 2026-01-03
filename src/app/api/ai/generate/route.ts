@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { requireAuth } from "@/lib/api-auth";
 
 export type WorkflowNode = {
   id: string;
@@ -26,12 +26,9 @@ export type WorkflowEdge = {
 // In production, this would use the Vercel AI SDK with proper streaming
 export async function POST(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
     const body = await request.json();

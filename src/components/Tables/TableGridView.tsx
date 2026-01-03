@@ -8,7 +8,8 @@ import { AddressField, AddressValue } from './AddressField'
 import { pulseSupabase } from '@/lib/api/pulse-supabase'
 import type { PulseEnabledTable } from '@/lib/api/pulse-client'
 import { tablesGoClient } from '@/lib/api/tables-go-client'
-import { getCurrentUser, supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
+import { useSession } from '@/lib/better-auth-client'
 import type { TableRow } from '@/types/data-tables'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow as TableRowComponent } from '@/ui-components/table'
 import { Badge } from '@/ui-components/badge'
@@ -155,18 +156,17 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
   }, [columns])
 
   // Load current user for collaboration
+  const { data: sessionData } = useSession()
   useEffect(() => {
-    const loadUser = async () => {
-      const user = await getCurrentUser()
-      if (user) {
-        const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899']
-        const color = colors[Math.floor(Math.random() * colors.length)]
-        setCurrentUser({
-          id: user.id,
-          name: user.email?.split('@')[0] || 'User',
-          color
-        })
-      }
+    const user = sessionData?.user
+    if (user) {
+      const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899']
+      const color = colors[Math.floor(Math.random() * colors.length)]
+      setCurrentUser({
+        id: user.id,
+        name: user.name || user.email?.split('@')[0] || 'User',
+        color
+      })
     }
     loadUser()
   }, [])
@@ -821,9 +821,10 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
 
   const handleAddRow = async () => {
     try {
-      // Get current user ID
-      const { getCurrentUser } = await import('@/lib/supabase')
-      const user = await getCurrentUser()
+      // Get current user ID from Better Auth
+      const { authClient } = await import('@/lib/better-auth-client')
+      const session = await authClient.getSession()
+      const user = session?.data?.user
       
       if (!user) {
         console.error('No user found')
@@ -1038,7 +1039,11 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
       const row = rows.find(r => r.id === rowId)
       if (!row) return
       
-      const user = await getCurrentUser()
+      // Get current user ID from Better Auth
+      const { authClient } = await import('@/lib/better-auth-client')
+      const session = await authClient.getSession()
+      const user = session?.data?.user
+      
       if (!user) {
         toast.error('You must be logged in to duplicate rows')
         return

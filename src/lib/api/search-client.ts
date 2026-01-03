@@ -9,7 +9,7 @@ export interface SearchResult {
   title: string
   subtitle?: string
   description?: string
-  type: 'table' | 'form' | 'request-hub' | 'row' | 'submission' | 'column' | 'field'
+  type: 'table' | 'form' | 'row' | 'submission' | 'column' | 'field'
   category: string
   url: string
   workspaceId: string

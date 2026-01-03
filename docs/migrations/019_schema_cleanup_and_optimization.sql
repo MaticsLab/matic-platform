@@ -23,26 +23,32 @@ BEGIN;
 DROP TABLE IF EXISTS sub_modules CASCADE;
 
 -- Drop Email infrastructure tables (unused in portal)
-DROP TABLE IF EXISTS sent_emails CASCADE;
-DROP TABLE IF EXISTS email_campaigns CASCADE;
-DROP TABLE IF EXISTS email_signatures CASCADE;
-DROP TABLE IF EXISTS gmail_connections CASCADE;
-DROP TABLE IF EXISTS email_templates CASCADE;
+-- NOTE: Email/Gmail integration IS in use (see handlers/email.go)
+-- These tables are actively used for Gmail OAuth and email sending via Communications Center
+-- DROP TABLE IF EXISTS sent_emails CASCADE;        -- REMOVED: This table is in use
+-- DROP TABLE IF EXISTS email_campaigns CASCADE;    -- REMOVED: This table is in use
+-- DROP TABLE IF EXISTS email_signatures CASCADE;   -- REMOVED: This table is in use
+-- DROP TABLE IF EXISTS gmail_connections CASCADE;  -- REMOVED: This table is in use
+-- DROP TABLE IF EXISTS email_templates CASCADE;    -- REMOVED: This table is in use
 
 -- Drop partially used module system tables
 DROP TABLE IF EXISTS module_history_settings CASCADE;
 DROP TABLE IF EXISTS module_field_configs CASCADE;
 
 -- Drop advanced automation tables (not implemented)
-DROP TABLE IF EXISTS tag_automations CASCADE;
-DROP TABLE IF EXISTS workflow_actions CASCADE;
-DROP TABLE IF EXISTS stage_actions CASCADE;
+-- NOTE: tag_automations is not used, but workflow_actions, stage_actions, and application_groups ARE in use
+-- These are used by the workflow system and have active handlers/routes
+-- DROP TABLE IF EXISTS tag_automations CASCADE;
+-- DROP TABLE IF EXISTS workflow_actions CASCADE;  -- REMOVED: This table is in use
+-- DROP TABLE IF EXISTS stage_actions CASCADE;     -- REMOVED: This table is in use
 
 -- Drop AI embedding queue (move to external job system)
-DROP TABLE IF EXISTS embedding_queue CASCADE;
+-- NOTE: embedding_queue IS in use (see services/embedding.go)
+-- DROP TABLE IF EXISTS embedding_queue CASCADE;  -- REMOVED: This table is in use
 
 -- Drop unused workflow grouping tables
-DROP TABLE IF EXISTS application_groups CASCADE;
+-- NOTE: application_groups IS in use (see handlers/groups.go)
+-- DROP TABLE IF EXISTS application_groups CASCADE;  -- REMOVED: This table is in use
 
 -- ============================================================================
 -- SECTION 2: ADD CRITICAL INDEXES FOR PERFORMANCE

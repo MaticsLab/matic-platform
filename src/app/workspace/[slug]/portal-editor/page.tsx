@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { PortalEditor } from '@/components/PortalBuilder/PortalEditor'
 import { useParams, useSearchParams } from 'next/navigation'
 
-export default function PortalEditorPage() {
+function PortalEditorPageContent() {
   const params = useParams()
   const searchParams = useSearchParams()
   const workspaceSlug = params.slug as string
@@ -14,5 +15,13 @@ export default function PortalEditorPage() {
     <div className="h-screen w-full overflow-hidden">
       <PortalEditor workspaceSlug={workspaceSlug} initialFormId={formId} />
     </div>
+  )
+}
+
+export default function PortalEditorPage() {
+  return (
+    <ProtectedRoute>
+      <PortalEditorPageContent />
+    </ProtectedRoute>
   )
 }

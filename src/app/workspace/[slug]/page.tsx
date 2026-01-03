@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
 import { WorkspaceTabProvider } from '@/components/WorkspaceTabProvider'
 import { TabContentRouter } from '@/components/TabContentRouter'
@@ -9,7 +10,7 @@ import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { saveLastWorkspace } from '@/lib/utils'
 import type { Workspace } from '@/types/workspaces'
 
-export default function WorkspacePage() {
+function WorkspacePageContent() {
   const params = useParams()
   const slug = params.slug as string
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
@@ -63,5 +64,13 @@ export default function WorkspacePage() {
         <TabContentRouter workspaceId={workspace.id} />
       </NavigationLayout>
     </WorkspaceTabProvider>
+  )
+}
+
+export default function WorkspacePage() {
+  return (
+    <ProtectedRoute>
+      <WorkspacePageContent />
+    </ProtectedRoute>
   )
 }

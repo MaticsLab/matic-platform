@@ -1,6 +1,8 @@
 -- Migration: Add preview metadata fields for forms/portals
 -- Description: Adds preview_title, preview_description, and preview_image_url to data_tables
 --              for customizing how forms appear when shared on social media and other platforms
+-- NOTE: These fields are now part of the Table model (PreviewTitle, PreviewDescription, PreviewImageURL)
+--       This migration adds them to the database schema
 
 -- Add preview metadata columns
 ALTER TABLE data_tables

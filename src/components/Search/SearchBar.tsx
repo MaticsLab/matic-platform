@@ -157,11 +157,6 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
         id: 'nav-requests',
         title: 'Request Hub',
         subtitle: 'Handle requests and submissions',
-        icon: Inbox,
-        type: 'navigation',
-        category: 'Navigate',
-        action: () => navigateTo(`/workspace/${workspaceSlug}/request-hubs`, 'Request Hub', 'custom')
-      },
     ]
   }, [workspaceSlug, navigateTo])
 
@@ -198,7 +193,6 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
     switch (hubType) {
       case 'applications': return 'Applications Hub'
       case 'activities': return 'Activities Hub'
-      case 'request': return 'Request Hub'
       case 'data': return 'Data Hub'
       default: return 'Results'
     }
@@ -274,10 +268,6 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
       // Activities hub content
       url = `/workspace/${workspaceSlug}/activities-hubs/${result.entityId}`
       title = `${result.title} | Activities`
-    } else if (result.hubType === 'request') {
-      // Request hub content
-      url = `/workspace/${workspaceSlug}/request-hubs/${result.entityId}`
-      title = `${result.title} | Requests`
     } else {
       // Default routing based on entity type
       switch (result.entityType) {

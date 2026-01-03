@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSession } from '@/lib/better-auth-client'
 import { X, Plus, Trash2, Table2, Hash, Type, Mail, Phone, Calendar, CheckSquare, Link as LinkIcon } from 'lucide-react'
 
 interface Column {
@@ -41,6 +42,7 @@ const ICON_OPTIONS = ['table', 'users', 'briefcase', 'folder', 'file-text', 'dat
 const COLOR_OPTIONS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899']
 
 export function CreateTableModal({ isOpen, onClose, onSubmit, workspaceId }: CreateTableModalProps) {
+  const { data: sessionData } = useSession()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [selectedIcon, setSelectedIcon] = useState('table')
@@ -70,9 +72,8 @@ export function CreateTableModal({ isOpen, onClose, onSubmit, workspaceId }: Cre
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Get actual user ID from Supabase
-    const { getCurrentUser } = await import('@/lib/supabase')
-    const user = await getCurrentUser()
+    // Get user from session hook
+    const user = sessionData?.user
     
     if (!user) {
       alert('You must be logged in to create a table')

@@ -688,9 +688,10 @@ function ScanPageContent() {
       }))
 
       // Try to get authenticated user, fallback to guest system user
-      const { getCurrentUser } = await import('@/lib/supabase')
+      const { authClient } = await import('@/lib/better-auth-client')
       const { GUEST_SCANNER_SYSTEM_USER_ID, getGuestScannerInfo } = await import('@/lib/activities/guest-scanner')
-      const user = await getCurrentUser()
+      const session = await authClient.getSession()
+      const user = session?.data?.user || null
       const guestInfo = getGuestScannerInfo()
       
       // Use authenticated user ID if available, otherwise use system guest user ID
@@ -1864,9 +1865,10 @@ function ScanPageContent() {
                           created_by: userName || 'Walk-in Scanner'
                         });
                         
-                        // Get current user ID from Supabase auth
-                        const { data: { user } } = await supabase.auth.getUser();
-                        let userId = user?.id;
+                        // Get current user ID from Better Auth
+                        const { authClient } = await import('@/lib/better-auth-client')
+                        const session = await authClient.getSession()
+                        let userId = session?.data?.user?.id;
                         
                         // For guest scanners without auth, use the table's created_by as fallback
                         if (!userId && tableInfo) {

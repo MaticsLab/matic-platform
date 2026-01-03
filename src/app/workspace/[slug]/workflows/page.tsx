@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Plus, Play, MoreHorizontal, Copy, Trash2, Edit2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
 import { useTabContext } from '@/components/WorkspaceTabProvider'
 import { Button } from '@/ui-components/button'
@@ -19,7 +20,7 @@ import { automationWorkflowsClient, type AutomationWorkflow } from '@/lib/api/au
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import type { Workspace } from '@/types/workspaces'
 
-export default function WorkflowsPage() {
+function WorkflowsPageContent() {
   const params = useParams()
   const router = useRouter()
   const slug = params.slug as string
@@ -257,5 +258,13 @@ export default function WorkflowsPage() {
         )}
       </div>
     </NavigationLayout>
+  )
+}
+
+export default function WorkflowsPage() {
+  return (
+    <ProtectedRoute>
+      <WorkflowsPageContent />
+    </ProtectedRoute>
   )
 }

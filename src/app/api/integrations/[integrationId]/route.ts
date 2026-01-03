@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { requireAuth } from "@/lib/api-auth";
 import {
   getIntegration,
   updateIntegration,
   deleteIntegration,
 } from "@/lib/db/workflow-db";
 import type { IntegrationConfig } from "@/lib/types/integration";
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 
 export type GetIntegrationResponse = {
   id: string;
@@ -24,47 +22,6 @@ export type UpdateIntegrationRequest = {
 };
 
 /**
- * Get authenticated user from either Better Auth or Supabase
- */
-async function getAuthUser(request: Request) {
-  // Try Better Auth first
-  try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-    if (session?.user) {
-      return { id: session.user.id, email: session.user.email };
-    }
-  } catch (error) {
-    console.debug("[Integrations API] Better Auth session not found");
-  }
-
-  // Fall back to Supabase
-  try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-        },
-      }
-    );
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (user && !error) {
-      return { id: user.id, email: user.email! };
-    }
-  } catch (error) {
-    console.debug("[Integrations API] Supabase session not found");
-  }
-
-  return null;
-}
-
-/**
  * GET /api/integrations/[integrationId]
  * Get a single integration with decrypted config
  */
@@ -74,12 +31,12 @@ export async function GET(
 ) {
   try {
     const { integrationId } = await context.params;
-    const user = await getAuthUser(request);
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
+    const { user } = authResult.context;
     const integration = await getIntegration(integrationId, user.id);
 
     if (!integration) {
@@ -121,11 +78,12 @@ export async function PUT(
 ) {
   try {
     const { integrationId } = await context.params;
-    const user = await getAuthUser(request);
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
+
+    const { user } = authResult.context;
 
     const body: UpdateIntegrationRequest = await request.json();
 
@@ -174,11 +132,12 @@ export async function DELETE(
 ) {
   try {
     const { integrationId } = await context.params;
-    const user = await getAuthUser(request);
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
+
+    const { user } = authResult.context;
 
     const success = await deleteIntegration(integrationId, user.id);
 

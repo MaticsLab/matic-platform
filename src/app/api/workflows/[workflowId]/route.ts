@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { optionalAuth, requireAuth } from "@/lib/api-auth";
 import {
   getWorkflow,
   getWorkflowByUser,
@@ -42,9 +42,7 @@ export async function GET(
 ) {
   try {
     const { workflowId } = await context.params;
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
+    const authContext = await optionalAuth(request);
 
     // First, try to find the workflow
     const workflow = await getWorkflow(workflowId);
@@ -56,7 +54,7 @@ export async function GET(
       );
     }
 
-    const isOwner = session?.user?.id === workflow.user_id;
+    const isOwner = authContext?.user.id === workflow.user_id;
 
     // If not owner, check if workflow is public
     if (!isOwner && workflow.visibility !== "public") {
@@ -102,16 +100,15 @@ export async function PATCH(
 ) {
   try {
     const { workflowId } = await context.params;
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
+    const { user } = authResult.context;
+
     // Verify ownership
-    const existingWorkflow = await getWorkflowByUser(workflowId, session.user.id);
+    const existingWorkflow = await getWorkflowByUser(workflowId, user.id);
 
     if (!existingWorkflow) {
       return NextResponse.json(
@@ -126,7 +123,7 @@ export async function PATCH(
     if (Array.isArray(body.nodes)) {
       const validation = await validateWorkflowIntegrations(
         body.nodes,
-        session.user.id
+        user.id
       );
       if (!validation.valid) {
         return NextResponse.json(
@@ -149,7 +146,7 @@ export async function PATCH(
       );
     }
 
-    const updatedWorkflow = await updateWorkflow(workflowId, session.user.id, body);
+    const updatedWorkflow = await updateWorkflow(workflowId, user.id, body);
 
     if (!updatedWorkflow) {
       return NextResponse.json(
@@ -187,16 +184,15 @@ export async function DELETE(
 ) {
   try {
     const { workflowId } = await context.params;
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
+    const { user } = authResult.context;
+
     // Verify ownership and delete
-    const success = await deleteWorkflow(workflowId, session.user.id);
+    const success = await deleteWorkflow(workflowId, user.id);
 
     if (!success) {
       return NextResponse.json(

@@ -32,11 +32,12 @@ export default function InvitePage() {
   // Check authentication status
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
+      const { authClient } = await import('@/lib/better-auth-client')
+      const session = await authClient.getSession()
       
-      if (session?.user) {
+      if (session?.data?.user) {
         setIsAuthenticated(true)
-        setUserEmail(session.user.email || null)
+        setUserEmail(session.data.user.email || null)
       }
     }
     checkAuth()

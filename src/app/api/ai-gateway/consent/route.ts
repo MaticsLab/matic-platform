@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { requireAuth } from "@/lib/api-auth";
 
 export type AiGatewayConsentResponse = {
   success: boolean;
@@ -11,12 +11,9 @@ export type AiGatewayConsentResponse = {
 // Grant consent for AI Gateway
 export async function POST(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
     // Placeholder - AI Gateway consent not implemented
@@ -43,12 +40,9 @@ export async function POST(request: Request) {
 // Revoke consent for AI Gateway
 export async function DELETE(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
     // Placeholder - AI Gateway revoke not implemented

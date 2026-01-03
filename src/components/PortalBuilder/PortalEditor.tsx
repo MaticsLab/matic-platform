@@ -265,12 +265,14 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   // Fetch current user for collaboration
   useEffect(() => {
     const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { authClient } = await import('@/lib/better-auth-client')
+      const session = await authClient.getSession()
+      const user = session?.data?.user
       if (user) {
         setCurrentUser({
           id: user.id,
-          name: user.user_metadata?.full_name || user.email || 'Anonymous',
-          avatarUrl: user.user_metadata?.avatar_url
+          name: user.name || user.email || 'Anonymous',
+          avatarUrl: user.image || user.avatarUrl
         })
       }
     }

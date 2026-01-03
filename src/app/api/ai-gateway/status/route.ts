@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { optionalAuth } from "@/lib/api-auth";
 
 export type AiGatewayStatusResponse = {
   enabled: boolean;
@@ -12,15 +12,13 @@ export type AiGatewayStatusResponse = {
 // AI Gateway status - placeholder implementation
 export async function GET(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
+    const authContext = await optionalAuth(request);
 
     // Return basic status
     // In production, this would check for Vercel AI Gateway setup
     const response: AiGatewayStatusResponse = {
       enabled: false,  // AI Gateway not enabled by default
-      signedIn: !!session?.user,
+      signedIn: !!authContext,
       isVercelUser: false,
       hasManagedKey: false,
     };

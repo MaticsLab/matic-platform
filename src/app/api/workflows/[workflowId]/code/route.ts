@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { requireAuth } from "@/lib/api-auth";
 import { getWorkflowByUser } from "@/lib/db/workflow-db";
 
 export async function GET(
@@ -8,15 +8,14 @@ export async function GET(
 ) {
   try {
     const { workflowId } = await context.params;
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
-    const workflow = await getWorkflowByUser(workflowId, session.user.id);
+    const { user } = authResult.context;
+
+    const workflow = await getWorkflowByUser(workflowId, user.id);
 
     if (!workflow) {
       return NextResponse.json(

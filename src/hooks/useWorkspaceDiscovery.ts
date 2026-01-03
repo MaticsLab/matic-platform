@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { useRouter } from 'next/navigation'
-import { useHybridAuth } from '@/hooks/use-hybrid-auth'
+import { useSession } from '@/lib/better-auth-client'
 import type { Workspace as APIWorkspace } from '@/types/workspaces'
 
 interface Workspace {
@@ -18,7 +18,9 @@ export function useWorkspaceDiscovery() {
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-  const { user: hybridUser, isLoading: authLoading, isAuthenticated } = useHybridAuth()
+  const { data, isPending: authLoading } = useSession()
+  const hybridUser = data?.user || null
+  const isAuthenticated = !!hybridUser
   
   // Track if we've already fetched to prevent infinite loops
   const hasFetchedRef = useRef(false)

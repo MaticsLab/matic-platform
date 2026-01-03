@@ -110,7 +110,9 @@ export const useCollaborationStore = create<CollaborationStore>()(
       }
 
       // Fetch current user
-      const { data: { user } } = await supabase.auth.getUser();
+      const { authClient } = await import('@/lib/better-auth-client')
+      const session = await authClient.getSession()
+      const user = session?.data?.user
       if (!user) {
         console.warn('No user for collaboration');
         return;
@@ -118,8 +120,8 @@ export const useCollaborationStore = create<CollaborationStore>()(
 
       const currentUser = {
         id: user.id,
-        name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Anonymous',
-        avatarUrl: user.user_metadata?.avatar_url
+        name: user.name || user.email?.split('@')[0] || 'Anonymous',
+        avatarUrl: user.image || user.avatarUrl
       };
 
       const ydoc = new Y.Doc();

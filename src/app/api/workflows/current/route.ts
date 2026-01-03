@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { requireAuth } from "@/lib/api-auth";
 import { getCurrentWorkflow, saveCurrentWorkflow } from "@/lib/db/workflow-db";
 
 export async function GET(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
-    const currentWorkflow = await getCurrentWorkflow(session.user.id);
+    const { user } = authResult.context;
+    const currentWorkflow = await getCurrentWorkflow(user.id);
 
     if (!currentWorkflow) {
       // Return empty workflow if no current state exists
@@ -43,13 +41,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
+
+    const { user } = authResult.context;
 
     const body = await request.json();
     const { nodes, edges } = body;
@@ -62,7 +59,7 @@ export async function POST(request: Request) {
     }
 
     const savedWorkflow = await saveCurrentWorkflow(
-      session.user.id,
+      user.id,
       nodes,
       edges
     );

@@ -1,17 +1,11 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
-import { createBrowserClient } from "@supabase/ssr";
-import { Session, User } from "@supabase/supabase-js";
-
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { createContext, useContext } from "react";
+import { useSession as useBetterAuthSession, signOut as betterAuthSignOut } from "@/lib/better-auth-client";
 
 interface AuthContextValue {
-  session: Session | null;
-  user: User | null;
+  session: any | null;
+  user: any | null;
   isPending: boolean;
   signOut: () => Promise<void>;
   isEmbedded: boolean;
@@ -21,33 +15,19 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [isPending, setIsPending] = useState(true);
-  const [hasMounted, setHasMounted] = useState(false);
-
-  useEffect(() => {
-    setHasMounted(true);
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setIsPending(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { data, isPending } = useBetterAuthSession();
+  const session = data?.session || null;
+  const user = data?.user || null;
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await betterAuthSignOut();
   };
 
   // Check if embedded in iframe
   const isEmbedded = typeof window !== 'undefined' && window.parent !== window;
 
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, isPending, signOut, isEmbedded, hasMounted }}>
+    <AuthContext.Provider value={{ session, user, isPending, signOut, isEmbedded, hasMounted: true }}>
       {children}
     </AuthContext.Provider>
   );

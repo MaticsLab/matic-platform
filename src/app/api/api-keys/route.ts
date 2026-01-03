@@ -1,19 +1,17 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { requireAuth } from "@/lib/api-auth";
 import { getApiKeys, createApiKey, generateApiKey } from "@/lib/db/workflow-db";
 
 // GET - List all API keys for the current user
 export async function GET(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
-    const keys = await getApiKeys(session.user.id);
+    const { user } = authResult.context;
+    const keys = await getApiKeys(user.id);
 
     return NextResponse.json(
       keys.map((key) => ({
@@ -36,18 +34,17 @@ export async function GET(request: Request) {
 // POST - Create a new API key
 export async function POST(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
+
+    const { user } = authResult.context;
 
     // Check if user is anonymous
     const isAnonymous =
-      session.user.name === "Anonymous" ||
-      session.user.email?.startsWith("temp-");
+      user.name === "Anonymous" ||
+      user.email?.startsWith("temp-");
 
     if (isAnonymous) {
       return NextResponse.json(
@@ -60,7 +57,7 @@ export async function POST(request: Request) {
     const name = body.name || null;
 
     // Create new API key
-    const newKey = await createApiKey(session.user.id, name);
+    const newKey = await createApiKey(user.id, name);
 
     // Return the full key only on creation (won't be shown again)
     return NextResponse.json({

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { requireAuth } from "@/lib/api-auth";
 import {
   getExecution,
   getExecutionLogs,
@@ -12,13 +12,12 @@ export async function GET(
 ) {
   try {
     const { executionId } = await context.params;
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
+
+    const { user } = authResult.context;
 
     // Get the execution with workflow
     const result = await getExecutionWithWorkflow(executionId);
@@ -31,7 +30,7 @@ export async function GET(
     }
 
     // Verify the workflow belongs to the user
-    if (result.workflow.user_id !== session.user.id) {
+    if (result.workflow.user_id !== user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

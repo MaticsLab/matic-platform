@@ -1,25 +1,23 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { requireAuth } from "@/lib/api-auth";
 import { getUser, updateUser, getUserAccount } from "@/lib/db/workflow-db";
 
 export async function GET(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
-    const userData = await getUser(session.user.id);
+    const { user } = authResult.context;
+    const userData = await getUser(user.id);
 
     if (!userData) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Get the user's account to determine auth provider
-    const userAccount = await getUserAccount(session.user.id);
+    const userAccount = await getUserAccount(user.id);
 
     return NextResponse.json({
       id: userData.id,
@@ -42,16 +40,15 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
+    const { user } = authResult.context;
+
     // Check if user is an OAuth user (can't update profile for OAuth users)
-    const userAccount = await getUserAccount(session.user.id);
+    const userAccount = await getUserAccount(user.id);
 
     // Block updates for OAuth users (vercel, github, google, etc.)
     const oauthProviders = ["vercel", "github", "google"];
@@ -72,7 +69,7 @@ export async function PATCH(request: Request) {
       updates.email = body.email;
     }
 
-    await updateUser(session.user.id, updates);
+    await updateUser(user.id, updates);
 
     return NextResponse.json({ success: true });
   } catch (error) {

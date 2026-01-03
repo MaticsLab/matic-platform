@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { authClient } from '@/lib/better-auth-client'
 import { organizationsClient } from '@/lib/api/organizations-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { Loader2 } from 'lucide-react'
@@ -41,52 +41,27 @@ export default function SignUpPage() {
         throw new Error('Workspace name is required')
       }
 
-      // Create Supabase auth user
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+      // Create Better Auth user
+      const fullName = `${formData.firstName} ${formData.lastName}`.trim()
+      
+      const signUpResult = await authClient.signUp.email({
         email: formData.email,
         password: formData.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: {
-            first_name: formData.firstName,
-            last_name: formData.lastName
-          }
-        }
+        name: fullName,
       })
 
-      if (signUpError) {
-        if (signUpError.message.includes('already registered') || signUpError.message.includes('already exists')) {
+      if (signUpResult.error) {
+        if (signUpResult.error.message?.includes('already') || signUpResult.error.message?.includes('exists')) {
           setError('This email is already registered. Please login instead.')
           setTimeout(() => router.push('/login'), 2000)
           return
         }
-        throw signUpError
+        throw new Error(signUpResult.error.message || 'Failed to create account')
       }
       
-      if (!authData.user) throw new Error('Failed to create account')
-      
-      console.log('Auth data:', authData)
-
-      // Update user metadata with names
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: {
-          first_name: formData.firstName,
-          last_name: formData.lastName
-        }
-      })
-
-      if (updateError) {
-        console.warn('Warning: Could not update user metadata:', updateError)
+      if (!signUpResult.data?.user) {
+        throw new Error('Failed to create account')
       }
-
-      // 2. Get the session token from the signup response
-      const token = authData.session?.access_token
-
-      if (!token) {
-        throw new Error('Please check your email to confirm your account before proceeding')
-      }
-
-      console.log('Token obtained:', token ? 'Yes' : 'No')
 
       // 3. Check if user already has workspaces
       try {

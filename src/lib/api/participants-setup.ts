@@ -114,7 +114,9 @@ export async function ensureEnrolledProgramsLinkColumn(
       // Get activities table info for display
       const { getOrCreateActivitiesTable } = await import('./activities-table-setup')
       const { supabase } = await import('@/lib/supabase')
-      const { data: { user } } = await supabase.auth.getUser()
+      const { authClient } = await import('@/lib/better-auth-client')
+      const session = await authClient.getSession()
+      const user = session?.data?.user
       
       let activitiesTable = null
       if (user) {

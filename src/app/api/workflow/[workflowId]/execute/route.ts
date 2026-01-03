@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { requireAuth } from "@/lib/api-auth";
 import {
   getWorkflow,
   createExecution,
@@ -14,14 +14,12 @@ export async function POST(
   try {
     const { workflowId } = await context.params;
 
-    // Get session
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
+
+    const { user } = authResult.context;
 
     // Get workflow
     const workflow = await getWorkflow(workflowId);
@@ -33,14 +31,14 @@ export async function POST(
       );
     }
 
-    if (workflow.user_id !== session.user.id) {
+    if (workflow.user_id !== user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Validate that all integrationIds in workflow nodes belong to the current user
     const validation = await validateWorkflowIntegrations(
       workflow.nodes as Array<{ data?: { config?: { integrationId?: string } } }>,
-      session.user.id
+      user.id
     );
     if (!validation.valid) {
       return NextResponse.json(
@@ -57,7 +55,7 @@ export async function POST(
     const input = body.input || {};
 
     // Create execution record
-    const execution = await createExecution(workflowId, session.user.id, input);
+    const execution = await createExecution(workflowId, user.id, input);
 
     // Update execution to running status
     await updateExecution(execution.id, { status: "running" });

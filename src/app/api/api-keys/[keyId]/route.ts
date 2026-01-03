@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { requireAuth } from "@/lib/api-auth";
 import { deleteApiKey } from "@/lib/db/workflow-db";
 
 // DELETE - Delete an API key
@@ -9,16 +9,15 @@ export async function DELETE(
 ) {
   try {
     const { keyId } = await context.params;
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuth(request);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
+    const { user } = authResult.context;
+
     // Delete the key (only if it belongs to the user)
-    const success = await deleteApiKey(keyId, session.user.id);
+    const success = await deleteApiKey(keyId, user.id);
 
     if (!success) {
       return NextResponse.json({ error: "API key not found" }, { status: 404 });

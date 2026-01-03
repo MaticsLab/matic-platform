@@ -18,16 +18,12 @@ function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [token, setToken] = useState<string | null>(null)
-  const [email, setEmail] = useState<string | null>(null)
-  const [provider, setProvider] = useState<string | null>(null)
 
   useEffect(() => {
     async function handleAuth() {
       try {
         // Get params from URL
         const tokenParam = searchParams.get('token')
-        const emailParam = searchParams.get('email')
-        const providerParam = searchParams.get('provider')
         const errorParam = searchParams.get('error')
 
         if (errorParam === 'INVALID_TOKEN') {
@@ -38,8 +34,6 @@ function ResetPasswordForm() {
 
         if (tokenParam) {
           setToken(tokenParam)
-          setEmail(emailParam)
-          setProvider(providerParam)
           setIsVerifying(false)
           return
         }
@@ -88,8 +82,6 @@ function ResetPasswordForm() {
         body: JSON.stringify({
           newPassword: password,
           token: token,
-          email: email,
-          provider: provider,
         })
       })
 

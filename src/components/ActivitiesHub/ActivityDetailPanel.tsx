@@ -124,7 +124,9 @@ export function ActivityDetailPanel({
       const { getOrCreateActivitiesTable } = await import('@/lib/api/activities-table-setup');
       const { getOrCreateParticipantsTable } = await import('@/lib/api/participants-setup');
       const { supabase } = await import('@/lib/supabase');
-      const { data: { user } } = await supabase.auth.getUser();
+      const { authClient } = await import('@/lib/better-auth-client')
+      const session = await authClient.getSession()
+      const user = session?.data?.user
       
       if (!user) {
         console.log('❌ No user found');

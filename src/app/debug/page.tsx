@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { tablesSupabase } from '@/lib/api/tables-supabase'
 import { formsSupabase } from '@/lib/api/forms-supabase'
-import { requestHubsSupabase } from '@/lib/api/request-hubs-supabase'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 
 export default function DebugPage() {
@@ -12,7 +11,6 @@ export default function DebugPage() {
   const [workspaces, setWorkspaces] = useState<any[]>([])
   const [tables, setTables] = useState<any[]>([])
   const [forms, setForms] = useState<any[]>([])
-  const [hubs, setHubs] = useState<any[]>([])
   const [errors, setErrors] = useState<any>({})
   const [loading, setLoading] = useState(true)
 
@@ -26,7 +24,10 @@ export default function DebugPage() {
 
     try {
       // Check authentication
-      const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser()
+      const { authClient } = await import('@/lib/better-auth-client')
+      const session = await authClient.getSession()
+      const currentUser = session?.data?.user
+      const authError = session ? null : new Error('Not authenticated')
       if (authError) {
         errorLog.auth = authError.message
       } else {
@@ -57,13 +58,6 @@ export default function DebugPage() {
                 errorLog.forms = err.message
               }
 
-              // Try to fetch request hubs
-              try {
-                const hubData = await requestHubsSupabase.getRequestHubsByWorkspace(firstWorkspace.id)
-                setHubs(hubData)
-              } catch (err: any) {
-                errorLog.hubs = err.message
-              }
             }
           } catch (err: any) {
             errorLog.workspaces = err.message
@@ -187,29 +181,6 @@ export default function DebugPage() {
           )}
         </div>
 
-        {/* Request Hubs */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            🎯 Request Hubs ({hubs.length})
-          </h2>
-          {hubs.length > 0 ? (
-            <div className="space-y-2">
-              {hubs.map((hub: any) => (
-                <div key={hub.id} className="p-3 bg-gray-50 rounded">
-                  <p><strong>{hub.name}</strong></p>
-                  <p className="text-sm text-gray-600">ID: {hub.id}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-600">No request hubs found. Create one in the workspace.</p>
-          )}
-          {errors.hubs && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded">
-              <strong>Error:</strong> {errors.hubs}
-            </div>
-          )}
-        </div>
 
         {/* Environment Info */}
         <div className="bg-white rounded-lg shadow p-6">

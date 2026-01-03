@@ -30,7 +30,9 @@ async function getActivitiesTable(workspaceId: string): Promise<string> {
   }
 
   // Get current user for created_by field
-  const { data: { user } } = await supabase.auth.getUser();
+  const { authClient } = await import('@/lib/better-auth-client')
+  const session = await authClient.getSession()
+  const user = session?.data?.user
   if (!user) {
     throw new Error('User must be authenticated to create activities table');
   }
