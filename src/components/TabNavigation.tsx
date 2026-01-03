@@ -148,29 +148,61 @@ export function TabNavigation({
   return (
     <>
       <div className="flex items-end px-4 pt-2 pb-0 gap-1 bg-white border-b border-gray-200">
-        {/* User Dropdown on Left */}
+        {/* Tab List */}
+        <div className="flex items-end overflow-x-auto scrollbar-hide gap-1 flex-1">
+          {currentTabs.map((tab) => {
+            const IconComponent = TAB_ICONS[tab.type] || FileText
+            const isActive = currentActiveTab?.id === tab.id
+            // Check for Overview/workspace tab - be specific to avoid matching all workspace tabs
+            const isOverviewTab = 
+              tab.id === 'overview' || 
+              (tab.title === 'Overview' && tab.url === `/workspace/${workspaceId}`) ||
+              (tab.type === 'custom' && tab.icon === 'home')
+            
+            return (
+              <div
+                key={tab.id}
+                onClick={() => handleTabClick(tab.id)}
+                className={cn(
+                  "flex items-center gap-2 px-3 cursor-pointer min-w-0 max-w-48 group relative text-sm",
+                  isActive ? "tab-selected" : "tab-unselected"
+                )}
+              >
+                <IconComponent size={14} className="flex-shrink-0 opacity-70" />
+                <span className="truncate">
+                  {tab.title}
+                </span>
+                {!isOverviewTab && (
+                  <button
+                    onClick={(e) => handleTabClose(e, tab.id)}
+                    className={cn(
+                      "opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded flex-shrink-0 transition-opacity ml-auto",
+                      isActive && "hover:bg-gray-200"
+                    )}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* User Dropdown on Right */}
         {user && (
-          <div className="flex items-center gap-2 mr-2 flex-shrink-0">
+          <div className="flex items-center gap-1 ml-2 flex-shrink-0">
             <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
-                <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+              <DropdownMenuTrigger className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {user.user_metadata?.avatar_url ? (
                     <img src={user.user_metadata.avatar_url} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <User className="h-4 w-4 text-white" />
+                    <User className="h-3 w-3 text-white" />
                   )}
                 </div>
-                {getUserName && (
-                  <>
-                    <div className="hidden md:block text-left">
-                      <div className="text-sm text-gray-900">{user.user_metadata?.full_name || getUserName(user.email)}</div>
-                      <div className="text-xs text-gray-500">{user.user_metadata?.role || 'Member'}</div>
-                    </div>
-                    <ChevronDown className="h-4 w-4 text-gray-500 hidden md:block" />
-                  </>
-                )}
+                <ChevronDown className="h-3 w-3 text-gray-500" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56 bg-white">
+              <DropdownMenuContent align="end" className="w-56 bg-white">
                 <DropdownMenuLabel>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -216,46 +248,6 @@ export function TabNavigation({
             </DropdownMenu>
           </div>
         )}
-
-        {/* Tab List */}
-        <div className="flex items-end overflow-x-auto scrollbar-hide gap-1 flex-1">
-          {currentTabs.map((tab) => {
-            const IconComponent = TAB_ICONS[tab.type] || FileText
-            const isActive = currentActiveTab?.id === tab.id
-            // Check for Overview/workspace tab - be specific to avoid matching all workspace tabs
-            const isOverviewTab = 
-              tab.id === 'overview' || 
-              (tab.title === 'Overview' && tab.url === `/workspace/${workspaceId}`) ||
-              (tab.type === 'custom' && tab.icon === 'home')
-            
-            return (
-              <div
-                key={tab.id}
-                onClick={() => handleTabClick(tab.id)}
-                className={cn(
-                  "flex items-center gap-2 px-3 cursor-pointer min-w-0 max-w-48 group relative text-sm",
-                  isActive ? "tab-selected" : "tab-unselected"
-                )}
-              >
-                <IconComponent size={14} className="flex-shrink-0 opacity-70" />
-                <span className="truncate">
-                  {tab.title}
-                </span>
-                {!isOverviewTab && (
-                  <button
-                    onClick={(e) => handleTabClose(e, tab.id)}
-                    className={cn(
-                      "opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded flex-shrink-0 transition-opacity ml-auto",
-                      isActive && "hover:bg-gray-200"
-                    )}
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-            )
-          })}
-        </div>
       </div>
 
       {/* Action Bar */}

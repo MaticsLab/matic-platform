@@ -108,7 +108,7 @@ export function Sidebar({
     >
       {/* Workspace Dropdown at Top */}
       {!isCollapsed && currentWorkspace && (
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-2 border-b border-gray-200">
           {/* Organization Selector - Only show if user has multiple organizations */}
           {organizations.length > 1 && currentOrganization && switchToOrganization && (
             <DropdownMenu>
@@ -202,7 +202,7 @@ export function Sidebar({
         </div>
       )}
 
-      <div className="p-4 flex-1">
+      <div className="p-2 flex-1">
         <div className={cn(
           "flex items-center justify-between mb-4 px-2",
           isCollapsed && "justify-center px-0"
@@ -254,7 +254,7 @@ export function Sidebar({
       </div>
 
       {/* Collapse Toggle Button */}
-      <div className="p-4 border-t border-gray-200">
+      <div className="p-2 border-t border-gray-200">
         <Button
           variant="ghost"
           size="sm"
