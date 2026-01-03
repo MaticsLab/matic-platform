@@ -113,7 +113,7 @@ export function EmailNovelEditor({
         <EditorContent
           immediatelyRender={false}
           extensions={extensions}
-          className="relative w-full h-full border-gray-200 bg-white rounded-lg border flex-1"
+          className="relative w-full h-full border-gray-200 bg-white rounded-lg border flex-1 overflow-y-auto"
           editorProps={{
             handleDOMEvents: {
               keydown: (_view, event) => handleCommandNavigation(event),
@@ -121,7 +121,7 @@ export function EmailNovelEditor({
             handlePaste: (view, event) => handleImagePaste(view, event, uploadFn),
             handleDrop: (view, event, _slice, moved) => handleImageDrop(view, event, moved, uploadFn),
             attributes: {
-              class: 'prose prose-sm max-w-none focus:outline-none p-4 h-full',
+              class: 'prose prose-sm max-w-none focus:outline-none p-4',
               'data-placeholder': placeholder,
             },
           }}

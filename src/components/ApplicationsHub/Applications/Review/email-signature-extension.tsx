@@ -96,11 +96,27 @@ const EmailSignatureComponent = ({ node, deleteNode, availableSignatures, update
           </button>
         </div>
 
-        {/* Signature Content */}
-        <div
-          className="email-signature-content"
-          dangerouslySetInnerHTML={{ __html: signatureContent }}
-        />
+        {/* Signature Content - Styled like settings preview */}
+        <div className="w-full overflow-hidden border border-gray-200 rounded-lg">
+          <div 
+            className="email-signature-content bg-gray-50 px-4 py-3 overflow-auto"
+            style={{
+              maxHeight: '350px',
+              maxWidth: '100%',
+            }}
+          >
+            <div 
+              className="signature-preview-wrapper"
+              style={{
+                transform: 'scale(0.85)',
+                transformOrigin: 'top left',
+                width: '117.65%', // Compensate for scale(0.85) = 1/0.85
+              }}
+            >
+              <div dangerouslySetInnerHTML={{ __html: signatureContent }} />
+            </div>
+          </div>
+        </div>
       </div>
     </NodeViewWrapper>
   )
