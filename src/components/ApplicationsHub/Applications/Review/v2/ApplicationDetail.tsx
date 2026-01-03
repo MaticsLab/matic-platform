@@ -749,7 +749,6 @@ export function ApplicationDetail({
         merge_tags: true,
         track_opens: true,
         attachments: selectedAttachments.length > 0 ? selectedAttachments : undefined,
-        from_email: selectedFromEmail || undefined,
         sender_account_id: selectedAccount?.id || undefined,
       };
 
@@ -899,7 +898,7 @@ export function ApplicationDetail({
         items.push({
           id: `review-${idx}`,
           type: 'review',
-          message: `Review submitted${review.total_score ? ` (Score: ${review.total_score})` : ''}`,
+          message: review.total_score ? `Review submitted (Score: ${review.total_score})` : 'Review submitted',
           user: review.reviewer_name || getReviewerName(review.reviewer_id) || 'Reviewer',
           time: formatRelativeTime(review.reviewed_at),
           timestamp: review.reviewed_at ? new Date(review.reviewed_at).getTime() : 0,
@@ -1006,7 +1005,7 @@ export function ApplicationDetail({
                     if (currentStage) {
                       const nextStageIndex = stages.findIndex(s => s.id === currentStage.id) + 1;
                       if (nextStageIndex < stages.length) {
-                        onStatusChange?.(stages[nextStageIndex].id);
+                        onStatusChange?.(application.id, stages[nextStageIndex].name as ApplicationStatus);
                       }
                     }
                   }}
@@ -1327,6 +1326,7 @@ export function ApplicationDetail({
               </div>
             </div>
           </div>
+          </div>
         )}
         
         {/* Collapsed Activity Panel Button */}
@@ -1385,7 +1385,7 @@ export function ApplicationDetail({
               
               // Also scan raw_data for any file values not in fields
               if (application.raw_data) {
-                Object.entries(application.raw_data).forEach(([key, value]) => {
+                Object.entries(application.raw_data as Record<string, any>).forEach(([key, value]) => {
                   const parsedValue = parseValueIfNeeded(value);
                   if (isFileValue(parsedValue)) {
                     // Check if we already have this document
@@ -1653,9 +1653,9 @@ export function ApplicationDetail({
                 </h3>
               </div>
               
-              {application.reviewHistory && application.reviewHistory.length > 0 ? (
+              {(application.reviewHistory?.length ?? 0) > 0 ? (
                 <div className="space-y-4">
-                  {application.reviewHistory.map((review, idx) => {
+                  {(application.reviewHistory ?? []).map((review, idx) => {
                     const totalScore = review.total_score || Object.values(review.scores || {}).reduce((a, b) => a + b, 0);
                     const reviewerName = review.reviewer_name || getReviewerName(review.reviewer_id);
                     return (
