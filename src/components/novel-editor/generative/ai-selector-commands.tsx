@@ -43,6 +43,16 @@ const AISelectorCommands = ({ onSelect }: AISelectorCommandsProps) => {
               if (!editor) return;
               const slice = editor.state.selection.content();
               const text = editor.storage.markdown.serializer.serialize(slice.content);
+              
+              // Debug logging (check browser console)
+              if (typeof window !== 'undefined' && (window as any).__AI_DEBUG__) {
+                console.log('=== AI Selector Debug ===');
+                console.log('Selected option:', value);
+                console.log('Editor selection:', { from: editor.state.selection.from, to: editor.state.selection.to });
+                console.log('Serialized text (Markdown):', text);
+                console.log('Text length:', text.length);
+              }
+              
               onSelect(text, value);
             }}
             className="flex gap-2 px-4"

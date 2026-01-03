@@ -33,6 +33,14 @@ export function AISelector({ onOpenChange }: AISelectorProps) {
     onError: (e) => {
       toast.error(e.message);
     },
+    onFinish: (prompt, completion) => {
+      // Log for debugging (check browser console)
+      if (typeof window !== 'undefined' && (window as any).__AI_DEBUG__) {
+        console.log('=== AI Completion Debug ===');
+        console.log('Prompt sent:', prompt);
+        console.log('Completion received:', completion);
+      }
+    },
   });
 
   const hasCompletion = completion.length > 0;
