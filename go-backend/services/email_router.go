@@ -264,7 +264,7 @@ func (r *EmailRouter) sendViaGmail(ctx context.Context, req EmailSendRequest) (*
 	}
 
 	// Send via Gmail
-	messageID, threadID, err := SendGmailEmail(
+	messageID, _, err := SendGmailEmail(
 		ctx,
 		req.WorkspaceID,
 		req.To,

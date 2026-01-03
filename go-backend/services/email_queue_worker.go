@@ -110,15 +110,15 @@ func (w *EmailQueueWorker) processQueue(ctx context.Context) {
 func (w *EmailQueueWorker) processQueueItem(ctx context.Context, item models.EmailQueueItem) error {
 	// Convert queue item to EmailSendRequest
 	req := EmailSendRequest{
-		WorkspaceID: item.WorkspaceID,
-		To:          item.RecipientEmail,
-		ToName:      item.RecipientName,
-		From:        item.SenderEmail,
-		Subject:     item.Subject,
-		Body:        item.Body,
-		BodyHTML:    item.BodyHTML,
-		ServiceType: EmailServiceType(item.ServiceType),
-		FormID:      item.FormID,
+		WorkspaceID:  item.WorkspaceID,
+		To:           item.RecipientEmail,
+		ToName:       item.RecipientName,
+		From:         item.SenderEmail,
+		Subject:      item.Subject,
+		Body:         item.Body,
+		BodyHTML:     item.BodyHTML,
+		ServiceType:  EmailServiceType(item.ServiceType),
+		FormID:       item.FormID,
 		SubmissionID: item.SubmissionID,
 	}
 
@@ -221,4 +221,3 @@ func ProcessCampaignQueue(ctx context.Context, router *EmailRouter, campaignID u
 
 	return nil
 }
-

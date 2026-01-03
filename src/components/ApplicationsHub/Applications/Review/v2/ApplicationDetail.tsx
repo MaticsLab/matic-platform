@@ -27,6 +27,8 @@ import { filesClient } from '@/lib/api/files-client';
 import type { TableFileResponse } from '@/types/files';
 import { recommendationsClient, RecommendationRequest } from '@/lib/api/recommendations-client';
 import { RefreshCw, UserPlus, Clock3 } from 'lucide-react';
+import { QuickReminderPanel } from '../QuickReminderPanel';
+import { FullEmailComposer } from '../FullEmailComposer';
 
 // Icon mapping for actions
 const actionIcons: Record<string, React.ReactNode> = {
@@ -1474,10 +1476,7 @@ export function ApplicationDetail({
                       {hasMissing && (
                         <button 
                           onClick={() => {
-                            setActiveTab('activity');
-                            setActiveCommentTab('email');
-                            setEmailSubject(`Reminder: Missing Documents Required`);
-                            setEmailBody(`Hi ${application.name || 'there'},\n\nWe noticed that your application is still missing the following documents:\n\n${missingDocuments.map(d => `- ${d.fieldLabel}`).join('\n')}\n\nPlease upload these at your earliest convenience to complete your application.\n\nThank you!`);
+                            setShowQuickReminder(true);
                           }}
                           className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors text-sm font-medium border border-amber-200"
                         >
@@ -2030,27 +2029,36 @@ export function ApplicationDetail({
                     </button>
                   </div>
                   
-                  <button
-                    onClick={() => {
-                      if (activeCommentTab === 'comment') {
-                        toast.success('Comment added');
-                        setComment('');
-                      } else {
-                        handleSendEmail();
-                      }
-                    }}
-                    disabled={isSending}
-                    className={cn(
-                      "p-1.5 rounded transition-colors",
-                      isSending ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-100 text-blue-600"
-                    )}
-                  >
-                    {isSending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowFullComposer(true)}
+                      className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600"
+                      title="Open full composer"
+                    >
+                      <Mail className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (activeCommentTab === 'comment') {
+                          toast.success('Comment added');
+                          setComment('');
+                        } else {
+                          handleSendEmail();
+                        }
+                      }}
+                      disabled={isSending}
+                      className={cn(
+                        "p-1.5 rounded transition-colors",
+                        isSending ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-100 text-blue-600"
+                      )}
+                    >
+                      {isSending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2277,6 +2285,41 @@ export function ApplicationDetail({
           open={showEmailSettings}
           onOpenChange={setShowEmailSettings}
           onAccountsUpdated={refreshConnection}
+        />
+      )}
+
+      {/* Quick Reminder Panel */}
+      {workspaceId && application.id && (
+        <QuickReminderPanel
+          open={showQuickReminder}
+          onClose={() => setShowQuickReminder(false)}
+          workspaceId={workspaceId}
+          formId={formId || undefined}
+          submissionId={application.id}
+          recipientEmail={application.email || ''}
+          recipientName={application.name}
+          onSent={() => {
+            if (onActivityCreated) {
+              onActivityCreated();
+            }
+          }}
+        />
+      )}
+
+      {/* Full Email Composer */}
+      {workspaceId && (
+        <FullEmailComposer
+          open={showFullComposer}
+          onClose={() => setShowFullComposer(false)}
+          workspaceId={workspaceId}
+          formId={formId || undefined}
+          submissionId={application.id}
+          recipientEmails={application.email ? [application.email] : []}
+          onSent={() => {
+            if (onActivityCreated) {
+              onActivityCreated();
+            }
+          }}
         />
       )}
     </div>

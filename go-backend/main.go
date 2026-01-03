@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -46,6 +47,13 @@ func main() {
 	} else {
 		log.Println("⚠️  COHERE_API_KEY not set - AI features disabled")
 	}
+
+	// Initialize email queue worker
+	emailRouter := services.NewEmailRouter()
+	emailQueueWorker := services.NewEmailQueueWorker(emailRouter)
+	ctx := context.Background()
+	emailQueueWorker.Start(ctx)
+	log.Println("📧 Email queue worker started")
 
 	// Setup router
 	r := router.SetupRouter(cfg)

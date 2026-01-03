@@ -8,7 +8,6 @@
 
 import { authClient } from '@/lib/better-auth-client'
 import { auth } from '@/lib/better-auth'
-import { headers } from 'next/headers'
 
 // Type exports for better TypeScript support
 export type AuthUser = {
@@ -50,6 +49,8 @@ export async function getAuthUser(): Promise<AuthUser | null> {
   } else {
     // Server-side: use auth.api
     try {
+      // Dynamic import to avoid bundling next/headers in client code
+      const { headers } = await import('next/headers')
       const headersList = await headers()
       const session = await auth.api.getSession({ headers: headersList })
       if (session?.user) {
@@ -118,6 +119,8 @@ export async function getAuthSession(): Promise<AuthSession | null> {
   } else {
     // Server-side: use auth.api
     try {
+      // Dynamic import to avoid bundling next/headers in client code
+      const { headers } = await import('next/headers')
       const headersList = await headers()
       const session = await auth.api.getSession({ headers: headersList })
       if (session?.session) {
