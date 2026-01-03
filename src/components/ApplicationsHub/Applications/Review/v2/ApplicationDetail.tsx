@@ -619,10 +619,25 @@ export function ApplicationDetail({
   const fieldSections = useMemo(() => {
     if (!fields || fields.length === 0) return [];
     
+    // Filter out layout fields (section, divider, heading, paragraph, callout, etc.)
+    // Layout fields should not appear in database/application data views
+    const layoutFieldTypes = ['section', 'divider', 'heading', 'paragraph', 'callout'];
+    const regularFields = fields.filter(field => {
+      // Check if field type category is layout (if field_type is available)
+      if ((field as any).field_type?.category === 'layout') {
+        return false;
+      }
+      // Also filter by type as fallback
+      if (layoutFieldTypes.includes(field.type)) {
+        return false;
+      }
+      return true;
+    });
+    
     const sections: { name: string; fields: typeof fields }[] = [];
     let currentSection = { name: 'General Information', fields: [] as typeof fields };
     
-    fields.forEach(field => {
+    regularFields.forEach(field => {
       if (field.type === 'section') {
         if (currentSection.fields.length > 0) {
           sections.push(currentSection);

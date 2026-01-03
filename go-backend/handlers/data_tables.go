@@ -81,6 +81,31 @@ func GetDataTable(c *gin.Context) {
 		return
 	}
 
+	// Filter out layout fields (section, divider, heading, paragraph, callout, etc.)
+	// Layout fields should not appear in database/table views
+	if len(table.Fields) > 0 {
+		var filteredFields []models.Field
+		for _, field := range table.Fields {
+			// Check if field type category is layout
+			if field.FieldType != nil && field.FieldType.Category == models.FieldCategoryLayout {
+				continue // Skip layout fields
+			}
+			// Also filter by type as fallback (for fields without FieldType loaded)
+			layoutTypes := []string{"section", "divider", "heading", "paragraph", "callout"}
+			isLayoutType := false
+			for _, layoutType := range layoutTypes {
+				if field.Type == layoutType {
+					isLayoutType = true
+					break
+				}
+			}
+			if !isLayoutType {
+				filteredFields = append(filteredFields, field)
+			}
+		}
+		table.Fields = filteredFields
+	}
+
 	// Calculate row_count if not already set
 	if table.RowCount == 0 {
 		var count int64
@@ -156,7 +181,13 @@ func CreateDataTable(c *gin.Context) {
 		Color:       "#10B981", // Default green color
 		Settings:    mapToJSON(input.Settings),
 		RowCount:    0,
-		CreatedBy:   func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
+		CreatedBy: func() uuid.UUID {
+			if legacyUserID != nil {
+				return *legacyUserID
+			} else {
+				return uuid.Nil
+			}
+		}(),
 		BACreatedBy: &userID, // Better Auth user ID (TEXT)
 	}
 

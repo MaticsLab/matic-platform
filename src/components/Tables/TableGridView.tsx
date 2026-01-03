@@ -598,8 +598,23 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
       const tableData = await tablesGoClient.getTableById(tableId)
       setTableName(tableData.name)
       
+      // Filter out layout fields (section, divider, heading, paragraph, callout, etc.)
+      // Layout fields should not appear in database/table views
+      const layoutFieldTypes = ['section', 'divider', 'heading', 'paragraph', 'callout'];
+      const filteredColumns = (tableData.columns || []).filter((col: any) => {
+        // Check if field type category is layout
+        if (col.field_type?.category === 'layout') {
+          return false;
+        }
+        // Also filter by type as fallback
+        if (layoutFieldTypes.includes(col.type) || layoutFieldTypes.includes(col.column_type)) {
+          return false;
+        }
+        return true;
+      });
+
       // Map columns to frontend format - ensure label exists (use name if label missing)
-      const columnsWithLinks = (tableData.columns || []).map((col: any) => {
+      const columnsWithLinks = filteredColumns.map((col: any) => {
         const mappedCol = {
           ...col,
           label: col.label || col.name || '', // Use label if exists, otherwise use name
