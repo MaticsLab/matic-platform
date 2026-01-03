@@ -47,9 +47,6 @@ export function ProgressHeader({
   activeLanguage = 'en',
   onLanguageChange
 }: ProgressHeaderProps) {
-  if (process.env.NODE_ENV === 'development') {
-    console.log('🎯 ProgressHeader rendered with progress:', progress)
-  }
   
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {

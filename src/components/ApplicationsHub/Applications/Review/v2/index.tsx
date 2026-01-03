@@ -182,12 +182,8 @@ export function ReviewWorkspaceV2({
       const loadedForm = await goClient.get<Form>(`/forms/${formId}?_t=${Date.now()}`);
       setForm(loadedForm);
       
-      // Debug: Log entire settings to see what's there
-      console.log('[ReviewWorkspaceV2] Full form settings:', loadedForm.settings);
-      
       // Build reviewers map from form settings (exclude removed reviewers)
       const formReviewers = (loadedForm.settings as any)?.reviewers || [];
-      console.log('[ReviewWorkspaceV2] Form reviewers from settings:', formReviewers);
       let revMap: ReviewersMap = {};
       formReviewers.forEach((r: any) => {
         // Skip removed/archived reviewers
@@ -268,7 +264,6 @@ export function ReviewWorkspaceV2({
         });
       });
       
-      console.log('[ReviewWorkspaceV2] Built reviewersMap (with submission data):', revMap);
       setReviewersMap(revMap);
       
       // Map submissions to application format
@@ -329,7 +324,6 @@ export function ReviewWorkspaceV2({
 
   // Setup realtime subscription
   const handleRealtimeInsert = useCallback((app: RealtimeApplication) => {
-    console.log('📥 New application received:', app.id);
     const data = typeof app.data === 'string' ? JSON.parse(app.data) : (app.data || {});
     const metadata = typeof app.metadata === 'string' ? JSON.parse(app.metadata) : (app.metadata || {});
     
@@ -349,7 +343,6 @@ export function ReviewWorkspaceV2({
   }, [formId, stages, reviewersMap, mapSubmissionToApplication]);
 
   const handleRealtimeUpdate = useCallback((app: RealtimeApplication) => {
-    console.log('🔄 Application updated:', app.id);
     const data = typeof app.data === 'string' ? JSON.parse(app.data) : (app.data || {});
     const metadata = typeof app.metadata === 'string' ? JSON.parse(app.metadata) : (app.metadata || {});
     
@@ -373,7 +366,6 @@ export function ReviewWorkspaceV2({
   }, [formId, stages, reviewersMap, selectedApp, mapSubmissionToApplication]);
 
   const handleRealtimeDelete = useCallback((id: string) => {
-    console.log('🗑️ Application deleted:', id);
     setApplications(prev => prev.filter(a => a.id !== id));
     if (selectedApp?.id === id) {
       setSelectedApp(null);
@@ -584,7 +576,6 @@ export function ReviewWorkspaceV2({
               formId={formId || undefined}
               fields={form?.fields?.map(f => ({ id: f.id, name: f.name, label: f.label })) || []}
               onSendEmail={(to, subject, body, options) => {
-                console.log('Send email:', { to, subject, body, options });
                 // Email already sent by PipelineActivityPanel - just log activity
                 setActivities(prev => [{
                   id: `email-${Date.now()}`,

@@ -141,24 +141,18 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
 
   const fetchReviewers = async () => {
     if (!formId) {
-      console.log('[ReviewerManagement] No formId provided, skipping fetch')
       setIsLoading(false)
       return
     }
     setIsLoading(true)
     try {
-      console.log('[ReviewerManagement] Fetching reviewers for form:', formId)
       const form = await goClient.get<Form>(`/forms/${formId}`)
-      console.log('[ReviewerManagement] Full form response:', form)
-      console.log('[ReviewerManagement] Form settings:', form.settings)
-      console.log('[ReviewerManagement] Form settings type:', typeof form.settings)
       
       let settings = form.settings || {}
       // Handle case where settings might be a JSON string
       if (typeof settings === 'string') {
         try {
           settings = JSON.parse(settings)
-          console.log('[ReviewerManagement] Parsed settings from string:', settings)
         } catch (e) {
           console.error('[ReviewerManagement] Failed to parse settings string:', e)
           settings = {}
@@ -170,14 +164,12 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
       if (typeof reviewersData === 'string') {
         try {
           reviewersData = JSON.parse(reviewersData)
-          console.log('[ReviewerManagement] Parsed reviewers from string:', reviewersData)
         } catch (e) {
           console.error('[ReviewerManagement] Failed to parse reviewers string:', e)
           reviewersData = []
         }
       }
       
-      console.log('[ReviewerManagement] Reviewers loaded:', reviewersData.length, reviewersData)
       setReviewers(Array.isArray(reviewersData) ? reviewersData : [])
     } catch (error) {
       console.error('[ReviewerManagement] Failed to fetch reviewers:', error)

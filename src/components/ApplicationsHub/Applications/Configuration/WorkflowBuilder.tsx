@@ -2471,21 +2471,17 @@ function GeneralStageSettings({
       setIsInitialized(true)
       return
     }
-    console.log('Stage settings changed, marking hasChanges=true')
     setHasChanges(true)
   }, [name, description, stageType, stageColor, startDate, endDate, relativeDeadline, customStatuses, customTags]) // Removed isInitialized from deps
 
   // Save function that will be called manually
   const saveStageSettings = useCallback(async () => {
-    console.log('saveStageSettings called - hasChanges:', hasChanges, 'name:', name)
     // Don't save if name is empty
     if (!name.trim()) {
-      console.log('Skipping save: name is empty')
       showToast('Stage name is required', 'error')
       return
     }
     
-    console.log('Saving stage settings...')
     setIsSaving(true)
     try {
       const stageData = {
@@ -2500,9 +2496,7 @@ function GeneralStageSettings({
         custom_tags: customTags.length > 0 ? customTags : undefined,
       }
       
-      console.log('Calling API with:', stageData)
       await workflowsClient.updateStage(stage.id, stageData)
-      console.log('Stage saved successfully')
       setHasChanges(false)
       showToast('Stage settings saved', 'success')
       onSave() // Trigger refresh

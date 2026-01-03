@@ -252,9 +252,7 @@ export function CommunicationsCenter({ workspaceId, formId, workflowId }: Commun
     setIsConnecting(true)
     setSendResult(null)
     try {
-      console.log('Requesting Gmail auth URL for workspace:', workspaceId)
       const { auth_url } = await emailClient.getAuthUrl(workspaceId)
-      console.log('Got auth URL, opening popup...')
       
       // Open OAuth in a popup window
       const width = 600
@@ -280,7 +278,6 @@ export function CommunicationsCenter({ workspaceId, formId, workflowId }: Commun
         }, 500)
       } else {
         // Popup blocked - fall back to redirect
-        console.log('Popup blocked, redirecting...')
         window.location.href = auth_url
       }
     } catch (error: any) {
@@ -408,14 +405,6 @@ export function CommunicationsCenter({ workspaceId, formId, workflowId }: Commun
       // Get selected recipients - we only send their IDs (secure)
       const selectedRecipientsList = getSelectedRecipients()
       const submissionIds = selectedRecipientsList.map(r => r.id)
-      
-      console.log('[CommunicationsCenter] Sending email with:', {
-        formId,
-        submissionIds,
-        emailField: selectedEmailField,
-        recipientCount: submissionIds.length,
-        mergeTags: true,
-      })
       
       const request: SendEmailRequest = {
         form_id: formId || undefined,

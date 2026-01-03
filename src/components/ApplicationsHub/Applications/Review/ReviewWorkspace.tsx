@@ -625,7 +625,6 @@ export function ReviewWorkspace({
     const stageId = metadata.current_stage_id || (currentStages.length > 0 ? currentStages[0].id : '')
     const stage = currentStages.find(s => s.id === stageId)
     
-    console.log('[ReviewWorkspace] App metadata.assigned_reviewers:', metadata.assigned_reviewers)
     
     return {
       id: realtimeApp.id,
@@ -652,7 +651,6 @@ export function ReviewWorkspace({
 
   // Real-time handlers
   const handleRealtimeInsert = useCallback((app: RealtimeApplication) => {
-    console.log('📥 New application received:', app.id)
     const newApp = mapRealtimeToAppData(app)
     
     setApplications(prev => {
@@ -671,7 +669,6 @@ export function ReviewWorkspace({
   }, [mapRealtimeToAppData])
 
   const handleRealtimeUpdate = useCallback((app: RealtimeApplication) => {
-    console.log('📝 Application updated:', app.id)
     const updatedApp = mapRealtimeToAppData(app)
     
     setApplications(prev => {
@@ -698,7 +695,6 @@ export function ReviewWorkspace({
   }, [mapRealtimeToAppData])
 
   const handleRealtimeDelete = useCallback((id: string) => {
-    console.log('🗑️ Application deleted:', id)
     
     setApplications(prev => {
       const deletedApp = prev.find(a => a.id === id)
@@ -747,7 +743,6 @@ export function ReviewWorkspace({
       
       // Log if showing all apps due to no assignments
       if (no_assignments) {
-        console.log('[External Review] No specific assignments for reviewer - showing all applications')
       }
       
       // Set form and workspace info
@@ -974,7 +969,6 @@ export function ReviewWorkspace({
     
     // Build reviewers map from form settings (exclude removed reviewers)
     const formReviewers = (loadedForm.settings as any)?.reviewers || []
-    console.log('[ReviewWorkspace] Form reviewers from settings:', formReviewers)
     const revMap: Record<string, { name: string; email?: string; role?: string }> = {}
     formReviewers.forEach((r: any) => {
       // Skip removed/archived reviewers
@@ -1012,7 +1006,6 @@ export function ReviewWorkspace({
       });
     });
     
-    console.log('[ReviewWorkspace] Built reviewersMap:', revMap)
     setReviewersMap(revMap)
     
     // Set default title field if not already set

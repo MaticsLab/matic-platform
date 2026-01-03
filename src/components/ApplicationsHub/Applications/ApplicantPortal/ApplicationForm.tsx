@@ -473,13 +473,6 @@ export function ApplicationForm({
       })
       
       const progress = Math.round((filledFields.length / requiredFields.length) * 100)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('📊 Progress Calculation:', {
-          requiredFields: requiredFields.length,
-          filledFields: filledFields.length,
-          progress
-        })
-      }
       return progress
     }
     // Simplified progress calculation for static form
@@ -491,9 +484,6 @@ export function ApplicationForm({
     ]
     const filledCount = staticFields.filter(f => f && f !== '').length
     const progress = Math.round((filledCount / staticFields.length) * 100)
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📊 Progress Calculation (static):', { filledCount, total: staticFields.length, progress })
-    }
     return progress
   }, [formData, formDefinition?.fields, isDynamic])
 
