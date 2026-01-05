@@ -1243,14 +1243,16 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         
         {activeTopTab === 'integrate' && (
           <div className="flex-1 overflow-auto bg-gray-50 p-8">
-            <div className="max-w-2xl mx-auto text-center py-16">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileText className="w-8 h-8 text-gray-400" />
+            <div className="max-w-2xl mx-auto py-8">
+              <h3 className="text-lg font-medium text-gray-900 mb-6 text-center">Integration Options</h3>
+              {/* Google Drive Integration Panel */}
+              <div className="mb-8">
+                <GoogleDriveIntegration workspaceId={workspaceId || ''} />
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Integration Options</h3>
-              <p className="text-gray-500 text-sm">
+              {/* Future integrations can be added below */}
+              <div className="text-center text-gray-500 text-sm mt-8">
                 Coming soon: Embed codes, API access, and webhook integrations.
-              </p>
+              </div>
             </div>
           </div>
         )}
