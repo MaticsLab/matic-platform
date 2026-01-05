@@ -1314,22 +1314,48 @@ export function ApplicationDetail({
               {/* Status */}
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Status</span>
-                <button 
-                  onClick={() => {
-                    const currentStage = stages.find(s => s.id === application.stageId);
-                    if (currentStage) {
-                      const nextStageIndex = stages.findIndex(s => s.id === currentStage.id) + 1;
-                      if (nextStageIndex < stages.length) {
-                        onStatusChange?.(application.id, stages[nextStageIndex].name as ApplicationStatus);
-                      }
-                    }
-                  }}
-                  className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-200 transition-colors"
-                >
-                  <Play className="w-3.5 h-3.5" />
-                  {application.stageName?.toUpperCase() || application.status?.toUpperCase() || 'SUBMITTED'}
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                </button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button 
+                      className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-200 transition-colors"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      {application.stageName?.toUpperCase() || application.status?.toUpperCase() || 'SUBMITTED'}
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56 p-2" align="end">
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-gray-500 px-2 pb-1">Change Status</p>
+                      {stages.map((stage) => {
+                        const isCurrentStage = stage.id === application.stageId || stage.name === application.stageName;
+                        return (
+                          <button
+                            key={stage.id}
+                            onClick={() => {
+                              if (!isCurrentStage) {
+                                onStatusChange?.(application.id, stage.name as ApplicationStatus);
+                              }
+                            }}
+                            className={cn(
+                              "w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors",
+                              isCurrentStage 
+                                ? "bg-green-100 text-green-700 font-medium" 
+                                : "hover:bg-gray-100 text-gray-700"
+                            )}
+                          >
+                            <div 
+                              className="w-2 h-2 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: stage.color || '#6B7280' }}
+                            />
+                            <span className="flex-1 truncate">{stage.name}</span>
+                            {isCurrentStage && <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Assignees - Only show if data exists */}
