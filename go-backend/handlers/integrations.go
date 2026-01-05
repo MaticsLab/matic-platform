@@ -51,7 +51,7 @@ func InitGoogleDriveService() {
 
 // ListWorkspaceIntegrations - GET /api/v1/workspaces/:workspace_id/integrations
 func ListWorkspaceIntegrations(c *gin.Context) {
-	workspaceID := c.Param("workspace_id")
+	workspaceID := c.Param("id")
 
 	var integrations []models.WorkspaceIntegration
 	if err := database.DB.Where("workspace_id = ?", workspaceID).Find(&integrations).Error; err != nil {
@@ -64,7 +64,7 @@ func ListWorkspaceIntegrations(c *gin.Context) {
 
 // GetWorkspaceIntegration - GET /api/v1/workspaces/:workspace_id/integrations/:type
 func GetWorkspaceIntegration(c *gin.Context) {
-	workspaceID := c.Param("workspace_id")
+	workspaceID := c.Param("id")
 	integrationType := c.Param("type")
 
 	var integration models.WorkspaceIntegration
@@ -78,7 +78,7 @@ func GetWorkspaceIntegration(c *gin.Context) {
 
 // CreateWorkspaceIntegration - POST /api/v1/workspaces/:workspace_id/integrations
 func CreateWorkspaceIntegration(c *gin.Context) {
-	workspaceID, err := uuid.Parse(c.Param("workspace_id"))
+	workspaceID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace ID"})
 		return
@@ -117,7 +117,7 @@ func CreateWorkspaceIntegration(c *gin.Context) {
 
 // UpdateWorkspaceIntegration - PATCH /api/v1/workspaces/:workspace_id/integrations/:type
 func UpdateWorkspaceIntegration(c *gin.Context) {
-	workspaceID := c.Param("workspace_id")
+	workspaceID := c.Param("id")
 	integrationType := c.Param("type")
 
 	var integration models.WorkspaceIntegration
@@ -152,7 +152,7 @@ func UpdateWorkspaceIntegration(c *gin.Context) {
 
 // DeleteWorkspaceIntegration - DELETE /api/v1/workspaces/:workspace_id/integrations/:type
 func DeleteWorkspaceIntegration(c *gin.Context) {
-	workspaceID := c.Param("workspace_id")
+	workspaceID := c.Param("id")
 	integrationType := c.Param("type")
 
 	result := database.DB.Where("workspace_id = ? AND integration_type = ?", workspaceID, integrationType).Delete(&models.WorkspaceIntegration{})
@@ -178,7 +178,7 @@ func GetGoogleDriveAuthURL(c *gin.Context) {
 		return
 	}
 
-	workspaceID := c.Param("workspace_id")
+	workspaceID := c.Param("id")
 	state := workspaceID // Use workspace ID as state for callback
 
 	authURL := googleDriveService.GetAuthURL(state)
@@ -259,7 +259,7 @@ func GoogleDriveCallback(c *gin.Context) {
 
 // DisconnectGoogleDrive - POST /api/v1/workspaces/:workspace_id/integrations/google_drive/disconnect
 func DisconnectGoogleDrive(c *gin.Context) {
-	workspaceID := c.Param("workspace_id")
+	workspaceID := c.Param("id")
 
 	var integration models.WorkspaceIntegration
 	if err := database.DB.Where("workspace_id = ? AND integration_type = ?", workspaceID, "google_drive").First(&integration).Error; err != nil {

@@ -298,15 +298,15 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				workspaces.DELETE("/:id", handlers.DeleteWorkspace)
 
 				// Workspace Integrations (Google Drive, etc.)
-				workspaces.GET("/:workspace_id/integrations", handlers.ListWorkspaceIntegrations)
-				workspaces.POST("/:workspace_id/integrations", handlers.CreateWorkspaceIntegration)
-				workspaces.GET("/:workspace_id/integrations/:type", handlers.GetWorkspaceIntegration)
-				workspaces.PATCH("/:workspace_id/integrations/:type", handlers.UpdateWorkspaceIntegration)
-				workspaces.DELETE("/:workspace_id/integrations/:type", handlers.DeleteWorkspaceIntegration)
+				workspaces.GET("/:id/integrations", handlers.ListWorkspaceIntegrations)
+				workspaces.POST("/:id/integrations", handlers.CreateWorkspaceIntegration)
+				workspaces.GET("/:id/integrations/:type", handlers.GetWorkspaceIntegration)
+				workspaces.PATCH("/:id/integrations/:type", handlers.UpdateWorkspaceIntegration)
+				workspaces.DELETE("/:id/integrations/:type", handlers.DeleteWorkspaceIntegration)
 
 				// Google Drive OAuth
-				workspaces.GET("/:workspace_id/integrations/google_drive/auth-url", handlers.GetGoogleDriveAuthURL)
-				workspaces.POST("/:workspace_id/integrations/google_drive/disconnect", handlers.DisconnectGoogleDrive)
+				workspaces.GET("/:id/integrations/google_drive/auth-url", handlers.GetGoogleDriveAuthURL)
+				workspaces.POST("/:id/integrations/google_drive/disconnect", handlers.DisconnectGoogleDrive)
 			}
 
 			// Workspace Members

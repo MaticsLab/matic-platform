@@ -152,12 +152,27 @@ export const recommendationsClient = {
   },
 
   // Public endpoints (no auth required - for recommenders)
+  // These use plain fetch instead of goFetch to avoid auth dependencies
+  // since recommenders are external users without accounts
   
   /**
    * Get recommendation request by token (public endpoint for recommenders)
    */
-  getByToken: (token: string) =>
-    goFetch<RecommendationByTokenResponse>(`/recommend/${token}`),
+  getByToken: async (token: string): Promise<RecommendationByTokenResponse> => {
+    const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
+    
+    const response = await fetch(`${API_BASE}/recommend/${token}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to load recommendation request' }))
+      throw new Error(error.error || 'Failed to load recommendation request')
+    }
+    
+    return response.json()
+  },
 
   /**
    * Submit a recommendation (public endpoint for recommenders)
@@ -185,11 +200,19 @@ export const recommendationsClient = {
       return response.json()
     }
     
-    // Regular JSON submission (no file)
-    return goFetch<{ message: string; request: RecommendationRequest }>(`/recommend/${token}/submit`, {
+    // Regular JSON submission (no file) - also use plain fetch for public endpoint
+    const response = await fetch(`${API_BASE}/recommend/${token}/submit`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     })
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to submit recommendation' }))
+      throw new Error(error.error || 'Failed to submit recommendation')
+    }
+    
+    return response.json()
   },
 }
 
