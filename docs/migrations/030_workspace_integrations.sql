@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS workspace_integrations (
     -- Audit fields
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
-    created_by UUID REFERENCES users(id),
+    created_by TEXT REFERENCES ba_users(id),
     
     -- Only one integration per type per workspace
     UNIQUE(workspace_id, integration_type)
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS form_integration_settings (
 CREATE TABLE IF NOT EXISTS applicant_folders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     form_integration_id UUID NOT NULL REFERENCES form_integration_settings(id) ON DELETE CASCADE,
-    row_id UUID NOT NULL REFERENCES rows(id) ON DELETE CASCADE,
+    row_id UUID NOT NULL REFERENCES table_rows(id) ON DELETE CASCADE,
     
     -- Applicant identifier (email or name used for folder naming)
     applicant_identifier TEXT NOT NULL,
