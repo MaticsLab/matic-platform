@@ -1,22 +1,24 @@
 package main
 
+import (
 	"fmt"
 	"log"
 	"os"
 
 	"github.com/Jsanchez767/matic-platform/database"
 	"github.com/Jsanchez767/matic-platform/models"
+)
 
 func main() {
-		// Initialize DB connection
-		dbURL := os.Getenv("DATABASE_URL")
-		if dbURL == "" {
-			log.Fatal("DATABASE_URL environment variable is required")
-		}
-		if err := database.InitDB(dbURL); err != nil {
-			log.Fatalf("Failed to connect to database: %v", err)
-		}
-		db := database.DB
+	// Initialize DB connection
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		log.Fatal("DATABASE_URL environment variable is required")
+	}
+	if err := database.InitDB(dbURL); err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	db := database.DB
 
 	var applicants []models.PortalApplicant
 	db.Find(&applicants)
