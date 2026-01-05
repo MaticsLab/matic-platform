@@ -297,7 +297,11 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
         })
       })
       
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.error || errorData.message || `Submission failed (HTTP ${response.status})`
+        throw new Error(errorMessage)
+      }
       const savedRow = await response.json()
       
       // Store the submission ID for features like letters of recommendation

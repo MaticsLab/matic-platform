@@ -16,6 +16,7 @@ import (
 	"github.com/Jsanchez767/matic-platform/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // Form Handlers
@@ -1309,14 +1310,28 @@ func SubmitForm(c *gin.Context) {
 			}
 
 			// Update portal_applicants.submission_data if this is a portal submission
+			// Search using multiple possible form_ids (table_id and all view_ids) like login does
 			if email != "" {
-				if err := tx.Exec(`
+				// Build list of all possible form_ids (table_id + all view_ids for this table)
+				var allViews []models.View
+				database.DB.Where("table_id = ? AND type = ?", formID, "form").Find(&allViews)
+				formIDs := []uuid.UUID{parsedFormID} // Include table_id itself
+				for _, v := range allViews {
+					formIDs = append(formIDs, v.ID)
+				}
+
+				result := tx.Exec(`
 					UPDATE portal_applicants 
-					SET submission_data = $1, updated_at = NOW()
-					WHERE form_id = $2 AND email = $3
-				`, mapToJSON(data), view.ID, email).Error; err != nil {
-					// Log error but don't fail the transaction - this is optional
-					c.Error(err)
+					SET submission_data = $1, row_id = $2, updated_at = NOW()
+					WHERE form_id = ANY($3) AND email = $4
+				`, mapToJSON(data), existingRow.ID, pq.Array(formIDs), email)
+				if result.Error != nil {
+					fmt.Printf("⚠️ SubmitForm: failed to update portal_applicants for email=%s: %v\n", email, result.Error)
+					c.Error(result.Error)
+				} else if result.RowsAffected == 0 {
+					fmt.Printf("⚠️ SubmitForm: no portal_applicant found for email=%s with form_ids=%v\n", email, formIDs)
+				} else {
+					fmt.Printf("✅ SubmitForm: updated portal_applicants for email=%s\n", email)
 				}
 			}
 
@@ -1419,15 +1434,29 @@ func SubmitForm(c *gin.Context) {
 		return
 	}
 
-	// Update portal_applicants.submission_data if this is a portal submission
+	// Update portal_applicants.submission_data and row_id if this is a portal submission
+	// Search using multiple possible form_ids (table_id and all view_ids) like login does
 	if email != "" {
-		if err := tx.Exec(`
+		// Build list of all possible form_ids (table_id + all view_ids for this table)
+		var allViews []models.View
+		database.DB.Where("table_id = ? AND type = ?", formID, "form").Find(&allViews)
+		formIDs := []uuid.UUID{parsedFormID} // Include table_id itself
+		for _, v := range allViews {
+			formIDs = append(formIDs, v.ID)
+		}
+
+		result := tx.Exec(`
 			UPDATE portal_applicants 
-			SET submission_data = $1, updated_at = NOW()
-			WHERE form_id = $2 AND email = $3
-		`, mapToJSON(data), view.ID, email).Error; err != nil {
-			// Log error but don't fail the transaction - this is optional
-			c.Error(err)
+			SET submission_data = $1, row_id = $2, updated_at = NOW()
+			WHERE form_id = ANY($3) AND email = $4
+		`, mapToJSON(data), row.ID, pq.Array(formIDs), email)
+		if result.Error != nil {
+			fmt.Printf("⚠️ SubmitForm: failed to update portal_applicants for email=%s: %v\n", email, result.Error)
+			c.Error(result.Error)
+		} else if result.RowsAffected == 0 {
+			fmt.Printf("⚠️ SubmitForm: no portal_applicant found for email=%s with form_ids=%v\n", email, formIDs)
+		} else {
+			fmt.Printf("✅ SubmitForm: updated portal_applicants row_id for email=%s\n", email)
 		}
 	}
 

@@ -216,11 +216,34 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.POST("/forms/:id/submit", handlers.SubmitForm)
 		api.GET("/forms/:id/submission", handlers.GetFormSubmission)
 
-		// Portal Authentication Routes (Public)
+		// Portal Authentication Routes (Public) - Legacy
 		api.POST("/portal/signup", handlers.PortalSignup)
 		api.POST("/portal/login", handlers.PortalLogin)
 		api.POST("/portal/request-reset", handlers.PortalRequestReset)
 		api.POST("/portal/reset-password", handlers.PortalResetPassword)
+
+		// Portal Authentication V2 Routes (Better Auth based)
+		api.POST("/portal/v2/signup", handlers.PortalSignupV2)
+		api.POST("/portal/v2/login", handlers.PortalLoginV2)
+		api.POST("/portal/v2/logout", handlers.PortalLogoutV2)
+		api.GET("/portal/v2/me", handlers.PortalAuthMiddlewareV2(), handlers.PortalGetMeV2)
+		api.GET("/portal/v2/submissions", handlers.PortalAuthMiddlewareV2(), handlers.GetApplicantSubmissions)
+
+		// Application Submissions Routes (Better Auth protected)
+		submissions := api.Group("/submissions")
+		submissions.Use(handlers.PortalAuthMiddlewareV2())
+		{
+			submissions.GET("", handlers.ListUserSubmissions)
+			submissions.GET("/:id", handlers.GetSubmission)
+			submissions.PUT("/:id", handlers.ManualSaveSubmission)
+			submissions.POST("/:id/autosave", handlers.AutosaveSubmission)
+			submissions.POST("/:id/submit", handlers.SubmitApplication)
+			submissions.GET("/:id/versions", handlers.GetSubmissionVersions)
+			submissions.POST("/:id/restore/:version", handlers.RestoreSubmissionVersion)
+		}
+
+		// Start submission (also protected)
+		api.POST("/forms/:id/start", handlers.PortalAuthMiddlewareV2(), handlers.GetOrStartSubmission)
 
 		// Portal Dashboard Routes (Public with Portal Token)
 		// Note: These routes use portal auth (applicant token) not main auth

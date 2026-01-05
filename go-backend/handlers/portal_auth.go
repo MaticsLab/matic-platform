@@ -162,32 +162,15 @@ func PortalLogin(c *gin.Context) {
 	var rowID *string
 	var status string = "draft" // Default to draft until we find a submitted row
 
-	// Resolve the actual table_id from the view
-	// applicant.FormID could be a view_id, so we need to look up the table_id
-	tableID := applicant.FormID
-	var view models.View
-	if err := database.DB.Where("id = ?", applicant.FormID).First(&view).Error; err == nil {
-		// Found a view, use its table_id
-		tableID = view.TableID
-	}
+	// First check if we have a stored row_id in the applicant record
+	if applicant.RowID != nil {
+		rowIDStr := applicant.RowID.String()
+		rowID = &rowIDStr
 
-	// Try to find the submission row by email
-	var row models.Row
-	queries := []string{
-		"table_id = ? AND data->>'_applicant_email' = ?",
-		"table_id = ? AND data->'personal'->>'personalEmail' = ?",
-		"table_id = ? AND data->>'email' = ?",
-	}
-
-	for _, query := range queries {
-		if err := database.DB.Where(query, tableID, applicant.Email).First(&row).Error; err == nil {
-			rowIDStr := row.ID.String()
-			rowID = &rowIDStr
-
-			// If we found a row, default to submitted (they've submitted at least once)
-			status = "submitted"
-
-			// Get status from metadata if available (could be under_review, approved, revision_requested, etc.)
+		// Try to get status from the actual row
+		var row models.Row
+		if err := database.DB.Where("id = ?", applicant.RowID).First(&row).Error; err == nil {
+			status = "submitted" // Default if row exists
 			if row.Metadata != nil {
 				var metadata map[string]interface{}
 				if err := json.Unmarshal(row.Metadata, &metadata); err == nil {
@@ -196,7 +179,48 @@ func PortalLogin(c *gin.Context) {
 					}
 				}
 			}
-			break
+		}
+	} else {
+		// Fallback: Resolve the actual table_id from the view and search for row by email
+		// applicant.FormID could be a view_id, so we need to look up the table_id
+		tableID := applicant.FormID
+		var view models.View
+		if err := database.DB.Where("id = ?", applicant.FormID).First(&view).Error; err == nil {
+			// Found a view, use its table_id
+			tableID = view.TableID
+		}
+
+		// Try to find the submission row by email
+		var row models.Row
+		queries := []string{
+			"table_id = ? AND data->>'_applicant_email' = ?",
+			"table_id = ? AND data->'personal'->>'personalEmail' = ?",
+			"table_id = ? AND data->>'email' = ?",
+		}
+
+		for _, query := range queries {
+			if err := database.DB.Where(query, tableID, applicant.Email).First(&row).Error; err == nil {
+				rowIDStr := row.ID.String()
+				rowID = &rowIDStr
+
+				// Update the applicant's row_id for faster lookups next time
+				applicant.RowID = &row.ID
+				database.DB.Save(&applicant)
+
+				// If we found a row, default to submitted (they've submitted at least once)
+				status = "submitted"
+
+				// Get status from metadata if available (could be under_review, approved, revision_requested, etc.)
+				if row.Metadata != nil {
+					var metadata map[string]interface{}
+					if err := json.Unmarshal(row.Metadata, &metadata); err == nil {
+						if s, ok := metadata["status"].(string); ok && s != "" {
+							status = s
+						}
+					}
+				}
+				break
+			}
 		}
 	}
 

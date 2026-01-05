@@ -465,6 +465,7 @@ type PortalApplicant struct {
 	PasswordHash     string         `gorm:"not null" json:"-"` // Never expose password hash in JSON
 	FullName         string         `json:"full_name,omitempty"`
 	SubmissionData   datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"submission_data,omitempty"`
+	RowID            *uuid.UUID     `gorm:"type:uuid;index" json:"row_id,omitempty"` // Links to the table_rows submission
 	ResetToken       *string        `gorm:"uniqueIndex" json:"-"`
 	ResetTokenExpiry *time.Time     `json:"-"`
 	LastLoginAt      *time.Time     `json:"last_login_at,omitempty"`

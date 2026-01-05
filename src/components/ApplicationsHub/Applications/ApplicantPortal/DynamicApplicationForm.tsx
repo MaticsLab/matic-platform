@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Check, LayoutDashboard, Save, Printer, Send, CheckCircle, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, LayoutDashboard, Save, Printer, Send, CheckCircle, AlertTriangle, Cloud, CloudOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/ui-components/card'
@@ -16,6 +16,8 @@ import { applyTranslationsToConfig, normalizeTranslations, getUITranslations } f
 import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector'
 import { generateHTML } from '@tiptap/html'
 import StarterKit from '@tiptap/starter-kit'
+import { useOptimisticAutosave } from '@/hooks/useOptimisticAutosave'
+import { submissionsClient } from '@/lib/api/submissions-client'
 
 /**
  * Recursively strips blob URLs from form data before saving.
@@ -64,9 +66,27 @@ interface DynamicApplicationFormProps {
   initialSectionId?: string
   initialData?: Record<string, any>
   email?: string // Email for autosave
+  // New optimistic autosave props
+  submissionId?: string // If provided, uses new optimistic autosave
+  initialVersion?: number // Version for optimistic locking
+  useOptimisticSave?: boolean // Enable new autosave system
 }
 
-export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataChange, onDashboard, isExternal = false, formId, initialSectionId, initialData, email }: DynamicApplicationFormProps) {
+export function DynamicApplicationForm({ 
+  config, 
+  onBack, 
+  onSubmit, 
+  onFormDataChange, 
+  onDashboard, 
+  isExternal = false, 
+  formId, 
+  initialSectionId, 
+  initialData, 
+  email,
+  submissionId,
+  initialVersion = 1,
+  useOptimisticSave = false,
+}: DynamicApplicationFormProps) {
   const defaultLanguage = config.settings.language?.default || 'en'
   const supportedLanguages = Array.from(new Set([defaultLanguage, ...(config.settings.language?.supported || [])])).filter(lang => lang && lang.trim() !== '')
   const [activeLanguage, setActiveLanguage] = useState<string>(defaultLanguage)
@@ -206,12 +226,45 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
   }, [config, activeLanguage])
 
   const [activeSectionId, setActiveSectionId] = useState<string>(initialSectionId || translatedConfig.sections?.[0]?.id || '')
-  const [formData, setFormData] = useState<Record<string, any>>(initialData || {})
+  const [legacyFormData, setLegacyFormData] = useState<Record<string, any>>(initialData || {})
   const [isSaving, setIsSaving] = useState(false)
   const [isAutosaving, setIsAutosaving] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [agreedToAccuracy, setAgreedToAccuracy] = useState(false)
   const [lastSavedData, setLastSavedData] = useState<string>('')
+  
+  // Optimistic autosave hook (when enabled)
+  const optimisticAutosave = useOptimisticAutosave({
+    submissionId: submissionId || '',
+    initialData: initialData || {},
+    initialVersion: initialVersion,
+    debounceMs: 2000,
+    enabled: useOptimisticSave && !!submissionId,
+    onConflict: (serverData, serverVersion) => {
+      console.log('Conflict detected, server version:', serverVersion)
+    },
+  })
+  
+  // Use optimistic autosave data when enabled, otherwise use legacy state
+  const formData = useOptimisticSave && submissionId ? optimisticAutosave.formData : legacyFormData
+  const setFormData = useOptimisticSave && submissionId 
+    ? (updater: Record<string, any> | ((prev: Record<string, any>) => Record<string, any>)) => {
+        if (typeof updater === 'function') {
+          const newData = updater(optimisticAutosave.formData)
+          const changes = Object.keys(newData).reduce((acc, key) => {
+            if (JSON.stringify(newData[key]) !== JSON.stringify(optimisticAutosave.formData[key])) {
+              acc[key] = newData[key]
+            }
+            return acc
+          }, {} as Record<string, any>)
+          if (Object.keys(changes).length > 0) {
+            optimisticAutosave.handleBatchChange(changes)
+          }
+        } else {
+          optimisticAutosave.handleBatchChange(updater)
+        }
+      }
+    : setLegacyFormData
   
   // Refs for autosave to avoid stale closures
   const formDataRef = useRef(formData)
@@ -295,8 +348,10 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
     }
   }, [formId, email])
   
-  // Debounced autosave - triggers 3 seconds after last change
+  // Debounced autosave - triggers 3 seconds after last change (legacy mode only)
   useEffect(() => {
+    // Skip if using optimistic autosave
+    if (useOptimisticSave && submissionId) return
     if (!formId || !email) return
     
     const timer = setTimeout(() => {
@@ -304,7 +359,7 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
     }, 3000) // 3 second debounce
     
     return () => clearTimeout(timer)
-  }, [formData, formId, email, autosave])
+  }, [legacyFormData, formId, email, autosave, useOptimisticSave, submissionId])
 
   const activeSectionIndex = Math.max(
     0,
@@ -312,8 +367,17 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
   )
   const activeSection = translatedConfig.sections?.[activeSectionIndex]
 
+  // Combined autosave state for UI
+  const isAutoSaving = useOptimisticSave && submissionId ? optimisticAutosave.isSaving : isAutosaving
+  const lastSavedTime = useOptimisticSave && submissionId ? optimisticAutosave.lastSavedAt : null
+  const hasPendingChanges = useOptimisticSave && submissionId ? optimisticAutosave.hasPendingChanges : false
+
   const handleFieldChange = (fieldId: string, value: any) => {
-    setFormData(prev => ({ ...prev, [fieldId]: value }))
+    if (useOptimisticSave && submissionId) {
+      optimisticAutosave.handleFieldChange(fieldId, value)
+    } else {
+      setLegacyFormData(prev => ({ ...prev, [fieldId]: value }))
+    }
   }
 
   const handleNext = () => {
