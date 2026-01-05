@@ -244,6 +244,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.GET("/email/track/:tracking_id", handlers.TrackEmailOpen)
 		api.GET("/email/oauth/callback", handlers.HandleGmailCallback)
 
+		// Google Drive OAuth Callback (must be public for OAuth flow)
+		api.GET("/integrations/google_drive/callback", handlers.GoogleDriveCallback)
+
 		// Public Resend Webhook (must be public for Resend to send events)
 		api.POST("/email/resend/webhook", handlers.HandleResendWebhook)
 
@@ -293,6 +296,17 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				workspaces.GET("/:id", handlers.GetWorkspace)
 				workspaces.PATCH("/:id", handlers.UpdateWorkspace)
 				workspaces.DELETE("/:id", handlers.DeleteWorkspace)
+
+				// Workspace Integrations (Google Drive, etc.)
+				workspaces.GET("/:workspace_id/integrations", handlers.ListWorkspaceIntegrations)
+				workspaces.POST("/:workspace_id/integrations", handlers.CreateWorkspaceIntegration)
+				workspaces.GET("/:workspace_id/integrations/:type", handlers.GetWorkspaceIntegration)
+				workspaces.PATCH("/:workspace_id/integrations/:type", handlers.UpdateWorkspaceIntegration)
+				workspaces.DELETE("/:workspace_id/integrations/:type", handlers.DeleteWorkspaceIntegration)
+
+				// Google Drive OAuth
+				workspaces.GET("/:workspace_id/integrations/google_drive/auth-url", handlers.GetGoogleDriveAuthURL)
+				workspaces.POST("/:workspace_id/integrations/google_drive/disconnect", handlers.DisconnectGoogleDrive)
 			}
 
 			// Workspace Members
@@ -423,6 +437,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			protected.POST("/rows/:row_id/files", handlers.CreateRowFile)
 			protected.GET("/rows/:row_id/files/stats", handlers.GetFileStats)
 
+			// Row Google Drive Integration
+			protected.POST("/rows/:row_id/integrations/google_drive/folder", handlers.CreateApplicantFolder)
+			protected.POST("/rows/:row_id/integrations/google_drive/sync-file", handlers.SyncFileToDrive)
+			protected.POST("/rows/:row_id/integrations/google_drive/sync-all", handlers.SyncAllFilesToDrive)
+			protected.POST("/rows/:row_id/integrations/google_drive/summary", handlers.CreateApplicationSummary)
+
 			// Table files (convenience endpoint)
 			protected.GET("/tables/:id/files", handlers.GetTableFiles)
 
@@ -479,6 +499,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 				// Form search
 				forms.GET("/:id/search", handlers.SearchFormSubmissions)
+
+				// Form Google Drive Integration
+				forms.GET("/:id/integrations/google_drive", handlers.GetFormIntegrationSettings)
+				forms.PATCH("/:id/integrations/google_drive", handlers.UpdateFormIntegrationSettings)
+				forms.POST("/:id/integrations/google_drive/folder", handlers.CreateFormFolder)
 
 				// Reviewer Assignment
 				forms.POST("/:id/reviewers/:reviewer_id/assign", handlers.AssignReviewerApplications)

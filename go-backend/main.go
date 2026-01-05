@@ -48,6 +48,9 @@ func main() {
 		log.Println("⚠️  COHERE_API_KEY not set - AI features disabled")
 	}
 
+	// Initialize Google Drive service
+	handlers.InitGoogleDriveService()
+
 	// Initialize email queue worker
 	emailRouter := services.NewEmailRouter()
 	emailQueueWorker := services.NewEmailQueueWorker(emailRouter)
