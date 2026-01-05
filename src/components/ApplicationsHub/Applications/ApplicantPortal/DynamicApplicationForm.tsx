@@ -98,14 +98,30 @@ export function DynamicApplicationForm({ config, onBack, onSubmit, onFormDataCha
       
       // Handle array of objects (repeaters/groups)
       if (typeof value[0] === 'object' && value[0] !== null) {
+        // Get child fields from the repeater/group field to look up labels
+        const childFields = field?.children || field?.config?.children || []
+        
+        // Helper to get label for a field ID
+        const getChildFieldLabel = (fieldId: string): string => {
+          const childField = childFields.find((cf: Field) => cf.id === fieldId)
+          if (childField) {
+            return typeof childField.label === 'string' ? childField.label : String(childField.label || fieldId)
+          }
+          // Fallback: clean up the field ID for display
+          return fieldId.replace(/^Field-\d+-[A-Za-z0-9]+$/, 'Field').replace(/_/g, ' ')
+        }
+        
         return (
           <div className="space-y-3">
             {value.map((item, idx) => (
               <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <div className="text-xs font-medium text-gray-500 mb-2">Entry {idx + 1}</div>
                 <div className="space-y-1.5">
-                  {Object.entries(item).map(([k, v]) => (
+                  {Object.entries(item)
+                    .filter(([k]) => k !== 'id') // Filter out the internal id field
+                    .map(([k, v]) => (
                     <div key={k} className="flex gap-2 text-sm">
-                      <span className="text-gray-500 capitalize min-w-[120px]">{k.replace(/_/g, ' ')}:</span>
+                      <span className="text-gray-500 min-w-[120px]">{getChildFieldLabel(k)}:</span>
                       <span className="text-gray-900 flex-1">{v ? String(v) : <span className="text-gray-400 italic">-</span>}</span>
                     </div>
                   ))}

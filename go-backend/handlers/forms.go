@@ -934,7 +934,7 @@ func ListFormSubmissions(c *gin.Context) {
 			limit = parsedLimit
 		}
 	}
-	
+
 	offset := 0
 	if offsetParam := c.Query("offset"); offsetParam != "" {
 		if parsedOffset, err := strconv.Atoi(offsetParam); err == nil && parsedOffset >= 0 {
@@ -944,10 +944,10 @@ func ListFormSubmissions(c *gin.Context) {
 
 	var rows []models.Row
 	query := database.DB.Where("table_id = ?", tableID).Order("created_at DESC")
-	
+
 	// Apply pagination
 	query = query.Offset(offset).Limit(limit)
-	
+
 	if err := query.Find(&rows).Error; err != nil {
 		fmt.Printf("Error fetching submissions: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -1121,17 +1121,6 @@ func SubmitForm(c *gin.Context) {
 		if err == nil && time.Now().After(deadlineTime) {
 			fmt.Printf("🛑 SubmitForm: application %s deadline has passed (%s), rejecting submission\n", formID, deadline)
 			c.JSON(http.StatusForbidden, gin.H{"error": "The application deadline has passed"})
-			return
-		}
-	}
-
-	// Check max submissions limit (only for new submissions, not updates)
-	if maxSubs, ok := tableSettings["maxSubmissions"].(float64); ok && maxSubs > 0 {
-		var currentCount int64
-		database.DB.Model(&models.Row{}).Where("table_id = ?", formID).Count(&currentCount)
-		if currentCount >= int64(maxSubs) {
-			fmt.Printf("🛑 SubmitForm: application %s has reached max submissions (%d/%d), rejecting\n", formID, currentCount, int(maxSubs))
-			c.JSON(http.StatusForbidden, gin.H{"error": "Maximum number of submissions has been reached"})
 			return
 		}
 	}
@@ -1357,6 +1346,18 @@ func SubmitForm(c *gin.Context) {
 		}
 
 		fmt.Printf("📝 SubmitForm: No existing row found for email=%s, will create new\n", email)
+	}
+
+	// Check max submissions limit ONLY for new submissions (not updates)
+	// This is checked here (after existing submission check) so users can update their own submissions
+	if maxSubs, ok := tableSettings["maxSubmissions"].(float64); ok && maxSubs > 0 {
+		var currentCount int64
+		database.DB.Model(&models.Row{}).Where("table_id = ?", formID).Count(&currentCount)
+		if currentCount >= int64(maxSubs) {
+			fmt.Printf("🛑 SubmitForm: application %s has reached max submissions (%d/%d), rejecting NEW submission\n", formID, currentCount, int(maxSubs))
+			c.JSON(http.StatusForbidden, gin.H{"error": "Maximum number of submissions has been reached"})
+			return
+		}
 	}
 
 	fmt.Printf("📝 SubmitForm: Creating NEW row for form %s (email=%s, save_draft=%v)\n", formID, email, input.SaveDraft)
