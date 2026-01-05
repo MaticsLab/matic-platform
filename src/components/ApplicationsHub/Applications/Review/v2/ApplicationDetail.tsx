@@ -794,6 +794,64 @@ export function ApplicationDetail({
     }
   };
 
+  // Create a field map for looking up field labels by ID
+  const fieldMap = useMemo(() => {
+    const map = new Map<string, any>();
+    fields.forEach(f => {
+      const fieldId = f.id || (f as any).field_id;
+      const fieldLabel = f.label || (f as any).name;
+      
+      if (fieldId) {
+        map.set(fieldId, f);
+        if (!fieldId.startsWith('Field-')) {
+          map.set(`Field-${fieldId}`, f);
+        }
+        if (fieldId.startsWith('Field-')) {
+          map.set(fieldId.replace(/^Field-/, ''), f);
+        }
+      }
+      if (fieldLabel) {
+        map.set(fieldLabel, f);
+        map.set(fieldLabel.toLowerCase().replace(/\s+/g, '_'), f);
+        map.set(fieldLabel.replace(/\s+/g, '_'), f);
+      }
+      // Map child fields for repeater/group fields
+      const children = (f as any).children || (f as any).child_fields || [];
+      if (Array.isArray(children)) {
+        children.forEach((child: any) => {
+          const childId = child.id || child.field_id;
+          const childLabel = child.label || child.name;
+          
+          if (childId) {
+            map.set(childId, child);
+            if (!childId.startsWith('Field-')) {
+              map.set(`Field-${childId}`, child);
+            }
+            if (childId.startsWith('Field-')) {
+              map.set(childId.replace(/^Field-/, ''), child);
+            }
+          }
+          if (childLabel) {
+            map.set(childLabel, child);
+            map.set(childLabel.toLowerCase().replace(/\s+/g, '_'), child);
+            map.set(childLabel.replace(/\s+/g, '_'), child);
+          }
+        });
+      }
+    });
+    return map;
+  }, [fields]);
+
+  // Helper to get field label from field_id
+  const getFieldLabel = (fieldId?: string): string | null => {
+    if (!fieldId) return null;
+    const field = fieldMap.get(fieldId);
+    if (field) {
+      return field.label || field.name || null;
+    }
+    return null;
+  };
+
   // Group fields by section
   const fieldSections = useMemo(() => {
     if (!fields || fields.length === 0) return [];
@@ -1614,6 +1672,7 @@ export function ApplicationDetail({
                     {storageFiles.map((file) => {
                       const fileUrl = file.public_url || file.storage_path;
                       const fileName = file.filename || file.original_filename || file.storage_path?.split('/').pop() || 'Document';
+                      const fieldLabel = getFieldLabel(file.field_id);
                       
                       return (
                         <div key={file.id} className="border border-gray-200 rounded-lg p-3 bg-white">
@@ -1624,6 +1683,8 @@ export function ApplicationDetail({
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-gray-900 truncate">{fileName}</p>
                               <p className="text-xs text-gray-500">
+                                {fieldLabel && <span className="text-blue-600 font-medium">{fieldLabel}</span>}
+                                {fieldLabel && (file.mime_type || file.size_bytes) && ' • '}
                                 {file.mime_type} {file.size_bytes && `• ${formatFileSize(file.size_bytes)}`}
                               </p>
                             </div>
@@ -1791,6 +1852,7 @@ export function ApplicationDetail({
                   {storageFiles.map((file) => {
                     const fileUrl = file.public_url || file.storage_path;
                     const fileName = file.filename || file.original_filename || file.storage_path?.split('/').pop() || 'Document';
+                    const fieldLabel = getFieldLabel(file.field_id);
                     
                     return (
                       <div key={file.id} className="border border-gray-200 rounded-lg p-3 bg-white">
@@ -1801,6 +1863,8 @@ export function ApplicationDetail({
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">{fileName}</p>
                             <p className="text-xs text-gray-500">
+                              {fieldLabel && <span className="text-blue-600 font-medium">{fieldLabel}</span>}
+                              {fieldLabel && (file.mime_type || file.size_bytes) && ' • '}
                               {file.mime_type} {file.size_bytes && `• ${formatFileSize(file.size_bytes)}`}
                             </p>
                           </div>
