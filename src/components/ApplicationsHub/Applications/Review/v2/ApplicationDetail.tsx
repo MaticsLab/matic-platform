@@ -1453,13 +1453,47 @@ export function ApplicationDetail({
             {/* Custom Fields Section - Show all fields */}
             {fields && fields.length > 0 && (
               <div className="border-t pt-4 mb-6">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center mb-3">
                   <span className="text-sm font-medium text-gray-700">Application Data</span>
-                  <div className="flex items-center gap-2">
-                    <Settings className="w-4 h-4 text-gray-400" />
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
-                  </div>
                 </div>
+                      {/* Sticky Bottom Action Bar */}
+                      <div className="sticky bottom-0 left-0 right-0 z-20 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-2">
+                          {/* Action Dropdown */}
+                          <div className="relative">
+                            <button
+                              onClick={() => setShowActionsDropdown(!showActionsDropdown)}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium shadow hover:bg-blue-700 transition-colors flex items-center gap-2"
+                            >
+                              Actions
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
+                            {showActionsDropdown && (
+                              <div className="absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-30">
+                                <button
+                                  className="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700"
+                                  onClick={() => {
+                                    setShowActionsDropdown(false);
+                                    // Example: trigger an action
+                                    toast('Action triggered!');
+                                  }}
+                                >
+                                  Example Action
+                                </button>
+                                {/* Add more actions as needed */}
+                              </div>
+                            )}
+                          </div>
+                          {/* Request Revision Button */}
+                          <button
+                            className="px-4 py-2 bg-yellow-500 text-white rounded-lg font-medium shadow hover:bg-yellow-600 transition-colors"
+                            onClick={() => toast('Request Revision sent!')}
+                          >
+                            Request Revision
+                          </button>
+                        </div>
+                        {/* Optional: Add more controls or info here */}
+                      </div>
                 <div className="space-y-4">
                   {(() => {
                     // Create field map for nested field lookup (includes child fields for repeaters)
