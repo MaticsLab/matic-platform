@@ -42,7 +42,8 @@ import {
   Loader2,
   Users,
   Trash2,
-  UserX
+  UserX,
+  Plug
 } from 'lucide-react'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
@@ -51,6 +52,7 @@ import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import type { Workspace } from '@/types/workspaces'
 import { cn } from '@/lib/utils'
+import { GoogleDriveIntegration } from './Integrations/GoogleDriveIntegration'
 
 interface WorkspaceSettingsSidebarProps {
   isOpen: boolean
@@ -76,7 +78,7 @@ const COLOR_PRESETS = [
 
 const APP_DOMAIN = 'maticapp.com'
 
-type SettingsSection = 'general' | 'branding' | 'domain' | 'users'
+type SettingsSection = 'general' | 'branding' | 'domain' | 'users' | 'integrations'
 
 export function WorkspaceSettingsSidebar({ isOpen, onClose, workspace, onUpdate }: WorkspaceSettingsSidebarProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
@@ -256,6 +258,7 @@ export function WorkspaceSettingsSidebar({ isOpen, onClose, workspace, onUpdate 
     { id: 'branding' as SettingsSection, label: 'Branding', icon: Palette },
     { id: 'domain' as SettingsSection, label: 'Domain', icon: Globe },
     { id: 'users' as SettingsSection, label: 'Users', icon: Users },
+    { id: 'integrations' as SettingsSection, label: 'Integrations', icon: Plug },
   ]
 
   // Fetch current user and users list when Users section is active
@@ -645,6 +648,23 @@ export function WorkspaceSettingsSidebar({ isOpen, onClose, workspace, onUpdate 
                         ))}
                       </div>
                     )}
+                  </div>
+                </>
+              )}
+
+              {activeSection === 'integrations' && (
+                <>
+                  {/* Integrations */}
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-sm font-medium">External Integrations</Label>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Connect third-party services to enhance your workspace functionality.
+                      </p>
+                    </div>
+                    
+                    {/* Google Drive Integration */}
+                    <GoogleDriveIntegration workspaceId={workspace.id} />
                   </div>
                 </>
               )}
