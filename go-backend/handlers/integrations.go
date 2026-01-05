@@ -22,18 +22,29 @@ import (
 var googleDriveService *services.GoogleDriveService
 
 // InitGoogleDriveService initializes the Google Drive service with OAuth credentials
+// Uses the same GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET as Gmail integration
 func InitGoogleDriveService() {
-	clientID := os.Getenv("GOOGLE_DRIVE_CLIENT_ID")
-	clientSecret := os.Getenv("GOOGLE_DRIVE_CLIENT_SECRET")
-	redirectURI := os.Getenv("GOOGLE_DRIVE_REDIRECT_URI")
+	clientID := os.Getenv("GOOGLE_CLIENT_ID")
+	clientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
 
-	if clientID == "" || clientSecret == "" || redirectURI == "" {
-		fmt.Println("Google Drive OAuth credentials not configured. Drive integration disabled.")
+	// Build redirect URI from environment or default
+	redirectURI := os.Getenv("GOOGLE_DRIVE_REDIRECT_URI")
+	if redirectURI == "" {
+		// Default to the backend URL + callback path
+		backendURL := os.Getenv("NEXT_PUBLIC_GO_API_URL")
+		if backendURL == "" {
+			backendURL = "http://localhost:8000"
+		}
+		redirectURI = backendURL + "/api/v1/integrations/google-drive/callback"
+	}
+
+	if clientID == "" || clientSecret == "" {
+		fmt.Println("⚠️  Google OAuth credentials not configured (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET). Drive integration disabled.")
 		return
 	}
 
 	googleDriveService = services.NewGoogleDriveService(clientID, clientSecret, redirectURI)
-	fmt.Println("Google Drive service initialized")
+	fmt.Println("✅ Google Drive service initialized (using shared Google OAuth credentials)")
 }
 
 // ========== Workspace Integration Handlers ==========
