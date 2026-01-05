@@ -1,3 +1,14 @@
+/**
+ * Get a display name for an applicant, falling back to email or a default label.
+ */
+export function getApplicantDisplayName(app: { name?: string; firstName?: string; lastName?: string; email?: string }): string {
+  if (app.name && app.name.trim()) return app.name.trim();
+  const first = app.firstName?.trim() || '';
+  const last = app.lastName?.trim() || '';
+  if (first || last) return `${first} ${last}`.trim();
+  if (app.email && app.email.trim()) return app.email.trim();
+  return 'No Name Provided';
+}
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 

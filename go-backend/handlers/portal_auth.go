@@ -64,16 +64,36 @@ func PortalSignup(c *gin.Context) {
 		return
 	}
 
-	// Create applicant
+	// Always set a display name for the applicant
+	displayName := req.FullName
+	if displayName == "" {
+		// Try to use Better Auth info if available (from session token)
+		baUserID := c.GetHeader("X-BetterAuth-UserId")
+		if baUserID != "" {
+			var baUser models.BetterAuthUser
+			if err := database.DB.Where("id = ?", baUserID).First(&baUser).Error; err == nil {
+				if baUser.FullName != nil && *baUser.FullName != "" {
+					displayName = *baUser.FullName
+				} else if baUser.Name != "" {
+					displayName = baUser.Name
+				}
+			}
+		}
+		// Fallback to email if still empty
+		if displayName == "" {
+			displayName = req.Email
+		}
+	}
+
 	applicant := models.PortalApplicant{
 		FormID:       uuid.MustParse(req.FormID),
 		Email:        req.Email,
 		PasswordHash: string(hashedPassword),
-		FullName:     req.FullName,
+		FullName:     displayName,
 	}
 
 	// Store signup data if provided
-	if req.Data != nil && len(req.Data) > 0 {
+	if len(req.Data) > 0 {
 		applicant.SubmissionData = mapToJSON(req.Data)
 	}
 

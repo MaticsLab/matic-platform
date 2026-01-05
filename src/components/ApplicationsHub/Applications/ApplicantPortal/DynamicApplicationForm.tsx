@@ -380,19 +380,55 @@ export function DynamicApplicationForm({
     }
   }
 
+  // Helper to collect all required fields (including nested in groups/repeaters)
+  const getAllRequiredFields = (sections: Section[]): Field[] => {
+    const requiredFields: Field[] = [];
+    const traverse = (fields: Field[]) => {
+      fields.forEach(field => {
+        if (field.required) requiredFields.push(field);
+        if (field.children && field.children.length > 0) traverse(field.children);
+      });
+    };
+    sections.forEach(section => {
+      if (section.fields) traverse(section.fields);
+    });
+    return requiredFields;
+  };
+
+  // Validate required fields before submit
+  const validateRequiredFields = (): string[] => {
+    const missing: string[] = [];
+    const requiredFields = getAllRequiredFields(translatedConfig.sections || []);
+    requiredFields.forEach(field => {
+      const value = formData[field.id];
+      // For repeaters/groups, check array length or nested required
+      if (Array.isArray(value)) {
+        if (value.length === 0) missing.push(field.label || field.id);
+      } else if (value === undefined || value === null || value === '') {
+        missing.push(field.label || field.id);
+      }
+    });
+    return missing;
+  };
+
   const handleNext = () => {
-    const sectionsLength = translatedConfig.sections?.length || 0
+    const sectionsLength = translatedConfig.sections?.length || 0;
     if (activeSectionIndex < sectionsLength - 1) {
-      setActiveSectionId(translatedConfig.sections?.[activeSectionIndex + 1]?.id || '')
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      setActiveSectionId(translatedConfig.sections?.[activeSectionIndex + 1]?.id || '');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (activeSectionIndex === sectionsLength - 1) {
       // Last section - submit the form
+      const missingFields = validateRequiredFields();
+      if (missingFields.length > 0) {
+        alert('Please complete all required fields before submitting.\nMissing: ' + missingFields.join(', '));
+        return;
+      }
       if (onSubmit) {
-        setIsSaving(true)
-        onSubmit(formData).finally(() => setIsSaving(false))
+        setIsSaving(true);
+        onSubmit(formData).finally(() => setIsSaving(false));
       }
     }
-  }
+  };
 
   const handlePrevious = () => {
     if (activeSectionIndex > 0) {

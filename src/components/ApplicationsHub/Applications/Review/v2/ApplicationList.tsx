@@ -2,7 +2,8 @@
 
 import { Application, ApplicationListProps, ApplicationStatus } from './types';
 import { Users, Star, Clock, AlertCircle, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getApplicantDisplayName } from '@/lib/utils';
+import { NO_APPLICATIONS_FOUND } from '@/constants/fallbacks';
 import { useEffect, useRef, useCallback } from 'react';
 
 const getStatusColor = (status: string) => {
@@ -83,7 +84,7 @@ export function ApplicationList({
           </div>
         ) : applications.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-            <div className="text-gray-400 mb-2">No applications found</div>
+            <div className="text-gray-400 mb-2">{NO_APPLICATIONS_FOUND}</div>
             <div className="text-gray-400 text-sm">Try adjusting your filters</div>
           </div>
         ) : (
@@ -108,7 +109,7 @@ export function ApplicationList({
                   <div className="flex items-start justify-between gap-2 mb-1">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <h3 className="text-sm text-gray-900 font-medium truncate">
-                        {app.name || `${app.firstName} ${app.lastName}`.trim() || 'Unknown'}
+                        {getApplicantDisplayName(app)}
                       </h3>
                       {getPriorityIcon(app.priority)}
                     </div>

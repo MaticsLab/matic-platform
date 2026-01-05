@@ -1,3 +1,4 @@
+import { UNKNOWN } from '@/constants/fallbacks';
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
@@ -75,9 +76,9 @@ export function ReviewWorkspaceV2({
     
     // Use the full_name from portal_applicants table (from portal signup)
     // This is the primary source of truth for applicant names
-    const fullName = sub.applicant_full_name || 'Unknown';
+    const fullName = sub.applicant_full_name || UNKNOWN;
     const nameParts = fullName.trim().split(/\s+/);
-    const fName = nameParts[0] || 'Unknown';
+    const fName = nameParts[0] || UNKNOWN;
     const lName = nameParts.slice(1).join(' ') || '';
     
     // Get email - check multiple locations
@@ -201,7 +202,7 @@ export function ReviewWorkspaceV2({
       formReviewers.forEach((r: any) => {
         // Skip removed/archived reviewers
         if (r.id && !r.removed && r.status !== 'removed') {
-          revMap[r.id] = { name: r.name || 'Unknown', email: r.email, role: r.role };
+          revMap[r.id] = { name: r.name || UNKNOWN, email: r.email, role: r.role };
         }
       });
       

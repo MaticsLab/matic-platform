@@ -10,7 +10,8 @@ import {
   Play, Archive, XCircle, Clock, Folder, ChevronUp, Download, ExternalLink,
   Image, File, FileImage, Bell, Upload, Eye, Search, Link, Smile, PenTool, MoreVertical, Maximize2, Square, PanelRight, UserPlus, Clock3, FileSignature
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getApplicantDisplayName } from '@/lib/utils';
+import { NOT_PROVIDED, UNKNOWN, NO_NAME_PROVIDED } from '@/constants/fallbacks';
 import { toast } from 'sonner';
 import { emailClient, SendEmailRequest, EmailAttachment, EmailSignature } from '@/lib/api/email-client';
 import { workflowsClient, StageAction, WorkflowAction } from '@/lib/api/workflows-client';
@@ -306,7 +307,7 @@ function formatFieldLabel(key: string, fieldMap?: Map<string, any>): string {
 function renderFieldValue(value: any, depth: number = 0, fieldLabel?: string, fieldMap?: Map<string, any>): React.ReactNode {
   // Handle null/undefined/empty
   if (value === null || value === undefined || value === '') {
-    return <span className="text-gray-400 italic">Not provided</span>;
+    return <span className="text-gray-400 italic">{NOT_PROVIDED}</span>;
   }
   
   // Try to parse JSON strings first
@@ -580,12 +581,17 @@ export function ApplicationDetail({
     }
   };
 
+
   // Update emailTo when application changes
   useEffect(() => {
     const email = application.email || (application.raw_data?.email as string) || (application.raw_data?.Email as string) || '';
     setEmailTo(email);
     setSelectedAttachments([]); // Clear attachments when application changes
   }, [application.id, application.email, application.raw_data]);
+
+  // Warn if applicant info is incomplete
+  const applicantDisplayName = getApplicantDisplayName(application);
+  const isApplicantInfoIncomplete = applicantDisplayName === NO_NAME_PROVIDED;
 
   // Extract available documents from application for attachment
   const availableDocuments = useMemo(() => {
@@ -1134,7 +1140,7 @@ export function ApplicationDetail({
 
   // Get stage name by ID
   const getStageName = (stageId?: string) => {
-    if (!stageId) return 'Unknown';
+    if (!stageId) return UNKNOWN;
     const stage = stages.find(s => s.id === stageId);
     return stage?.name || stageId;
   };
@@ -1154,7 +1160,7 @@ export function ApplicationDetail({
     if (application.stageHistory && Array.isArray(application.stageHistory)) {
       application.stageHistory.forEach((entry, idx) => {
         const timestamp = entry.moved_at || entry.timestamp;
-        const toStage = entry.to_stage_id ? getStageName(entry.to_stage_id) : (entry.to_stage || 'Unknown');
+        const toStage = entry.to_stage_id ? getStageName(entry.to_stage_id) : (entry.to_stage || UNKNOWN);
         const action = entry.action || 'moved';
         
         let message = '';
@@ -1306,7 +1312,7 @@ export function ApplicationDetail({
               <div className="p-6">
               {/* Name */}
               <h1 className="text-2xl font-bold text-gray-900 mb-4">
-                {application.name || 'Unknown'}
+                {application.name || UNKNOWN}
               </h1>
 
             {/* Key Fields */}

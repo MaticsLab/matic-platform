@@ -317,6 +317,57 @@ func SubmitApplication(c *gin.Context) {
 		return
 	}
 
+	// Load all fields for the form
+	var fields []models.Field
+	if err := database.DB.Where("table_id = ?", submission.FormID).Find(&fields).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load form fields"})
+		return
+	}
+
+	// Parse submission data
+	var submissionData map[string]interface{}
+	if err := json.Unmarshal(submission.Data, &submissionData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid submission data"})
+		return
+	}
+
+	// Validate required fields
+	missingFields := []string{}
+	for _, field := range fields {
+		// Check if required (is_required in config JSON or legacy Validation/Settings)
+		isRequired := false
+		// Check config JSONB for is_required
+		var config map[string]interface{}
+		if err := json.Unmarshal(field.Config, &config); err == nil {
+			if v, ok := config["is_required"]; ok {
+				if b, ok := v.(bool); ok && b {
+					isRequired = true
+				}
+			}
+		}
+		// Fallback: check Validation JSONB for required
+		if !isRequired && len(field.Validation) > 0 {
+			var validation map[string]interface{}
+			if err := json.Unmarshal(field.Validation, &validation); err == nil {
+				if v, ok := validation["required"]; ok {
+					if b, ok := v.(bool); ok && b {
+						isRequired = true
+					}
+				}
+			}
+		}
+		if isRequired {
+			val, exists := submissionData[field.Name]
+			if !exists || val == nil || (fmt.Sprintf("%v", val) == "") {
+				missingFields = append(missingFields, field.Label)
+			}
+		}
+	}
+	if len(missingFields) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required fields", "missing": missingFields})
+		return
+	}
+
 	// Update status
 	now := time.Now()
 	newVersion := submission.Version + 1
