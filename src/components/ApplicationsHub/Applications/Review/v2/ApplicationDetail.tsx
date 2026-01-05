@@ -23,7 +23,7 @@ import {
 import { Checkbox } from '@/ui-components/checkbox';
 import { useEmailConnection } from '@/hooks/useEmailConnection';
 import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
-import { filesClient } from '@/lib/api/files-client';
+import { filesClient, rowFilesClient } from '@/lib/api/files-client';
 import type { TableFileResponse } from '@/types/files';
 import { recommendationsClient, RecommendationRequest } from '@/lib/api/recommendations-client';
 import { RefreshCw } from 'lucide-react';
@@ -592,7 +592,10 @@ export function ApplicationDetail({
     const docs: { name: string; url: string; contentType: string }[] = [];
     const rawData = application.raw_data || {};
     
+    console.log('[ApplicationDetail] Checking raw_data for documents:', Object.keys(rawData));
+    
     Object.entries(rawData).forEach(([key, value]) => {
+      // Check for string URLs
       if (typeof value === 'string' && (
         value.startsWith('http://') || 
         value.startsWith('https://') ||
@@ -624,6 +627,8 @@ export function ApplicationDetail({
           else if (lowerValue.includes('.png')) contentType = 'image/png';
           else if (lowerValue.includes('.jpg') || lowerValue.includes('.jpeg')) contentType = 'image/jpeg';
           
+          console.log('[ApplicationDetail] Found document in raw_data:', { key, url: value.substring(0, 50) });
+          
           docs.push({
             name: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
             url: value,
@@ -631,7 +636,47 @@ export function ApplicationDetail({
           });
         }
       }
+      
+      // Also check for file objects (not just string URLs)
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const fileUrl = (value as any).url || (value as any).Url || (value as any).URL;
+        const fileName = (value as any).name || (value as any).Name || (value as any).filename;
+        
+        if (fileUrl && (typeof fileUrl === 'string')) {
+          console.log('[ApplicationDetail] Found file object in raw_data:', { key, fileName });
+          
+          let contentType = (value as any).mimeType || (value as any).mime_type || (value as any).type || 'application/octet-stream';
+          docs.push({
+            name: fileName || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            url: fileUrl,
+            contentType
+          });
+        }
+      }
+      
+      // Check for arrays of files
+      if (Array.isArray(value)) {
+        value.forEach((item, idx) => {
+          if (item && typeof item === 'object') {
+            const fileUrl = item.url || item.Url || item.URL;
+            const fileName = item.name || item.Name || item.filename;
+            
+            if (fileUrl && (typeof fileUrl === 'string')) {
+              console.log('[ApplicationDetail] Found file in array:', { key, fileName, idx });
+              
+              let contentType = item.mimeType || item.mime_type || item.type || 'application/octet-stream';
+              docs.push({
+                name: fileName || `${key} ${idx + 1}`,
+                url: fileUrl,
+                contentType
+              });
+            }
+          }
+        });
+      }
     });
+    
+    console.log('[ApplicationDetail] Total documents found:', docs.length);
     
     return docs;
   }, [application.raw_data]);
@@ -684,17 +729,28 @@ export function ApplicationDetail({
     const fetchStorageFiles = async () => {
       if (!application.id) return;
       
+      console.log('[ApplicationDetail] Fetching storage files for row_id:', application.id);
+      
       setIsLoadingFiles(true);
       try {
-        // Fetch files by row_id (submission/application ID) and workspace_id
-        const files = await filesClient.list({ 
-          row_id: application.id,
-          workspace_id: workspaceId 
-        });
+        // Try the dedicated row files endpoint first (cleaner API)
+        const files = await rowFilesClient.list(application.id);
+        console.log('[ApplicationDetail] Storage files loaded via rowFilesClient:', files?.length || 0, files);
         setStorageFiles(files || []);
       } catch (error) {
-        console.error('Failed to fetch storage files:', error);
-        setStorageFiles([]);
+        console.warn('[ApplicationDetail] rowFilesClient failed, trying filesClient:', error);
+        // Fallback to general files endpoint
+        try {
+          const files = await filesClient.list({ 
+            row_id: application.id,
+            workspace_id: workspaceId 
+          });
+          console.log('[ApplicationDetail] Storage files loaded via filesClient:', files?.length || 0, files);
+          setStorageFiles(files || []);
+        } catch (fallbackError) {
+          console.error('[ApplicationDetail] Failed to fetch storage files:', fallbackError);
+          setStorageFiles([]);
+        }
       } finally {
         setIsLoadingFiles(false);
       }
