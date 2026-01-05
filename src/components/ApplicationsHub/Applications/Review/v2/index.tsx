@@ -1,5 +1,6 @@
-import { UNKNOWN } from '@/constants/fallbacks';
+
 'use client';
+import { UNKNOWN } from '@/constants/fallbacks';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
