@@ -3,7 +3,6 @@
 import { DashboardHeader } from '@/components/Dashboard/DashboardV2/DashboardHeader'
 import { WelcomeSection } from '@/components/Dashboard/DashboardV2/WelcomeSection'
 import { PriorityActions } from '@/components/Dashboard/DashboardV2/PriorityActions'
-import { QuickContact } from '@/components/Dashboard/DashboardV2/QuickContact'
 import { NextDeadline } from '@/components/Dashboard/DashboardV2/NextDeadline'
 import { CompactDocuments } from '@/components/Dashboard/DashboardV2/CompactDocuments'
 import { CompactRecommendations } from '@/components/Dashboard/DashboardV2/CompactRecommendations'
@@ -81,11 +80,6 @@ export function DashboardV2({
               rowId={rowId}
               isPreview={isPreview}
             />
-            <QuickContact 
-              formId={formId}
-              isPreview={isPreview}
-              themeColor={themeColor}
-            />
           </div>
 
           {/* Sidebar - 1 column */}
@@ -93,6 +87,7 @@ export function DashboardV2({
             <NextDeadline 
               config={config}
               themeColor={themeColor}
+              applicationDeadline={(config.settings as any)?.applicationDeadline}
             />
             <CompactDocuments 
               formId={formId}
