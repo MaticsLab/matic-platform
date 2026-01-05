@@ -21,8 +21,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			if strings.HasPrefix(origin, "http://localhost") {
 				return true
 			}
-			// Allow any *.maticsapp.com subdomain
-			if strings.HasSuffix(origin, ".maticsapp.com") || origin == "https://maticsapp.com" {
+			// Allow any *.maticsapp.com subdomain (including www)
+			if strings.HasSuffix(origin, ".maticsapp.com") || origin == "https://maticsapp.com" || origin == "https://www.maticsapp.com" {
+				return true
+			}
+			// Allow any *.maticapp.com subdomain (alternate domain)
+			if strings.HasSuffix(origin, ".maticapp.com") || origin == "https://maticapp.com" || origin == "https://www.maticapp.com" {
 				return true
 			}
 			// Allow Vercel preview deployments
@@ -38,7 +42,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			return false
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Cookie"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Cookie", "X-Portal-Token"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}
