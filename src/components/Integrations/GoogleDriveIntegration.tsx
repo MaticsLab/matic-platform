@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Checkbox } from '@/ui-components/checkbox'
 import { Plus } from 'lucide-react'
 import { tablesGoClient } from '@/lib/api/tables-go-client'
+import { formsClient } from '@/lib/api/forms-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui-components/card'
 import { Button } from '@/ui-components/button'
 import { Badge } from '@/ui-components/badge'
@@ -48,6 +49,7 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
   const [showConfigModal, setShowConfigModal] = useState(false)
   const [fieldOptions, setFieldOptions] = useState<{ key: string, label: string }[]>([])
   const [sampleData, setSampleData] = useState<Record<string, any>>({})
+  const [fieldLabelMap, setFieldLabelMap] = useState<Record<string, string>>({})
 
   // Fetch integration status on mount
   useEffect(() => {
@@ -77,12 +79,35 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
     }
   }
 
+  // Fetch form config and build field label map
+  useEffect(() => {
+    if (!formId) return
+    (async () => {
+      try {
+        const form = await formsClient.get(formId)
+        // Flatten all fields from all sections
+        const allFields = Array.isArray(form.sections)
+          ? form.sections.flatMap((section: any) => Array.isArray(section.fields) ? section.fields : [])
+          : []
+        // Map field keys (name or id) to label
+        const labelMap: Record<string, string> = {}
+        allFields.forEach((field: any) => {
+          if (field.name) labelMap[field.name] = field.label || field.name
+          if (field.id) labelMap[field.id] = field.label || field.id
+        })
+        setFieldLabelMap(labelMap)
+      } catch {
+        setFieldLabelMap({})
+      }
+    })()
+  }, [formId])
+
   // Fetch available fields for modal (from first applicant)
   useEffect(() => {
     if (!sampleData) return
     const keys = Object.keys(sampleData)
-    setFieldOptions(keys.map(k => ({ key: k, label: k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) })))
-  }, [sampleData])
+    setFieldOptions(keys.map(k => ({ key: k, label: fieldLabelMap[k] || k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) })))
+  }, [sampleData, fieldLabelMap])
 
   // Fetch form integration settings (for upload fields and template)
   useEffect(() => {
@@ -357,8 +382,46 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
                     <li className="p-2 text-xs text-gray-500">No applicants found.</li>
                   ) : (
                     applicants.map(app => (
-                      <li key={app.id} className="p-2 border-b last:border-b-0 flex items-center gap-2">
+                      <li key={app.id} className="p-2 border-b last:border-b-0 flex items-center gap-2 justify-between">
                         <span className="text-xs text-gray-700">{app.full_name || app.email || app.id}</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="file"
+                            id={`file-upload-${app.id}`}
+                            style={{ display: 'none' }}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0]
+                              if (!file) return
+                              // Upload file to your storage (e.g., Supabase Storage, S3, etc.)
+                              // For demo, assume a function uploadFile returns { url, name, type, id }
+                              try {
+                                // TODO: Replace with your actual upload logic
+                                const uploaded = await window.uploadFile?.(file)
+                                if (!uploaded) throw new Error('Upload failed')
+                                // Sync to Google Drive
+                                const result = await import('@/lib/api/integrations-client').then(m => m.autoSyncFileToGoogleDrive(app.id, uploaded))
+                                if (result) {
+                                  toast.success('File uploaded and synced to Drive')
+                                } else {
+                                  toast.error('File uploaded but failed to sync to Drive')
+                                }
+                              } catch (err) {
+                                toast.error('Upload failed')
+                              }
+                            }}
+                          />
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title="Add document"
+                            onClick={() => {
+                              const input = document.getElementById(`file-upload-${app.id}`) as HTMLInputElement
+                              input?.click()
+                            }}
+                          >
+                            <Plus className="h-4 w-4 text-blue-500" />
+                          </Button>
+                        </div>
                       </li>
                     ))
                   )}
