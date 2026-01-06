@@ -62,7 +62,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:bg-[#181818] dark:text-[#FAFAFA] flex">
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 to-indigo-700 p-12 flex-col justify-between relative overflow-hidden">
         {/* Background pattern */}
@@ -103,20 +103,20 @@ export default function LoginPage() {
               <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
                 <span className="text-white font-bold text-xl">M</span>
               </div>
-              <span className="text-gray-900 font-bold text-2xl">Matic</span>
+              <span className="text-gray-900 dark:text-[#FAFAFA] font-bold text-2xl">Matic</span>
             </div>
           </div>
 
           {/* Login Card */}
           <div className="bg-white rounded-2xl shadow-xl shadow-blue-900/5 p-8">
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome back</h2>
-              <p className="text-gray-600">Sign in to your account to continue</p>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-[#FAFAFA] mb-2">Welcome back</h2>
+              <p className="text-gray-600 dark:text-[#FAFAFA]/80">Sign in to your account to continue</p>
             </div>
 
             {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl">
-                <p className="text-sm text-red-600">{error}</p>
+              <div className="mb-6 p-4 bg-red-50 dark:bg-[#232323] border border-red-100 dark:border-red-400 rounded-xl">
+                <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
               </div>
             )}
 
@@ -137,7 +137,7 @@ export default function LoginPage() {
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                    className="w-full pl-11 pr-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-white dark:bg-[#232323] text-gray-900 dark:text-[#FAFAFA] placeholder-gray-400 dark:placeholder-gray-400"
                     placeholder="you@example.com"
                     disabled={loading}
                   />
@@ -160,14 +160,14 @@ export default function LoginPage() {
                     required
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full pl-11 pr-12 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                    className="w-full pl-11 pr-12 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-white dark:bg-[#232323] text-gray-900 dark:text-[#FAFAFA] placeholder-gray-400 dark:placeholder-gray-400"
                     placeholder="Enter your password"
                     disabled={loading}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition"
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition"
                   >
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
@@ -205,7 +205,7 @@ export default function LoginPage() {
           {/* Sign Up Link */}
           <p className="text-center text-sm text-gray-600 mt-6">
             Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-blue-600 hover:text-blue-700 font-medium transition">
+            <Link href="/signup" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition">
               Sign up for free
             </Link>
           </p>
@@ -213,7 +213,7 @@ export default function LoginPage() {
           {/* Support */}
           <p className="text-center text-xs text-gray-500 mt-4">
             Need help?{' '}
-            <a href="mailto:support@maticsapp.com" className="text-gray-600 hover:text-gray-900 transition">
+            <a href="mailto:support@maticsapp.com" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition">
               Contact support
             </a>
           </p>

@@ -132,21 +132,21 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:bg-[#181818] dark:text-[#FAFAFA] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Matic</h1>
-          <p className="text-gray-600">Create your account and workspace</p>
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-[#FAFAFA] mb-2">Matic</h1>
+          <p className="text-gray-600 dark:text-[#FAFAFA]/80">Create your account and workspace</p>
         </div>
 
         {/* Signup Form */}
         <div className="bg-white rounded-lg shadow-xl p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Sign Up</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-[#FAFAFA] mb-6">Sign Up</h2>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="mb-4 p-3 bg-red-50 dark:bg-[#232323] border border-red-200 dark:border-red-400 rounded-md">
+              <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
             </div>
           )}
 
@@ -162,7 +162,7 @@ export default function SignUpPage() {
                   type="text"
                   value={formData.firstName}
                   onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-[#232323] text-gray-900 dark:text-[#FAFAFA] placeholder-gray-400 dark:placeholder-gray-400"
                   placeholder="John"
                   disabled={loading}
                 />
@@ -176,7 +176,7 @@ export default function SignUpPage() {
                   type="text"
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-[#232323] text-gray-900 dark:text-[#FAFAFA] placeholder-gray-400 dark:placeholder-gray-400"
                   placeholder="Doe"
                   disabled={loading}
                 />
@@ -194,7 +194,7 @@ export default function SignUpPage() {
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-[#232323] text-gray-900 dark:text-[#FAFAFA] placeholder-gray-400 dark:placeholder-gray-400"
                 placeholder="you@example.com"
                 disabled={loading}
               />
@@ -211,7 +211,7 @@ export default function SignUpPage() {
                 required
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-[#232323] text-gray-900 dark:text-[#FAFAFA] placeholder-gray-400 dark:placeholder-gray-400"
                 placeholder="At least 6 characters"
                 disabled={loading}
               />
@@ -228,7 +228,7 @@ export default function SignUpPage() {
                 required
                 value={formData.confirmPassword}
                 onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-[#232323] text-gray-900 dark:text-[#FAFAFA] placeholder-gray-400 dark:placeholder-gray-400"
                 placeholder="Re-enter your password"
                 disabled={loading}
               />
@@ -273,9 +273,9 @@ export default function SignUpPage() {
 
           {/* Sign In Link */}
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-[#FAFAFA]/80">
               Already have an account?{' '}
-              <a href="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+              <a href="/login" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
                 Sign in
               </a>
             </p>
@@ -284,7 +284,7 @@ export default function SignUpPage() {
 
         {/* Additional Info */}
         <div className="mt-6 text-center">
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             By signing up, you agree to our Terms of Service and Privacy Policy
           </p>
         </div>

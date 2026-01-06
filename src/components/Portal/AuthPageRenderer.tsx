@@ -116,7 +116,7 @@ export function AuthPageRenderer({
 
   return (
     <div className={cn(
-      "min-h-screen bg-white light flex relative",
+      "min-h-screen bg-white dark:bg-[#181818] text-gray-900 dark:text-[#FAFAFA] flex relative",
       isMobilePreview ? "flex-col" : "flex-col lg:flex-row"
     )}>
       {/* Background Media - Top on Mobile, Left on Desktop */}
@@ -207,10 +207,10 @@ export function AuthPageRenderer({
           >
             <div
               className={cn(
-                "font-bold tracking-tight text-gray-900 outline-none",
+                "font-bold tracking-tight text-gray-900 dark:text-[#FAFAFA] outline-none",
                 isMobilePreview ? "text-lg" : "text-xl sm:text-2xl",
-                isPreview && onUpdateSettings && editingField === 'title' && "ring-2 ring-blue-400 rounded px-2 py-1 bg-white",
-                isPreview && onUpdateSettings && editingField !== 'title' && "cursor-text hover:bg-gray-50 rounded px-2 py-1 transition-all"
+                isPreview && onUpdateSettings && editingField === 'title' && "ring-2 ring-blue-400 rounded px-2 py-1 bg-white dark:bg-[#181818]",
+                isPreview && onUpdateSettings && editingField !== 'title' && "cursor-text hover:bg-gray-50 dark:hover:bg-[#232323] rounded px-2 py-1 transition-all"
               )}
               contentEditable={!!(isPreview && onUpdateSettings)}
               suppressContentEditableWarning
@@ -244,10 +244,10 @@ export function AuthPageRenderer({
           >
             <div
               className={cn(
-                "text-gray-500 outline-none",
+                "text-gray-500 dark:text-[#FAFAFA]/80 outline-none",
                 isMobilePreview ? "text-xs" : "text-sm",
-                isPreview && onUpdateSettings && editingField === 'description' && "ring-2 ring-blue-400 rounded px-2 py-1 bg-white",
-                isPreview && onUpdateSettings && editingField !== 'description' && "cursor-text hover:bg-gray-50 rounded px-2 py-1 transition-all"
+                isPreview && onUpdateSettings && editingField === 'description' && "ring-2 ring-blue-400 rounded px-2 py-1 bg-white dark:bg-[#181818]",
+                isPreview && onUpdateSettings && editingField !== 'description' && "cursor-text hover:bg-gray-50 dark:hover:bg-[#232323] rounded px-2 py-1 transition-all"
               )}
               contentEditable={!!(isPreview && onUpdateSettings)}
               suppressContentEditableWarning
