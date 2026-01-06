@@ -84,7 +84,7 @@ export function SectionList({ sections, activeId, onSelect, onReorder, onDelete 
     if (onDelete) {
       onDelete(sectionId)
     } else {
-      const newSections = sections.filter(s => s.id !== sectionId)
+      const newSections = Array.isArray(sections) ? sections.filter(s => s.id !== sectionId) : []
       onReorder(newSections)
     }
   }

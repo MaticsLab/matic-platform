@@ -144,9 +144,9 @@ export function UnifiedSidebar({
   }, [activeSectionId, activeSpecialPage, sections])
 
   // Separate sections by type - covers and forms are combined in the Application Form group
-  const applicationSections = sections.filter(s => s.sectionType === 'form' || s.sectionType === 'cover' || !s.sectionType)
-  const endingSections = sections.filter(s => s.sectionType === 'ending')
-  const dashboardSections = sections.filter(s => s.sectionType === 'dashboard')
+  const applicationSections = Array.isArray(sections) ? sections.filter(s => s.sectionType === 'form' || s.sectionType === 'cover' || !s.sectionType) : []
+  const endingSections = Array.isArray(sections) ? sections.filter(s => s.sectionType === 'ending') : []
+  const dashboardSections = Array.isArray(sections) ? sections.filter(s => s.sectionType === 'dashboard') : []
 
   // Drag handlers for form sections - use section ID to track dragged item
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null)

@@ -160,7 +160,7 @@ export function ReviewPreview({ config, onEdit, onUpdateSettings }: ReviewPrevie
 
         {/* Review Sections */}
         <div className="space-y-4">
-          {config.sections.filter(s => s.sectionType === 'form').map((section, idx) => (
+          {(Array.isArray(config.sections) ? config.sections.filter(s => s.sectionType === 'form') : []).map((section, idx) => (
             <div key={section.id} className="bg-white rounded-lg border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">

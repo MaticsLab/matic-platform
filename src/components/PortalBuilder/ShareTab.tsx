@@ -469,7 +469,7 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     let sectionsHtml = ''
     
     if (sections.length > 0) {
-      sections.filter((s: any) => s.sectionType === 'form').forEach((section: any) => {
+      (Array.isArray(sections) ? sections.filter((s: any) => s.sectionType === 'form') : []).forEach((section: any) => {
         // Build nested field structure for this section
         const sectionFields = buildNestedFields(allFields, section.id)
         if (sectionFields.length === 0) return

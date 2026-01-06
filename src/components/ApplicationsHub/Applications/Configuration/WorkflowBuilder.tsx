@@ -139,7 +139,7 @@ export function WorkflowBuilder({ workspaceId, formId }: WorkflowBuilderProps) {
           })
           
           // Filter out empty sections
-          setFormSections(sections.filter(s => s.fields.length > 0))
+          setFormSections(Array.isArray(sections) ? sections.filter(s => s.fields.length > 0) : [])
         } else if (form.fields && form.fields.length > 0) {
           // Fallback: Create a default section with all fields if no sections defined
           const defaultSection: FormSection = {

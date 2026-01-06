@@ -195,12 +195,12 @@ export function UnifiedDashboard({
   // Find dashboard sections and form sections
   const dashboardSections = useMemo(() => {
     if (!config) return []
-    return config.sections.filter(s => s.sectionType === 'dashboard')
+    return Array.isArray(config.sections) ? config.sections.filter(s => s.sectionType === 'dashboard') : []
   }, [config?.sections])
 
   const formSections = useMemo(() => {
     if (!config) return []
-    return config.sections.filter(s => s.sectionType === 'form' || !s.sectionType)
+    return Array.isArray(config.sections) ? config.sections.filter(s => s.sectionType === 'form' || !s.sectionType) : []
   }, [config?.sections])
   
   // ─────────────────────────────────────────────────────────────────────────
