@@ -1321,11 +1321,11 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                 onDeleteSection={(sectionId: string) => {
                   setConfig(prev => ({
                     ...prev,
-                    sections: Array.isArray(prev.sections) ? prev.sections.filter(s => s.id !== sectionId) : []
+                    sections: Array.isArray(prev.sections) ? prev.sections.filter(s => s.id !== sectionId) : Array.isArray(prev.sections) ? prev.sections : []
                   }))
                   setHasUnsavedChanges(true)
                   if (activeSectionId === sectionId) {
-                    const remaining = Array.isArray(config.sections) ? config.sections.filter(s => s.id !== sectionId) : []
+                    const remaining = Array.isArray(config.sections) ? config.sections.filter(s => s.id !== sectionId) : Array.isArray(config.sections) ? config.sections : []
                     if (remaining.length > 0) {
                       setActiveSectionId(remaining[0].id)
                     }
