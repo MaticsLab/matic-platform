@@ -90,6 +90,14 @@ export type PortalConfig = {
       disableAutoTranslate?: boolean
     }
     // Special page settings
+    loginPage?: {
+      title?: string
+      description?: string
+      buttonText?: string
+      signupLinkText?: string
+      titleMargin?: Record<string, any>
+      descriptionMargin?: Record<string, any>
+    }
     signupPage?: {
       title?: string
       description?: string
