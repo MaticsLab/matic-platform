@@ -1,5 +1,3 @@
-
-
 package services
 
 import (
