@@ -1,3 +1,116 @@
+// GetForm returns a single form by ID
+func GetForm(c *gin.Context) {
+	id := c.Param("id")
+	var table models.Table
+	if err := database.DB.First(&table, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
+		return
+	}
+
+	var fields []models.Field
+	database.DB.Where("table_id = ?", table.ID).Order("position ASC").Find(&fields)
+	for i := range fields {
+		if fields[i].SectionID == nil || *fields[i].SectionID == "" {
+			var config map[string]interface{}
+			json.Unmarshal(fields[i].Config, &config)
+			if sid, ok := config["section_id"].(string); ok && sid != "" {
+				fields[i].SectionID = &sid
+			}
+		}
+	}
+
+	var view models.View
+	isPublished := false
+	var viewID *uuid.UUID
+	if err := database.DB.Where("table_id = ? AND type = ?", table.ID, "form").First(&view).Error; err == nil {
+		viewID = &view.ID
+		var config map[string]interface{}
+		json.Unmarshal(view.Config, &config)
+		if val, ok := config["is_published"].(bool); ok {
+			isPublished = val
+		}
+	}
+
+	var settings map[string]interface{}
+	json.Unmarshal(table.Settings, &settings)
+
+	form := FormDTO{
+		ID:                 table.ID,
+		ViewID:             viewID,
+		WorkspaceID:        table.WorkspaceID,
+		Name:               table.Name,
+		Slug:               table.Slug,
+		CustomSlug:         table.CustomSlug,
+		Description:        table.Description,
+		Settings:           settings,
+		IsPublished:        isPublished,
+		Fields:             fields,
+		CreatedAt:          table.CreatedAt,
+		UpdatedAt:          table.UpdatedAt,
+		PreviewTitle:       table.PreviewTitle,
+		PreviewDescription: table.PreviewDescription,
+		PreviewImageURL:    table.PreviewImageURL,
+	}
+
+	c.JSON(http.StatusOK, form)
+}
+
+// GetFormBySlug returns a form by its slug
+func GetFormBySlug(c *gin.Context) {
+	slug := c.Param("slug")
+	var table models.Table
+	if err := database.DB.Where("slug = ? AND icon = ?", slug, "form").First(&table).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
+		return
+	}
+
+	var fields []models.Field
+	database.DB.Where("table_id = ?", table.ID).Order("position ASC").Find(&fields)
+	for i := range fields {
+		if fields[i].SectionID == nil || *fields[i].SectionID == "" {
+			var config map[string]interface{}
+			json.Unmarshal(fields[i].Config, &config)
+			if sid, ok := config["section_id"].(string); ok && sid != "" {
+				fields[i].SectionID = &sid
+			}
+		}
+	}
+
+	var view models.View
+	isPublished := false
+	var viewID *uuid.UUID
+	if err := database.DB.Where("table_id = ? AND type = ?", table.ID, "form").First(&view).Error; err == nil {
+		viewID = &view.ID
+		var config map[string]interface{}
+		json.Unmarshal(view.Config, &config)
+		if val, ok := config["is_published"].(bool); ok {
+			isPublished = val
+		}
+	}
+
+	var settings map[string]interface{}
+	json.Unmarshal(table.Settings, &settings)
+
+	form := FormDTO{
+		ID:                 table.ID,
+		ViewID:             viewID,
+		WorkspaceID:        table.WorkspaceID,
+		Name:               table.Name,
+		Slug:               table.Slug,
+		CustomSlug:         table.CustomSlug,
+		Description:        table.Description,
+		Settings:           settings,
+		IsPublished:        isPublished,
+		Fields:             fields,
+		CreatedAt:          table.CreatedAt,
+		UpdatedAt:          table.UpdatedAt,
+		PreviewTitle:       table.PreviewTitle,
+		PreviewDescription: table.PreviewDescription,
+		PreviewImageURL:    table.PreviewImageURL,
+	}
+
+	c.JSON(http.StatusOK, form)
+}
 package handlers
 
 import (
