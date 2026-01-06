@@ -31,7 +31,7 @@ func InitGoogleDriveService() {
 	redirectURI := os.Getenv("GOOGLE_DRIVE_REDIRECT_URI")
 	if redirectURI == "" {
 		// Default to the backend URL + callback path
-		backendURL := os.Getenv("NEXT_PUBLIC_GO_API_URL")
+		backendURL := os.Getenv("GO_BACKEND_URL")
 		if backendURL == "" {
 			backendURL = "http://localhost:8000"
 		}
