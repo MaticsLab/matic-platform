@@ -312,15 +312,17 @@ function groupFieldsBySections(fields: FormField[] | undefined, formSettings: Re
   const excludedFieldLabels = ['IP', '_user_agent', 'ip', 'user_agent', '_ip', 'id']
   
   // Filter out excluded fields and layout-only fields
-  const regularFields = fields.filter(f => 
-    f.type !== 'section' && 
-    f.type !== 'divider' && 
-    f.type !== 'heading' && 
-    f.type !== 'paragraph' &&
-    f.type !== 'callout' &&
-    !excludedFieldLabels.includes(f.label) &&
-    !excludedFieldLabels.includes(f.name)
-  )
+  const regularFields = Array.isArray(fields)
+    ? fields.filter(f => 
+        f.type !== 'section' && 
+        f.type !== 'divider' && 
+        f.type !== 'heading' && 
+        f.type !== 'paragraph' &&
+        f.type !== 'callout' &&
+        !excludedFieldLabels.includes(f.label) &&
+        !excludedFieldLabels.includes(f.name)
+      )
+    : [];
 
   // If form has sections defined in settings, use those
   if (formSettings?.sections && Array.isArray(formSettings.sections)) {
@@ -349,7 +351,7 @@ function groupFieldsBySections(fields: FormField[] | undefined, formSettings: Re
   }
   
   // Fallback: check if fields themselves have section type
-  const sectionFields = fields.filter(f => f.type === 'section')
+  const sectionFields = Array.isArray(fields) ? fields.filter(f => f.type === 'section') : []
   
   if (sectionFields.length > 0) {
     const sections: FormSection[] = sectionFields.map(section => ({
