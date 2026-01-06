@@ -204,6 +204,16 @@ function OptionEditor({
 }
 
 export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields }: FieldSettingsPanelProps) {
+    // Helper to update validation settings for minWords/maxWords
+    const handleValidationUpdate = (key: 'minWords' | 'maxWords', value?: number) => {
+      if (!selectedField) return;
+      onUpdate(selectedField.id, {
+        validation: {
+          ...selectedField.validation,
+          [key]: value,
+        },
+      });
+    }
   if (!selectedField) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-gray-400 p-8 text-center bg-gray-50/30">
