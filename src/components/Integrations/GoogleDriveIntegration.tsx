@@ -66,8 +66,10 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
     (async () => {
       try {
         const settings = await googleDriveClient.getFormSettings(formId)
-        if (settings?.settings?.file_name_template) setFileNameTemplate(settings.settings.file_name_template)
-        if (settings?.settings?.upload_fields) setUploadFields(settings.settings.upload_fields)
+        if (typeof settings?.settings?.file_name_template === 'string') setFileNameTemplate(settings.settings.file_name_template)
+        else setFileNameTemplate('')
+        if (Array.isArray(settings?.settings?.upload_fields)) setUploadFields(settings.settings.upload_fields)
+        else setUploadFields([])
       } catch {}
     })()
   }, [formId])
