@@ -53,10 +53,18 @@ export function AuthPageRenderer({
   const themeColor = settings.themeColor || '#3B82F6'
   const isSignup = type === 'signup'
   
-  // Page-specific settings
-  const pageSettings = isSignup ? settings.signupPage : undefined
-  const title = pageSettings?.title || settings.name || 'Application Portal'
-  const description = pageSettings?.description || (isSignup ? 'Please sign up to continue your application.' : 'Please log in to continue your application.')
+  // Page-specific settings (always prefer explicit login/signupPage fields)
+  const pageSettings = isSignup ? settings.signupPage : settings.loginPage
+  const title = pageSettings?.title
+    || (isSignup ? settings.signupTitle : settings.loginTitle)
+    || settings.name
+    || (isSignup ? 'Sign up for your account' : 'Log in to your account')
+  const description = pageSettings?.description
+    || (isSignup ? settings.signupDescription : settings.loginDescription)
+    || (isSignup
+        ? 'Please sign up to continue your application.'
+        : 'Please log in to continue your application.'
+      )
   const buttonText = pageSettings?.buttonText || (isSignup ? 'Create Account' : 'Log In')
   const titleMargin = pageSettings?.titleMargin || {}
   const descriptionMargin = pageSettings?.descriptionMargin || {}
