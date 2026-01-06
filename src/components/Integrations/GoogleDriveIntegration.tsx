@@ -189,6 +189,8 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
 
     <Card>
       <CardContent>
+        {/* DEBUG: Show raw applicants data for troubleshooting */}
+        <pre className="text-xs bg-gray-100 p-2 rounded mb-2 max-h-40 overflow-auto">{JSON.stringify(applicants, null, 2)}</pre>
         {/* Google Drive Connect Button */}
         {isLoading ? (
           <div className="py-8 text-center text-gray-400">Loading integration status...</div>
