@@ -272,7 +272,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.GET("/email/oauth/callback", handlers.HandleGmailCallback)
 
 		// Google Drive OAuth Callback (must be public for OAuth flow)
-		api.GET("/integrations/google_drive/callback", handlers.GoogleDriveCallback)
+		api.GET("/integrations/google-drive/callback", handlers.GoogleDriveCallback)
 
 		// Public Resend Webhook (must be public for Resend to send events)
 		api.POST("/email/resend/webhook", handlers.HandleResendWebhook)
