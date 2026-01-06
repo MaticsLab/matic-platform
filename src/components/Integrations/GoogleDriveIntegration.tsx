@@ -89,297 +89,262 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
         try {
           const full = await formsClient.getFull(formId)
           if (full?.form && full.form.portal_config && Array.isArray(full.form.portal_config.sections)) {
-            allFields = full.form.portal_config.sections.flatMap((section: any) => Array.isArray(section.fields) ? section.fields : [])
-          }
-        } catch {}
-        // Fallback: use form.fields if no sections
-        if (!allFields.length) {
-          const form = await formsClient.get(formId)
-          if (Array.isArray(form.fields)) allFields = form.fields
-        }
-        // Map field keys (name or id) to label
-        const labelMap: Record<string, string> = {}
-        allFields.forEach((field: any) => {
-          if (field.name) labelMap[field.name] = field.label || field.name
-          if (field.id) labelMap[field.id] = field.label || field.id
-        })
-        setFieldLabelMap(labelMap)
-      } catch {
-        setFieldLabelMap({})
-      }
-    })()
-  }, [formId])
+            export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveIntegrationProps) {
+              // ...existing state and logic above...
 
-  // Fetch available fields for modal (from first applicant)
-  useEffect(() => {
-    if (!sampleData) return
-    const keys = Object.keys(sampleData)
-    setFieldOptions(keys.map(k => ({ key: k, label: fieldLabelMap[k] || k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) })))
-  }, [sampleData, fieldLabelMap])
+              if (isLoading) {
+                return (
+                  <Card>
+                    <CardContent className="py-8 flex items-center justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                    </CardContent>
+                  </Card>
+                )
+              }
 
-  // Fetch form integration settings (for upload fields and template)
-  useEffect(() => {
-    if (!formId) return
-    (async () => {
-      try {
-        const settings = await googleDriveClient.getFormSettings(formId)
-        if (typeof settings?.settings?.file_name_template === 'string') setFileNameTemplate(settings.settings.file_name_template)
-        else setFileNameTemplate('')
-        if (Array.isArray(settings?.settings?.upload_fields)) setUploadFields(settings.settings.upload_fields)
-        else setUploadFields([])
-      } catch {}
-    })()
-  }, [formId])
-  // Sync all applicants to Drive (with file name template and upload fields)
-  const handleSyncAllApplicants = async () => {
-    if (!formId || applicants.length === 0) return
-    setIsSyncingAll(true)
-    try {
-      for (const applicant of applicants) {
-        await googleDriveClient.createApplicantFolder(applicant.id)
-        // Optionally, sync files for each applicant here if needed
-      }
-      toast.success('All applicants synced to Google Drive')
-    } catch (error) {
-      toast.error('Failed to sync applicants to Drive')
-    } finally {
-      setIsSyncingAll(false)
-    }
-  }
-
-  // Save Drive settings (file name template, upload fields)
-  const handleSaveSettings = async () => {
-    if (!formId) return
-    setIsSavingSettings(true)
-    try {
-      await googleDriveClient.updateFormSettings(formId, {
-        settings: {
-          file_name_template: fileNameTemplate,
-          upload_fields: uploadFields
-        }
-      })
-      toast.success('Drive settings saved')
-    } catch {
-      toast.error('Failed to save settings')
-    } finally {
-      setIsSavingSettings(false)
-    }
-  }
-
-  // Check for OAuth callback success
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('integration') === 'google_drive' && params.get('status') === 'connected') {
-      toast.success('Google Drive connected successfully!')
-      fetchIntegration()
-      // Clean up URL
-      window.history.replaceState({}, '', window.location.pathname)
-    }
-  }, [])
-
-  const fetchIntegration = async () => {
-    try {
-      const data = await integrationsClient.get(workspaceId, 'google_drive')
-      setIntegration(data)
-    } catch {
-      // Integration doesn't exist yet
-      setIntegration(null)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleConnect = async () => {
-    setIsConnecting(true)
-    try {
-      // Create integration record if doesn't exist
-      if (!integration) {
-        await integrationsClient.create(workspaceId, 'google_drive')
-      }
-      // Start OAuth flow
-      await connectGoogleDrive(workspaceId)
-    } catch (error) {
-      console.error('Failed to connect Google Drive:', error)
-      toast.error('Failed to start Google Drive connection')
-    } finally {
-      setIsConnecting(false)
-    }
-  }
-
-  const handleDisconnect = async () => {
-    setIsDisconnecting(true)
-    try {
-      await googleDriveClient.disconnect(workspaceId)
-      await fetchIntegration()
-      toast.success('Google Drive disconnected')
-    } catch (error) {
-      console.error('Failed to disconnect:', error)
-      toast.error('Failed to disconnect Google Drive')
-    } finally {
-      setIsDisconnecting(false)
-    }
-  }
-
-  const handleToggleEnabled = async (enabled: boolean) => {
-    if (!integration) return
-    try {
-      const updated = await integrationsClient.update(workspaceId, 'google_drive', {
-        is_enabled: enabled
-      })
-      setIntegration(updated)
-      toast.success(enabled ? 'Google Drive integration enabled' : 'Google Drive integration disabled')
-    } catch (error) {
-      console.error('Failed to update integration:', error)
-      toast.error('Failed to update settings')
-    }
-  }
-
-  const config = integration?.config as GoogleDriveConfig | undefined
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="py-8 flex items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-        </CardContent>
-      </Card>
-    )
-  }
-
-  return (
-    <Card>
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-blue-100">
-              <HardDrive className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <CardTitle className="text-lg">Google Drive</CardTitle>
-              <CardDescription>
-                Automatically sync application files and documents
-              </CardDescription>
-            </div>
-          </div>
-          {integration?.is_connected ? (
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-              <Check className="h-3 w-3 mr-1" />
-              Connected
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="bg-gray-50 text-gray-600">
-              <X className="h-3 w-3 mr-1" />
-              Not Connected
-            </Badge>
-          )}
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
-        {!integration?.is_connected ? (
-          // Not connected state
-          <div className="text-center py-6 px-4 bg-gray-50 rounded-lg border border-dashed">
-            <FolderSync className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-            <p className="text-sm text-gray-600 mb-4">
-              Connect Google Drive to automatically sync applicant files and documents.
-              Each application will get its own folder.
-            </p>
-            <Button
-              onClick={handleConnect}
-              disabled={isConnecting}
-              className="gap-2"
-            >
-              {isConnecting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <HardDrive className="h-4 w-4" />
-              )}
-              Connect Google Drive
-            </Button>
-          </div>
-        ) : (
-          // Connected state
-          <>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-green-100">
-                  <Check className="h-4 w-4 text-green-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-sm">{integration.connected_email}</p>
-                  <p className="text-xs text-gray-500">
-                    Connected {integration.connected_at 
-                      ? new Date(integration.connected_at).toLocaleDateString()
-                      : 'recently'
-                    }
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDisconnect}
-                disabled={isDisconnecting}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                {isDisconnecting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  'Disconnect'
-                )}
-              </Button>
-            </div>
-
-            <Separator />
-
-            {/* Enable/Disable toggle */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Enable Integration</Label>
-                <p className="text-xs text-gray-500">
-                  When enabled, files will sync to Google Drive
-                </p>
-              </div>
-              <Switch
-                checked={integration.is_enabled}
-                onCheckedChange={handleToggleEnabled}
-              />
-            </div>
-
-            {/* Main application folder info (form folder) */}
-            {formId && (
-              <FormMainFolderLink formId={formId} />
-            )}
-// --- Helper component to show main folder link and structure ---
-function FormMainFolderLink({ formId }: { formId: string }) {
-  const [folderUrl, setFolderUrl] = useState<string | null>(null)
-  const [folderName, setFolderName] = useState<string>('Application Folder')
-  useEffect(() => {
-    let mounted = true
-    import('@/lib/api/integrations-client').then(({ googleDriveClient }) => {
-      googleDriveClient.getFormSettings(formId).then(setting => {
-        if (!mounted) return
-        setFolderUrl(setting.external_folder_url || null)
-        setFolderName(setting.settings?.folder_name || 'Application Folder')
-      })
-    })
-    return () => { mounted = false }
-  }, [formId])
-  if (!folderUrl) return null
-  return (
-    <div className="flex flex-col gap-1 p-3 bg-blue-50 rounded-lg mb-2">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-blue-900">{folderName}</p>
-          <p className="text-xs text-blue-700">Main application folder (contains all applicant subfolders)</p>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          asChild
-          className="text-blue-600"
-        >
-          <a href={folderUrl} target="_blank" rel="noopener noreferrer">
+              return (
+                <Card>
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-blue-100">
+                          <HardDrive className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">Google Drive</CardTitle>
+                          <CardDescription>
+                            Automatically sync application files and documents
+                          </CardDescription>
+                        </div>
+                      </div>
+                      {integration?.is_connected ? (
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                          <Check className="h-3 w-3 mr-1" />
+                          Connected
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-gray-50 text-gray-600">
+                          <X className="h-3 w-3 mr-1" />
+                          Not Connected
+                        </Badge>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {!integration?.is_connected ? (
+                      <div className="text-center py-6 px-4 bg-gray-50 rounded-lg border border-dashed">
+                        <FolderSync className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+                        <p className="text-sm text-gray-600 mb-4">
+                          Connect Google Drive to automatically sync applicant files and documents.
+                          Each application will get its own folder.
+                        </p>
+                        <Button
+                          onClick={handleConnect}
+                          disabled={isConnecting}
+                          className="gap-2"
+                        >
+                          {isConnecting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <HardDrive className="h-4 w-4" />
+                          )}
+                          Connect Google Drive
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-full bg-green-100">
+                              <Check className="h-4 w-4 text-green-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">{integration.connected_email}</p>
+                              <p className="text-xs text-gray-500">
+                                Connected {integration.connected_at 
+                                  ? new Date(integration.connected_at).toLocaleDateString()
+                                  : 'recently'
+                                }
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDisconnect}
+                            disabled={isDisconnecting}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            {isDisconnecting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              'Disconnect'
+                            )}
+                          </Button>
+                        </div>
+                        <Separator />
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label>Enable Integration</Label>
+                            <p className="text-xs text-gray-500">
+                              When enabled, files will sync to Google Drive
+                            </p>
+                          </div>
+                          <Switch
+                            checked={integration.is_enabled}
+                            onCheckedChange={handleToggleEnabled}
+                          />
+                        </div>
+                        {formId && (
+                          <FormMainFolderLink formId={formId} />
+                        )}
+                        {formId && (
+                          <div className="mt-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <Label>Applicants</Label>
+                              <Button size="sm" onClick={handleSyncAllApplicants} disabled={isSyncingAll || applicants.length === 0}>
+                                {isSyncingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderSync className="h-4 w-4 mr-1" />}
+                                Sync All to Drive
+                              </Button>
+                            </div>
+                            <ul className="max-h-40 overflow-y-auto border rounded bg-white">
+                              {applicants.length === 0 ? (
+                                <li className="p-2 text-xs text-gray-500">No applicants found.</li>
+                              ) : (
+                                applicants.map(app => (
+                                  <li key={app.id} className="p-2 border-b last:border-b-0 flex items-center gap-2 justify-between">
+                                    <span className="text-xs text-gray-700">{app.full_name || app.email || app.id}</span>
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="file"
+                                        id={`file-upload-${app.id}`}
+                                        style={{ display: 'none' }}
+                                        onChange={async (e) => {
+                                          const file = e.target.files?.[0]
+                                          if (!file) return
+                                          try {
+                                            const uploaded = await window.uploadFile?.(file)
+                                            if (!uploaded) throw new Error('Upload failed')
+                                            const result = await import('@/lib/api/integrations-client').then(m => m.autoSyncFileToGoogleDrive(app.id, uploaded))
+                                            if (result) {
+                                              toast.success('File uploaded and synced to Drive')
+                                            } else {
+                                              toast.error('File uploaded but failed to sync to Drive')
+                                            }
+                                          } catch (err) {
+                                            toast.error('Upload failed')
+                                          }
+                                        }}
+                                      />
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        title="Add document"
+                                        onClick={() => {
+                                          const input = document.getElementById(`file-upload-${app.id}`) as HTMLInputElement
+                                          input?.click()
+                                        }}
+                                      >
+                                        <Plus className="h-4 w-4 text-blue-500" />
+                                      </Button>
+                                    </div>
+                                  </li>
+                                ))
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                        {formId && (
+                          <div className="mt-6 space-y-4">
+                            <Label>File Name Template</Label>
+                            <div className="flex items-center gap-2 mb-2">
+                              <Input
+                                value={fileNameTemplate}
+                                onChange={e => setFileNameTemplate(e.target.value)}
+                                placeholder="e.g. ${applicant_name}_${field_label}"
+                                className="flex-1"
+                              />
+                              <Button size="icon" variant="ghost" onClick={() => setShowConfigModal(true)} title="Insert field">
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <Label>Upload Fields</Label>
+                            <Input
+                              value={uploadFields.join(',')}
+                              readOnly
+                              placeholder="Comma-separated field keys"
+                              className="mb-2"
+                            />
+                            <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
+                              <DialogContent className="max-w-lg">
+                                <DialogHeader>
+                                  <DialogTitle>Insert Field & Pick Upload Fields</DialogTitle>
+                                </DialogHeader>
+                                <div className="mb-4">
+                                  <div className="mb-2 font-medium">Available Fields</div>
+                                  <div className="flex flex-wrap gap-2 mb-2 max-h-40 overflow-y-auto pr-1" style={{minWidth: '200px'}}>
+                                    {fieldOptions.map(f => (
+                                      <Button key={f.key} size="sm" variant="secondary" onClick={() => setFileNameTemplate(t => t + `${f.key}`)}>
+                                        {`$${f.key}`}
+                                      </Button>
+                                    ))}
+                                  </div>
+                                  <div className="mb-2">
+                                    <Label>Upload Fields</Label>
+                                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-1" style={{minWidth: '200px'}}>
+                                      {fieldOptions.map(f => (
+                                        <Checkbox
+                                          key={f.key}
+                                          checked={uploadFields.includes(f.key)}
+                                          onCheckedChange={checked => {
+                                            setUploadFields(fields => checked ? [...fields, f.key] : fields.filter(x => x !== f.key))
+                                          }}
+                                        >
+                                          {f.label}
+                                        </Checkbox>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div className="mt-4 p-2 bg-gray-50 rounded">
+                                    <div className="text-xs text-gray-500 mb-1">Preview</div>
+                                    <div className="font-mono text-sm">
+                                      {fileNameTemplate.replace(/\$\{([^}]+)\}/g, (_, k) => sampleData[k] || `[${k}]`)}
+                                    </div>
+                                  </div>
+                                </div>
+                                <DialogFooter>
+                                  <Button onClick={() => setShowConfigModal(false)}>Done</Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+                            <Button size="sm" onClick={handleSaveSettings} disabled={isSavingSettings}>
+                              {isSavingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Settings'}
+                            </Button>
+                          </div>
+                        )}
+                        {integration.last_sync_at && (
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <RefreshCw className="h-3 w-3" />
+                            Last synced: {new Date(integration.last_sync_at).toLocaleString()}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <div className="flex gap-2 p-3 bg-amber-50 rounded-lg text-amber-800">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                      <div className="text-xs">
+                        <p className="font-medium">How it works:</p>
+                        <ul className="mt-1 space-y-0.5 text-amber-700">
+                          <li>• A folder is created for each application/form</li>
+                          <li>• Each applicant gets their own subfolder</li>
+                          <li>• Uploaded files are automatically synced</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            }
             <ExternalLink className="h-4 w-4 mr-1" />
             Open
           </a>
