@@ -108,11 +108,14 @@ export default function LoginPage() {
           </div>
 
           {/* Login Card */}
+
           <div className="bg-white rounded-2xl shadow-xl shadow-blue-900/5 p-8">
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-[#FAFAFA] mb-2">Welcome back</h2>
+            {/* Editor-style heading and subheading */}
+            <div className="text-center mb-8">
+              <h1 className="text-4xl font-bold text-gray-900 dark:text-[#FAFAFA] mb-2">Matic</h1>
               <p className="text-gray-600 dark:text-[#FAFAFA]/80">Sign in to your account to continue</p>
             </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-[#FAFAFA] mb-6">Sign In</h2>
 
             {error && (
               <div className="mb-6 p-4 bg-red-50 dark:bg-[#232323] border border-red-100 dark:border-red-400 rounded-xl">

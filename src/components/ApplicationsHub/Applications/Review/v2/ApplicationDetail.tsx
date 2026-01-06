@@ -1471,21 +1471,47 @@ export function ApplicationDetail({
                               Actions
                               <ChevronDown className="w-4 h-4" />
                             </button>
-                            {showActionsDropdown && (
+                            {showActionsDropdown && ([...stageActions, ...workflowActions].length > 0 ? (
                               <div className="absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-30">
-                                <button
-                                  className="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700"
-                                  onClick={() => {
-                                    setShowActionsDropdown(false);
-                                    // Example: trigger an action
-                                    toast('Action triggered!');
-                                  }}
-                                >
-                                  Example Action
-                                </button>
-                                {/* Add more actions as needed */}
+                                {[...stageActions, ...workflowActions].map((action) => (
+                                  <button
+                                    key={action.id}
+                                    className="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700"
+                                    onClick={async () => {
+                                      setShowActionsDropdown(false);
+                                      if (!formId) {
+                                        toast.error('Form ID is required');
+                                        return;
+                                      }
+                                      try {
+                                        await workflowsClient.executeAction({
+                                          form_id: formId,
+                                          submission_id: application.id,
+                                          action_type: stageActions.some(a => a.id === action.id) ? 'stage_action' : 'workflow_action',
+                                          action_id: action.id,
+                                        });
+                                        toast.success(`Action "${action.name}" executed successfully`);
+                                        if (action.target_stage_id) {
+                                          const targetStage = stages.find(s => s.id === action.target_stage_id);
+                                          if (targetStage) {
+                                            onStatusChange?.(application.id, targetStage.name as ApplicationStatus);
+                                          }
+                                        }
+                                      } catch (error) {
+                                        console.error('Failed to execute action:', error);
+                                        toast.error('Failed to execute action');
+                                      }
+                                    }}
+                                  >
+                                    {action.name}
+                                  </button>
+                                ))}
                               </div>
-                            )}
+                            ) : (
+                              <div className="absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-30">
+                                <div className="px-4 py-2 text-gray-400">No actions available</div>
+                              </div>
+                            ))}
                           </div>
                           {/* Request Revision Button */}
                           <button

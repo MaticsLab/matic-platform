@@ -69,6 +69,8 @@ export function TextRenderer(props: FieldRendererProps): React.ReactElement | nu
   const isTextarea = isLongText(fieldTypeId);
   const maxLength = config?.maxLength || config?.max_length;
   const minLength = config?.minLength || config?.min_length;
+  const minWords = config?.minWords || config?.min_words || field.validation?.minWords || field.validation?.min_words;
+  const maxWords = config?.maxWords || config?.max_words || field.validation?.maxWords || field.validation?.max_words;
   const rows = config?.rows || 4;
 
   // Display mode - just show the value
@@ -176,18 +178,43 @@ export function TextRenderer(props: FieldRendererProps): React.ReactElement | nu
         )}
         
         {isTextarea ? (
-          <Textarea
-            id={field.name}
-            value={value || ''}
-            onChange={(e) => onChange?.(e.target.value)}
-            disabled={disabled}
-            required={required}
-            placeholder={placeholder || config?.placeholder}
-            rows={rows}
-            maxLength={maxLength}
-            minLength={minLength}
-            className={cn(error && 'border-red-500')}
-          />
+          (() => {
+            const wordCount = (value || '').trim().split(/\s+/).filter(Boolean).length;
+            let wordError = '';
+            if (typeof minWords === 'number' && wordCount < minWords) {
+              wordError = `Must be at least ${minWords} words.`;
+            } else if (typeof maxWords === 'number' && wordCount > maxWords) {
+              wordError = `Must be at most ${maxWords} words.`;
+            }
+            return (
+              <>
+                <Textarea
+                  id={field.name}
+                  value={value || ''}
+                  onChange={(e) => onChange?.(e.target.value)}
+                  disabled={disabled}
+                  required={required}
+                  placeholder={placeholder || config?.placeholder}
+                  rows={rows}
+                  maxLength={maxLength}
+                  minLength={minLength}
+                  className={cn((error || wordError) && 'border-red-500')}
+                />
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-xs text-gray-400">{wordCount} word{wordCount === 1 ? '' : 's'}</span>
+                  {(minWords || maxWords) && (
+                    <span className="text-xs text-gray-400">
+                      {minWords && `Min: ${minWords} `}
+                      {maxWords && `Max: ${maxWords}`}
+                    </span>
+                  )}
+                </div>
+                {(error || wordError) && (
+                  <p className="text-sm text-red-500">{error || wordError}</p>
+                )}
+              </>
+            );
+          })()
         ) : (
           <Input
             id={field.name}
@@ -207,7 +234,7 @@ export function TextRenderer(props: FieldRendererProps): React.ReactElement | nu
           <p className="text-sm text-red-500">{error}</p>
         )}
         
-        {maxLength && (
+        {maxLength && !isTextarea && (
           <p className="text-xs text-gray-400 text-right">
             {(value?.length || 0)} / {maxLength}
           </p>

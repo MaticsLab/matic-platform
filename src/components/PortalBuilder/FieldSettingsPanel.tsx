@@ -530,6 +530,38 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                 </>
               )}
 
+
+              {/* Textarea Field Settings: Min/Max Words */}
+              {selectedField.type === 'textarea' && (
+                <div className="space-y-2 pt-2">
+                  <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Word Limit</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={selectedField.validation?.minWords ?? ''}
+                        onChange={e => handleValidationUpdate('minWords', e.target.value ? parseInt(e.target.value) : undefined)}
+                        placeholder="Min words"
+                        className="bg-gray-50/50 border-gray-200"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Minimum required words</p>
+                    </div>
+                    <div>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={selectedField.validation?.maxWords ?? ''}
+                        onChange={e => handleValidationUpdate('maxWords', e.target.value ? parseInt(e.target.value) : undefined)}
+                        placeholder="Max words"
+                        className="bg-gray-50/50 border-gray-200"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Maximum allowed words</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Paragraph Rich Text Settings */}
               {selectedField.type === 'paragraph' && (
                 <div className="space-y-2 pt-2">
