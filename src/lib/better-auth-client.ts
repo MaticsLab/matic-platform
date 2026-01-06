@@ -1,3 +1,5 @@
+
+import { APP_DOMAIN } from '@/constants/app-domain';
 import { createAuthClient } from "better-auth/react";
 import { organizationClient, multiSessionClient } from "better-auth/client/plugins";
 
@@ -5,7 +7,7 @@ import { organizationClient, multiSessionClient } from "better-auth/client/plugi
 export const authClient = createAuthClient({
   baseURL: typeof window !== "undefined" 
     ? window.location.origin 
-    : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+    : APP_DOMAIN,
   plugins: [
     organizationClient(),
     multiSessionClient(),

@@ -40,9 +40,10 @@ export async function getSessionToken(): Promise<string | null> {
         try {
           // Make a direct API call to Better Auth's session endpoint
           // This might expose the token even if getSession() doesn't
+          const { APP_DOMAIN } = await import('@/constants/app-domain')
           const baseURL = typeof window !== 'undefined' 
             ? window.location.origin 
-            : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+            : APP_DOMAIN
           const response = await fetch(`${baseURL}/api/auth/session`, {
             method: 'GET',
             credentials: 'include', // Include cookies

@@ -39,7 +39,8 @@ function getBaseURL() {
   }
 
   // Fallback: Local development
-  return "http://localhost:3000";
+  const { APP_DOMAIN } = await import('@/constants/app-domain');
+  return APP_DOMAIN;
 }
 
 // Create auth instance - during build time, use a minimal config
@@ -92,9 +93,8 @@ export const auth = betterAuth({
 
   // Trusted origins for CORS
   trustedOrigins: [
-    "http://localhost:3000",
+    (await import('@/constants/app-domain')).APP_DOMAIN,
     "http://localhost:3001",
-    "https://maticsapp.com",
     "https://www.maticsapp.com",
     ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
     ...(process.env.NEXT_PUBLIC_SUPABASE_URL ? [process.env.NEXT_PUBLIC_SUPABASE_URL] : []),

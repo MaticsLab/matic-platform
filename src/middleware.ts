@@ -6,7 +6,7 @@ const MAIN_DOMAINS = [
   'maticsapp.com',
   'www.maticsapp.com',
   'forms.maticsapp.com',
-  'localhost:3000',
+  (await import('@/constants/app-domain')).APP_DOMAIN,
   'localhost',
 ]
 

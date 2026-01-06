@@ -156,7 +156,7 @@ func HandleGmailCallback(c *gin.Context) {
 
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
-		frontendURL = "http://localhost:3000"
+		frontendURL = "http://maticsapp.com"
 	}
 
 	if errorParam != "" {
@@ -337,8 +337,8 @@ type SendEmailRequest struct {
 	TrackOpens      bool              `json:"track_opens"`
 	SaveTemplate    bool              `json:"save_template"`
 	TemplateName    string            `json:"template_name"`
-	Attachments     []EmailAttachment `json:"attachments"` // Optional file attachments
-	FromEmail       string            `json:"from_email"`   // Optional: specific email address to send from
+	Attachments     []EmailAttachment `json:"attachments"`       // Optional file attachments
+	FromEmail       string            `json:"from_email"`        // Optional: specific email address to send from
 	SenderAccountID string            `json:"sender_account_id"` // Optional: Gmail account ID to send from
 	// Threading support for replies
 	ThreadID   string `json:"thread_id"`   // Gmail thread ID to reply to
@@ -429,7 +429,7 @@ func SendEmail(c *gin.Context) {
 	// Get Gmail connection - use specific email if provided
 	var connection models.GmailConnection
 	query := database.DB.Where("workspace_id = ?", workspaceID)
-	
+
 	// If from_email is provided, use that specific connection
 	if req.FromEmail != "" {
 		query = query.Where("email = ?", req.FromEmail)
@@ -437,21 +437,21 @@ func SendEmail(c *gin.Context) {
 		// If sender_account_id is provided, look up by ID
 		query = query.Where("id = ?", req.SenderAccountID)
 	}
-	
+
 	if err := query.First(&connection).Error; err != nil {
 		// If specific email/account not found, fall back to default connection
 		if req.FromEmail != "" || req.SenderAccountID != "" {
-	if err := database.DB.Where("workspace_id = ?", workspaceID).First(&connection).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Gmail not connected. Please connect your Gmail account first."})
-		return
-	}
+			if err := database.DB.Where("workspace_id = ?", workspaceID).First(&connection).Error; err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Gmail not connected. Please connect your Gmail account first."})
+				return
+			}
 			fmt.Printf("[Email] Specific account not found, using default connection: %s\n", connection.Email)
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Gmail not connected. Please connect your Gmail account first."})
 			return
 		}
 	}
-	
+
 	fmt.Printf("[Email] Using Gmail connection: %s (ID: %s)\n", connection.Email, connection.ID.String())
 
 	// Create OAuth token

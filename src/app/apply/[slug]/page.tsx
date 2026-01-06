@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation'
 import { PublicPortal } from '@/components/ApplicationsHub/Applications/ApplicantPortal/PublicPortal'
 
 const BASE_URL = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://maticsapp.com'
+import { APP_DOMAIN } from '@/constants/app-domain'
+const APP_URL = APP_DOMAIN
 
 const getRequestOrigin = () => {
   const hdrs = headers()
