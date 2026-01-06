@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { Input } from '@/ui-components/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui-components/dialog'
+import { Checkbox } from '@/ui-components/checkbox'
+import { Plus } from 'lucide-react'
 import { submissionsClient } from '@/lib/api/submissions-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui-components/card'
 import { Button } from '@/ui-components/button'
@@ -42,6 +45,9 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
   const [fileNameTemplate, setFileNameTemplate] = useState<string>('${applicant_name}_${field_label}')
   const [uploadFields, setUploadFields] = useState<string[]>([])
   const [isSavingSettings, setIsSavingSettings] = useState(false)
+  const [showConfigModal, setShowConfigModal] = useState(false)
+  const [fieldOptions, setFieldOptions] = useState<{ key: string, label: string }[]>([])
+  const [sampleData, setSampleData] = useState<Record<string, any>>({})
 
   // Fetch integration status on mount
   useEffect(() => {
@@ -55,10 +61,19 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
     try {
       const data = await submissionsClient.list(formId)
       setApplicants(data)
+      // Use first applicant as sample data
+      if (data.length > 0) setSampleData(data[0])
     } catch {
       setApplicants([])
     }
   }
+
+  // Fetch available fields for modal (from first applicant)
+  useEffect(() => {
+    if (!sampleData) return
+    const keys = Object.keys(sampleData)
+    setFieldOptions(keys.map(k => ({ key: k, label: k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) })))
+  }, [sampleData])
 
   // Fetch form integration settings (for upload fields and template)
   useEffect(() => {
@@ -346,19 +361,67 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
             {formId && (
               <div className="mt-6 space-y-4">
                 <Label>File Name Template</Label>
-                <Input
-                  value={fileNameTemplate}
-                  onChange={e => setFileNameTemplate(e.target.value)}
-                  placeholder="e.g. ${applicant_name}_${field_label}"
-                  className="mb-2"
-                />
+                <div className="flex items-center gap-2 mb-2">
+                  <Input
+                    value={fileNameTemplate}
+                    onChange={e => setFileNameTemplate(e.target.value)}
+                    placeholder="e.g. ${applicant_name}_${field_label}"
+                    className="flex-1"
+                  />
+                  <Button size="icon" variant="ghost" onClick={() => setShowConfigModal(true)} title="Insert field">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
                 <Label>Upload Fields</Label>
                 <Input
                   value={uploadFields.join(',')}
-                  onChange={e => setUploadFields(e.target.value.split(','))}
+                  readOnly
                   placeholder="Comma-separated field keys"
                   className="mb-2"
                 />
+                            {/* Config Modal */}
+                            <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
+                              <DialogContent className="max-w-lg">
+                                <DialogHeader>
+                                  <DialogTitle>Insert Field & Pick Upload Fields</DialogTitle>
+                                </DialogHeader>
+                                <div className="mb-4">
+                                  <div className="mb-2 font-medium">Available Fields</div>
+                                  <div className="flex flex-wrap gap-2 mb-2">
+                                    {fieldOptions.map(f => (
+                                      <Button key={f.key} size="xs" variant="secondary" onClick={() => setFileNameTemplate(t => t + `${f.key}`)}>
+                                        {`$${f.key}`}
+                                      </Button>
+                                    ))}
+                                  </div>
+                                  <div className="mb-2">
+                                    <Label>Upload Fields</Label>
+                                    <div className="flex flex-wrap gap-2">
+                                      {fieldOptions.map(f => (
+                                        <Checkbox
+                                          key={f.key}
+                                          checked={uploadFields.includes(f.key)}
+                                          onCheckedChange={checked => {
+                                            setUploadFields(fields => checked ? [...fields, f.key] : fields.filter(x => x !== f.key))
+                                          }}
+                                        >
+                                          {f.label}
+                                        </Checkbox>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div className="mt-4 p-2 bg-gray-50 rounded">
+                                    <div className="text-xs text-gray-500 mb-1">Preview</div>
+                                    <div className="font-mono text-sm">
+                                      {fileNameTemplate.replace(/\$\{([^}]+)\}/g, (_, k) => sampleData[k] || `[${k}]`)}
+                                    </div>
+                                  </div>
+                                </div>
+                                <DialogFooter>
+                                  <Button onClick={() => setShowConfigModal(false)}>Done</Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
                 <Button size="sm" onClick={handleSaveSettings} disabled={isSavingSettings}>
                   {isSavingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Settings'}
                 </Button>
