@@ -351,11 +351,10 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
               <FormMainFolderLink formId={formId} />
             )}
 // --- Helper component to show main folder link and structure ---
-import { useState as useReactState, useEffect as useReactEffect } from 'react'
 function FormMainFolderLink({ formId }: { formId: string }) {
-  const [folderUrl, setFolderUrl] = useReactState<string | null>(null)
-  const [folderName, setFolderName] = useReactState<string>('Application Folder')
-  useReactEffect(() => {
+  const [folderUrl, setFolderUrl] = useState<string | null>(null)
+  const [folderName, setFolderName] = useState<string>('Application Folder')
+  useEffect(() => {
     let mounted = true
     import('@/lib/api/integrations-client').then(({ googleDriveClient }) => {
       googleDriveClient.getFormSettings(formId).then(setting => {
