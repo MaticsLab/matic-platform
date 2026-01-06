@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { submissionsClient } from '@/lib/api/submissions-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui-components/card'
 import { Button } from '@/ui-components/button'
 import { Badge } from '@/ui-components/badge'
@@ -27,18 +28,49 @@ import type { WorkspaceIntegration, GoogleDriveConfig } from '@/types/integratio
 
 interface GoogleDriveIntegrationProps {
   workspaceId: string
+  formId?: string // Optional, for form-level config
 }
 
-export function GoogleDriveIntegration({ workspaceId }: GoogleDriveIntegrationProps) {
+export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveIntegrationProps) {
   const [integration, setIntegration] = useState<WorkspaceIntegration | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
+  const [applicants, setApplicants] = useState<any[]>([])
+  const [isSyncingAll, setIsSyncingAll] = useState(false)
 
   // Fetch integration status on mount
   useEffect(() => {
     fetchIntegration()
+    fetchApplicants()
   }, [workspaceId])
+
+  // Fetch all applicants (existing submissions)
+  const fetchApplicants = async () => {
+    if (!formId) return
+    try {
+      const data = await submissionsClient.list(formId)
+      setApplicants(data)
+    } catch {
+      setApplicants([])
+    }
+  }
+  // Sync all applicants to Drive
+  const handleSyncAllApplicants = async () => {
+    if (!formId || applicants.length === 0) return
+    setIsSyncingAll(true)
+    try {
+      for (const applicant of applicants) {
+        // Create Drive folder for each applicant (row)
+        await googleDriveClient.createApplicantFolder(applicant.id)
+      }
+      toast.success('All applicants synced to Google Drive')
+    } catch (error) {
+      toast.error('Failed to sync applicants to Drive')
+    } finally {
+      setIsSyncingAll(false)
+    }
+  }
 
   // Check for OAuth callback success
   useEffect(() => {
@@ -248,6 +280,32 @@ export function GoogleDriveIntegration({ workspaceId }: GoogleDriveIntegrationPr
                 </Button>
               </div>
             )}
+
+            {/* Applicants sync section */}
+            {formId && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Applicants</Label>
+                  <Button size="sm" onClick={handleSyncAllApplicants} disabled={isSyncingAll || applicants.length === 0}>
+                    {isSyncingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderSync className="h-4 w-4 mr-1" />}
+                    Sync All to Drive
+                  </Button>
+                </div>
+                <ul className="max-h-40 overflow-y-auto border rounded bg-white">
+                  {applicants.length === 0 ? (
+                    <li className="p-2 text-xs text-gray-500">No applicants found.</li>
+                  ) : (
+                    applicants.map(app => (
+                      <li key={app.id} className="p-2 border-b last:border-b-0 flex items-center gap-2">
+                        <span className="text-xs text-gray-700">{app.full_name || app.email || app.id}</span>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
+            )}
+
+            {/* TODO: Add folder/fields config UI here */}
 
             {/* Last sync info */}
             {integration.last_sync_at && (
