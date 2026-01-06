@@ -31,6 +31,8 @@ interface FileValue {
   size?: number;
   type?: string;
   uploaded_at?: string;
+  driveStatus?: 'pending' | 'success' | 'error';
+  driveError?: string | null;
 }
 
 function normalizeFileValue(value: any): FileValue[] {
