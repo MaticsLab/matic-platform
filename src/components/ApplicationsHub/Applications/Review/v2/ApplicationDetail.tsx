@@ -1491,6 +1491,14 @@ export function ApplicationDetail({
                           >
                             Request Revision
                           </button>
+                          {/* Delete Button */}
+                          <button
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium shadow hover:bg-red-700 transition-colors"
+                            onClick={handleDelete}
+                            disabled={isLoading}
+                          >
+                            {showDeleteConfirm ? 'Confirm Delete' : 'Delete'}
+                          </button>
                         </div>
                         {/* Optional: Add more controls or info here */}
                       </div>
