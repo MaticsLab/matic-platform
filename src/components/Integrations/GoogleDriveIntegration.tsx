@@ -338,34 +338,56 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
               />
             </div>
 
-            {/* Root folder info */}
-            {config?.root_folder_url && (
-              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                <div>
-                  <p className="text-sm font-medium text-blue-900">
-                    {config.root_folder_name || 'Root Folder'}
-                  </p>
-                  <p className="text-xs text-blue-700">
-                    All application files will be stored here
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  asChild
-                  className="text-blue-600"
-                >
-                  <a 
-                    href={config.root_folder_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    Open
-                  </a>
-                </Button>
-              </div>
+            {/* Main application folder info (form folder) */}
+            {formId && (
+              <FormMainFolderLink formId={formId} />
             )}
+// --- Helper component to show main folder link and structure ---
+import { useState as useReactState, useEffect as useReactEffect } from 'react'
+function FormMainFolderLink({ formId }: { formId: string }) {
+  const [folderUrl, setFolderUrl] = useReactState<string | null>(null)
+  const [folderName, setFolderName] = useReactState<string>('Application Folder')
+  useReactEffect(() => {
+    let mounted = true
+    import('@/lib/api/integrations-client').then(({ googleDriveClient }) => {
+      googleDriveClient.getFormSettings(formId).then(setting => {
+        if (!mounted) return
+        setFolderUrl(setting.external_folder_url || null)
+        setFolderName(setting.settings?.folder_name || 'Application Folder')
+      })
+    })
+    return () => { mounted = false }
+  }, [formId])
+  if (!folderUrl) return null
+  return (
+    <div className="flex flex-col gap-1 p-3 bg-blue-50 rounded-lg mb-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-blue-900">{folderName}</p>
+          <p className="text-xs text-blue-700">Main application folder (contains all applicant subfolders)</p>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          asChild
+          className="text-blue-600"
+        >
+          <a href={folderUrl} target="_blank" rel="noopener noreferrer">
+            <ExternalLink className="h-4 w-4 mr-1" />
+            Open
+          </a>
+        </Button>
+      </div>
+      <div className="text-xs text-blue-800 mt-1">
+        <span className="font-semibold">Structure:</span> <br />
+        <span className="ml-2">{folderName}/</span><br />
+        <span className="ml-6">[applicant1]/</span><br />
+        <span className="ml-6">[applicant2]/</span><br />
+        <span className="ml-6">...</span>
+      </div>
+    </div>
+  )
+}
 
             {/* Applicants sync section */}
             {formId && (
