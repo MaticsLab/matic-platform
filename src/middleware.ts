@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { APP_DOMAIN } from '@/constants/app-domain'
 
 // Main app domains that should NOT be treated as subdomain routing
 const MAIN_DOMAINS = [
+  APP_DOMAIN,
   'maticsapp.com',
   'www.maticsapp.com',
   'forms.maticsapp.com',
-  (await import('@/constants/app-domain')).APP_DOMAIN,
+  'localhost:3000',
   'localhost',
 ]
 
