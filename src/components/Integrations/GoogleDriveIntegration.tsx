@@ -39,6 +39,7 @@ interface GoogleDriveIntegrationProps {
 export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveIntegrationProps) {
 
   const [integration, setIntegration] = useState<WorkspaceIntegration | null>(null)
+    const [filesByApplicant, setFilesByApplicant] = useState<Record<string, any[]>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
@@ -152,6 +153,18 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
       }))
       setApplicants(applicants)
       if (applicants.length > 0) setSampleData(applicants[0])
+      // Fetch files for each applicant
+      const filesMap: Record<string, any[]> = {}
+      for (const app of applicants) {
+        try {
+          // Replace with your actual API to fetch files for a row/applicant
+          const files = await tablesGoClient.getFilesByRow?.(app.id) || []
+          filesMap[app.id] = files
+        } catch {
+          filesMap[app.id] = []
+        }
+      }
+      setFilesByApplicant(filesMap)
     } catch {
       setApplicants([])
     }
@@ -199,47 +212,78 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
                     applicants.map(app => (
                       <li key={app.id} className="p-2 border-b last:border-b-0 flex items-center gap-2 justify-between">
                         <span className="text-xs text-gray-700">{app.full_name || app.email || app.id}</span>
-                        <div className="flex items-center gap-2">
-                          {app.driveFolderUrl && (
-                            <a href={app.driveFolderUrl} target="_blank" rel="noopener noreferrer" title="Open Drive Folder">
-                              <ExternalLink className="h-4 w-4 text-blue-600" />
-                            </a>
-                          )}
-                          <input
-                            type="file"
-                            id={`file-upload-${app.id}`}
-                            style={{ display: 'none' }}
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0]
-                              if (!file) return
-                              try {
-                                // @ts-ignore
-                                const uploaded = await (window as any).uploadFile?.(file)
-                                if (!uploaded) throw new Error('Upload failed')
-                                const result = await import('@/lib/api/integrations-client').then(m => m.autoSyncFileToGoogleDrive(app.id, uploaded))
-                                if (result && result.file_url) {
-                                  toast.success(<span>File uploaded. <a href={result.file_url} target="_blank" rel="noopener noreferrer" className="underline text-blue-600">Open in Drive</a></span>)
-                                } else if (result) {
-                                  toast.success('File uploaded and synced to Drive')
-                                } else {
-                                  toast.error('File uploaded but failed to sync to Drive')
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            {app.driveFolderUrl && (
+                              <a href={app.driveFolderUrl} target="_blank" rel="noopener noreferrer" title="Open Drive Folder">
+                                <ExternalLink className="h-4 w-4 text-blue-600" />
+                              </a>
+                            )}
+                            <input
+                              type="file"
+                              id={`file-upload-${app.id}`}
+                              style={{ display: 'none' }}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0]
+                                if (!file) return
+                                try {
+                                  // @ts-ignore
+                                  const uploaded = await (window as any).uploadFile?.(file)
+                                  if (!uploaded) throw new Error('Upload failed')
+                                  const result = await import('@/lib/api/integrations-client').then(m => m.autoSyncFileToGoogleDrive(app.id, uploaded))
+                                  if (result && result.file_url) {
+                                    toast.success(<span>File uploaded. <a href={result.file_url} target="_blank" rel="noopener noreferrer" className="underline text-blue-600">Open in Drive</a></span>)
+                                  } else if (result) {
+                                    toast.success('File uploaded and synced to Drive')
+                                  } else {
+                                    toast.error('File uploaded but failed to sync to Drive')
+                                  }
+                                } catch (err) {
+                                  toast.error('Upload failed')
                                 }
-                              } catch (err) {
-                                toast.error('Upload failed')
-                              }
-                            }}
-                          />
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            title="Add document"
-                            onClick={() => {
-                              const input = document.getElementById(`file-upload-${app.id}`) as HTMLInputElement
-                              input?.click()
-                            }}
-                          >
-                            <Plus className="h-4 w-4 text-blue-500" />
-                          </Button>
+                              }}
+                            />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              title="Add document"
+                              onClick={() => {
+                                const input = document.getElementById(`file-upload-${app.id}`) as HTMLInputElement
+                                input?.click()
+                              }}
+                            >
+                              <Plus className="h-4 w-4 text-blue-500" />
+                            </Button>
+                          </div>
+                          {/* File picker for already-uploaded files */}
+                          {filesByApplicant[app.id]?.length > 0 && (
+                            <div className="flex flex-col gap-1 mt-2">
+                              <span className="text-xs text-gray-500">Already uploaded files:</span>
+                              <ul className="flex flex-wrap gap-2">
+                                {filesByApplicant[app.id].map(file => (
+                                  <li key={file.id} className="flex items-center gap-1">
+                                    <span className="text-xs">{file.name}</span>
+                                    <Button size="xs" variant="outline" onClick={async () => {
+                                      try {
+                                        const result = await import('@/lib/api/integrations-client').then(m => m.autoSyncFileToGoogleDrive(app.id, file))
+                                        if (result && result.file_url) {
+                                          toast.success(<span>File synced. <a href={result.file_url} target="_blank" rel="noopener noreferrer" className="underline text-blue-600">Open in Drive</a></span>)
+                                        } else if (result) {
+                                          toast.success('File synced to Drive')
+                                        } else {
+                                          toast.error('Failed to sync file to Drive')
+                                        }
+                                      } catch {
+                                        toast.error('Failed to sync file')
+                                      }
+                                    }}>
+                                      Sync to Drive
+                                    </Button>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       </li>
                     ))

@@ -1,5 +1,21 @@
 
+
 package services
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/drive/v3"
+	"google.golang.org/api/option"
+)
 
 // SetPermission sets sharing permissions on a file or folder (user or anyone)
 func (s *GoogleDriveService) SetPermission(ctx context.Context, srv *drive.Service, fileID string, permType string, role string, email string) error {
@@ -16,21 +32,6 @@ func (s *GoogleDriveService) SetPermission(ctx context.Context, srv *drive.Servi
 	}
 	return nil
 }
-
-import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"strings"
-	"time"
-
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
-	"google.golang.org/api/drive/v3"
-	"google.golang.org/api/option"
-)
 
 // RenderFileNameTemplate renders a file name template using row data and fallback name
 func RenderFileNameTemplate(template string, rowData map[string]interface{}, fallback string) string {
