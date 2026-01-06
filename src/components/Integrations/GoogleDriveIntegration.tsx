@@ -5,7 +5,7 @@ import { Input } from '@/ui-components/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui-components/dialog'
 import { Checkbox } from '@/ui-components/checkbox'
 import { Plus } from 'lucide-react'
-import { submissionsClient } from '@/lib/api/submissions-client'
+import { tablesGoClient } from '@/lib/api/tables-go-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui-components/card'
 import { Button } from '@/ui-components/button'
 import { Badge } from '@/ui-components/badge'
@@ -55,14 +55,23 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
     fetchApplicants()
   }, [workspaceId])
 
-  // Fetch all applicants (existing submissions)
+  // Fetch all applicants (existing submissions) from table_rows
   const fetchApplicants = async () => {
     if (!formId) return
     try {
-      const data = await submissionsClient.list(formId)
-      setApplicants(data)
-      // Use first applicant as sample data
-      if (data.length > 0) setSampleData(data[0])
+      const rows = await tablesGoClient.getRowsByTable(formId)
+      // Map to applicant objects for Drive UI (flatten data, add id)
+      const applicants = rows.map(row => ({
+        id: row.id,
+        ...row.data,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        // Optionally add full_name/email if present in data
+        full_name: row.data?.full_name || row.data?.name || row.data?.personalEmail || row.data?.personal?.personalEmail,
+        email: row.data?.email || row.data?.personalEmail || row.data?.personal?.personalEmail,
+      }))
+      setApplicants(applicants)
+      if (applicants.length > 0) setSampleData(applicants[0])
     } catch {
       setApplicants([])
     }

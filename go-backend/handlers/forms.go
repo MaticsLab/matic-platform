@@ -44,135 +44,133 @@ func ListForms(c *gin.Context) {
 	workspaceID := c.Query("workspace_id")
 
 	var tables []models.Table
-	query := database.DB.Where("icon = ?", "form")
-
-	if workspaceID != "" {
-		query = query.Where("workspace_id = ?", workspaceID)
-	}
-
-	if err := query.Order("created_at DESC").Find(&tables).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	var forms []FormDTO
-	for _, table := range tables {
-		var settings map[string]interface{}
-		json.Unmarshal(table.Settings, &settings)
-
-		// Try to find associated form view to get IsPublished
-		var view models.View
-		isPublished := false
-		if err := database.DB.Where("table_id = ? AND type = ?", table.ID, "form").First(&view).Error; err == nil {
-			var config map[string]interface{}
-			json.Unmarshal(view.Config, &config)
-			if val, ok := config["is_published"].(bool); ok {
-				isPublished = val
+	if found {
+		// ...existing code for edit checks and transaction...
+		allowEdits := true // Default to allowing edits
+		if val, ok := tableSettings["allowEditsAfterSubmission"].(bool); ok {
+			allowEdits = val
+		}
+		var checkMetadata map[string]interface{}
+		if existingRow.Metadata != nil {
+			json.Unmarshal(existingRow.Metadata, &checkMetadata)
+		}
+		isSubmitted := false
+		if checkMetadata != nil {
+			if status, ok := checkMetadata["status"].(string); ok && status == "submitted" {
+				isSubmitted = true
 			}
 		}
-
-		forms = append(forms, FormDTO{
-			ID:                 table.ID,
-			WorkspaceID:        table.WorkspaceID,
-			Name:               table.Name,
-			Slug:               table.Slug,
-			CustomSlug:         table.CustomSlug,
-			Description:        table.Description,
-			Settings:           settings,
-			IsPublished:        isPublished,
-			CreatedAt:          table.CreatedAt,
-			UpdatedAt:          table.UpdatedAt,
-			PreviewTitle:       table.PreviewTitle,
-			PreviewDescription: table.PreviewDescription,
-			PreviewImageURL:    table.PreviewImageURL,
-		})
-	}
-
-	c.JSON(http.StatusOK, forms)
-}
-
-func GetForm(c *gin.Context) {
-	id := c.Param("id")
-
-	var table models.Table
-	if err := database.DB.First(&table, "id = ?", id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
-		return
-	}
-
-	var fields []models.Field
-	database.DB.Where("table_id = ?", id).Order("position ASC").Find(&fields)
-
-	// Enrich fields with section_id from config
-	for i := range fields {
-		if fields[i].SectionID == nil || *fields[i].SectionID == "" {
-			// Try to get section_id from Config
-			var config map[string]interface{}
-			json.Unmarshal(fields[i].Config, &config)
-			if sid, ok := config["section_id"].(string); ok && sid != "" {
-				fields[i].SectionID = &sid
+		if !allowEdits && isSubmitted && !input.SaveDraft {
+			fmt.Printf("🛑 SubmitForm: edits not allowed for submitted application %s, rejecting\n", formID)
+			c.JSON(http.StatusForbidden, gin.H{"error": "Edits are not allowed after submission"})
+			return
+		}
+		fmt.Printf("🔄 SubmitForm: existing submission found for %s (email=%s), updating row %s\n", formID, email, existingRow.ID)
+		tx := database.DB.Begin()
+		defer func() {
+			if r := recover(); r != nil {
+				tx.Rollback()
+			}
+		}()
+		existingRow.Data = mapToJSON(data)
+		existingRow.UpdatedAt = time.Now()
+		var existingMetadata map[string]interface{}
+		if existingRow.Metadata != nil {
+			json.Unmarshal(existingRow.Metadata, &existingMetadata)
+		}
+		if existingMetadata == nil {
+			existingMetadata = make(map[string]interface{})
+		}
+		if input.SaveDraft {
+			if _, hasStatus := existingMetadata["status"]; !hasStatus {
+				existingMetadata["status"] = "draft"
+			}
+			existingMetadata["draft_saved_at"] = time.Now()
+		} else {
+			existingMetadata["status"] = "submitted"
+			existingMetadata["resubmitted_at"] = time.Now()
+		}
+		existingRow.Metadata = mapToJSON(existingMetadata)
+		if err := tx.Save(&existingRow).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update submission"})
+			return
+		}
+		versionService := services.NewVersionService()
+		if _, err := versionService.CreateVersionTx(tx, services.CreateVersionInput{
+			RowID:        existingRow.ID,
+			TableID:      parsedFormID,
+			Data:         data,
+			ChangeType:   models.ChangeTypeUpdate,
+			ChangeReason: "Form submission updated",
+		}); err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create version"})
+			return
+		}
+		// Update portal_applicants.submission_data if this is a portal submission
+		if email != "" {
+			var allViews []models.View
+			database.DB.Where("table_id = ? AND type = ?", formID, "form").Find(&allViews)
+			formIDs := []uuid.UUID{parsedFormID}
+			for _, v := range allViews {
+				formIDs = append(formIDs, v.ID)
+			}
+			result := tx.Exec(`
+				   UPDATE portal_applicants 
+				   SET submission_data = $1, row_id = $2, updated_at = NOW()
+				   WHERE form_id = ANY($3) AND email = $4
+			   `, mapToJSON(data), existingRow.ID, pq.Array(formIDs), email)
+			if result.Error != nil {
+				fmt.Printf("⚠️ SubmitForm: failed to update portal_applicants for email=%s: %v\n", email, result.Error)
+				c.Error(result.Error)
+			} else if result.RowsAffected == 0 {
+				fmt.Printf("⚠️ SubmitForm: no portal_applicant found for email=%s with form_ids=%v\n", email, formIDs)
+			} else {
+				fmt.Printf("✅ SubmitForm: updated portal_applicants for email=%s\n", email)
 			}
 		}
-	}
-
-	var view models.View
-	isPublished := false
-	if err := database.DB.Where("table_id = ? AND type = ?", table.ID, "form").First(&view).Error; err == nil {
-		var config map[string]interface{}
-		json.Unmarshal(view.Config, &config)
-		if val, ok := config["is_published"].(bool); ok {
-			isPublished = val
+		// --- SYNC TO application_submissions ---
+		// Try to find ApplicationSubmission for this user+form
+		var appSub models.ApplicationSubmission
+		appSubErr := tx.Where("form_id = ? AND user_id = ?", parsedFormID, getUserIDString(c)).First(&appSub).Error
+		if appSubErr == nil {
+			// Update existing
+			appSub.Data = mapToJSON(data)
+			appSub.Status = existingMetadata["status"].(string)
+			appSub.UpdatedAt = time.Now()
+			tx.Save(&appSub)
+		} else {
+			// Create new
+			appSub = models.ApplicationSubmission{
+				UserID:  getUserIDString(c),
+				FormID:  parsedFormID,
+				Status:  existingMetadata["status"].(string),
+				Version: 1,
+				Data:    mapToJSON(data),
+			}
+			tx.Create(&appSub)
 		}
-	}
-
-	var settings map[string]interface{}
-	json.Unmarshal(table.Settings, &settings)
-
-	form := FormDTO{
-		ID:                 table.ID,
-		WorkspaceID:        table.WorkspaceID,
-		Name:               table.Name,
-		Slug:               table.Slug,
-		CustomSlug:         table.CustomSlug,
-		Description:        table.Description,
-		Settings:           settings,
-		IsPublished:        isPublished,
-		Fields:             fields,
-		CreatedAt:          table.CreatedAt,
-		UpdatedAt:          table.UpdatedAt,
-		PreviewTitle:       table.PreviewTitle,
-		PreviewDescription: table.PreviewDescription,
-		PreviewImageURL:    table.PreviewImageURL,
-	}
-
-	c.JSON(http.StatusOK, form)
-}
-
-func GetFormBySlug(c *gin.Context) {
-	slugOrId := c.Param("slug")
-
-	var table models.Table
-	// First try to find by UUID ID
-	if _, err := uuid.Parse(slugOrId); err == nil {
-		if err := database.DB.First(&table, "id = ?", slugOrId).Error; err == nil {
-			// Found by ID
-			goto found
+		// --- END SYNC ---
+		if err := tx.Commit().Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+			return
 		}
-	}
-
-	// Try to find by custom_slug first (user-defined pretty URLs)
-	if err := database.DB.First(&table, "custom_slug = ?", slugOrId).Error; err == nil {
-		goto found
-	}
-
-	// Fall back to the auto-generated slug
-	if err := database.DB.First(&table, "slug = ?", slugOrId).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
+		go func() {
+			database.DB.Exec(`
+				   INSERT INTO embedding_queue (entity_id, entity_type, priority, status)
+				   VALUES ($1, 'submission', 5, 'pending')
+				   ON CONFLICT (entity_id, entity_type) 
+				   DO UPDATE SET priority = 5, status = 'pending', created_at = NOW()
+			   `, existingRow.ID)
+		}()
+		if !input.SaveDraft {
+			go processRecommendationFields(parsedFormID, existingRow.ID, data)
+		}
+		fmt.Printf("✅ SubmitForm: updated submission row %s for form %s\n", existingRow.ID, formID)
+		c.JSON(http.StatusOK, existingRow)
 		return
 	}
-
-found:
-	var fields []models.Field
 	database.DB.Where("table_id = ?", table.ID).Order("position ASC").Find(&fields)
 
 	// Enrich fields with section_id from config
@@ -1402,22 +1400,35 @@ func SubmitForm(c *gin.Context) {
 		Data:     mapToJSON(data),
 		Metadata: mapToJSON(initialMetadata),
 	}
-
 	// Add user ID if authenticated (optional for forms)
 	var userID *uuid.UUID
-	if userIDStr, exists := middleware.GetUserID(c); exists {
-		if parsedUserID, err := uuid.Parse(userIDStr); err == nil {
+	var userIDStr string
+	if s, exists := middleware.GetUserID(c); exists {
+		if parsedUserID, err := uuid.Parse(s); err == nil {
 			row.CreatedBy = &parsedUserID
 			userID = &parsedUserID
+			userIDStr = s
 		}
 	}
-
 	if err := tx.Create(&row).Error; err != nil {
 		fmt.Printf("❌ SubmitForm: failed to create row for %s: %v\n", formID, err)
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	// --- SYNC TO application_submissions ---
+	// Only create if userIDStr is present
+	if userIDStr != "" {
+		appSub := models.ApplicationSubmission{
+			UserID:  userIDStr,
+			FormID:  parsedFormID,
+			Status:  initialMetadata["status"].(string),
+			Version: 1,
+			Data:    mapToJSON(data),
+		}
+		tx.Create(&appSub)
+	}
+	// --- END SYNC ---
 
 	// Create initial version for version history (synchronous, in transaction)
 	versionService := services.NewVersionService()
