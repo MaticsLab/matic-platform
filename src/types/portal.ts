@@ -65,6 +65,11 @@ export type PortalConfig = {
     signupImageFocalPoint?: string       // CSS object-position for signup media (e.g., "50% center")
     loginPageMediaType?: 'image' | 'video' // Type of media for login page
     signupPageMediaType?: 'image' | 'video' // Type of media for signup page
+    /**
+     * Optional descriptions for auth pages
+     */
+    signupDescription?: string
+    loginDescription?: string
     font?: 'inter' | 'roboto' | 'serif' | 'mono'
     buttonStyle?: 'rounded' | 'pill' | 'sharp'
     authLayout?: 'split' | 'centered' | 'card'
