@@ -130,17 +130,18 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, formId])
 
-  // Fetch all applicants (existing submissions) from table_rows
+  // Fetch all applicants (existing submissions) from table_rows using the correct table_id
   const fetchApplicants = async () => {
-    if (!formId) return
+    if (!formId) return;
     try {
-      const rows = await tablesGoClient.getRowsByTable(formId)
+      // formId should be the table_id from PortalEditor
+      const rows = await tablesGoClient.getRowsByTable(formId);
       // For each applicant, fetch their Drive folder (if exists)
       const applicants = await Promise.all(rows.map(async row => {
-        let driveFolderUrl = null
+        let driveFolderUrl = null;
         try {
-          const folder = await googleDriveClient.createApplicantFolder(row.id as string)
-          driveFolderUrl = folder.folder_url
+          const folder = await googleDriveClient.createApplicantFolder(row.id as string);
+          driveFolderUrl = folder.folder_url;
         } catch {}
         return {
           id: row.id,
@@ -150,31 +151,31 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
           full_name: row.data?.full_name || row.data?.name || row.data?.personalEmail || row.data?.personal?.personalEmail,
           email: row.data?.email || row.data?.personalEmail || row.data?.personal?.personalEmail,
           driveFolderUrl,
-        }
-      }))
-      setApplicants(applicants)
-      if (applicants.length > 0) setSampleData(applicants[0])
+        };
+      }));
+      setApplicants(applicants);
+      if (applicants.length > 0) setSampleData(applicants[0]);
       // Fetch files for each applicant
-      const filesMap: Record<string, any[]> = {}
+      const filesMap: Record<string, any[]> = {};
       for (const app of applicants) {
-        const rowId = String(app.id || '')
+        const rowId = String(app.id || '');
         if (!rowId) {
-          filesMap[rowId] = []
-          continue
+          filesMap[rowId] = [];
+          continue;
         }
         try {
           // Use rowFilesClient.list to fetch files for a row/applicant
-          const files = await rowFilesClient.list(rowId) || []
-          filesMap[rowId] = files
+          const files = await rowFilesClient.list(rowId) || [];
+          filesMap[rowId] = files;
         } catch {
-          filesMap[rowId] = []
+          filesMap[rowId] = [];
         }
       }
-      setFilesByApplicant(filesMap)
+      setFilesByApplicant(filesMap);
     } catch {
-      setApplicants([])
+      setApplicants([]);
     }
-  }
+  } 
 
   // Fetch form config and build field label map
   useEffect(() => {
