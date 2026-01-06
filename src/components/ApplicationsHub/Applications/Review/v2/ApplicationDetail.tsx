@@ -1434,10 +1434,10 @@ export function ApplicationDetail({
                 </div>
                 <div className="space-y-2">
                   {application.assignedTo
-                    .map((reviewerId: string) => reviewersMap[reviewerId])
-                    .filter(Boolean)
-                    .map((reviewer, idx) => (
-                      <div key={reviewer.id || idx} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                    .map((reviewerId: string) => ({ reviewer: reviewersMap[reviewerId], reviewerId }))
+                    .filter(({ reviewer }) => Boolean(reviewer))
+                    .map(({ reviewer, reviewerId }, idx) => (
+                      <div key={reviewerId} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
                         <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
                           <User className="w-4 h-4 text-blue-600" />
                         </div>
