@@ -1573,12 +1573,15 @@ export function ApplicationDetail({
                                        application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
                                        application.raw_data?.[field.label];
                           if (value === null || value === undefined || value === '') return null;
-                          
+
+                          // Always use formatFieldLabel to resolve the label
+                          const displayLabel = formatFieldLabel(field.id, fieldMap);
+
                           return (
                             <div key={field.id} className="flex flex-col gap-1">
-                              <span className="text-xs font-medium text-gray-500">{field.label || field.id}</span>
+                              <span className="text-xs font-medium text-gray-500">{displayLabel}</span>
                               <div className="text-sm text-gray-900">
-                                {renderFieldValue(value, 0, field.label, fieldMap)}
+                                {renderFieldValue(value, 0, field.id, fieldMap)}
                               </div>
                             </div>
                           );
