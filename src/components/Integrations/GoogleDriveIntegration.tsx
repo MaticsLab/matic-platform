@@ -89,22 +89,9 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
         try {
           const full = await formsClient.getFull(formId)
           if (full?.form && full.form.portal_config && Array.isArray(full.form.portal_config.sections)) {
-            export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveIntegrationProps) {
-            <ExternalLink className="h-4 w-4 mr-1" />
-            Open
-          </a>
-        </Button>
-      </div>
-      <div className="text-xs text-blue-800 mt-1">
-        <span className="font-semibold">Structure:</span> <br />
-        <span className="ml-2">{folderName}/</span><br />
-        <span className="ml-6">[applicant1]/</span><br />
-        <span className="ml-6">[applicant2]/</span><br />
-        <span className="ml-6">...</span>
-      </div>
-    </div>
-  )
-}
+            allFields = full.form.portal_config.sections.flatMap((section: any) => Array.isArray(section.fields) ? section.fields : [])
+          }
+        }
 
             {/* Applicants sync section */}
             {formId && (
