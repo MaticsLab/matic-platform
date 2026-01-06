@@ -1509,47 +1509,27 @@ export function ApplicationDetail({
                     fields.forEach(f => {
                       const fieldId = f.id || (f as any).field_id;
                       const fieldLabel = f.label || (f as any).name;
-                      
-                      if (fieldId) {
-                        fieldMap.set(fieldId, f);
-                        // Also map with "Field-" prefix if it doesn't have it
-                        if (!fieldId.startsWith('Field-')) {
-                          fieldMap.set(`Field-${fieldId}`, f);
-                        }
-                        // Map without "Field-" prefix if it has it
-                        if (fieldId.startsWith('Field-')) {
-                          fieldMap.set(fieldId.replace(/^Field-/, ''), f);
-                        }
-                      }
-                      if (fieldLabel) {
-                        fieldMap.set(fieldLabel, f);
-                        fieldMap.set(fieldLabel.toLowerCase().replace(/\s+/g, '_'), f);
-                        // Also try with underscores
-                        fieldMap.set(fieldLabel.replace(/\s+/g, '_'), f);
-                      }
-                      // Map child fields for repeater/group fields
-                      const children = (f as any).children || (f as any).child_fields || [];
-                      if (Array.isArray(children)) {
-                        children.forEach((child: any) => {
-                          const childId = child.id || child.field_id;
-                          const childLabel = child.label || child.name;
-                          
-                          if (childId) {
-                            fieldMap.set(childId, child);
-                            if (!childId.startsWith('Field-')) {
-                              fieldMap.set(`Field-${childId}`, child);
-                            }
-                            if (childId.startsWith('Field-')) {
-                              fieldMap.set(childId.replace(/^Field-/, ''), child);
-                            }
-                          }
-                          if (childLabel) {
-                            fieldMap.set(childLabel, child);
-                            fieldMap.set(childLabel.toLowerCase().replace(/\s+/g, '_'), child);
-                            fieldMap.set(childLabel.replace(/\s+/g, '_'), child);
-                          }
-                        });
-                      }
+                                // Create field map for nested field lookup (includes all subfields recursively)
+                                const fieldMap = new Map<string, any>();
+                                function addFieldToMap(field: any) {
+                                  const fieldId = field.id || field.field_id;
+                                  const fieldLabel = field.label || field.name;
+                                  if (fieldId) {
+                                    fieldMap.set(fieldId, field);
+                                    if (!fieldId.startsWith('Field-')) fieldMap.set(`Field-${fieldId}`, field);
+                                    if (fieldId.startsWith('Field-')) fieldMap.set(fieldId.replace(/^Field-/, ''), field);
+                                  }
+                                  if (fieldLabel) {
+                                    fieldMap.set(fieldLabel, field);
+                                    fieldMap.set(fieldLabel.toLowerCase().replace(/\s+/g, '_'), field);
+                                    fieldMap.set(fieldLabel.replace(/\s+/g, '_'), field);
+                                  }
+                                  const children = field.children || field.child_fields || [];
+                                  if (Array.isArray(children)) {
+                                    children.forEach(addFieldToMap);
+                                  }
+                                }
+                                fields.forEach(addFieldToMap);
                     });
                     
                     return fieldSections.map((section, sectionIdx) => (
