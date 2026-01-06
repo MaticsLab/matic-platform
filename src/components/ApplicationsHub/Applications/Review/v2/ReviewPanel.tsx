@@ -136,14 +136,12 @@ export function ReviewPanel({
   
   // Group fields by section if available
   const fieldSections = useMemo(() => {
-    if (!form?.fields) return [];
-    
+    if (!Array.isArray(form?.fields)) return [];
     const sections: { name: string; fields: any[] }[] = [];
     let currentSection = { name: 'General', fields: [] as any[] };
-    
-    form.fields.forEach(field => {
+    (form.fields as any[]).forEach(field => {
       if (field.type === 'section') {
-        if (currentSection.fields.length > 0) {
+        if (Array.isArray(currentSection.fields) && currentSection.fields.length > 0) {
           sections.push(currentSection);
         }
         currentSection = { name: field.label || 'Section', fields: [] };
@@ -151,11 +149,9 @@ export function ReviewPanel({
         currentSection.fields.push(field);
       }
     });
-    
-    if (currentSection.fields.length > 0) {
+    if (Array.isArray(currentSection.fields) && currentSection.fields.length > 0) {
       sections.push(currentSection);
     }
-    
     return sections;
   }, [form?.fields]);
   

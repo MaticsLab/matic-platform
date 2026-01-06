@@ -305,7 +305,7 @@ function getFieldConfig(field: FormField): Record<string, any> {
 
 // Helper to organize form fields into sections based on form.settings.sections
 function groupFieldsBySections(fields: FormField[] | undefined, formSettings: Record<string, any> | undefined): GroupedFormData {
-  if (!fields || fields.length === 0) {
+  if (!Array.isArray(fields) || fields.length === 0) {
     return { sections: [], ungroupedFields: [] }
   }
 
@@ -324,7 +324,7 @@ function groupFieldsBySections(fields: FormField[] | undefined, formSettings: Re
 
   // If form has sections defined in settings, use those
   if (formSettings?.sections && Array.isArray(formSettings.sections)) {
-    const sections: FormSection[] = formSettings.sections.map((section: any, index: number) => {
+    const sections: FormSection[] = (Array.isArray(formSettings.sections) ? formSettings.sections : []).map((section: any, index: number) => {
       // Find fields that belong to this section via config.section_id
       const sectionFields = regularFields
         .filter(f => {
@@ -332,7 +332,6 @@ function groupFieldsBySections(fields: FormField[] | undefined, formSettings: Re
           return config.section_id === section.id
         })
         .sort((a, b) => a.position - b.position)
-      
       return {
         id: section.id,
         name: section.title || section.name || `Section ${index + 1}`,
@@ -340,14 +339,12 @@ function groupFieldsBySections(fields: FormField[] | undefined, formSettings: Re
         position: index,
         fields: sectionFields
       }
-    }).filter((s: FormSection) => s.fields.length > 0) // Only include sections with fields
-    
+    }).filter((s: FormSection) => Array.isArray(s.fields) && s.fields.length > 0)
     // Find fields not assigned to any section
-    const assignedFieldIds = new Set(sections.flatMap(s => s.fields.map(f => f.id)))
+    const assignedFieldIds = new Set(sections.flatMap(s => Array.isArray(s.fields) ? s.fields.map(f => f.id) : []))
     const ungroupedFields = regularFields
       .filter(f => !assignedFieldIds.has(f.id))
       .sort((a, b) => a.position - b.position)
-    
     return { sections, ungroupedFields }
   }
   
