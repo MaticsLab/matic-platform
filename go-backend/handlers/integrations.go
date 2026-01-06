@@ -35,7 +35,7 @@ func InitGoogleDriveService() {
 		if backendURL == "" {
 			backendURL = "http://localhost:8000"
 		}
-		redirectURI = backendURL + "/api/v1/integrations/google_drive/callback"
+		redirectURI = backendURL + "/api/v1/integrations/google-drive/callback"
 	}
 
 	if clientID == "" || clientSecret == "" {
