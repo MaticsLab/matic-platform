@@ -1,3 +1,24 @@
+package handlers
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/Jsanchez767/matic-platform/database"
+	"github.com/Jsanchez767/matic-platform/middleware"
+	"github.com/Jsanchez767/matic-platform/models"
+	"github.com/Jsanchez767/matic-platform/services"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/lib/pq"
+)
+
 // GetForm returns a single form by ID
 func GetForm(c *gin.Context) {
 	id := c.Param("id")
@@ -111,28 +132,6 @@ func GetFormBySlug(c *gin.Context) {
 
 	c.JSON(http.StatusOK, form)
 }
-package handlers
-
-import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"regexp"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
-
-	"github.com/Jsanchez767/matic-platform/database"
-	"github.com/Jsanchez767/matic-platform/middleware"
-	"github.com/Jsanchez767/matic-platform/models"
-	"github.com/Jsanchez767/matic-platform/services"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"github.com/lib/pq"
-)
-
-// Form Handlers
 
 type FormDTO struct {
 	ID          uuid.UUID              `json:"id"`
