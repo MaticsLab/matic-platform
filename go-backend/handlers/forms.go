@@ -1162,6 +1162,7 @@ func SubmitForm(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	fmt.Printf("[DEBUG] SubmitForm: input.SaveDraft = %v\n", input.SaveDraft)
 
 	data := input.Data
 	if data == nil {
@@ -1307,15 +1308,30 @@ func SubmitForm(c *gin.Context) {
 				existingMetadata = make(map[string]interface{})
 			}
 			if input.SaveDraft {
+				fmt.Printf("[DEBUG] SubmitForm: Saving as draft (existing row)\n")
 				// Draft save - keep current status or set to draft if no status
 				if _, hasStatus := existingMetadata["status"]; !hasStatus {
 					existingMetadata["status"] = "draft"
 				}
 				existingMetadata["draft_saved_at"] = time.Now()
 			} else {
+				fmt.Printf("[DEBUG] SubmitForm: Submitting (existing row)\n")
 				// Full submission - mark as submitted
 				existingMetadata["status"] = "submitted"
 				existingMetadata["resubmitted_at"] = time.Now()
+			}
+			// Enforce: status must be draft if SaveDraft, submitted if not
+			if input.SaveDraft && existingMetadata["status"] != "draft" {
+				fmt.Printf("[ERROR] SubmitForm: Expected status 'draft' but got '%v'\n", existingMetadata["status"])
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Draft save did not set status to draft"})
+				return
+			}
+			if !input.SaveDraft && existingMetadata["status"] != "submitted" {
+				fmt.Printf("[ERROR] SubmitForm: Expected status 'submitted' but got '%v'\n", existingMetadata["status"])
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Submit did not set status to submitted"})
+				return
 			}
 			existingRow.Metadata = mapToJSON(existingMetadata)
 
@@ -1420,11 +1436,26 @@ func SubmitForm(c *gin.Context) {
 		"created_at": time.Now(),
 	}
 	if input.SaveDraft {
+		fmt.Printf("[DEBUG] SubmitForm: Creating new row as draft\n")
 		initialMetadata["status"] = "draft"
 		initialMetadata["draft_saved_at"] = time.Now()
 	} else {
+		fmt.Printf("[DEBUG] SubmitForm: Creating new row as submitted\n")
 		initialMetadata["status"] = "submitted"
 		initialMetadata["submitted_at"] = time.Now()
+	}
+	// Enforce: status must be draft if SaveDraft, submitted if not
+	if input.SaveDraft && initialMetadata["status"] != "draft" {
+		fmt.Printf("[ERROR] SubmitForm: Expected status 'draft' but got '%v'\n", initialMetadata["status"])
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Draft save did not set status to draft"})
+		return
+	}
+	if !input.SaveDraft && initialMetadata["status"] != "submitted" {
+		fmt.Printf("[ERROR] SubmitForm: Expected status 'submitted' but got '%v'\n", initialMetadata["status"])
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Submit did not set status to submitted"})
+		return
 	}
 
 	row := models.Row{

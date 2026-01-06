@@ -287,13 +287,14 @@ export function PublicPortal({ slug, subdomain }: PublicPortalProps) {
       
       // Call the backend API to save the submission
       // If saveAndExit is true, mark as draft (don't change status to submitted)
+      const isDraft = options?.saveAndExit === true;
       const response = await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${form.id}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           data: cleanedFormData, 
           email,
-          save_draft: options?.saveAndExit === true // Only mark as draft if saveAndExit
+          save_draft: isDraft ? true : undefined // Only send true for Save & Exit, omit for submit
         })
       })
       

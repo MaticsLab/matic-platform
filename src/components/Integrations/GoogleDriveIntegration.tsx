@@ -396,16 +396,16 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
                                 </DialogHeader>
                                 <div className="mb-4">
                                   <div className="mb-2 font-medium">Available Fields</div>
-                                  <div className="flex flex-wrap gap-2 mb-2">
+                                  <div className="flex flex-wrap gap-2 mb-2 max-h-40 overflow-y-auto pr-1" style={{minWidth: '200px'}}>
                                     {fieldOptions.map(f => (
-                                    <Button key={f.key} size="sm" variant="secondary" onClick={() => setFileNameTemplate(t => t + `${f.key}`)}>
+                                      <Button key={f.key} size="sm" variant="secondary" onClick={() => setFileNameTemplate(t => t + `${f.key}`)}>
                                         {`$${f.key}`}
                                       </Button>
                                     ))}
                                   </div>
                                   <div className="mb-2">
                                     <Label>Upload Fields</Label>
-                                    <div className="flex flex-wrap gap-2">
+                                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-1" style={{minWidth: '200px'}}>
                                       {fieldOptions.map(f => (
                                         <Checkbox
                                           key={f.key}
