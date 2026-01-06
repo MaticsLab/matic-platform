@@ -985,36 +985,41 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
       // Helper to remove field from nested structure
       const removeFieldRecursive = (fields: Field[]): Field[] => {
-        return Array.isArray(fields) ? fields.filter(f => f.id !== fieldId).map(f => {
-          if (f.children) {
-            return { ...f, children: removeFieldRecursive(f.children) }
-          }
-          return f
-        })
-      }
+        if (!Array.isArray(fields)) return [];
+        return fields
+          .filter(f => f.id !== fieldId)
+          .map(f => {
+            if (Array.isArray(f.children) && f.children.length > 0) {
+              return { ...f, children: removeFieldRecursive(f.children) };
+            }
+            return f;
+          });
+      };
 
       // Remove from source section and add to target
-      const updatedSections = Array.isArray(prev.sections) ? prev.sections.map(section => {
-        if (section.id === sourceSectionId) {
-          return {
-            ...section,
-            fields: removeFieldRecursive(section.fields || [])
+      let updatedSections: Section[] = [];
+      if (Array.isArray(prev.sections)) {
+        updatedSections = prev.sections.map((section: Section) => {
+          if (section.id === sourceSectionId) {
+            return {
+              ...section,
+              fields: removeFieldRecursive(section.fields || [])
+            };
+          } else if (section.id === targetSectionId) {
+            return {
+              ...section,
+              fields: [...(section.fields || []), fieldToMove!]
+            };
+          } else {
+            return section;
           }
-        }
-        if (section.id === targetSectionId) {
-          return {
-            ...section,
-            fields: [...(section.fields || []), fieldToMove!]
-          }
-        }
-        return section
-      })
-
+        });
+      }
       return {
         ...prev,
         sections: updatedSections
-      }
-    })
+      };
+    });
     
     setHasUnsavedChanges(true)
     setIsPublished(false)
