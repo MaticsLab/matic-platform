@@ -1,3 +1,6 @@
+
+package services
+
 // SetPermission sets sharing permissions on a file or folder (user or anyone)
 func (s *GoogleDriveService) SetPermission(ctx context.Context, srv *drive.Service, fileID string, permType string, role string, email string) error {
 	perm := &drive.Permission{
@@ -13,7 +16,6 @@ func (s *GoogleDriveService) SetPermission(ctx context.Context, srv *drive.Servi
 	}
 	return nil
 }
-package services
 
 import (
 	"context"
