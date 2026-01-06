@@ -326,7 +326,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
           };
 
           // Reconstruct config from backend
-          if (fullForm.settings?.sections) {
+           if (Array.isArray(fullForm.settings?.sections)) {
              const sections = fullForm.settings.sections.map((section: any) => {
                  // Filter fields for this section
                  const sectionFields = (fullForm.fields || [])
@@ -618,10 +618,10 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
       delete (nonTextUpdates as any).placeholder
       delete (nonTextUpdates as any).options
 
-      let sections = config.sections
+      let sections = Array.isArray(config.sections) ? config.sections : []
       if (Object.keys(nonTextUpdates).length > 0) {
         const updatedFields = updateFieldRecursive(activeSection.fields, fieldId, nonTextUpdates)
-        sections = config.sections.map(s => s.id === activeSection.id ? { ...s, fields: updatedFields } : s)
+        sections = Array.isArray(config.sections) ? config.sections.map(s => s.id === activeSection.id ? { ...s, fields: updatedFields } : s) : []
       }
 
       setConfig(prev => ({
