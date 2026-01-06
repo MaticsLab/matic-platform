@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { APP_DOMAIN } from '@/constants/app-domain';
 import { organization, multiSession } from "better-auth/plugins";
 import { Pool } from "pg";
 import { Resend } from "resend";
@@ -39,7 +40,6 @@ function getBaseURL() {
   }
 
   // Fallback: Local development
-  const { APP_DOMAIN } = await import('@/constants/app-domain');
   return APP_DOMAIN;
 }
 
