@@ -323,11 +323,14 @@ func CreateFormFolder(c *gin.Context) {
 
 	// Create folder for the form
 	folderName := services.SanitizeFolderName(form.Name)
+
 	folder, err := googleDriveService.FindOrCreateFolder(ctx, srv, folderName, config.RootFolderID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create folder: " + err.Error()})
 		return
 	}
+	// Set anyone-with-link reader permission
+	_ = googleDriveService.SetPermission(ctx, srv, folder.ID, "anyone", "reader", "")
 
 	// Save form integration settings
 	var formIntegration models.FormIntegrationSetting
@@ -411,11 +414,14 @@ func CreateApplicantFolder(c *gin.Context) {
 	folderName := services.GenerateApplicantFolderName(formSettings.ApplicantFolderTemplate, rowData)
 
 	// Create folder
+
 	folder, err := googleDriveService.CreateFolder(ctx, srv, folderName, formIntegration.ExternalFolderID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create folder: " + err.Error()})
 		return
 	}
+	// Set anyone-with-link reader permission
+	_ = googleDriveService.SetPermission(ctx, srv, folder.ID, "anyone", "reader", "")
 
 	// Generate identifier from data
 	identifier := folderName
@@ -528,6 +534,7 @@ func SyncFileToDrive(c *gin.Context) {
 	}
 
 	// Upload file
+
 	driveFile, err := googleDriveService.UploadFileFromURL(ctx, srv, fileName, input.FileURL, applicantFolder.ExternalFolderID)
 	if err != nil {
 		// Log sync error
@@ -543,6 +550,8 @@ func SyncFileToDrive(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload file: " + err.Error()})
 		return
 	}
+	// Set anyone-with-link reader permission on file
+	_ = googleDriveService.SetPermission(ctx, srv, driveFile.ID, "anyone", "reader", "")
 
 	// Parse file ID if provided
 	var tableFileID *uuid.UUID
@@ -635,11 +644,14 @@ func SyncAllFilesToDrive(c *gin.Context) {
 		}
 
 		// Upload file
+
 		driveFile, err := googleDriveService.UploadFileFromURL(ctx, srv, file.Filename, file.PublicURL, applicantFolder.ExternalFolderID)
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("Failed to sync %s: %s", file.Filename, err.Error()))
 			continue
 		}
+		// Set anyone-with-link reader permission on file
+		_ = googleDriveService.SetPermission(ctx, srv, driveFile.ID, "anyone", "reader", "")
 
 		// Log sync
 		now := time.Now()

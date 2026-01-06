@@ -1,3 +1,18 @@
+// SetPermission sets sharing permissions on a file or folder (user or anyone)
+func (s *GoogleDriveService) SetPermission(ctx context.Context, srv *drive.Service, fileID string, permType string, role string, email string) error {
+	perm := &drive.Permission{
+		Type: permType, // "user", "anyone", etc.
+		Role: role,     // "reader", "writer", etc.
+	}
+	if permType == "user" && email != "" {
+		perm.EmailAddress = email
+	}
+	_, err := srv.Permissions.Create(fileID, perm).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("failed to set permission: %w", err)
+	}
+	return nil
+}
 package services
 
 import (
