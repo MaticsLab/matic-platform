@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Checkbox } from '@/ui-components/checkbox'
 import { Plus } from 'lucide-react'
 import { tablesGoClient } from '@/lib/api/tables-go-client'
+import { rowFilesClient } from '@/lib/api/files-client'
 import { formsClient } from '@/lib/api/forms-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui-components/card'
 import { Button } from '@/ui-components/button'
@@ -156,12 +157,17 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
       // Fetch files for each applicant
       const filesMap: Record<string, any[]> = {}
       for (const app of applicants) {
+        const rowId = String(app.id || '')
+        if (!rowId) {
+          filesMap[rowId] = []
+          continue
+        }
         try {
-          // Replace with your actual API to fetch files for a row/applicant
-          const files = await tablesGoClient.getFilesByRow?.(app.id) || []
-          filesMap[app.id] = files
+          // Use rowFilesClient.list to fetch files for a row/applicant
+          const files = await rowFilesClient.list(rowId) || []
+          filesMap[rowId] = files
         } catch {
-          filesMap[app.id] = []
+          filesMap[rowId] = []
         }
       }
       setFilesByApplicant(filesMap)
@@ -263,7 +269,7 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
                                 {filesByApplicant[app.id].map(file => (
                                   <li key={file.id} className="flex items-center gap-1">
                                     <span className="text-xs">{file.name}</span>
-                                    <Button size="xs" variant="outline" onClick={async () => {
+                                    <Button size="sm" variant="outline" onClick={async () => {
                                       try {
                                         const result = await import('@/lib/api/integrations-client').then(m => m.autoSyncFileToGoogleDrive(app.id, file))
                                         if (result && result.file_url) {
