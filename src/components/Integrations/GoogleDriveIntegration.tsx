@@ -84,11 +84,19 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
     if (!formId) return
     (async () => {
       try {
-        const form = await formsClient.get(formId)
-        // Flatten all fields from all sections
-        const allFields = Array.isArray(form.sections)
-          ? form.sections.flatMap((section: any) => Array.isArray(section.fields) ? section.fields : [])
-          : []
+        // Try to get full form config (with sections)
+        let allFields: any[] = []
+        try {
+          const full = await formsClient.getFull(formId)
+          if (full?.form && full.form.portal_config && Array.isArray(full.form.portal_config.sections)) {
+            allFields = full.form.portal_config.sections.flatMap((section: any) => Array.isArray(section.fields) ? section.fields : [])
+          }
+        } catch {}
+        // Fallback: use form.fields if no sections
+        if (!allFields.length) {
+          const form = await formsClient.get(formId)
+          if (Array.isArray(form.fields)) allFields = form.fields
+        }
         // Map field keys (name or id) to label
         const labelMap: Record<string, string> = {}
         allFields.forEach((field: any) => {
