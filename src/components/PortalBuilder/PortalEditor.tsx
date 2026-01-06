@@ -1248,7 +1248,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
               <h3 className="text-lg font-medium text-gray-900 mb-6 text-center">Integration Options</h3>
               {/* Google Drive Integration Panel */}
               <div className="mb-8">
-                <GoogleDriveIntegration workspaceId={workspaceId || ''} />
+                <GoogleDriveIntegration workspaceId={workspaceId || ''} formId={formId || ''} />
               </div>
               {/* Future integrations can be added below */}
               <div className="text-center text-gray-500 text-sm mt-8">
