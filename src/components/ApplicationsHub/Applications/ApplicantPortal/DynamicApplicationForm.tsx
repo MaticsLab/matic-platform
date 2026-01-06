@@ -88,7 +88,7 @@ export function DynamicApplicationForm({
   useOptimisticSave = false,
 }: DynamicApplicationFormProps) {
   const defaultLanguage = config.settings.language?.default || 'en'
-  const supportedLanguages = Array.from(new Set([defaultLanguage, ...(config.settings.language?.supported || [])])).filter(lang => lang && lang.trim() !== '')
+  const supportedLanguages = Array.from(new Set([defaultLanguage, ...((Array.isArray(config.settings.language?.supported) ? config.settings.language?.supported : []) as string[])])).filter(lang => lang && lang.trim() !== '')
   const [activeLanguage, setActiveLanguage] = useState<string>(defaultLanguage)
   
   // Helper function to safely get field label as string (could be object from translations)
@@ -225,7 +225,7 @@ export function DynamicApplicationForm({
     return getUITranslations(config, activeLanguage)
   }, [config, activeLanguage])
 
-  const [activeSectionId, setActiveSectionId] = useState<string>(initialSectionId || translatedConfig.sections?.[0]?.id || '')
+  const [activeSectionId, setActiveSectionId] = useState<string>(initialSectionId || (Array.isArray(translatedConfig.sections) && translatedConfig.sections[0]?.id) || '')
   const [legacyFormData, setLegacyFormData] = useState<Record<string, any>>(initialData || {})
   const [isSaving, setIsSaving] = useState(false)
   const [isAutosaving, setIsAutosaving] = useState(false)
@@ -363,9 +363,9 @@ export function DynamicApplicationForm({
 
   const activeSectionIndex = Math.max(
     0,
-    (translatedConfig.sections || []).findIndex((s: Section) => s.id === activeSectionId)
+    (Array.isArray(translatedConfig.sections) ? translatedConfig.sections : []).findIndex((s: Section) => s.id === activeSectionId)
   )
-  const activeSection = translatedConfig.sections?.[activeSectionIndex]
+  const activeSection = Array.isArray(translatedConfig.sections) ? translatedConfig.sections[activeSectionIndex] : undefined
 
   // Combined autosave state for UI
   const isAutoSaving = useOptimisticSave && submissionId ? optimisticAutosave.isSaving : isAutosaving
@@ -384,13 +384,13 @@ export function DynamicApplicationForm({
   const getAllRequiredFields = (sections: Section[]): Field[] => {
     const requiredFields: Field[] = [];
     const traverse = (fields: Field[]) => {
-      fields.forEach(field => {
+      (Array.isArray(fields) ? fields : []).forEach(field => {
         if (field.required) requiredFields.push(field);
-        if (field.children && field.children.length > 0) traverse(field.children);
+        if (Array.isArray(field.children) && field.children.length > 0) traverse(field.children);
       });
     };
-    sections.forEach(section => {
-      if (section.fields) traverse(section.fields);
+    (Array.isArray(sections) ? sections : []).forEach(section => {
+      if (Array.isArray(section.fields)) traverse(section.fields);
     });
     return requiredFields;
   };
@@ -398,7 +398,7 @@ export function DynamicApplicationForm({
   // Validate required fields before submit
   const validateRequiredFields = (): string[] => {
     const missing: string[] = [];
-    const requiredFields = getAllRequiredFields(translatedConfig.sections || []);
+    const requiredFields = getAllRequiredFields(Array.isArray(translatedConfig.sections) ? translatedConfig.sections : []);
     requiredFields.forEach(field => {
       const value = formData[field.id];
       // For repeaters/groups, check array length or nested required
@@ -412,9 +412,10 @@ export function DynamicApplicationForm({
   };
 
   const handleNext = () => {
-    const sectionsLength = translatedConfig.sections?.length || 0;
+    const sectionsArr = Array.isArray(translatedConfig.sections) ? translatedConfig.sections : [];
+    const sectionsLength = sectionsArr.length;
     if (activeSectionIndex < sectionsLength - 1) {
-      setActiveSectionId(translatedConfig.sections?.[activeSectionIndex + 1]?.id || '');
+      setActiveSectionId(sectionsArr[activeSectionIndex + 1]?.id || '');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (activeSectionIndex === sectionsLength - 1) {
       // Last section - submit the form
@@ -431,8 +432,9 @@ export function DynamicApplicationForm({
   };
 
   const handlePrevious = () => {
+    const sectionsArr = Array.isArray(translatedConfig.sections) ? translatedConfig.sections : [];
     if (activeSectionIndex > 0) {
-      setActiveSectionId(translatedConfig.sections?.[activeSectionIndex - 1]?.id || '')
+      setActiveSectionId(sectionsArr[activeSectionIndex - 1]?.id || '')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
@@ -489,14 +491,15 @@ export function DynamicApplicationForm({
   }
 
   const calculateProgress = () => {
-    const sectionsLength = translatedConfig.sections?.length || 0
+    const sectionsArr = Array.isArray(translatedConfig.sections) ? translatedConfig.sections : [];
+    const sectionsLength = sectionsArr.length;
     if (sectionsLength === 0) return 0
     return ((activeSectionIndex + 1) / sectionsLength) * 100
   }
 
   // Collect all fields for cross-field references (e.g., rank source)
   const allFields = useMemo(() => {
-    return (translatedConfig.sections || []).flatMap((s: Section) => s.fields || [])
+    return (Array.isArray(translatedConfig.sections) ? translatedConfig.sections : []).flatMap((s: Section) => Array.isArray(s.fields) ? s.fields : [])
   }, [translatedConfig.sections])
 
   return (
@@ -591,7 +594,7 @@ export function DynamicApplicationForm({
           {isExternal && (
             <aside className="hidden lg:block w-64 shrink-0">
               <div className="sticky top-4 space-y-2">
-                {translatedConfig.sections?.map((section: Section, idx: number) => {
+                {(Array.isArray(translatedConfig.sections) ? translatedConfig.sections : []).map((section: Section, idx: number) => {
                   const isActive = section.id === activeSectionId
                   const isCompleted = idx < activeSectionIndex
                   return (
@@ -651,7 +654,7 @@ export function DynamicApplicationForm({
                     </div>
 
                     {/* Review Sections */}
-                    {translatedConfig.sections?.filter((s: Section) => s.sectionType === 'form').map((section: Section) => (
+                    {(Array.isArray(translatedConfig.sections) ? translatedConfig.sections : []).filter((s: Section) => s.sectionType === 'form').map((section: Section) => (
                       <div key={section.id} className="border border-gray-200 rounded-lg p-6">
                         <div className="flex items-center justify-between mb-4 pb-2 border-b">
                           <h3 className="font-medium text-gray-900">{safeFieldString(section.title)}</h3>
