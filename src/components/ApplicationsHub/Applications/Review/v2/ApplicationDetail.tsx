@@ -1427,25 +1427,28 @@ export function ApplicationDetail({
             )}
 
             {/* Reviewers Section */}
-            {reviewersMap && Object.keys(reviewersMap).length > 0 && (
+            {Array.isArray(application.assignedTo) && application.assignedTo.length > 0 && reviewersMap && (
               <div className="border-t pt-4 mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium text-gray-700">Reviewers</span>
                 </div>
                 <div className="space-y-2">
-                  {Object.entries(reviewersMap).map(([reviewerId, reviewer]) => (
-                    <div key={reviewerId} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                        <User className="w-4 h-4 text-blue-600" />
+                  {application.assignedTo
+                    .map((reviewerId: string) => reviewersMap[reviewerId])
+                    .filter(Boolean)
+                    .map((reviewer, idx) => (
+                      <div key={reviewer.id || idx} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                          <User className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-gray-900">{reviewer.name || 'Reviewer'}</div>
+                          {reviewer.email && (
+                            <div className="text-xs text-gray-500">{reviewer.email}</div>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-gray-900">{reviewer.name || 'Reviewer'}</div>
-                        {reviewer.email && (
-                          <div className="text-xs text-gray-500">{reviewer.email}</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               </div>
             )}
