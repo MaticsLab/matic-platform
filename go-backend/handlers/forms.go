@@ -270,8 +270,53 @@ func UpdateForm(c *gin.Context) {
 		}
 	}
 
-	// Re-fetch to return full DTO
-	GetForm(c)
+	// Re-fetch the updated table and view to return the full DTO
+	var updatedView models.View
+	isPublished := false
+	var viewID *uuid.UUID
+	if err := database.DB.Where("table_id = ? AND type = ?", table.ID, "form").First(&updatedView).Error; err == nil {
+		viewID = &updatedView.ID
+		var config map[string]interface{}
+		json.Unmarshal(updatedView.Config, &config)
+		if val, ok := config["is_published"].(bool); ok {
+			isPublished = val
+		}
+	}
+
+	var fields []models.Field
+	database.DB.Where("table_id = ?", table.ID).Order("position ASC").Find(&fields)
+	for i := range fields {
+		if fields[i].SectionID == nil || *fields[i].SectionID == "" {
+			var config map[string]interface{}
+			json.Unmarshal(fields[i].Config, &config)
+			if sid, ok := config["section_id"].(string); ok && sid != "" {
+				fields[i].SectionID = &sid
+			}
+		}
+	}
+
+	var settings map[string]interface{}
+	json.Unmarshal(table.Settings, &settings)
+
+	form := FormDTO{
+		ID:                 table.ID,
+		ViewID:             viewID,
+		WorkspaceID:        table.WorkspaceID,
+		Name:               table.Name,
+		Slug:               table.Slug,
+		CustomSlug:         table.CustomSlug,
+		Description:        table.Description,
+		Settings:           settings,
+		IsPublished:        isPublished,
+		Fields:             fields,
+		CreatedAt:          table.CreatedAt,
+		UpdatedAt:          table.UpdatedAt,
+		PreviewTitle:       table.PreviewTitle,
+		PreviewDescription: table.PreviewDescription,
+		PreviewImageURL:    table.PreviewImageURL,
+	}
+
+	c.JSON(http.StatusOK, form)
 }
 
 func DeleteForm(c *gin.Context) {
