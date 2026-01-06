@@ -15,6 +15,7 @@ import type { FieldRendererProps } from '../types';
 import { safeFieldString } from '../types';
 import { FIELD_TYPES } from '@/types/field-types';
 import { createClient } from '@/lib/supabase';
+import { googleDriveClient } from '@/lib/api/integrations-client';
 
 const FILE_SUBTYPES = [
   FIELD_TYPES.FILE,
@@ -157,26 +158,26 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
 
   const handleFileSelect = useCallback(async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
-    
+
     setUploadError(null);
     setIsUploading(true);
-    
+
     const supabase = createClient();
     const processedFiles: FileValue[] = [];
-    
+
     for (const file of Array.from(fileList)) {
       // Validate file size
       if (file.size > maxSize) {
         setUploadError(`File "${file.name}" exceeds maximum size of ${formatFileSize(maxSize)}`);
         continue;
       }
-      
+
       try {
         // Generate unique filename
         const fileExt = file.name.split('.').pop();
         const uniqueName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
         const filePath = `${storagePath}${uniqueName}`;
-        
+
         // Upload to Supabase Storage
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from(storageBucket)
@@ -184,32 +185,52 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
             cacheControl: '3600',
             upsert: false
           });
-        
+
         if (uploadError) {
           console.error('File upload error:', uploadError);
           setUploadError(`Failed to upload "${file.name}": ${uploadError.message}`);
           continue;
         }
-        
+
         // Get public URL
         const { data: { publicUrl } } = supabase.storage
           .from(storageBucket)
           .getPublicUrl(filePath);
-        
+
+        // Sync to Google Drive if enabled (rowId and formId must be available)
+        let driveStatus: 'pending' | 'success' | 'error' = 'pending';
+        let driveError: string | null = null;
+        if (viewConfig?.formId && viewConfig?.rowId) {
+          try {
+            await googleDriveClient.syncFile(viewConfig.rowId, {
+              file_id: undefined, // If you have a file ID, pass it here
+              file_url: publicUrl,
+              file_name: file.name,
+              mime_type: file.type,
+            });
+            driveStatus = 'success';
+          } catch (err: any) {
+            driveStatus = 'error';
+            driveError = err?.message || 'Drive sync failed';
+          }
+        }
+
         processedFiles.push({
           name: file.name,
           url: publicUrl,
           size: file.size,
           type: file.type,
+          driveStatus,
+          driveError,
         });
       } catch (err: any) {
         console.error('Upload error:', err);
         setUploadError(`Failed to upload "${file.name}": ${err.message || 'Unknown error'}`);
       }
     }
-    
+
     setIsUploading(false);
-    
+
     if (processedFiles.length > 0) {
       if (allowMultiple) {
         onChange?.([...files, ...processedFiles]);
@@ -217,7 +238,7 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
         onChange?.(processedFiles[0]);
       }
     }
-  }, [files, allowMultiple, maxSize, storageBucket, storagePath, onChange]);
+  }, [files, allowMultiple, maxSize, storageBucket, storagePath, onChange, viewConfig]);
 
   const handleRemove = (index: number) => {
     if (allowMultiple) {

@@ -1,3 +1,17 @@
+// RenderFileNameTemplate renders a file name template using row data and fallback name
+func RenderFileNameTemplate(template string, rowData map[string]interface{}, fallback string) string {
+	name := template
+	for k, v := range rowData {
+		placeholder := fmt.Sprintf("${%s}", k)
+		val := fmt.Sprintf("%v", v)
+		name = strings.ReplaceAll(name, placeholder, val)
+	}
+	// If template is unchanged or empty, fallback
+	if name == template || strings.TrimSpace(name) == "" {
+		return fallback
+	}
+	return name
+}
 package services
 
 import (

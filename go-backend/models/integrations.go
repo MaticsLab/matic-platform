@@ -71,9 +71,11 @@ func (FormIntegrationSetting) TableName() string {
 
 // FormDriveSettings represents Google Drive settings for a specific form
 type FormDriveSettings struct {
-	ApplicantFolderTemplate string `json:"applicant_folder_template,omitempty"` // e.g., "{{name}} - {{email}}"
-	SyncOnSubmit            bool   `json:"sync_on_submit"`
-	IncludeAllFields        bool   `json:"include_all_fields"` // Sync all form data as a file
+	ApplicantFolderTemplate string   `json:"applicant_folder_template,omitempty"` // e.g., "{{name}} - {{email}}"
+	SyncOnSubmit            bool     `json:"sync_on_submit"`
+	IncludeAllFields        bool     `json:"include_all_fields"` // Sync all form data as a file
+	FileNameTemplate        string   `json:"file_name_template,omitempty"`
+	UploadFields            []string `json:"upload_fields,omitempty"`
 }
 
 // ApplicantFolder represents a folder created for an applicant in external storage

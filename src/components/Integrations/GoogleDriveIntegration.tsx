@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Input } from '@/ui-components/input'
 import { submissionsClient } from '@/lib/api/submissions-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui-components/card'
 import { Button } from '@/ui-components/button'
@@ -38,6 +39,9 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
   const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [applicants, setApplicants] = useState<any[]>([])
   const [isSyncingAll, setIsSyncingAll] = useState(false)
+  const [fileNameTemplate, setFileNameTemplate] = useState<string>('${applicant_name}_${field_label}')
+  const [uploadFields, setUploadFields] = useState<string[]>([])
+  const [isSavingSettings, setIsSavingSettings] = useState(false)
 
   // Fetch integration status on mount
   useEffect(() => {
@@ -55,20 +59,51 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
       setApplicants([])
     }
   }
-  // Sync all applicants to Drive
+
+  // Fetch form integration settings (for upload fields and template)
+  useEffect(() => {
+    if (!formId) return
+    (async () => {
+      try {
+        const settings = await googleDriveClient.getFormSettings(formId)
+        if (settings?.settings?.file_name_template) setFileNameTemplate(settings.settings.file_name_template)
+        if (settings?.settings?.upload_fields) setUploadFields(settings.settings.upload_fields)
+      } catch {}
+    })()
+  }, [formId])
+  // Sync all applicants to Drive (with file name template and upload fields)
   const handleSyncAllApplicants = async () => {
     if (!formId || applicants.length === 0) return
     setIsSyncingAll(true)
     try {
       for (const applicant of applicants) {
-        // Create Drive folder for each applicant (row)
         await googleDriveClient.createApplicantFolder(applicant.id)
+        // Optionally, sync files for each applicant here if needed
       }
       toast.success('All applicants synced to Google Drive')
     } catch (error) {
       toast.error('Failed to sync applicants to Drive')
     } finally {
       setIsSyncingAll(false)
+    }
+  }
+
+  // Save Drive settings (file name template, upload fields)
+  const handleSaveSettings = async () => {
+    if (!formId) return
+    setIsSavingSettings(true)
+    try {
+      await googleDriveClient.updateFormSettings(formId, {
+        settings: {
+          file_name_template: fileNameTemplate,
+          upload_fields: uploadFields
+        }
+      })
+      toast.success('Drive settings saved')
+    } catch {
+      toast.error('Failed to save settings')
+    } finally {
+      setIsSavingSettings(false)
     }
   }
 
@@ -305,7 +340,28 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
               </div>
             )}
 
-            {/* TODO: Add folder/fields config UI here */}
+            {/* Folder/fields config UI */}
+            {formId && (
+              <div className="mt-6 space-y-4">
+                <Label>File Name Template</Label>
+                <Input
+                  value={fileNameTemplate}
+                  onChange={e => setFileNameTemplate(e.target.value)}
+                  placeholder="e.g. ${applicant_name}_${field_label}"
+                  className="mb-2"
+                />
+                <Label>Upload Fields</Label>
+                <Input
+                  value={uploadFields.join(',')}
+                  onChange={e => setUploadFields(e.target.value.split(','))}
+                  placeholder="Comma-separated field keys"
+                  className="mb-2"
+                />
+                <Button size="sm" onClick={handleSaveSettings} disabled={isSavingSettings}>
+                  {isSavingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Settings'}
+                </Button>
+              </div>
+            )}
 
             {/* Last sync info */}
             {integration.last_sync_at && (

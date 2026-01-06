@@ -46,6 +46,8 @@ export interface FormDriveSettings {
   applicant_folder_template?: string
   sync_on_submit?: boolean
   include_all_fields?: boolean
+  file_name_template?: string
+  upload_fields?: string[]
 }
 
 export interface ApplicantFolder {

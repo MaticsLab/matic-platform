@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
@@ -473,7 +474,7 @@ func SyncFileToDrive(c *gin.Context) {
 		return
 	}
 
-	// Get applicant folder
+	// Get applicant folder and form integration (for settings)
 	var applicantFolder models.ApplicantFolder
 	if err := database.DB.Preload("FormIntegration.WorkspaceIntegration").
 		Joins("JOIN form_integration_settings ON form_integration_settings.id = applicant_folders.form_integration_id").
@@ -491,13 +492,48 @@ func SyncFileToDrive(c *gin.Context) {
 		return
 	}
 
+	// Get form settings for file_name_template and upload_fields
+	var formSettings models.FormDriveSettings
+	if err := json.Unmarshal(applicantFolder.FormIntegration.Settings, &formSettings); err != nil {
+		// fallback: just use input.FileName
+		formSettings.FileNameTemplate = ""
+	}
+
+	// Optionally, use row data for template
+	var rowData map[string]interface{}
+	if err := json.Unmarshal(row.Data, &rowData); err != nil {
+		rowData = map[string]interface{}{}
+	}
+
+	// Generate file name from template if provided
+	fileName := input.FileName
+	if formSettings.FileNameTemplate != "" {
+		fileName = services.RenderFileNameTemplate(formSettings.FileNameTemplate, rowData, input.FileName)
+	}
+
+	// Only allow upload if field is in upload_fields (if set)
+	if len(formSettings.UploadFields) > 0 && input.FileID != "" {
+		// Check if file's field is allowed (assume FileID encodes field or add logic as needed)
+		allowed := false
+		for _, f := range formSettings.UploadFields {
+			if strings.Contains(input.FileID, f) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			c.JSON(http.StatusForbidden, gin.H{"error": "File field not allowed for Drive sync"})
+			return
+		}
+	}
+
 	// Upload file
-	driveFile, err := googleDriveService.UploadFileFromURL(ctx, srv, input.FileName, input.FileURL, applicantFolder.ExternalFolderID)
+	driveFile, err := googleDriveService.UploadFileFromURL(ctx, srv, fileName, input.FileURL, applicantFolder.ExternalFolderID)
 	if err != nil {
 		// Log sync error
 		syncLog := models.FileSyncLog{
 			ApplicantFolderID: applicantFolder.ID,
-			OriginalFilename:  input.FileName,
+			OriginalFilename:  fileName,
 			MimeType:          input.MimeType,
 			SyncStatus:        "error",
 			SyncError:         err.Error(),

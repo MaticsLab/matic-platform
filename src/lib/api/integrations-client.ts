@@ -90,13 +90,13 @@ export const googleDriveClient = {
   /**
    * Update Google Drive settings for a form
    */
-  updateFormSettings: (formId: string, data: {
-    is_enabled?: boolean
-    settings?: FormDriveSettings
-  }) =>
+  updateFormSettings: (
+    formId: string,
+    data: { is_enabled?: boolean; settings?: FormDriveSettings }
+  ) =>
     goFetch<FormIntegrationSetting>(`/forms/${formId}/integrations/google_drive`, {
       method: 'PATCH',
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
     }),
 
   /**
