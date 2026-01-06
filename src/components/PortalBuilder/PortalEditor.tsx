@@ -985,7 +985,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
       // Helper to remove field from nested structure
       const removeFieldRecursive = (fields: Field[]): Field[] => {
-        return fields.filter(f => f.id !== fieldId).map(f => {
+        return Array.isArray(fields) ? fields.filter(f => f.id !== fieldId).map(f => {
           if (f.children) {
             return { ...f, children: removeFieldRecursive(f.children) }
           }
@@ -994,7 +994,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
       }
 
       // Remove from source section and add to target
-      const updatedSections = prev.sections.map(section => {
+      const updatedSections = Array.isArray(prev.sections) ? prev.sections.map(section => {
         if (section.id === sourceSectionId) {
           return {
             ...section,
