@@ -398,7 +398,7 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
                                   <div className="mb-2 font-medium">Available Fields</div>
                                   <div className="flex flex-wrap gap-2 mb-2">
                                     {fieldOptions.map(f => (
-                                      <Button key={f.key} size="xs" variant="secondary" onClick={() => setFileNameTemplate(t => t + `${f.key}`)}>
+                                    <Button key={f.key} size="sm" variant="secondary" onClick={() => setFileNameTemplate(t => t + `${f.key}`)}>
                                         {`$${f.key}`}
                                       </Button>
                                     ))}
