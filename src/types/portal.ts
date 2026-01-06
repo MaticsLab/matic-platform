@@ -89,6 +89,9 @@ export type PortalConfig = {
       rightToLeft?: boolean
       disableAutoTranslate?: boolean
     }
+    // Optional auth page titles
+    signupTitle?: string
+    loginTitle?: string
     // Special page settings
     loginPage?: {
       title?: string
