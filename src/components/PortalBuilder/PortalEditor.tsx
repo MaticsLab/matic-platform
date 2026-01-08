@@ -1119,18 +1119,14 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   size="sm"
                   onClick={() => {
                     // Navigate back to applications hub with the specific form selected
-                    const baseUrl = `/workspace/${workspaceSlug}/applications`
-                    if (formId) {
-                      // Open the applications hub and select this specific form
-                      window.location.href = `${baseUrl}?formId=${formId}`
-                    } else {
-                      window.location.href = baseUrl
-                    }
+                    const baseUrl = `/workspace/${workspaceSlug}`
+                    window.location.href = baseUrl
+                    
                   }}
                   className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Hub
+                  Return to Workspace
                 </Button>
                 <div className="h-6 w-px bg-gray-200" />
                 {/* Presence indicators - click avatars to navigate to their location */}
