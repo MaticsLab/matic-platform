@@ -3045,7 +3045,6 @@ function AccordionQueueView({
             );
           })}
         </div>
-      )}
 
       {/* Sort bar */}
       <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center justify-between">
@@ -3160,6 +3159,20 @@ function AccordionQueueView({
               </button>
             )
           })}
+          
+          {/* Infinite scroll trigger */}
+          {hasMore && (
+            <div ref={observerTarget} className="py-4 flex items-center justify-center">
+              {isLoadingMore ? (
+                <div className="flex items-center gap-2 text-gray-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Loading more...</span>
+                </div>
+              ) : (
+                <div className="h-4" /> // Spacer to trigger observer
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -3167,37 +3180,37 @@ function AccordionQueueView({
     {/* Right side - Application details sidebar */}
     {selectedApp && (
       <div className="w-1/2 flex flex-col bg-white overflow-hidden animate-in slide-in-from-right duration-200">
-          {/* Sidebar header */}
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className={cn(
-                "w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold shrink-0",
-                selectedApp.status === 'approved' ? "bg-green-100 text-green-700" :
-                selectedApp.status === 'rejected' ? "bg-red-100 text-red-700" :
-                selectedApp.status === 'in_review' ? "bg-blue-100 text-blue-700" :
-                "bg-gray-100 text-gray-600"
-              )}>
-                {hidePII ? '#' : getApplicationDisplayName(selectedApp, titleFieldName || null, false).charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-semibold text-gray-900 truncate">
-                  {getApplicationDisplayName(selectedApp, titleFieldName || null, hidePII || false)}
-                </h3>
-                <p className="text-xs text-gray-500">
-                  Submitted {new Date(selectedApp.submittedAt).toLocaleDateString()}
-                </p>
-              </div>
+        {/* Sidebar header */}
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={cn(
+              "w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold shrink-0",
+              selectedApp.status === 'approved' ? "bg-green-100 text-green-700" :
+              selectedApp.status === 'rejected' ? "bg-red-100 text-red-700" :
+              selectedApp.status === 'in_review' ? "bg-blue-100 text-blue-700" :
+              "bg-gray-100 text-gray-600"
+            )}>
+              {hidePII ? '#' : getApplicationDisplayName(selectedApp, titleFieldName || null, false).charAt(0).toUpperCase()}
             </div>
-            <button
-              onClick={() => setSelectedAppId(null)}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="min-w-0">
+              <h3 className="font-semibold text-gray-900 truncate">
+                {getApplicationDisplayName(selectedApp, titleFieldName || null, hidePII || false)}
+              </h3>
+              <p className="text-xs text-gray-500">
+                Submitted {new Date(selectedApp.submittedAt).toLocaleDateString()}
+              </p>
+            </div>
           </div>
-        )
+          <button
+            onClick={() => setSelectedAppId(null)}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
 
-        {/* Tab navigation */}
+      {/* Tab navigation */}
           <div className="px-6 py-3 border-b border-gray-100 flex items-center justify-between">
             <div className="flex gap-1">
               <button
@@ -3601,7 +3614,7 @@ function AccordionQueueView({
                   </div>
                 )}
               </div>
-            ) : null;
+            ) : null}
           </div>
 
           {/* Footer with actions */}
