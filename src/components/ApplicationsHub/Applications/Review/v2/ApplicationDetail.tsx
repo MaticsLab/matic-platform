@@ -1561,33 +1561,52 @@ export function ApplicationDetail({
                                 fields.forEach(addFieldToMap);
                     });
                     
-                    return fieldSections.map((section, sectionIdx) => (
-                      <div key={sectionIdx} className="space-y-3">
-                        {fieldSections.length > 1 && (
-                          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                            {section.name}
-                          </h3>
-                        )}
-                        {section.fields.map((field) => {
-                          const value = application.raw_data?.[field.id] || 
-                                       application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
-                                       application.raw_data?.[field.label];
-                          if (value === null || value === undefined || value === '') return null;
-
-                          // Always use formatFieldLabel to resolve the label
-                          const displayLabel = formatFieldLabel(field.id, fieldMap);
-
-                          return (
-                            <div key={field.id} className="flex flex-col gap-1">
-                              <span className="text-xs font-medium text-gray-500">{displayLabel}</span>
-                              <div className="text-sm text-gray-900">
-                                {renderFieldValue(value, 0, field.id, fieldMap)}
-                              </div>
+                    return fieldSections.map((section, sectionIdx) => {
+                      // Check if section has any data
+                      const hasData = section.fields.some(field => {
+                        const value = application.raw_data?.[field.id] || 
+                                     application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
+                                     application.raw_data?.[field.label];
+                        return value !== null && value !== undefined && value !== '';
+                      });
+                      
+                      if (!hasData) return null;
+                      
+                      return (
+                        <div key={sectionIdx} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                          {/* Section Header */}
+                          {fieldSections.length > 1 && (
+                            <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                              <span className="text-base font-bold text-gray-800">{section.name}</span>
                             </div>
-                          );
-                        })}
-                      </div>
-                    ));
+                          )}
+                          
+                          {/* Section Fields */}
+                          <div className="divide-y divide-gray-100">
+                            {section.fields.map((field) => {
+                              const value = application.raw_data?.[field.id] || 
+                                           application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
+                                           application.raw_data?.[field.label];
+                              if (value === null || value === undefined || value === '') return null;
+
+                              // Always use formatFieldLabel to resolve the label
+                              const displayLabel = formatFieldLabel(field.id, fieldMap);
+
+                              return (
+                                <div key={field.id} className="px-6 py-5">
+                                  <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">
+                                    {displayLabel}
+                                  </p>
+                                  <div className="text-gray-800 text-[15px] leading-relaxed">
+                                    {renderFieldValue(value, 0, field.id, fieldMap)}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    });
                   })()}
                 </div>
               </div>
