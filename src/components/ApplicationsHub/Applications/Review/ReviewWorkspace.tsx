@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { 
   ChevronRight, ChevronLeft, Star, CheckCircle, Check,
   FileText, Users, Award, Flag, 
@@ -2876,7 +2876,8 @@ function AccordionQueueView({
       }
     }
     fetchRecommendations()
-  }, [selectedAppId, recommendations])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAppId])
   
   // Infinite scroll observer
   const observerTarget = useRef<HTMLDivElement>(null)
@@ -2993,11 +2994,11 @@ function AccordionQueueView({
 
   return (
     <div className="flex-1 flex overflow-hidden">
-    {/* Left side - Application list */}
-    <div className={cn(
-      "flex flex-col overflow-hidden transition-all duration-300 border-r border-gray-200",
-      selectedApp ? "basis-1/2" : "basis-full"
-    )}>
+      {/* Left side - Application list */}
+      <div className={cn(
+        "flex flex-col overflow-hidden transition-all duration-300 border-r border-gray-200",
+        selectedApp ? "basis-1/2" : "basis-full"
+      )}>
       {/* Stage Groups Filter Bar (only shown if stage has groups) */}
       {currentStageGroups.length > 0 && (
         <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2 overflow-x-auto">
@@ -3011,7 +3012,7 @@ function AccordionQueueView({
                 : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
             )}
           >
-                      All ({apps.length})
+            All ({apps.length})
           </button>
           
           {currentStageGroups.map(group => {
@@ -3045,6 +3046,7 @@ function AccordionQueueView({
             );
           })}
         </div>
+      )}
 
       {/* Sort bar */}
       <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center justify-between">
@@ -3177,11 +3179,11 @@ function AccordionQueueView({
       </div>
     </div>
 
-    {/* Right side - Application details sidebar */}
-    {selectedApp && (
-      <div className="w-1/2 flex flex-col bg-white overflow-hidden animate-in slide-in-from-right duration-200">
-        {/* Sidebar header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+      {/* Right side - Application details sidebar */}
+      {selectedApp && (
+        <div className="w-1/2 flex flex-col bg-white overflow-hidden animate-in slide-in-from-right duration-200">
+          {/* Sidebar header */}
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
           <div className="flex items-center gap-3 min-w-0">
             <div className={cn(
               "w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold shrink-0",
@@ -3208,11 +3210,10 @@ function AccordionQueueView({
             <X className="w-5 h-5" />
           </button>
         </div>
-      )}
 
-      {/* Tab navigation */}
-          <div className="px-6 py-3 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex gap-1">
+        {/* Tab navigation */}
+        <div className="px-6 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex gap-1">
               <button
                 onClick={() => setActiveTab('data')}
                 className={cn(
@@ -3365,7 +3366,7 @@ function AccordionQueueView({
                   }
                 })()}
               </div>
-            ) : (
+            ) : activeTab === 'reviews' ? (
               <div className="space-y-4">
                 {/* Assigned Reviewers Summary */}
                 {selectedApp.assignedReviewers && selectedApp.assignedReviewers.length > 0 && (
