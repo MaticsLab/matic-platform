@@ -3026,9 +3026,7 @@ function AccordionQueueView({
               gray: { bg: "bg-gray-100", border: "border-gray-200", text: "text-gray-700" }
             };
             const colors = groupColors[group.color as keyof typeof groupColors] || groupColors.gray;
-            // Count apps in this group (use 'group' property on app, fallback to 0 if not present)
             // TODO: Add group membership count when ApplicationData has a group property
-            // const groupApps = ...
             return (
               <button
                 key={group.id}
@@ -3041,7 +3039,8 @@ function AccordionQueueView({
                 )}
               >
                 <FolderOpen className="w-3 h-3" />
-                {group.name} ({groupApps})
+                {group.name}
+                {/* TODO: Show group app count when available */}
               </button>
             );
           })}
@@ -3495,7 +3494,6 @@ function AccordionQueueView({
                     </span>
                   )}
                 </h3>
-                
                 {loadingRecommendations.has(selectedApp.id) ? (
                   <div className="flex items-center gap-2 text-sm text-gray-500 py-8 justify-center">
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -3554,7 +3552,6 @@ function AccordionQueueView({
                             </div>
                           </div>
                         </div>
-                        
                         {/* Show response preview if submitted */}
                         {rec.status === 'submitted' && rec.response && (
                           <div className="mt-3 pt-3 border-t border-green-200">
@@ -3565,9 +3562,7 @@ function AccordionQueueView({
                                   const doc = typeof value === 'object' ? value : {};
                                   const docUrl = (doc as any).url || (doc as any).URL || (doc as any).Url || (typeof value === 'string' ? value : '');
                                   const docName = (doc as any).filename || (doc as any).name || (doc as any).Name || 'Document';
-                                  
                                   if (!docUrl) return null;
-                                  
                                   return (
                                     <div key={key} className="space-y-1">
                                       <label className="text-xs font-medium text-gray-700">Document</label>
@@ -3586,10 +3581,8 @@ function AccordionQueueView({
                                     </div>
                                   );
                                 }
-                                
                                 const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                                 const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
-                                
                                 return (
                                   <div key={key} className="space-y-1">
                                     <label className="text-xs font-medium text-gray-700">{displayKey}</label>
@@ -3611,7 +3604,7 @@ function AccordionQueueView({
                   </div>
                 )}
               </div>
-            ) : null}
+            ) : null;
           </div>
 
           {/* Footer with actions */}
