@@ -2993,195 +2993,181 @@ function AccordionQueueView({
 
   return (
     <div className="flex-1 flex overflow-hidden">
-      {/* Left side - Application list */}
-      <div className={cn(
-        "flex flex-col overflow-hidden transition-all duration-300 border-r border-gray-200",
-        selectedApp ? "w-1/2" : "w-full"
-      )}>
-        {/* Stage Groups Filter Bar (only shown if stage has groups) */}
-        {currentStageGroups.length > 0 && (
-          <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2 overflow-x-auto">
-            <span className="text-xs text-gray-500 shrink-0">Filter:</span>
-            <button
-              onClick={() => onSelectStageGroup?.(null)}
-              className={cn(
-                "px-3 py-1 text-xs rounded-full border transition-colors shrink-0",
-                selectedStageGroupId === null
-                  ? "bg-blue-100 border-blue-200 text-blue-700"
-                  : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-              )}
-            >
-              All ({apps.length})
-            </button>
-            {currentStageGroups.map(group => {
-              const groupColors: Record<string, { bg: string; border: string; text: string }> = {
-                blue: { bg: 'bg-blue-100', border: 'border-blue-200', text: 'text-blue-700' },
-                green: { bg: 'bg-green-100', border: 'border-green-200', text: 'text-green-700' },
-                yellow: { bg: 'bg-yellow-100', border: 'border-yellow-200', text: 'text-yellow-700' },
-                orange: { bg: 'bg-orange-100', border: 'border-orange-200', text: 'text-orange-700' },
-                red: { bg: 'bg-red-100', border: 'border-red-200', text: 'text-red-700' },
-                purple: { bg: 'bg-purple-100', border: 'border-purple-200', text: 'text-purple-700' },
-                gray: { bg: 'bg-gray-100', border: 'border-gray-200', text: 'text-gray-700' },
-              }
-              const colors = groupColors[group.color] || groupColors.gray
-              return (
-                <button
-                  key={group.id}
-                  onClick={() => onSelectStageGroup?.(group.id)}
-                  className={cn(
-                    "px-3 py-1 text-xs rounded-full border transition-colors shrink-0 flex items-center gap-1.5",
-                    selectedStageGroupId === group.id
-                      ? `${colors.bg} ${colors.border} ${colors.text}`
-                      : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                  )}
-                >
-                  <FolderOpen className="w-3 h-3" />
-                  {group.name}
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Sort bar */}
-        <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center justify-between">
-          <span className="text-sm text-gray-500">{apps.length} application{apps.length !== 1 ? 's' : ''}</span>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">Sort:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="text-sm text-gray-700 bg-transparent border-none focus:ring-0 cursor-pointer pr-6"
-            >
-              <option value="recent">Most Recent</option>
-              <option value="oldest">Oldest First</option>
-              <option value="highest">Highest Score</option>
-              <option value="lowest">Lowest Score</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Application list */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="divide-y divide-gray-100">
-            {sortedApps.map((app, idx) => {
-              const originalIdx = apps.findIndex(a => a.id === app.id)
-              const isSelected = selectedAppId === app.id
-              const displayName = getApplicationDisplayName(app, titleFieldName || null, hidePII || false)
-              const assignedReviewerNames = app.assignedReviewers
-                ?.slice(0, 3)
-                .map(id => reviewersMap?.[id]?.name?.[0]?.toUpperCase() || '?')
-              
-              return (
-                <button
-                  key={app.id}
-                  onClick={() => toggleExpand(app.id, originalIdx)}
-                  className={cn(
-                    "w-full px-4 py-3 flex items-center gap-4 hover:bg-gray-50 transition-colors text-left",
-                    isSelected && "bg-blue-50 border-l-2 border-l-blue-500"
-                  )}
-                >
-                  {/* Status indicator */}
-                  <div className={cn(
-                    "w-2 h-2 rounded-full shrink-0",
-                    app.status === 'approved' && "bg-green-500",
-                    app.status === 'rejected' && "bg-red-500",
-                    app.status === 'in_review' && "bg-blue-500",
-                    app.status === 'pending' && "bg-amber-500"
-                  )} />
-                  
-                  {/* Avatar */}
-                  <div className={cn(
-                    "w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold shrink-0",
-                    app.status === 'approved' ? "bg-green-100 text-green-700" :
-                    app.status === 'rejected' ? "bg-red-100 text-red-700" :
-                    app.status === 'in_review' ? "bg-blue-100 text-blue-700" :
-                    "bg-gray-100 text-gray-600"
-                  )}>
-                    {hidePII ? '#' : displayName.charAt(0).toUpperCase()}
-                  </div>
-                  
-                  {/* Name + Assigned Reviewers */}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">{displayName}</p>
-                    {assignedReviewerNames && assignedReviewerNames.length > 0 && (
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <div className="flex -space-x-1">
-                          {assignedReviewerNames.map((initial, i) => (
-                            <div 
-                              key={i} 
-                              className={cn(
-                                "w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold border border-white",
-                                app.reviewHistory.some(r => r.reviewer_id === app.assignedReviewers?.[i])
-                                  ? "bg-green-500 text-white"
-                                  : "bg-gray-300 text-gray-600"
-                              )}
-                            >
-                              {initial}
-                            </div>
-                          ))}
-                          {(app.assignedReviewers?.length || 0) > 3 && (
-                            <div className="w-4 h-4 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center text-[8px] font-bold border border-white">
-                              +{app.assignedReviewers!.length - 3}
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-gray-400">
-                          {app.reviewHistory.length}/{app.assignedReviewers?.length || 0} reviewed
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Score */}
-                  {app.score !== null && (
-                    <div className="flex items-center gap-1.5 text-sm shrink-0">
-                      <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                      <span className="font-semibold text-gray-900">{app.score}</span>
-                      <span className="text-gray-400">/ {app.maxScore}</span>
-                    </div>
-                  )}
-                  
-                  {/* Reviews */}
-                  <div className="flex items-center gap-1 text-xs text-gray-500 shrink-0">
-                    <Users className="w-3.5 h-3.5" />
-                    <span>{app.reviewCount}/{app.requiredReviews}</span>
-                  </div>
-                  
-                  {/* Stage badge */}
-                  <Badge className="bg-purple-50 text-purple-700 border-purple-100 text-xs shrink-0">
-                    {app.stageName}
-                  </Badge>
-                  
-                  {/* Chevron */}
-                  <ChevronRight className={cn(
-                    "w-4 h-4 text-gray-400 shrink-0 transition-transform",
-                    isSelected && "text-blue-500"
-                  )} />
-                </button>
-              )
-            })}
-            
-            {/* Infinite scroll trigger */}
-            {hasMore && (
-              <div ref={observerTarget} className="py-4 flex items-center justify-center">
-                {isLoadingMore ? (
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm">Loading more...</span>
-                  </div>
-                ) : (
-                  <div className="h-4" /> // Spacer to trigger observer
-                )}
-              </div>
+    {/* Left side - Application list */}
+    <div className={cn(
+      "flex flex-col overflow-hidden transition-all duration-300 border-r border-gray-200",
+      selectedApp ? "basis-1/2" : "basis-full"
+    )}>
+      {/* Stage Groups Filter Bar (only shown if stage has groups) */}
+      {currentStageGroups.length > 0 && (
+        <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2 overflow-x-auto">
+          <span className="text-xs text-gray-500 shrink-0">Filter:</span>
+          <button
+            onClick={() => onSelectStageGroup?.(null)}
+            className={cn(
+              "px-3 py-1 text-xs rounded-full border transition-colors shrink-0",
+              selectedStageGroupId === null
+                ? "bg-blue-100 border-blue-200 text-blue-700"
+                : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
             )}
-          </div>
+          >
+                      All ({apps.length})
+          </button>
+          
+          {currentStageGroups.map(group => {
+            // Use group color or fallback to gray
+            const groupColors = {
+              blue: { bg: "bg-blue-100", border: "border-blue-200", text: "text-blue-700" },
+              green: { bg: "bg-green-100", border: "border-green-200", text: "text-green-700" },
+              yellow: { bg: "bg-yellow-100", border: "border-yellow-200", text: "text-yellow-700" },
+              orange: { bg: "bg-orange-100", border: "border-orange-200", text: "text-orange-700" },
+              red: { bg: "bg-red-100", border: "border-red-200", text: "text-red-700" },
+              purple: { bg: "bg-purple-100", border: "border-purple-200", text: "text-purple-700" },
+              gray: { bg: "bg-gray-100", border: "border-gray-200", text: "text-gray-700" }
+            };
+            const colors = groupColors[group.color as keyof typeof groupColors] || groupColors.gray;
+            // Count apps in this group (use 'group' property on app, fallback to 0 if not present)
+            // TODO: Add group membership count when ApplicationData has a group property
+            // const groupApps = ...
+            return (
+              <button
+                key={group.id}
+                onClick={() => onSelectStageGroup?.(group.id)}
+                className={cn(
+                  "px-3 py-1 text-xs rounded-full border transition-colors shrink-0 flex items-center gap-1.5",
+                  selectedStageGroupId === group.id 
+                    ? `${colors.bg} ${colors.border} ${colors.text}`
+                    : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                )}
+              >
+                <FolderOpen className="w-3 h-3" />
+                {group.name} ({groupApps})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Sort bar */}
+      <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center justify-between">
+        <span className="text-sm text-gray-500">
+          {apps.length} application{apps.length !== 1 ? 's' : ''}
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">Sort</span>
+          <select 
+            value={sortBy} 
+            onChange={e => setSortBy(e.target.value as any)}
+            className="text-sm text-gray-700 bg-transparent border-none focus:ring-0 cursor-pointer pr-6"
+          >
+            <option value="recent">Most Recent</option>
+            <option value="oldest">Oldest First</option>
+            <option value="highest">Highest Score</option>
+            <option value="lowest">Lowest Score</option>
+          </select>
         </div>
       </div>
 
-      {/* Right side - Application details sidebar */}
-      {selectedApp && (
-        <div className="w-1/2 flex flex-col bg-white overflow-hidden animate-in slide-in-from-right duration-200">
+      {/* Application list */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="divide-y divide-gray-100">
+          {sortedApps.map((app, idx) => {
+            const originalIdx = apps.findIndex(a => a.id === app.id)
+            const isSelected = selectedAppId === app.id
+            const displayName = getApplicationDisplayName(app, titleFieldName || null, hidePII || false)
+            const assignedReviewerNames = app.assignedReviewers
+              ?.slice(0, 3)
+              .map(id => reviewersMap?.[id]?.name?.[0]?.toUpperCase() || '?')
+            return (
+              <button
+                key={app.id}
+                onClick={() => toggleExpand(app.id, originalIdx)}
+                className={cn(
+                  "w-full px-4 py-3 flex items-center gap-4 hover:bg-gray-50 transition-colors text-left",
+                  isSelected && "bg-blue-50 border-l-2 border-l-blue-500"
+                )}
+              >
+                {/* Status indicator */}
+                <div className={cn(
+                  "w-2 h-2 rounded-full shrink-0",
+                  app.status === 'approved' && "bg-green-500",
+                  app.status === 'rejected' && "bg-red-500",
+                  app.status === 'in_review' && "bg-blue-500",
+                  app.status === 'pending' && "bg-amber-500"
+                )} />
+                {/* Avatar */}
+                <div className={cn(
+                  "w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold shrink-0",
+                  app.status === 'approved' ? "bg-green-100 text-green-700" :
+                  app.status === 'rejected' ? "bg-red-100 text-red-700" :
+                  app.status === 'in_review' ? "bg-blue-100 text-blue-700" :
+                  "bg-gray-100 text-gray-600"
+                )}>
+                  {hidePII ? '#' : displayName.charAt(0).toUpperCase()}
+                </div>
+                {/* Name + Assigned Reviewers */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 truncate">{displayName}</p>
+                  {assignedReviewerNames && assignedReviewerNames.length > 0 && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <div className="flex -space-x-1">
+                        {assignedReviewerNames.map((initial, i) => (
+                          <div 
+                            key={i} 
+                            className={cn(
+                              "w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold border border-white",
+                              app.reviewHistory.some(r => r.reviewer_id === app.assignedReviewers?.[i])
+                                ? "bg-green-500 text-white"
+                                : "bg-gray-300 text-gray-600"
+                            )}
+                          >
+                            {initial}
+                          </div>
+                        ))}
+                        {(app.assignedReviewers?.length || 0) > 3 && (
+                          <div className="w-4 h-4 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center text-[8px] font-bold border border-white">
+                            +{app.assignedReviewers!.length - 3}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-gray-400">
+                        {app.reviewHistory.length}/{app.assignedReviewers?.length || 0} reviewed
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {/* Score */}
+                {app.score !== null && (
+                  <div className="flex items-center gap-1.5 text-sm shrink-0">
+                    <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                    <span className="font-semibold text-gray-900">{app.score}</span>
+                    <span className="text-gray-400">/ {app.maxScore}</span>
+                  </div>
+                )}
+                {/* Reviews */}
+                <div className="flex items-center gap-1 text-xs text-gray-500 shrink-0">
+                  <Users className="w-3.5 h-3.5" />
+                  <span>{app.reviewCount}/{app.requiredReviews}</span>
+                </div>
+                {/* Stage badge */}
+                <Badge className="bg-purple-50 text-purple-700 border-purple-100 text-xs shrink-0">
+                  {app.stageName}
+                </Badge>
+                {/* Chevron */}
+                <ChevronRight className={cn(
+                  "w-4 h-4 text-gray-400 shrink-0 transition-transform",
+                  isSelected && "text-blue-500"
+                )} />
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+
+    {/* Right side - Application details sidebar */}
+    {selectedApp && (
+      <div className="w-1/2 flex flex-col bg-white overflow-hidden animate-in slide-in-from-right duration-200">
           {/* Sidebar header */}
           <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
             <div className="flex items-center gap-3 min-w-0">
@@ -3782,43 +3768,44 @@ function AccordionQueueView({
 }
 
 // Queue View - List of applications with preview
-function QueueView({
-  apps,
-  selectedIndex,
-  onSelect,
-  onStartReview,
-  currentApp,
-  stage,
-  rubric,
-  showFilters,
-  onToggleFilters,
-  onRefresh,
-  hasActiveFilters,
-  form,
-  titleFieldName,
-  hidePII,
-  hiddenPIIFields,
-  stages,
-  onMoveToStage
-}: {
-  apps: ApplicationData[]
-  selectedIndex: number
-  onSelect: (idx: number) => void
-  onStartReview: () => void
-  currentApp: ApplicationData | null
-  stage?: StageWithConfig
-  rubric: Rubric | null
-  showFilters?: boolean
-  onToggleFilters?: () => void
-  onRefresh?: () => void
-  hasActiveFilters?: boolean
-  form?: Form | null
-  titleFieldName?: string | null
-  hidePII?: boolean
-  hiddenPIIFields?: string[]
-  stages?: StageWithConfig[]
-  onMoveToStage?: (appId: string, stageId: string) => void
+function QueueView(props: {
+  apps: ApplicationData[];
+  selectedIndex: number;
+  onSelect: (idx: number) => void;
+  onStartReview: () => void;
+  currentApp: ApplicationData | null;
+  stage?: StageWithConfig;
+  rubric: Rubric | null;
+  showFilters?: boolean;
+  onToggleFilters?: () => void;
+  onRefresh?: () => void;
+  hasActiveFilters?: boolean;
+  form?: Form | null;
+  titleFieldName?: string | null;
+  hidePII?: boolean;
+  hiddenPIIFields?: string[];
+  stages?: StageWithConfig[];
+  onMoveToStage?: (appId: string, stageId: string) => void;
 }) {
+  const {
+    apps,
+    selectedIndex,
+    onSelect,
+    onStartReview,
+    currentApp,
+    stage,
+    rubric,
+    showFilters,
+    onToggleFilters,
+    onRefresh,
+    hasActiveFilters,
+    form,
+    titleFieldName,
+    hidePII,
+    hiddenPIIFields,
+    stages,
+    onMoveToStage
+  } = props;
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false)
   const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'highest' | 'lowest'>('recent')
   const [previewTab, setPreviewTab] = useState<'data' | 'reviews' | 'documents'>('data')
