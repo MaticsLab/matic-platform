@@ -3024,7 +3024,6 @@ function AccordionQueueView({
                 gray: { bg: 'bg-gray-100', border: 'border-gray-200', text: 'text-gray-700' },
               }
               const colors = groupColors[group.color] || groupColors.gray
-              
               return (
                 <button
                   key={group.id}
