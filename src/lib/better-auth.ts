@@ -65,9 +65,9 @@ export const auth = betterAuth({
         return;
       }
       await resend.emails.send({
-        from: process.env.EMAIL_FROM || "Matic <noreply@notifications.maticsapp.com>",
+        from: process.env.EMAIL_FROM || "Matics <noreply@notifications.maticsapp.com>",
         to: user.email,
-        subject: "Reset your password - Matic",
+        subject: "Reset your password - Matics",
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #1e40af;">Reset Your Password</h2>

@@ -34,7 +34,7 @@ func InitGoogleDriveService() {
 		// Default to the backend URL + callback path
 		backendURL := os.Getenv("GO_BACKEND_URL")
 		if backendURL == "" {
-			backendURL = "http://localhost:8000"
+			backendURL = "http://backend.maticsapp.com"
 		}
 		redirectURI = backendURL + "/api/v1/integrations/google-drive/callback"
 	}

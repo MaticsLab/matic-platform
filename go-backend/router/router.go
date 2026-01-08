@@ -25,10 +25,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			if strings.HasSuffix(origin, ".maticsapp.com") || origin == "https://maticsapp.com" || origin == "https://www.maticsapp.com" {
 				return true
 			}
-			// Allow any *.maticapp.com subdomain (alternate domain)
-			if strings.HasSuffix(origin, ".maticapp.com") || origin == "https://maticapp.com" || origin == "https://www.maticapp.com" {
-				return true
-			}
+
 			// Allow Vercel preview deployments
 			if strings.HasSuffix(origin, ".vercel.app") {
 				return true
@@ -65,7 +62,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			"service":     "Matic Platform API",
 			"version":     "1.0.0",
 			"status":      "running",
-			"description": "Full-stack Airtable-like platform with forms and data tables",
+			"description": "matics",
 			"endpoints": gin.H{
 				"health":          "/health",
 				"api_v1":          "/api/v1",
