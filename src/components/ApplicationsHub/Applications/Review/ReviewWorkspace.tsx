@@ -3195,8 +3195,9 @@ function AccordionQueueView({
               <X className="w-5 h-5" />
             </button>
           </div>
+        )
 
-          {/* Tab navigation */}
+        {/* Tab navigation */}
           <div className="px-6 py-3 border-b border-gray-100 flex items-center justify-between">
             <div className="flex gap-1">
               <button
