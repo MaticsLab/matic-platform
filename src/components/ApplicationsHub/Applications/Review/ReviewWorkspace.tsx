@@ -3392,7 +3392,6 @@ function AccordionQueueView({
                     const scores = review.scores || {}
                     const notes = review.notes || {}
                     const hasDetailedScores = Object.keys(scores).length > 0
-                    
                     return (
                       <div key={idx} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                         {/* Reviewer Header */}
@@ -3423,7 +3422,6 @@ function AccordionQueueView({
                             <p className="text-[10px] text-gray-400 uppercase">Total Score</p>
                           </div>
                         </div>
-                        
                         {/* Score Breakdown */}
                         {hasDetailedScores && (
                           <div className="p-4 space-y-2">
@@ -3434,7 +3432,6 @@ function AccordionQueueView({
                               const maxPoints = category?.max_points || 10
                               const percentage = Math.min((Number(score) / maxPoints) * 100, 100)
                               const note = typeof notes === 'object' ? (notes as Record<string, string>)[categoryId] : null
-                              
                               return (
                                 <div key={categoryId} className="space-y-1">
                                   <div className="flex items-center justify-between">
@@ -3462,7 +3459,6 @@ function AccordionQueueView({
                             })}
                           </div>
                         )}
-                        
                         {/* Overall Comments */}
                         {(review.comments || (typeof review.notes === 'string' && review.notes)) && (
                           <div className="p-4 bg-gray-50 border-t border-gray-100">
