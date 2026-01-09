@@ -332,27 +332,55 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
       console.log(`Building nested fields for section ${sectionId}:`, sectionFields.length, 'fields')
       
       // Build parent-child relationships
-      // Fields with children store them in config.fields (for groups/repeaters)
+      // Fields with children store them in config.children (for groups/repeaters)
       const fieldMap = new Map()
       sectionFields.forEach(f => fieldMap.set(f.id, { ...f, children: [] }))
       
       // Now check each field's config to see if it has subfields
       sectionFields.forEach(field => {
-        const configFields = (field.config as any)?.fields
-        if (configFields && Array.isArray(configFields)) {
-          console.log(`Field ${field.label} (${field.type}) has ${configFields.length} children in config:`, configFields)
+        // Check both config.children and field.children for compatibility
+        const configChildren = (field.config as any)?.children || field.children
+        if (configChildren && Array.isArray(configChildren)) {
+          console.log(`Field ${field.label} (${field.type}) has ${configChildren.length} children in config:`, configChildren)
           // This field (group or repeater) has children defined in config
+          // Children are already field definition objects, not IDs
           const parentField = fieldMap.get(field.id)
           if (parentField) {
-            // Map config field IDs to actual field objects
-            parentField.children = configFields.map((cfId: string) => {
-              const childField = allFields.find((f: any) => f.id === cfId)
-              if (childField) {
-                console.log(`  - Found child: ${childField.label} (${childField.type})`)
-              } else {
-                console.log(`  - Child ${cfId} NOT FOUND in allFields`)
+            // Map children to field objects (they may already be objects or need transformation)
+            parentField.children = configChildren.map((child: any) => {
+              // If child is already a full field object, use it
+              if (child.id && child.type) {
+                // Ensure options are accessible from config if not at top level
+                const childOptions = child.options || child.config?.items || child.config?.options || []
+                return { 
+                  ...child, 
+                  children: [],
+                  options: childOptions,
+                  config: {
+                    ...(child.config || {}),
+                    items: child.config?.items || child.options,
+                    options: child.config?.options || child.options,
+                    is_required: child.config?.is_required || child.required || child.is_required
+                  }
+                }
               }
-              return childField ? { ...childField, children: [] } : null
+              // If child is a field definition from config.children, create a field-like object
+              const childOptions = child.options || child.items || []
+              return {
+                id: child.id || child.name || `child-${Math.random()}`,
+                label: child.label || child.name || 'Unnamed Field',
+                type: child.type || 'text',
+                description: child.description,
+                required: child.is_required || child.required || false,
+                config: {
+                  ...child,
+                  options: childOptions,
+                  items: child.items || child.options,
+                  is_required: child.is_required || child.required
+                },
+                options: childOptions,
+                children: []
+              }
             }).filter((f: any) => f !== null)
             console.log(`Field ${field.label} now has ${parentField.children.length} children mapped`)
           }
@@ -362,7 +390,9 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
       // Return only top-level fields (those not referenced as children)
       const allChildIds = new Set()
       fieldMap.forEach(field => {
-        field.children.forEach((c: any) => allChildIds.add(c.id))
+        field.children.forEach((c: any) => {
+          if (c.id) allChildIds.add(c.id)
+        })
       })
       
       const topLevel = Array.from(fieldMap.values()).filter(f => !allChildIds.has(f.id))
@@ -441,13 +471,28 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
         return ''
       }
       
-      // Handle select/dropdown/radio - show options
+      // Handle select/dropdown/radio/multiselect - show options
       let fieldHint = '[To be filled]'
-      if (field.type === 'select' || field.type === 'dropdown' || field.type === 'radio') {
-        const options = (field.config as any)?.options || []
-        if (options.length > 0) {
-          const optionsList = options.map((opt: any) => typeof opt === 'string' ? opt : opt.label || opt.value).join(', ')
-          fieldHint = `<div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Options: ${optionsList}</div><div style="color: #9ca3af;">[To be filled]</div>`
+      if (field.type === 'select' || field.type === 'dropdown' || field.type === 'radio' || field.type === 'multiselect') {
+        // Check multiple sources for options: config.items, config.options, top-level options
+        const options = (field.config as any)?.items || 
+                        (field.config as any)?.options || 
+                        field.options || 
+                        []
+        
+        if (options && options.length > 0) {
+          // Handle different option formats: strings, objects with label/value, or arrays
+          const optionsList = options.map((opt: any) => {
+            if (typeof opt === 'string') return opt
+            if (typeof opt === 'object' && opt !== null) {
+              return opt.label || opt.value || opt.name || String(opt)
+            }
+            return String(opt)
+          }).filter((opt: string) => opt).join(', ')
+          
+          if (optionsList) {
+            fieldHint = `<div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Options: ${optionsList}</div><div style="color: #9ca3af;">[To be filled]</div>`
+          }
         }
       }
       
