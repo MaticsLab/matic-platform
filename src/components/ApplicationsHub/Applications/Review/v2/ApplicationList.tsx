@@ -88,7 +88,8 @@ export function ApplicationList({
             <div className="text-gray-400 text-sm">Try adjusting your filters</div>
           </div>
         ) : (
-          applications.map((app, index) => (
+          <>
+            {applications.map((app, index) => (
             <button
               key={app.id}
               onClick={() => onSelect(app)}
@@ -153,21 +154,22 @@ export function ApplicationList({
                 </div>
               </div>
             </button>
-          ))
-        )}
+            ))}
         
-        {/* Infinite scroll trigger */}
-        {hasMore && (
-          <div ref={observerTarget} className="py-4 flex items-center justify-center">
-            {isLoadingMore ? (
-              <div className="flex items-center gap-2 text-gray-500">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm">Loading more...</span>
+            {/* Infinite scroll trigger - only show if not in initial loading state */}
+            {!isLoading && hasMore && (
+              <div ref={observerTarget} className="py-4 flex items-center justify-center">
+                {isLoadingMore ? (
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Loading more...</span>
+                  </div>
+                ) : (
+                  <div className="h-4" /> // Spacer to trigger observer
+                )}
               </div>
-            ) : (
-              <div className="h-4" /> // Spacer to trigger observer
             )}
-          </div>
+          </>
         )}
       </div>
     </div>

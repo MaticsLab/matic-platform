@@ -133,7 +133,7 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
       {
         label: 'Portal Editor',
         icon: FileText,
-        onClick: () => window.open(`/workspace/${workspaceSlug || workspaceId}/portal-editor?formId=${formId}`, '_blank'),
+        onClick: () => window.location.href = `/workspace/${workspaceSlug || workspaceId}/portal-editor?formId=${formId}`,
         variant: 'outline' as const
       }
     )

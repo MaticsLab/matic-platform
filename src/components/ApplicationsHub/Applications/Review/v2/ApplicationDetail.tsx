@@ -713,29 +713,83 @@ export function ApplicationDetail({
   // Fetch stage actions, workflow actions, and custom statuses (workflow triggers)
   useEffect(() => {
     const fetchActions = async () => {
-      if (!application.stageId && !application.workflowId && !workspaceId) return;
+      if (!workspaceId) {
+        console.log('[ApplicationDetail] No workspaceId, skipping action fetch');
+        return;
+      }
+      
+      console.log('[ApplicationDetail] Fetching actions:', {
+        stageId: application.stageId,
+        workflowId: application.workflowId,
+        workspaceId
+      });
       
       setIsLoadingActions(true);
       try {
-        // Fetch custom statuses (workflow triggers) - these are the actions configured in workflow settings
-        if (application.stageId) {
-          const customStatusesData = await workflowsClient.listCustomStatuses(application.stageId, workspaceId);
-          setCustomStatuses(customStatusesData || []);
-        }
-        
-        // Fetch stage-specific actions
-        if (application.stageId) {
-          const stageActionsData = await workflowsClient.listStageActions(application.stageId);
-          setStageActions(stageActionsData || []);
-        }
-        
-        // Fetch workflow-level actions (global actions like Reject)
+        // Use getReviewWorkspaceData to get all actions in one call (more efficient)
         if (application.workflowId) {
-          const workflowActionsData = await workflowsClient.listWorkflowActions(application.workflowId);
-          setWorkflowActions(workflowActionsData || []);
+          const workspaceData = await workflowsClient.getReviewWorkspaceData(workspaceId, application.workflowId);
+          
+          console.log('[ApplicationDetail] Workspace data loaded:', {
+            workflowActions: workspaceData.workflow_actions?.length || 0,
+            stages: workspaceData.stages?.length || 0
+          });
+          
+          // Get workflow actions
+          setWorkflowActions(workspaceData.workflow_actions || []);
+          
+          // Get stage actions from the current stage
+          if (application.stageId) {
+            const currentStage = workspaceData.stages.find((s: any) => s.id === application.stageId);
+            if (currentStage?.stage_actions) {
+              console.log('[ApplicationDetail] Found stage actions in workspace data:', currentStage.stage_actions.length);
+              setStageActions(currentStage.stage_actions || []);
+            } else {
+              // Fallback: fetch stage actions directly
+              try {
+                console.log('[ApplicationDetail] Fetching stage actions directly for stage:', application.stageId);
+                const stageActionsData = await workflowsClient.listStageActions(application.stageId);
+                console.log('[ApplicationDetail] Stage actions fetched:', stageActionsData?.length || 0);
+                setStageActions(stageActionsData || []);
+              } catch (err) {
+                console.error('[ApplicationDetail] Failed to fetch stage actions:', err);
+                setStageActions([]);
+              }
+            }
+          }
+        } else {
+          // If no workflow, try to fetch stage actions directly
+          if (application.stageId) {
+            try {
+              console.log('[ApplicationDetail] No workflowId, fetching stage actions directly for stage:', application.stageId);
+              const stageActionsData = await workflowsClient.listStageActions(application.stageId);
+              console.log('[ApplicationDetail] Stage actions fetched:', stageActionsData?.length || 0);
+              setStageActions(stageActionsData || []);
+            } catch (err) {
+              console.error('[ApplicationDetail] Failed to fetch stage actions:', err);
+              setStageActions([]);
+            }
+          }
+        }
+        
+        // Fetch custom statuses (workflow triggers) - these are the actions configured in workflow settings
+        if (application.stageId && workspaceId) {
+          try {
+            console.log('[ApplicationDetail] Fetching custom statuses for stage:', application.stageId);
+            const customStatusesData = await workflowsClient.listCustomStatuses(application.stageId, workspaceId);
+            console.log('[ApplicationDetail] Custom statuses fetched:', customStatusesData?.length || 0);
+            setCustomStatuses(customStatusesData || []);
+          } catch (err) {
+            console.error('[ApplicationDetail] Failed to fetch custom statuses:', err);
+            setCustomStatuses([]);
+          }
         }
       } catch (error) {
-        console.error('Failed to fetch actions:', error);
+        console.error('[ApplicationDetail] Failed to fetch actions:', error);
+        // Set empty arrays on error to prevent showing "No actions available" incorrectly
+        setStageActions([]);
+        setWorkflowActions([]);
+        setCustomStatuses([]);
       } finally {
         setIsLoadingActions(false);
       }
