@@ -4,6 +4,17 @@ import { useState, useEffect } from 'react'
 import { ReviewWorkspaceV2 } from '@/components/ApplicationsHub/Applications/Review/v2'
 import { goClient } from '@/lib/api/go-client'
 import { Loader2 } from 'lucide-react'
+import { Form } from '@/types/forms'
+
+interface ExternalReviewResponse {
+  form: Form
+  submissions?: any[]
+  reviewer?: Record<string, any>
+  stage_config?: any
+  rubric?: any
+  stage?: any
+  no_assignments?: boolean
+}
 
 export default function ExternalReviewPage({ params }: { params: { token: string } }) {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
@@ -14,7 +25,7 @@ export default function ExternalReviewPage({ params }: { params: { token: string
   useEffect(() => {
     const fetchExternalReviewData = async () => {
       try {
-        const data = await goClient.get(`/external-review/${params.token}`)
+        const data = await goClient.get<ExternalReviewResponse>(`/external-review/${params.token}`)
         if (data?.form) {
           setFormId(data.form.id)
           setWorkspaceId(data.form.workspace_id)
