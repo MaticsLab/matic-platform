@@ -482,6 +482,7 @@ export function ApplicationDetail({
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
   const [stageActions, setStageActions] = useState<StageAction[]>([]);
   const [workflowActions, setWorkflowActions] = useState<WorkflowAction[]>([]);
+  const [customStatuses, setCustomStatuses] = useState<any[]>([]); // Workflow triggers/actions
   const [isLoadingActions, setIsLoadingActions] = useState(false);
   const [storageFiles, setStorageFiles] = useState<TableFileResponse[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
@@ -709,13 +710,19 @@ export function ApplicationDetail({
     });
   };
 
-  // Fetch stage actions and workflow actions
+  // Fetch stage actions, workflow actions, and custom statuses (workflow triggers)
   useEffect(() => {
     const fetchActions = async () => {
-      if (!application.stageId && !application.workflowId) return;
+      if (!application.stageId && !application.workflowId && !workspaceId) return;
       
       setIsLoadingActions(true);
       try {
+        // Fetch custom statuses (workflow triggers) - these are the actions configured in workflow settings
+        if (application.stageId) {
+          const customStatusesData = await workflowsClient.listCustomStatuses(application.stageId, workspaceId);
+          setCustomStatuses(customStatusesData || []);
+        }
+        
         // Fetch stage-specific actions
         if (application.stageId) {
           const stageActionsData = await workflowsClient.listStageActions(application.stageId);
@@ -735,7 +742,7 @@ export function ApplicationDetail({
     };
     
     fetchActions();
-  }, [application.stageId, application.workflowId]);
+  }, [application.stageId, application.workflowId, workspaceId]);
 
   // Fetch files from table_files (uploaded to Supabase storage)
   useEffect(() => {
@@ -1478,8 +1485,56 @@ export function ApplicationDetail({
                               Actions
                               <ChevronDown className="w-4 h-4" />
                             </button>
-                            {showActionsDropdown && ([...stageActions, ...workflowActions].length > 0 ? (
-                              <div className="absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-30">
+                            {showActionsDropdown && ([...customStatuses, ...stageActions, ...workflowActions].length > 0 ? (
+                              <div className="absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-96 overflow-y-auto">
+                                {/* Custom Statuses (Workflow Triggers) */}
+                                {customStatuses.map((status) => (
+                                  <button
+                                    key={status.id}
+                                    className="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700 flex items-center gap-2"
+                                    onClick={async () => {
+                                      setShowActionsDropdown(false);
+                                      if (!formId) {
+                                        toast.error('Form ID is required');
+                                        return;
+                                      }
+                                      try {
+                                        // Execute custom status (workflow trigger) - this will automatically execute associated actions
+                                        if (!application.stageId) {
+                                          toast.error('Stage ID is required');
+                                          return;
+                                        }
+                                        
+                                        await workflowsClient.executeStatusAction({
+                                          stage_id: application.stageId,
+                                          status_name: status.name,
+                                          submission_id: application.id,
+                                        });
+                                        
+                                        toast.success(`Action "${status.name}" executed successfully`);
+                                        onActivityCreated?.();
+                                      } catch (error: any) {
+                                        console.error('Failed to execute custom status:', error);
+                                        toast.error(error?.message || 'Failed to execute action');
+                                      }
+                                    }}
+                                  >
+                                    <span 
+                                      className={cn(
+                                        "w-2 h-2 rounded-full",
+                                        status.color === 'green' ? 'bg-green-500' :
+                                        status.color === 'red' ? 'bg-red-500' :
+                                        status.color === 'yellow' ? 'bg-yellow-500' :
+                                        status.color === 'purple' ? 'bg-purple-500' :
+                                        status.color === 'gray' ? 'bg-gray-500' :
+                                        'bg-blue-500'
+                                      )}
+                                    ></span>
+                                    {status.name}
+                                  </button>
+                                ))}
+                                
+                                {/* Stage Actions and Workflow Actions */}
                                 {[...stageActions, ...workflowActions].map((action) => (
                                   <button
                                     key={action.id}
@@ -1504,6 +1559,7 @@ export function ApplicationDetail({
                                             onStatusChange?.(application.id, targetStage.name as ApplicationStatus);
                                           }
                                         }
+                                        onActivityCreated?.();
                                       } catch (error) {
                                         console.error('Failed to execute action:', error);
                                         toast.error('Failed to execute action');
@@ -1652,12 +1708,68 @@ export function ApplicationDetail({
             )}
 
             {/* Actions Section */}
-            {(stageActions.length > 0 || workflowActions.length > 0) && (
+            {(customStatuses.length > 0 || stageActions.length > 0 || workflowActions.length > 0) && (
               <div className="border-t pt-4">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium text-gray-700">Actions</span>
                 </div>
                 <div className="space-y-2">
+                  {/* Custom Statuses (Workflow Triggers) */}
+                  {customStatuses.map((status) => {
+                    const isCustomStatus = true;
+                    return (
+                      <button
+                        key={status.id}
+                        className="w-full flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                        onClick={async () => {
+                          if (!formId) {
+                            toast.error('Form ID is required');
+                            return;
+                          }
+                          try {
+                            if (!application.stageId) {
+                              toast.error('Stage ID is required');
+                              return;
+                            }
+                            
+                            await workflowsClient.executeStatusAction({
+                              stage_id: application.stageId,
+                              status_name: status.name,
+                              submission_id: application.id,
+                            });
+                            
+                            toast.success(`Action "${status.name}" executed successfully`);
+                            onActivityCreated?.();
+                          } catch (error: any) {
+                            console.error('Failed to execute custom status:', error);
+                            toast.error(error?.message || 'Failed to execute action');
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span 
+                            className={cn(
+                              "w-3 h-3 rounded-full",
+                              status.color === 'green' ? 'bg-green-500' :
+                              status.color === 'red' ? 'bg-red-500' :
+                              status.color === 'yellow' ? 'bg-yellow-500' :
+                              status.color === 'purple' ? 'bg-purple-500' :
+                              status.color === 'gray' ? 'bg-gray-500' :
+                              'bg-blue-500'
+                            )}
+                          ></span>
+                          <div>
+                            <div className="font-medium text-gray-900">{status.name}</div>
+                            {status.description && (
+                              <div className="text-xs text-gray-500 mt-0.5">{status.description}</div>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  
+                  {/* Stage Actions and Workflow Actions */}
                   {[...stageActions, ...workflowActions].map((action) => {
                     const icon = actionIcons[action.icon || 'arrow-right'] || <ArrowRight className="w-4 h-4" />;
                     const isStageAction = stageActions.some(a => a.id === action.id);

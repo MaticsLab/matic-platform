@@ -293,10 +293,53 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     printWindow.document.write(pdfContent)
     printWindow.document.close()
     
-    // Wait for content to load then print
-    printWindow.onload = () => {
-      printWindow.print()
-      printWindow.onafterprint = () => printWindow.close()
+    // Wait for images (especially logo) to load before printing
+    const waitForImages = () => {
+      const images = printWindow.document.querySelectorAll('img')
+      if (images.length === 0) {
+        // No images, print immediately
+        setTimeout(() => {
+          printWindow.print()
+          printWindow.onafterprint = () => printWindow.close()
+        }, 100)
+        return
+      }
+      
+      let loadedCount = 0
+      const totalImages = images.length
+      
+      const checkAllLoaded = () => {
+        loadedCount++
+        if (loadedCount >= totalImages) {
+          // All images loaded, wait a bit more then print
+          setTimeout(() => {
+            printWindow.print()
+            printWindow.onafterprint = () => printWindow.close()
+          }, 200)
+        }
+      }
+      
+      images.forEach((img: HTMLImageElement) => {
+        if (img.complete) {
+          checkAllLoaded()
+        } else {
+          img.onload = checkAllLoaded
+          img.onerror = checkAllLoaded // Continue even if image fails
+        }
+      })
+      
+      // Fallback timeout in case images don't load
+      setTimeout(() => {
+        printWindow.print()
+        printWindow.onafterprint = () => printWindow.close()
+      }, 3000)
+    }
+    
+    // Wait for DOM to be ready
+    if (printWindow.document.readyState === 'complete') {
+      waitForImages()
+    } else {
+      printWindow.onload = waitForImages
     }
   }
 
@@ -305,7 +348,10 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
 
     const formName = form.name || 'Application Form'
     const formDescription = form.description || ''
-    const logoUrl = (form.settings as any)?.logoUrl || ''
+    // Try multiple locations for logo URL
+    const logoUrl = (form.settings as any)?.logoUrl || 
+                    (form.settings as any)?.formTheme?.logoUrl ||
+                    ''
     
     // Get sections metadata from settings
     const sections = (form.settings as any)?.sections || []
@@ -413,11 +459,11 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
         
         let groupHtml = `
           <tr>
-            <td colspan="2" style="padding: 12px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-              <div style="font-weight: 600; color: #111827; padding-left: ${indentPadding}px;">
+            <td colspan="2" style="padding: 14px 16px; background: #f9fafb; border-bottom: 2px solid #e5e7eb; border-top: 2px solid #e5e7eb;">
+              <div style="font-weight: 600; color: #111827; padding-left: ${indentPadding}px; font-size: 14px;">
                 ${field.label}${isRequired}
               </div>
-              ${description ? `<div style="font-size: 11px; color: #6b7280; margin-top: 4px; padding-left: ${indentPadding}px;">${description}</div>` : ''}
+              ${description ? `<div style="font-size: 12px; color: #6b7280; margin-top: 6px; padding-left: ${indentPadding}px; line-height: 1.4;">${description}</div>` : ''}
             </td>
           </tr>
         `
@@ -435,20 +481,20 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
         
         let repeaterHtml = `
           <tr>
-            <td colspan="2" style="padding: 12px; background: #fef3c7; border-bottom: 1px solid #fde68a;">
-              <div style="font-weight: 600; color: #92400e; padding-left: ${indentPadding}px;">
+            <td colspan="2" style="padding: 14px 16px; background: #fef3c7; border-bottom: 2px solid #fde68a; border-top: 2px solid #fde68a;">
+              <div style="font-weight: 600; color: #92400e; padding-left: ${indentPadding}px; font-size: 14px;">
                 ${field.label}${isRequired}
                 <span style="font-size: 11px; font-weight: normal; color: #b45309; margin-left: 8px;">(Repeatable section - can add multiple entries)</span>
               </div>
-              ${description ? `<div style="font-size: 11px; color: #b45309; margin-top: 4px; padding-left: ${indentPadding}px;">${description}</div>` : ''}
+              ${description ? `<div style="font-size: 12px; color: #b45309; margin-top: 6px; padding-left: ${indentPadding}px; line-height: 1.4;">${description}</div>` : ''}
             </td>
           </tr>
         `
         // Show subfields once as template
         repeaterHtml += `
           <tr>
-            <td colspan="2" style="padding: 8px 12px; padding-left: ${indentPadding + 20}px; background: #fffbeb; border-bottom: 1px solid #fde68a;">
-              <div style="font-size: 11px; color: #92400e; margin-bottom: 8px;">Entry 1:</div>
+            <td colspan="2" style="padding: 10px 16px; padding-left: ${indentPadding + 24}px; background: #fffbeb; border-bottom: 1px solid #fde68a;">
+              <div style="font-size: 12px; color: #92400e; margin-bottom: 10px; font-weight: 500;">Entry 1:</div>
             </td>
           </tr>
         `
@@ -458,8 +504,8 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
         // Add space for additional entries
         repeaterHtml += `
           <tr>
-            <td colspan="2" style="padding: 8px 12px; padding-left: ${indentPadding + 20}px; background: #fffbeb; border-bottom: 1px solid #fde68a;">
-              <div style="font-size: 11px; color: #92400e; font-style: italic;">Additional entries can be added...</div>
+            <td colspan="2" style="padding: 12px 16px; padding-left: ${indentPadding + 24}px; background: #fffbeb; border-bottom: 2px solid #fde68a;">
+              <div style="font-size: 11px; color: #92400e; font-style: italic; padding: 8px 0;">Additional entries can be added below...</div>
             </td>
           </tr>
         `
@@ -491,7 +537,7 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
           }).filter((opt: string) => opt).join(', ')
           
           if (optionsList) {
-            fieldHint = `<div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Options: ${optionsList}</div><div style="color: #9ca3af;">[To be filled]</div>`
+            fieldHint = `<div style="font-size: 11px; color: #6b7280; margin-bottom: 6px; line-height: 1.5;"><strong>Options:</strong> ${optionsList}</div><div style="color: #9ca3af; padding: 2px 0;">[To be filled]</div>`
           }
         }
       }
@@ -499,12 +545,12 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
       // Regular field
       return `
         <tr>
-          <td style="padding: 10px 12px; padding-left: ${12 + indentPadding}px; border-bottom: 1px solid #e5e7eb; color: #6b7280; width: 35%; vertical-align: top;">
+          <td style="padding: 12px 16px; padding-left: ${16 + indentPadding}px; border-bottom: 1px solid #e5e7eb; color: #374151; width: 35%; vertical-align: top; font-weight: 500;">
             ${field.label}${isRequired}
-            ${description ? `<div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">${description}</div>` : ''}
+            ${description ? `<div style="font-size: 11px; color: #6b7280; margin-top: 6px; font-weight: normal; line-height: 1.4;">${description}</div>` : ''}
           </td>
-          <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; color: #111827;">
-            <div style="min-height: 20px;">${fieldHint}</div>
+          <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #111827; vertical-align: top;">
+            <div style="min-height: 24px; padding: 4px 0;">${fieldHint}</div>
           </td>
         </tr>
       `
@@ -512,42 +558,76 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
 
     // Generate HTML for each section
     let sectionsHtml = ''
+    let hasAnyContent = false
     
     if (sections.length > 0) {
-      (Array.isArray(sections) ? sections.filter((s: any) => s.sectionType === 'form') : []).forEach((section: any) => {
+      const formSections = Array.isArray(sections) ? sections.filter((s: any) => s.sectionType === 'form') : []
+      
+      formSections.forEach((section: any) => {
         // Build nested field structure for this section
         const sectionFields = buildNestedFields(allFields, section.id)
         if (sectionFields.length === 0) return
 
+        hasAnyContent = true
         let fieldsHtml = ''
         sectionFields.forEach((field: any) => {
-          fieldsHtml += renderField(field)
+          const fieldHtml = renderField(field)
+          if (fieldHtml) {
+            fieldsHtml += fieldHtml
+          }
         })
         
-        sectionsHtml += `
-          <div style="margin-bottom: 24px; break-inside: avoid;">
-            <h2 style="font-size: 16px; font-weight: 600; color: #111827; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb;">${section.title}</h2>
-            ${section.description ? `<p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">${section.description}</p>` : ''}
+        if (fieldsHtml) {
+          sectionsHtml += `
+            <div style="margin-bottom: 32px; break-inside: avoid; page-break-inside: avoid;">
+              <h2 style="font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 3px solid #e5e7eb;">${section.title || 'Section'}</h2>
+              ${section.description ? `<p style="font-size: 14px; color: #6b7280; margin-bottom: 16px; line-height: 1.6;">${section.description}</p>` : ''}
+              <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px;">
+                ${fieldsHtml}
+              </table>
+            </div>
+          `
+        }
+      })
+    }
+    
+    // If no sections or no content, use flat fields array as fallback
+    if (!hasAnyContent && allFields.length > 0) {
+      let fieldsHtml = ''
+      allFields.forEach((field: any) => {
+        const fieldHtml = renderField(field)
+        if (fieldHtml) {
+          fieldsHtml += fieldHtml
+          hasAnyContent = true
+        }
+      })
+      
+      if (fieldsHtml) {
+        sectionsHtml = `
+          <div style="margin-bottom: 24px;">
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
               ${fieldsHtml}
             </table>
           </div>
         `
-      })
-    } else {
-      // No sections - use flat fields array as fallback
-      let fieldsHtml = ''
-      allFields.forEach((field: any) => {
-        fieldsHtml += renderField(field)
-      })
-      
+      }
+    }
+    
+    // If still no content, show a message
+    if (!hasAnyContent) {
       sectionsHtml = `
-        <div style="margin-bottom: 24px;">
-          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-            ${fieldsHtml}
-          </table>
+        <div style="padding: 40px; text-align: center; color: #6b7280;">
+          <p style="font-size: 14px;">No form fields found. Please add fields to your form.</p>
         </div>
       `
+    }
+
+    // Convert logo URL to data URI if needed for print compatibility
+    const getLogoHtml = () => {
+      if (!logoUrl) return ''
+      // For print, use the URL directly - browsers handle CORS for print
+      // Add crossorigin and error handling
+      return `<img src="${logoUrl}" alt="Logo" class="logo" crossorigin="anonymous" onerror="this.style.display='none'; console.error('Logo failed to load')" onload="console.log('Logo loaded successfully')" />`
     }
 
     return `
@@ -555,64 +635,92 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
       <html>
       <head>
         <title>${formName} - Application Form</title>
+        <meta charset="UTF-8">
         <style>
           @page {
-            margin: 0.75in;
+            margin: 0.5in 0.75in;
             size: letter;
+          }
+          * {
+            box-sizing: border-box;
           }
           body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             color: #111827;
-            line-height: 1.5;
+            line-height: 1.6;
             margin: 0;
             padding: 0;
+            background: white;
           }
           .header {
             border-bottom: 3px solid #111827;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
+            padding-bottom: 24px;
+            margin-bottom: 32px;
+            page-break-after: avoid;
           }
           .logo-section {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 20px;
             margin-bottom: 16px;
+            flex-wrap: wrap;
           }
           .logo {
-            max-height: 50px;
-            max-width: 150px;
+            max-height: 60px;
+            max-width: 200px;
+            height: auto;
+            width: auto;
+            object-fit: contain;
           }
           .app-title {
-            font-size: 24px;
+            font-size: 28px;
             font-weight: 700;
             color: #111827;
+            margin: 0;
+            flex: 1;
+            min-width: 200px;
           }
           .app-description {
             font-size: 14px;
             color: #6b7280;
-            margin-top: 8px;
-            line-height: 1.6;
+            margin-top: 12px;
+            line-height: 1.7;
+            max-width: 800px;
+          }
+          .content {
+            min-height: 400px;
           }
           .footer {
-            margin-top: 40px;
+            margin-top: 60px;
             padding-top: 20px;
             border-top: 1px solid #e5e7eb;
             font-size: 11px;
             color: #6b7280;
             text-align: center;
+            page-break-inside: avoid;
+          }
+          @media print {
+            .header {
+              page-break-after: avoid;
+            }
+            .content > div {
+              page-break-inside: avoid;
+            }
           }
         </style>
       </head>
       <body>
         <div class="header">
           <div class="logo-section">
-            ${logoUrl ? `<img src="${logoUrl}" alt="Logo" class="logo" />` : ''}
+            ${getLogoHtml()}
             <div class="app-title">${formName}</div>
           </div>
           ${formDescription ? `<div class="app-description">${formDescription}</div>` : ''}
         </div>
         
-        ${sectionsHtml}
+        <div class="content">
+          ${sectionsHtml}
+        </div>
         
         <div class="footer">
           <p>This blank application form was generated on ${new Date().toLocaleString()}</p>
