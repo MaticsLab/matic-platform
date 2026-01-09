@@ -917,7 +917,26 @@ function ReviewSection({
 
   const generatePrintContent = () => {
     const formName = formDefinition?.name || 'Application'
+    // Try multiple locations for logo URL
+    const logoUrl = (formDefinition?.settings as any)?.logoUrl || 
+                    (formDefinition?.settings as any)?.formTheme?.logoUrl ||
+                    ''
+    const themeColor = (formDefinition?.settings as any)?.themeColor || 
+                      (formDefinition?.settings as any)?.formTheme?.themeColor ||
+                      '#111827'
+    
     const sectionsByData = getFieldsBySection()
+    
+    // Helper function to generate logo HTML
+    const getLogoHtml = () => {
+      if (logoUrl) {
+        return `<img src="${logoUrl}" alt="Logo" style="max-height: 60px; max-width: 200px; height: auto; width: auto; object-fit: contain;" crossorigin="anonymous" onerror="this.style.display='none'; console.error('Logo failed to load')" />`
+      } else {
+        // Fallback to colored box with first letter
+        const firstLetter = formName.charAt(0).toUpperCase()
+        return `<div style="width: 40px; height: 40px; background: ${themeColor}; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 20px;">${firstLetter}</div>`
+      }
+    }
     
     let sectionsHtml = ''
     
@@ -1063,7 +1082,7 @@ function ReviewSection({
       <body>
         <div class="header">
           <div class="logo">
-            <div class="logo-box">M</div>
+            ${getLogoHtml()}
             <div class="app-title">${formName}</div>
           </div>
           <div class="app-meta">
