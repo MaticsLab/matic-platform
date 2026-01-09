@@ -1589,8 +1589,8 @@ export function ApplicationDetail({
                                            application.raw_data?.[field.label];
                               if (value === null || value === undefined || value === '') return null;
 
-                              // Use field.label or field.name directly, fallback to formatFieldLabel if not available
-                              const displayLabel = field.label || field.name || formatFieldLabel(field.id, fieldMap);
+                              // Use field.label directly, fallback to formatFieldLabel if not available
+                              const displayLabel = field.label || formatFieldLabel(field.id, fieldMap);
 
                               return (
                                 <div key={field.id} className="px-6 py-5">
