@@ -346,12 +346,11 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
   const generatePDFContent = () => {
     if (!form) return ''
 
-    const formName = form.name || 'Application Form'
+    // Use preview_title from theme settings (share preview) or fall back to form name
+    const formName = form.preview_title || form.name || 'Application Form'
     const formDescription = form.description || ''
-    // Try multiple locations for logo URL
-    const logoUrl = (form.settings as any)?.logoUrl || 
-                    (form.settings as any)?.formTheme?.logoUrl ||
-                    ''
+    // Get logo from settings - logoUrl is stored at the top level of settings
+    const logoUrl = (form.settings as any)?.logoUrl || ''
     
     // Get sections metadata from settings
     const sections = (form.settings as any)?.sections || []
