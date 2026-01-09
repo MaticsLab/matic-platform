@@ -145,7 +145,7 @@ export interface PipelineHeaderProps {
   workflows?: Array<{ id: string; name: string }>;
   selectedWorkflowId?: string;
   onWorkflowChange?: (id: string) => void;
-  onDownload?: (applications: Application[]) => void;
+  onDownload?: () => void;
 }
 
 export interface PipelineActivityPanelProps {

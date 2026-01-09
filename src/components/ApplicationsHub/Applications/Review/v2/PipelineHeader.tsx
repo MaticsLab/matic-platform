@@ -24,7 +24,8 @@ export function PipelineHeader({
   onOpenPipelineActivity,
   workflows,
   selectedWorkflowId,
-  onWorkflowChange
+  onWorkflowChange,
+  onDownload
 }: PipelineHeaderProps) {
   const [showFilterPopover, setShowFilterPopover] = useState(false);
   
@@ -154,8 +155,9 @@ export function PipelineHeader({
               </PopoverContent>
             </Popover>
             <button 
+              onClick={() => onDownload?.()}
               className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
-              title="Export"
+              title="Download CSV"
             >
               <Download className="w-4 h-4" />
             </button>

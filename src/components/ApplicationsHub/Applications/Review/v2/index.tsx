@@ -24,9 +24,6 @@ import { PipelineActivityPanel } from './PipelineActivityPanel';
 import { ReviewPanel } from './ReviewPanel';
 import { cn } from '@/lib/utils';
 
-// Re-export the old ReviewWorkspace for other views
-export { ReviewWorkspace } from '../ReviewWorkspace';
-
 interface ReviewWorkspaceV2Props {
   workspaceId: string;
   formId: string | null;
@@ -449,6 +446,128 @@ export function ReviewWorkspaceV2({
     return result;
   }, [applications, filterStatus, searchQuery, sortBy]);
 
+  // Download CSV handler
+  const handleDownloadCSV = useCallback((appsToDownload: Application[]) => {
+    if (appsToDownload.length === 0) {
+      toast.error('No applications to download');
+      return;
+    }
+
+    // Collect all unique field keys from raw_data across all applications
+    const allFieldKeys = new Set<string>();
+    appsToDownload.forEach(app => {
+      if (app.raw_data) {
+        Object.keys(app.raw_data).forEach(key => {
+          // Skip internal fields that start with underscore
+          if (!key.startsWith('_')) {
+            allFieldKeys.add(key);
+          }
+        });
+      }
+    });
+
+    // Build CSV headers
+    const baseHeaders = [
+      'ID',
+      'First Name',
+      'Last Name',
+      'Full Name',
+      'Email',
+      'Phone',
+      'Date of Birth',
+      'Gender',
+      'Status',
+      'Stage',
+      'Submitted Date',
+      'Score',
+      'Max Score',
+      'Reviewed Count',
+      'Total Reviewers',
+      'Assigned Reviewers',
+      'Tags',
+      'Flagged',
+      'Priority',
+      'Last Activity'
+    ];
+    
+    // Add dynamic form field headers
+    const formFieldHeaders = Array.from(allFieldKeys).sort();
+    const headers = [...baseHeaders, ...formFieldHeaders];
+
+    // Build CSV rows
+    const rows = appsToDownload.map(app => {
+      const row: string[] = [
+        app.id || '',
+        app.firstName || '',
+        app.lastName || '',
+        app.name || `${app.firstName} ${app.lastName}`.trim() || '',
+        app.email || '',
+        app.phone || '',
+        app.dateOfBirth || '',
+        app.gender || '',
+        app.status || '',
+        app.stageName || '',
+        app.submittedDate || '',
+        app.score?.toString() || '',
+        app.maxScore?.toString() || '',
+        app.reviewedCount?.toString() || '',
+        app.totalReviewers?.toString() || '',
+        app.assignedTo?.join('; ') || '',
+        app.tags?.join('; ') || '',
+        app.flagged ? 'Yes' : 'No',
+        app.priority || '',
+        app.lastActivity || ''
+      ];
+
+      // Add form field values in the same order as headers
+      formFieldHeaders.forEach(key => {
+        const value = app.raw_data?.[key];
+        // Handle different value types
+        let cellValue = '';
+        if (value === null || value === undefined) {
+          cellValue = '';
+        } else if (typeof value === 'object') {
+          cellValue = JSON.stringify(value);
+        } else if (Array.isArray(value)) {
+          cellValue = value.join('; ');
+        } else {
+          cellValue = String(value);
+        }
+        row.push(cellValue);
+      });
+
+      return row;
+    });
+
+    // Escape CSV values (handle commas, quotes, newlines)
+    const escapeCSV = (value: string): string => {
+      if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    };
+
+    // Convert to CSV string
+    const csvContent = [
+      headers.map(escapeCSV).join(','),
+      ...rows.map(row => row.map(escapeCSV).join(','))
+    ].join('\n');
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `applications_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success(`Downloaded ${appsToDownload.length} application(s)`);
+  }, []);
+
   // Handle status change
   const handleStatusChange = useCallback(async (appId: string, newStatus: ApplicationStatus) => {
     try {
@@ -549,6 +668,7 @@ export function ReviewWorkspaceV2({
             workflows={workflows.map(w => ({ id: w.id, name: w.name }))}
             selectedWorkflowId={selectedWorkflow?.id}
             onWorkflowChange={handleWorkflowChange}
+            onDownload={() => handleDownloadCSV(filteredApplications)}
           />
           
           <div className="flex-1 overflow-y-auto">
