@@ -262,28 +262,35 @@ function formatFieldLabel(key: string, fieldMap?: Map<string, any>): string {
     if (!fieldDef && key.startsWith('Field-')) {
       const withoutPrefix = key.replace(/^Field-/, '');
       fieldDef = fieldMap.get(withoutPrefix);
-      
-      // Try matching by ID (field IDs often have format like "Field-{timestamp}-{random}")
-      // Extract the base ID if it's a complex ID
-      if (!fieldDef) {
-        // Try to match by extracting the timestamp part or matching the full ID
-        for (const [mapKey, mapField] of fieldMap.entries()) {
-          const mapFieldId = mapField.id || mapKey;
-          // Exact match
-          if (mapFieldId === key || mapFieldId === withoutPrefix) {
+    }
+    
+    // Try matching by ID or name (for repeater subfields that use field IDs/names as keys)
+    if (!fieldDef) {
+      for (const [mapKey, mapField] of fieldMap.entries()) {
+        const mapFieldId = mapField.id || mapKey;
+        const mapFieldName = mapField.name;
+        
+        // Exact match by ID
+        if (mapFieldId === key || mapFieldId === key.replace(/^Field-/, '')) {
+          fieldDef = mapField;
+          break;
+        }
+        
+        // Match by name (for repeater subfields)
+        if (mapFieldName && (mapFieldName === key || mapFieldName.toLowerCase().replace(/\s+/g, '_') === key.toLowerCase())) {
+          fieldDef = mapField;
+          break;
+        }
+        
+        // Try matching the base part (before the last segment) for complex IDs
+        // e.g., "Field-1766110112708-zg4hskrds" might match a field with ID "Field-1766110112708-..."
+        if (key.includes('-') && mapFieldId.includes('-')) {
+          const keyParts = key.split('-');
+          const mapIdParts = mapFieldId.split('-');
+          // Match if first parts are similar (timestamp matching)
+          if (keyParts.length >= 2 && mapIdParts.length >= 2 && keyParts[0] === mapIdParts[0]) {
             fieldDef = mapField;
             break;
-          }
-          // Try matching the base part (before the last segment)
-          // e.g., "Field-1766110112708-zg4hskrds" might match a field with ID "Field-1766110112708-..."
-          if (key.includes('-') && mapFieldId.includes('-')) {
-            const keyParts = key.split('-');
-            const mapIdParts = mapFieldId.split('-');
-            // Match if first parts are similar (timestamp matching)
-            if (keyParts.length >= 2 && mapIdParts.length >= 2 && keyParts[0] === mapIdParts[0]) {
-              fieldDef = mapField;
-              break;
-            }
           }
         }
       }
@@ -1533,33 +1540,65 @@ export function ApplicationDetail({
                       </div>
                 <div className="space-y-4">
                   {(() => {
-                    // Create field map for nested field lookup (includes child fields for repeaters)
+                    // Create field map for nested field lookup (includes all subfields recursively)
                     const fieldMap = new Map<string, any>();
-                    fields.forEach(f => {
-                      const fieldId = f.id || (f as any).field_id;
-                      const fieldLabel = f.label || (f as any).name;
-                                // Create field map for nested field lookup (includes all subfields recursively)
-                                const fieldMap = new Map<string, any>();
-                                function addFieldToMap(field: any) {
-                                  const fieldId = field.id || field.field_id;
-                                  const fieldLabel = field.label || field.name;
-                                  if (fieldId) {
-                                    fieldMap.set(fieldId, field);
-                                    if (!fieldId.startsWith('Field-')) fieldMap.set(`Field-${fieldId}`, field);
-                                    if (fieldId.startsWith('Field-')) fieldMap.set(fieldId.replace(/^Field-/, ''), field);
-                                  }
-                                  if (fieldLabel) {
-                                    fieldMap.set(fieldLabel, field);
-                                    fieldMap.set(fieldLabel.toLowerCase().replace(/\s+/g, '_'), field);
-                                    fieldMap.set(fieldLabel.replace(/\s+/g, '_'), field);
-                                  }
-                                  const children = field.children || field.child_fields || [];
-                                  if (Array.isArray(children)) {
-                                    children.forEach(addFieldToMap);
-                                  }
-                                }
-                                fields.forEach(addFieldToMap);
-                    });
+                    
+                    function addFieldToMap(field: any) {
+                      const fieldId = field.id || field.field_id;
+                      const fieldLabel = field.label || field.name;
+                      const fieldName = field.name;
+                      
+                      // Map by ID
+                      if (fieldId) {
+                        fieldMap.set(fieldId, field);
+                        if (!fieldId.startsWith('Field-')) fieldMap.set(`Field-${fieldId}`, field);
+                        if (fieldId.startsWith('Field-')) fieldMap.set(fieldId.replace(/^Field-/, ''), field);
+                      }
+                      
+                      // Map by name (for repeater subfields)
+                      if (fieldName) {
+                        fieldMap.set(fieldName, field);
+                        fieldMap.set(fieldName.toLowerCase().replace(/\s+/g, '_'), field);
+                        fieldMap.set(fieldName.replace(/\s+/g, '_'), field);
+                      }
+                      
+                      // Map by label
+                      if (fieldLabel) {
+                        fieldMap.set(fieldLabel, field);
+                        fieldMap.set(fieldLabel.toLowerCase().replace(/\s+/g, '_'), field);
+                        fieldMap.set(fieldLabel.replace(/\s+/g, '_'), field);
+                      }
+                      
+                      // Recursively add children from config.children (for repeaters/groups)
+                      const configChildren = (field.config as any)?.children || [];
+                      const directChildren = field.children || field.child_fields || [];
+                      const allChildren = [...configChildren, ...directChildren];
+                      
+                      if (Array.isArray(allChildren) && allChildren.length > 0) {
+                        allChildren.forEach((child: any) => {
+                          // If child is a field definition object from config.children, create a proper field object
+                          if (child && typeof child === 'object') {
+                            const childField = {
+                              id: child.id || child.name || `child-${Math.random()}`,
+                              name: child.name,
+                              label: child.label || child.name || 'Unnamed Field',
+                              type: child.type || 'text',
+                              config: child.config || child
+                            };
+                            addFieldToMap(childField);
+                          } else if (child && typeof child === 'string') {
+                            // If child is an ID, try to find it in the fields array
+                            const foundField = fields.find((f: any) => f.id === child || f.name === child);
+                            if (foundField) {
+                              addFieldToMap(foundField);
+                            }
+                          }
+                        });
+                      }
+                    }
+                    
+                    // Add all top-level fields
+                    fields.forEach(addFieldToMap);
                     
                     return fieldSections.map((section, sectionIdx) => {
                       // Check if section has any data

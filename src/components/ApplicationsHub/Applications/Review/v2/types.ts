@@ -126,7 +126,7 @@ export interface ApplicationDetailProps {
   onDelete?: (appId: string) => void;
   workspaceId?: string;
   formId?: string;
-  fields?: { id: string; label: string; type: string }[];
+  fields?: Array<{ id: string; label: string; type: string; config?: Record<string, any>; name?: string }>;
   onActivityCreated?: () => void;
 }
 

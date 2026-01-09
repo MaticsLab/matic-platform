@@ -592,7 +592,7 @@ export function ReviewWorkspaceV2({
               }}
               workspaceId={workspaceId || undefined}
               formId={formId || undefined}
-              fields={form?.fields?.map(f => ({ id: f.id, type: f.type || 'text', label: f.label })) || []}
+              fields={form?.fields || []}
             />
           </div>
         )}
