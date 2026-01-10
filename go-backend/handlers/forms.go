@@ -154,73 +154,84 @@ type FormDTO struct {
 
 func ListForms(c *gin.Context) {
 	// List all forms (tables) in a workspace
-	// workspaceID and tables removed (unused)
-	var table models.Table
-	var fields []models.Field
-	// ...existing ListForms implementation...
-	database.DB.Where("table_id = ?", table.ID).Order("position ASC").Find(&fields)
+	workspaceID := c.Query("workspace_id")
+	if workspaceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id is required"})
+		return
+	}
 
-	// Enrich fields with section_id from config
-	for i := range fields {
-		if fields[i].SectionID == nil || *fields[i].SectionID == "" {
-			// Try to get section_id from Config
-			var config map[string]interface{}
-			json.Unmarshal(fields[i].Config, &config)
-			if sid, ok := config["section_id"].(string); ok && sid != "" {
-				fields[i].SectionID = &sid
+	// Parse workspace ID
+	workspaceUUID, err := uuid.Parse(workspaceID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
+		return
+	}
+
+	// Get all tables (forms) in the workspace
+	var tables []models.Table
+	if err := database.DB.Where("workspace_id = ?", workspaceUUID).Order("created_at DESC").Find(&tables).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Convert tables to FormDTO
+	var forms []FormDTO
+	for _, table := range tables {
+		// Get fields for this form
+		var fields []models.Field
+		database.DB.Where("table_id = ?", table.ID).Order("position ASC").Find(&fields)
+
+		// Enrich fields with section_id from config
+		for i := range fields {
+			if fields[i].SectionID == nil || *fields[i].SectionID == "" {
+				// Try to get section_id from Config
+				var config map[string]interface{}
+				json.Unmarshal(fields[i].Config, &config)
+				if sid, ok := config["section_id"].(string); ok && sid != "" {
+					fields[i].SectionID = &sid
+				}
 			}
 		}
-	}
 
-	var view models.View
-	isPublished := false
-	var viewID *uuid.UUID
-	if err := database.DB.Where("table_id = ? AND type = ?", table.ID, "form").First(&view).Error; err == nil {
-		viewID = &view.ID
-		var config map[string]interface{}
-		json.Unmarshal(view.Config, &config)
-		if val, ok := config["is_published"].(bool); ok {
-			isPublished = val
-		}
-	} else {
-		// No form view exists - create one automatically
-		viewConfig := map[string]interface{}{
-			"is_published": false,
-		}
-		view = models.View{
-			TableID:   table.ID,
-			Name:      "Form View",
-			Type:      "form",
-			Config:    mapToJSON(viewConfig),
-			CreatedBy: table.CreatedBy,
-		}
-		if err := database.DB.Create(&view).Error; err == nil {
+		// Get view to check if published
+		var view models.View
+		isPublished := false
+		var viewID *uuid.UUID
+		if err := database.DB.Where("table_id = ? AND type = ?", table.ID, "form").First(&view).Error; err == nil {
 			viewID = &view.ID
+			var config map[string]interface{}
+			json.Unmarshal(view.Config, &config)
+			if val, ok := config["is_published"].(bool); ok {
+				isPublished = val
+			}
 		}
+
+		// Parse settings
+		var settings map[string]interface{}
+		json.Unmarshal(table.Settings, &settings)
+
+		form := FormDTO{
+			ID:                 table.ID,
+			ViewID:             viewID,
+			WorkspaceID:        table.WorkspaceID,
+			Name:               table.Name,
+			Slug:               table.Slug,
+			CustomSlug:         table.CustomSlug,
+			Description:        table.Description,
+			Settings:           settings,
+			IsPublished:        isPublished,
+			Fields:             fields,
+			CreatedAt:          table.CreatedAt,
+			UpdatedAt:          table.UpdatedAt,
+			PreviewTitle:       table.PreviewTitle,
+			PreviewDescription: table.PreviewDescription,
+			PreviewImageURL:    table.PreviewImageURL,
+		}
+
+		forms = append(forms, form)
 	}
 
-	var settings map[string]interface{}
-	json.Unmarshal(table.Settings, &settings)
-
-	form := FormDTO{
-		ID:                 table.ID,
-		ViewID:             viewID,
-		WorkspaceID:        table.WorkspaceID,
-		Name:               table.Name,
-		Slug:               table.Slug,
-		CustomSlug:         table.CustomSlug,
-		Description:        table.Description,
-		Settings:           settings,
-		IsPublished:        isPublished,
-		Fields:             fields,
-		CreatedAt:          table.CreatedAt,
-		UpdatedAt:          table.UpdatedAt,
-		PreviewTitle:       table.PreviewTitle,
-		PreviewDescription: table.PreviewDescription,
-		PreviewImageURL:    table.PreviewImageURL,
-	}
-
-	c.JSON(http.StatusOK, form)
+	c.JSON(http.StatusOK, forms)
 }
 
 type CreateFormInput struct {

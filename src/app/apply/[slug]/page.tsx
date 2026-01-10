@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { PublicPortal } from '@/components/ApplicationsHub/Applications/ApplicantPortal/PublicPortal'
+import { PublicPortalV2 } from '@/components/ApplicationsHub/Applications/ApplicantPortal/PublicPortalV2'
 
 const BASE_URL = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
 import { APP_DOMAIN } from '@/constants/app-domain'
@@ -89,8 +90,16 @@ export default function ApplicationPage({
   searchParams 
 }: { 
   params: { slug: string }, 
-  searchParams: { subdomain?: string } 
+  searchParams: { subdomain?: string; v2?: string } 
 }) {
-  // Render the public portal - subdomain is optional and passed from middleware
-  return <PublicPortal slug={params.slug} subdomain={searchParams?.subdomain} />
+  // Use PublicPortalV2 as the default (new design with sidebar navigation)
+  // Can fall back to original with ?v1=true if needed
+  const useV1 = searchParams?.v1 === 'true'
+  
+  if (useV1) {
+    return <PublicPortal slug={params.slug} subdomain={searchParams?.subdomain} />
+  }
+  
+  // Default to new V2 portal
+  return <PublicPortalV2 slug={params.slug} subdomain={searchParams?.subdomain} />
 }
