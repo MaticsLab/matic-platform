@@ -333,27 +333,21 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   }
 
   // Handle logout
-  const handleLogout = async () => {
-    try {
-      await portalAuthClient.logout()
-      setIsAuthenticated(false)
-      setIsLogin(true)
-      setEmail('')
-      setPassword('')
-      setSignupData({})
-      setCurrentView('dashboard')
-      setHasExistingSubmission(false)
-      setSubmissionData(null)
-      setInitialData(null)
-      setApplicationRowId(null)
-      setApplicantId(null)
-      setApplicantName('')
-      toast.success('Logged out successfully')
-    } catch (error) {
-      console.error('Logout error:', error)
-      // Still reset state even if logout fails
-      setIsAuthenticated(false)
-    }
+  const handleLogout = () => {
+    // Reset all state - portal auth is stateless, no server-side logout needed
+    setIsAuthenticated(false)
+    setIsLogin(true)
+    setEmail('')
+    setPassword('')
+    setSignupData({})
+    setCurrentView('dashboard')
+    setHasExistingSubmission(false)
+    setSubmissionData(null)
+    setInitialData(null)
+    setApplicationRowId(null)
+    setApplicantId(null)
+    setApplicantName('')
+    toast.success('Logged out successfully')
   }
 
   // Handle continue application
