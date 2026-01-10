@@ -76,14 +76,32 @@ func GetForm(c *gin.Context) {
 	c.JSON(http.StatusOK, form)
 }
 
-// GetFormBySlug returns a form by its slug
+// GetFormBySlug returns a form by its slug or custom_slug
+// Supports both auto-generated slug and custom_slug
 func GetFormBySlug(c *gin.Context) {
-	slug := c.Param("slug")
+	slugOrId := c.Param("slug")
 	var table models.Table
-	if err := database.DB.Where("slug = ? AND icon = ?", slug, "form").First(&table).Error; err != nil {
+	query := database.DB.Where("icon = ?", "form")
+
+	// Try to find by UUID ID first (in case slug is actually a form ID)
+	if _, err := uuid.Parse(slugOrId); err == nil {
+		if err := query.Where("id = ?", slugOrId).First(&table).Error; err == nil {
+			goto found
+		}
+	}
+
+	// Try custom_slug first (preferred for public URLs)
+	if err := query.Where("custom_slug = ?", slugOrId).First(&table).Error; err == nil {
+		goto found
+	}
+
+	// Fall back to auto-generated slug
+	if err := query.Where("slug = ?", slugOrId).First(&table).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
 		return
 	}
+
+found:
 
 	var fields []models.Field
 	database.DB.Where("table_id = ?", table.ID).Order("position ASC").Find(&fields)
