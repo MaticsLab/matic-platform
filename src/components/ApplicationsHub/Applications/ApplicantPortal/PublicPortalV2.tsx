@@ -509,10 +509,8 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
             if (verified === 'true' && formIdParam === formData.id) {
               // Verify magic link was successful
               const session = await authClient.getSession()
-              if (session?.data?.session?.user) {
-              setEmail(email)
-                setEmail(user.email)
-                
+              if (session?.data?.session) {
+                setEmail(email)
                 // Sync with portal_applicant
                 try {
                   const baseUrl = getApiUrl()
@@ -524,19 +522,17 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
                     credentials: 'include', // Include cookies for Better Auth session
                     body: JSON.stringify({
                       form_id: formData.id,
-                      email: user.email,
-                      better_auth_user_id: user.id,
-                      name: user.name || user.email.split('@')[0],
-                      first_name: user.name?.split(' ')[0] || '',
-                      last_name: user.name?.split(' ').slice(1).join(' ') || ''
+                      email: email,
+                      better_auth_user_id: session.data.session.userId,
+                      name: email.split('@')[0],
+                      first_name: '',
+                      last_name: ''
                     })
                   })
-                  
                   if (syncResponse.ok) {
                     const applicant = await syncResponse.json()
                     setApplicantId(applicant.id)
-                    setApplicantName(applicant.name || user.name || '')
-                    
+                    setApplicantName(applicant.name || email.split('@')[0] || '')
                     if (applicant.row_id) {
                       setApplicationRowId(applicant.row_id)
                     }
