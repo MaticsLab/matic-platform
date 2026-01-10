@@ -376,10 +376,6 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     setActiveSectionId('')
   }
 
-  // Get translated form config
-  // We'll handle translations inside the TranslationProvider context
-  const translatedForm = form
-
   // Build portal config from translated form
   const portalConfig: PortalConfig = useMemo(() => {
     if (!translatedForm) {
