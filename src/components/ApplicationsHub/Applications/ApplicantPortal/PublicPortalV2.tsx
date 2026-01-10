@@ -17,7 +17,7 @@ import { applyTranslationsToConfig, applyTranslationsToField, normalizeTranslati
 import { portalAuthClient } from '@/lib/api/portal-auth-client'
 import { toast } from 'sonner'
 import type { TranslationResource } from '@/lib/i18n/types'
-import { TranslationProvider, useTranslationContext } from '@/lib/i18n/TranslationProvider'
+import { TranslationProvider } from '@/lib/i18n/TranslationProvider'
 import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector'
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
 import { endingPagesClient } from '@/lib/api/ending-pages-client'
@@ -268,7 +268,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   }
 
   // Handle form submission
-  const handleFormSubmit = async (formData: Record<string, any>, options?: { saveAndExit?: boolean }) => {
+  const handleFormSubmit = async (formData: Record<string, any>, options?: { saveAndExit?: boolean }): Promise<void> => {
     try {
       if (!form?.id) {
         throw new Error('Form ID not found')
@@ -585,6 +585,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
                 portalConfig={portalConfig}
                 form={translatedForm}
                 initialData={formInitialData}
+                currentFormData={currentFormData}
                 onFormDataChange={handleFormDataChange}
                 onSubmit={handleFormSubmit}
                 onSaveAndDashboard={handleSaveAndDashboard}
@@ -1047,8 +1048,9 @@ interface ApplicationViewProps {
   portalConfig: PortalConfig
   form: Form | null
   initialData: any
+  currentFormData: Record<string, any>
   onFormDataChange: (data: Record<string, any>) => void
-  onSubmit: (data: Record<string, any>, options?: { saveAndExit?: boolean }) => void
+  onSubmit: (data: Record<string, any>, options?: { saveAndExit?: boolean }) => Promise<void>
   onSaveAndDashboard: () => void
   email: string
   activeSectionId: string
@@ -1064,6 +1066,7 @@ function ApplicationView({
   portalConfig,
   form,
   initialData,
+  currentFormData,
   onFormDataChange,
   onSubmit,
   onSaveAndDashboard,
@@ -1079,14 +1082,15 @@ function ApplicationView({
   const sections = portalConfig.sections || []
   const formSections = sections.filter(s => s.sectionType === 'form')
 
-  // Calculate section completion
+  // Calculate section completion - use currentFormData if available, otherwise initialData
   const getSectionCompletion = (section: Section): number => {
-    if (!initialData) return 0
+    const formData = Object.keys(currentFormData).length > 0 ? currentFormData : initialData
+    if (!formData) return 0
     const sectionFields = section.fields || []
     if (sectionFields.length === 0) return 100
     
     const filledFields = sectionFields.filter(field => {
-      const value = initialData[field.id]
+      const value = formData[field.id]
       return value !== undefined && value !== null && value !== ''
     })
     
@@ -1112,8 +1116,14 @@ function ApplicationView({
             onSectionChange(formSections[idx].id)
           }
         }}
-        getSectionCompletion={(idx) => getSectionCompletion(formSections[idx])}
-        isSectionComplete={(idx) => isSectionComplete(formSections[idx])}
+        getSectionCompletion={(idx) => {
+          if (idx < 0 || idx >= formSections.length) return 0
+          return getSectionCompletion(formSections[idx])
+        }}
+        isSectionComplete={(idx) => {
+          if (idx < 0 || idx >= formSections.length) return false
+          return isSectionComplete(formSections[idx])
+        }}
         isOpen={sidebarOpen}
         onToggle={onToggleSidebar}
         formName={form?.name || 'Application'}
