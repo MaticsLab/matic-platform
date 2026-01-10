@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { APP_DOMAIN } from '@/constants/app-domain';
-import { organization, multiSession } from "better-auth/plugins";
+import { organization, multiSession, magicLink } from "better-auth/plugins";
 import { Pool } from "pg";
 import { Resend } from "resend";
 
@@ -24,9 +24,28 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 
 // Determine the base URL for authentication
 function getBaseURL() {
-  // Priority 1: Explicit BETTER_AUTH_URL
+  // Priority 1: BETTER_AUTH_URL (can be overridden for local dev)
+  // If set to localhost, use it (allows local override)
   if (process.env.BETTER_AUTH_URL) {
-    return process.env.BETTER_AUTH_URL;
+    const authUrl = process.env.BETTER_AUTH_URL;
+    // If it's localhost, always use it
+    if (authUrl.startsWith("http://localhost") || authUrl.startsWith("http://127.0.0.1")) {
+      return authUrl;
+    }
+    // In development mode, if BETTER_AUTH_URL is production, try to detect localhost
+    if (process.env.NODE_ENV === 'development' && authUrl.includes("maticsapp.com")) {
+      // Check if NEXT_PUBLIC_APP_URL is localhost (local override)
+      if (process.env.NEXT_PUBLIC_APP_URL) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+        if (appUrl.startsWith("http://localhost") || appUrl.startsWith("http://127.0.0.1")) {
+          return appUrl;
+        }
+      }
+      // In dev mode with production URL, default to localhost:3000
+      // User should override BETTER_AUTH_URL in .env.local for their port
+      return "http://localhost:3000";
+    }
+    return authUrl;
   }
 
   // Priority 2: NEXT_PUBLIC_APP_URL
@@ -40,7 +59,7 @@ function getBaseURL() {
   }
 
   // Fallback: Local development
-  return APP_DOMAIN;
+  return "http://localhost:3000";
 }
 
 // Create auth instance - during build time, use a minimal config
@@ -94,7 +113,9 @@ export const auth = betterAuth({
   // Trusted origins for CORS
   trustedOrigins: [
     (await import('@/constants/app-domain')).APP_DOMAIN,
+    "http://localhost:3000", // Default Next.js dev server
     "http://localhost:3001",
+    "http://localhost:3002",
     "https://www.maticsapp.com",
     ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
     ...(process.env.NEXT_PUBLIC_SUPABASE_URL ? [process.env.NEXT_PUBLIC_SUPABASE_URL] : []),
@@ -133,6 +154,151 @@ export const auth = betterAuth({
     // Multi-session support (user can be logged in on multiple devices)
     multiSession({
       maximumSessions: 5,
+    }),
+    
+    // Magic Link plugin for passwordless authentication
+    magicLink({
+      sendMagicLink: async ({ email, url, token }, ctx) => {
+        if (!resend) {
+          console.error("[Better Auth] Resend not configured - RESEND_API_KEY missing");
+          return;
+        }
+        
+        // Extract form ID from callback URL if present
+        let portalName = "Matics";
+        let portalLogo = "";
+        let subdomain = "";
+        
+        try {
+          // Try multiple methods to get the callback URL with formId
+          let formId: string | null = null;
+          
+          // Method 1: Check context request body (Better Auth passes callbackURL here)
+          if (ctx?.request?.body) {
+            const body = ctx.request.body;
+            if (typeof body === 'object' && body !== null) {
+              const callbackURL = (body as any).callbackURL;
+              if (callbackURL && typeof callbackURL === 'string') {
+                try {
+                  const callbackUrlObj = new URL(callbackURL);
+                  formId = callbackUrlObj.searchParams.get('formId');
+                } catch (e) {
+                  // URL parsing failed
+                }
+              }
+            }
+          }
+          
+          // Method 2: Query Better Auth verification table to get callback URL
+          // Better Auth stores the callback URL in the verification record
+          if (!formId && pool && token) {
+            try {
+              const result = await pool.query(
+                'SELECT identifier FROM ba_verifications WHERE token = $1 ORDER BY created_at DESC LIMIT 1',
+                [token]
+              );
+              
+              if (result.rows.length > 0) {
+                const identifier = result.rows[0].identifier;
+                // The identifier might contain the callback URL or we can check the verification metadata
+                // Actually, Better Auth stores callback URL differently - let's check the request
+              }
+            } catch (dbError) {
+              console.error("[Better Auth] Database query error:", dbError);
+            }
+          }
+          
+          // Method 3: Parse from verification URL (if Better Auth includes it)
+          if (!formId && url) {
+            try {
+              const urlObj = new URL(url);
+              // Check if formId is directly in the verification URL
+              formId = urlObj.searchParams.get('formId');
+              
+              // Or check callbackURL param
+              if (!formId) {
+                const callbackURL = urlObj.searchParams.get('callbackURL');
+                if (callbackURL) {
+                  const callbackUrlObj = new URL(callbackURL);
+                  formId = callbackUrlObj.searchParams.get('formId');
+                }
+              }
+            } catch (e) {
+              // URL parsing failed
+            }
+          }
+          
+          // Fetch form configuration if we found formId
+          if (formId) {
+            const baseUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'https://backend.maticslab.com/api/v1';
+            const formResponse = await fetch(`${baseUrl}/forms/${formId}`, {
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+            
+            if (formResponse.ok) {
+              const formData = await formResponse.json();
+              const settings = formData.settings || {};
+              
+              // Get portal name from form settings
+              portalName = settings.name || formData.name || "Matics";
+              
+              // Get portal logo
+              portalLogo = settings.logoUrl || "";
+              
+              // Get subdomain if available
+              if (formData.workspace_subdomain) {
+                subdomain = formData.workspace_subdomain;
+              }
+            }
+          }
+        } catch (error) {
+          console.error("[Better Auth] Failed to fetch portal info for magic link:", error);
+          // Continue with default values
+        }
+        
+        // Build subject with portal name
+        const subject = subdomain 
+          ? `${portalName} portal: Your portal access link`
+          : `${portalName}: Your portal access link`;
+        
+        // Build email HTML with logo
+        const logoHtml = portalLogo 
+          ? `<div style="text-align: center; margin-bottom: 30px;">
+               <img src="${portalLogo}" alt="${portalName}" style="max-width: 200px; max-height: 80px; height: auto; object-fit: contain;" />
+             </div>`
+          : "";
+        
+        await resend.emails.send({
+          from: process.env.EMAIL_FROM || `${portalName} <noreply@notifications.maticsapp.com>`,
+          to: email,
+          subject: subject,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              ${logoHtml}
+              <h2 style="color: #1e40af; margin-top: 0;">Hi there,</h2>
+              <p style="font-size: 16px; line-height: 1.6; color: #374151;">
+                Click below to instantly access your portal.
+              </p>
+              <div style="margin: 30px 0; text-align: center;">
+                <a href="${url}" style="background-color: #1e40af; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 500; font-size: 16px;">
+                  Go to your portal
+                </a>
+              </div>
+              <p style="color: #6b7280; font-size: 14px; line-height: 1.6;">
+                For your security, do not forward this email. Any recipient will have full access to your portal and all its content.
+              </p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
+              <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+                © ${new Date().getFullYear()} ${portalName}. All rights reserved.
+              </p>
+            </div>
+          `,
+        });
+      },
+      expiresIn: 300, // 5 minutes
+      disableSignUp: false, // Allow sign up via magic link
     }),
   ],
 

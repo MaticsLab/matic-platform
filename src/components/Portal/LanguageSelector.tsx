@@ -81,11 +81,14 @@ export function LanguageSelector({
     return code.toUpperCase()
   }
   
+  // Ensure activeLanguage is always defined to prevent controlled/uncontrolled warning
+  const safeActiveLanguage = activeLanguage || supportedLanguages[0] || 'en'
+
   // Select variant (default)
   if (variant === 'select') {
     return (
       <div className={wrapperClasses}>
-        <Select value={activeLanguage} onValueChange={setLanguage}>
+        <Select value={safeActiveLanguage} onValueChange={setLanguage}>
           <SelectTrigger 
             className={cn(
               'bg-white/90 backdrop-blur-sm border-gray-200',
@@ -95,7 +98,7 @@ export function LanguageSelector({
           >
             {showIcon && <Languages className="w-4 h-4 mr-2 flex-shrink-0" />}
             <SelectValue>
-              {displayLanguage(activeLanguage)}
+              {displayLanguage(safeActiveLanguage)}
             </SelectValue>
           </SelectTrigger>
           <SelectContent align={isRTL ? 'start' : 'end'}>
@@ -206,13 +209,16 @@ export function StandaloneLanguageSelector({
   if (supportedLanguages.length <= 1) {
     return null
   }
-  
+
+  // Ensure activeLanguage is always defined to prevent controlled/uncontrolled warning
+  const safeActiveLanguage = activeLanguage || supportedLanguages[0] || 'en'
+
   return (
     <div className={className}>
-      <Select value={activeLanguage} onValueChange={onLanguageChange}>
+      <Select value={safeActiveLanguage} onValueChange={onLanguageChange}>
         <SelectTrigger className="w-32 h-9 text-sm bg-white/90 backdrop-blur-sm">
           {showIcon && <Languages className="w-4 h-4 mr-2" />}
-          <SelectValue>{activeLanguage.toUpperCase()}</SelectValue>
+          <SelectValue>{safeActiveLanguage.toUpperCase()}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           {supportedLanguages.map(lang => (

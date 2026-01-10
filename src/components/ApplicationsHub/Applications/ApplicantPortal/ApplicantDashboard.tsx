@@ -19,6 +19,7 @@ interface ApplicantDashboardProps {
   applicantId?: string
   applicantName?: string
   onNameUpdate?: (newName: string) => void
+  hideHeader?: boolean
 }
 
 /**
@@ -37,7 +38,8 @@ export function ApplicantDashboard({
   themeColor = '#3B82F6',
   applicantId,
   applicantName,
-  onNameUpdate
+  onNameUpdate,
+  hideHeader = false
 }: ApplicantDashboardProps) {
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
     showStatus: true,
@@ -112,6 +114,7 @@ export function ApplicantDashboard({
       applicantId={applicantId}
       applicantName={applicantName}
       onNameUpdate={onNameUpdate}
+      hideHeader={hideHeader}
     />
   )
 }

@@ -26,6 +26,7 @@ interface DashboardV2Props {
   applicantId?: string
   applicantName?: string
   onNameUpdate?: (newName: string) => void
+  hideHeader?: boolean // Hide the secondary header (used when header is in parent component)
 }
 
 export function DashboardV2({
@@ -44,22 +45,25 @@ export function DashboardV2({
   welcomeText,
   applicantId,
   applicantName,
-  onNameUpdate
+  onNameUpdate,
+  hideHeader = false
 }: DashboardV2Props) {
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader 
-        config={config}
-        onLogout={onLogout}
-        onContinueApplication={onContinueApplication}
-        themeColor={themeColor}
-        applicationStatus={applicationStatus}
-        isPreview={isPreview}
-        email={email}
-        applicantId={applicantId}
-        applicantName={applicantName}
-        onNameUpdate={onNameUpdate}
-      />
+      {!hideHeader && (
+        <DashboardHeader 
+          config={config}
+          onLogout={onLogout}
+          onContinueApplication={onContinueApplication}
+          themeColor={themeColor}
+          applicationStatus={applicationStatus}
+          isPreview={isPreview}
+          email={email}
+          applicantId={applicantId}
+          applicantName={applicantName}
+          onNameUpdate={onNameUpdate}
+        />
+      )}
       
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <WelcomeSection 

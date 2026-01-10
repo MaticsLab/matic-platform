@@ -45,6 +45,11 @@ export async function POST(request: NextRequest) {
     return await handlers.POST(request);
   } catch (error: any) {
     console.error("[Better Auth] POST error:", error?.message || error, error?.stack);
-    return NextResponse.json({ error: "Internal server error", details: error?.message }, { status: 500 });
+    console.error("[Better Auth] Full error object:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    return NextResponse.json({ 
+      error: "Internal server error", 
+      details: error?.message,
+      stack: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+    }, { status: 500 });
   }
 }

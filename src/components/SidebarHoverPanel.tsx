@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { GraduationCap, BarChart3, Workflow, Table2, FileText, ArrowRight, Loader2, Search, CheckCircle, Clock } from 'lucide-react'
+import { GraduationCap, BarChart3, Workflow, Table2, FileText, ArrowRight, Loader2, Search, CheckCircle, Clock, ContactRound } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getSessionToken } from '@/lib/supabase'
 import { goClient } from '@/lib/api/go-client'
@@ -15,7 +15,7 @@ import type { AutomationWorkflow } from '@/lib/api/automation-workflows-client'
 const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'https://backend.maticslab.com/api/v1'
 
 interface SidebarHoverPanelProps {
-  hubType: 'data' | 'applications' | 'workflows'
+  hubType: 'data' | 'applications' | 'workflows' | 'crm'
   workspaceId: string
   isVisible: boolean
   onClose: () => void
@@ -76,6 +76,14 @@ export function SidebarHoverPanel({ hubType, workspaceId, isVisible, onClose }: 
             })
             break
           }
+          case 'crm': {
+            // TODO: Replace with actual CRM clients API call
+            setData([])
+            setStats({
+              total: 0,
+            })
+            break
+          }
         }
       } catch (error) {
         console.error(`Error loading ${hubType} data:`, error)
@@ -112,9 +120,16 @@ export function SidebarHoverPanel({ hubType, workspaceId, isVisible, onClose }: 
       emptyMessage: 'No workflows yet',
       emptyDescription: 'Create your first workflow to automate tasks',
     },
+    crm: {
+      title: 'CRM',
+      icon: ContactRound,
+      description: 'Manage your clients and contacts',
+      emptyMessage: 'No clients yet',
+      emptyDescription: 'Create your first client to start managing relationships',
+    },
   }[hubType]
 
-  const Icon = config.icon
+  const Icon = config?.icon || ContactRound
 
   // Filter data based on search and status
   const filteredData = (Array.isArray(data) ? data : []).filter((item) => {
@@ -162,6 +177,20 @@ export function SidebarHoverPanel({ hubType, workspaceId, isVisible, onClose }: 
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
             <Input 
               placeholder="Search tables..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-8 text-sm bg-gray-50/50 border-gray-200"
+            />
+          </div>
+        </div>
+      )}
+
+      {hubType === 'crm' && (
+        <div className="p-3 border-b border-gray-200">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <Input 
+              placeholder="Search clients..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-8 h-8 text-sm bg-gray-50/50 border-gray-200"
@@ -259,8 +288,8 @@ export function SidebarHoverPanel({ hubType, workspaceId, isVisible, onClose }: 
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <Icon className="w-6 h-6 text-gray-400" />
             </div>
-            <p className="text-sm font-medium text-gray-900 mb-1">{config.emptyMessage}</p>
-            <p className="text-xs text-gray-500">{config.emptyDescription}</p>
+            <p className="text-sm font-medium text-gray-900 mb-1">{config?.emptyMessage || 'No items'}</p>
+            <p className="text-xs text-gray-500">{config?.emptyDescription || ''}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -273,6 +302,7 @@ export function SidebarHoverPanel({ hubType, workspaceId, isVisible, onClose }: 
                   {hubType === 'data' && <Table2 className="w-4 h-4 text-gray-600" />}
                   {hubType === 'applications' && <FileText className="w-4 h-4 text-gray-600" />}
                   {hubType === 'workflows' && <Workflow className="w-4 h-4 text-gray-600" />}
+                  {hubType === 'crm' && <ContactRound className="w-4 h-4 text-gray-600" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">

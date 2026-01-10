@@ -6,6 +6,7 @@ import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { portalAuthClient } from '@/lib/api/portal-auth-client'
+import { authClient } from '@/lib/better-auth-client'
 import { toast } from 'sonner'
 
 interface AccountSettingsModalProps {
@@ -16,6 +17,9 @@ interface AccountSettingsModalProps {
   email: string
   onNameUpdate: (newName: string) => void
   themeColor?: string
+  currentFirstName?: string
+  currentLastName?: string
+  onNameUpdateFull?: (firstName: string, lastName: string) => void
 }
 
 export function AccountSettingsModal({
@@ -25,12 +29,28 @@ export function AccountSettingsModal({
   currentName,
   email,
   onNameUpdate,
-  themeColor = '#3B82F6'
+  themeColor = '#3B82F6',
+  currentFirstName = '',
+  currentLastName = '',
+  onNameUpdateFull
 }: AccountSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile')
   
-  // Profile state
-  const [name, setName] = useState(currentName)
+  // Profile state - parse current name if we don't have separate fields
+  const parseName = (fullName: string) => {
+    if (currentFirstName && currentLastName) {
+      return { first: currentFirstName, last: currentLastName }
+    }
+    const parts = fullName.trim().split(/\s+/)
+    if (parts.length >= 2) {
+      return { first: parts[0], last: parts.slice(1).join(' ') }
+    }
+    return { first: parts[0] || '', last: '' }
+  }
+  
+  const initialName = parseName(currentName)
+  const [firstName, setFirstName] = useState(initialName.first)
+  const [lastName, setLastName] = useState(initialName.last)
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
   
   // Password state
@@ -45,15 +65,45 @@ export function AccountSettingsModal({
   if (!isOpen) return null
 
   const handleUpdateProfile = async () => {
-    if (!name.trim()) {
-      toast.error('Name cannot be empty')
+    if (!firstName.trim()) {
+      toast.error('First name cannot be empty')
       return
     }
 
     setIsUpdatingProfile(true)
     try {
-      await portalAuthClient.updateProfile(applicantId, { full_name: name.trim() })
-      onNameUpdate(name.trim())
+      const fullName = `${firstName.trim()} ${lastName.trim()}`.trim()
+      
+      // Update Better Auth user profile (if method is available)
+      try {
+        // Check if updateUser method exists on authClient
+        if (typeof (authClient as any).updateUser === 'function') {
+          const result = await (authClient as any).updateUser({
+            name: fullName,
+          })
+          
+          if (result?.error) {
+            console.warn('Failed to update Better Auth profile:', result.error)
+          }
+        }
+      } catch (baError) {
+        console.warn('Better Auth update failed, continuing with portal update:', baError)
+      }
+      
+      // Also update portal applicant for form-specific data
+      try {
+        await portalAuthClient.updateProfile(applicantId, { 
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          full_name: fullName
+        })
+      } catch (portalError) {
+        console.warn('Portal applicant update failed:', portalError)
+      }
+      
+      // Update both callbacks for backward compatibility
+      onNameUpdate(fullName)
+      onNameUpdateFull?.(firstName.trim(), lastName.trim())
       toast.success('Profile updated successfully')
     } catch (error: any) {
       toast.error(error.message || 'Failed to update profile')
@@ -158,22 +208,36 @@ export function AccountSettingsModal({
               </div>
               
               <div>
-                <Label htmlFor="name" className="text-sm font-medium text-gray-700">
-                  Full Name
+                <Label htmlFor="firstName" className="text-sm font-medium text-gray-700">
+                  First Name
                 </Label>
                 <Input
-                  id="name"
+                  id="firstName"
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your full name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="Enter your first name"
+                  className="mt-1"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="lastName" className="text-sm font-medium text-gray-700">
+                  Last Name
+                </Label>
+                <Input
+                  id="lastName"
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Enter your last name"
                   className="mt-1"
                 />
               </div>
 
               <Button
                 onClick={handleUpdateProfile}
-                disabled={isUpdatingProfile || name === currentName}
+                disabled={isUpdatingProfile || (firstName === initialName.first && lastName === initialName.last)}
                 className="w-full text-white"
                 style={{ backgroundColor: themeColor }}
               >

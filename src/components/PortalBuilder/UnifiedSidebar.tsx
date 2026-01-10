@@ -110,7 +110,7 @@ export function UnifiedSidebar({
   dashboardSettings,
   onDashboardSettingsChange,
 }: UnifiedSidebarProps) {
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['entry', 'cover', 'form', 'after']))
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['cover', 'form', 'after']))
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
 
@@ -344,35 +344,23 @@ export function UnifiedSidebar({
       <ScrollArea className="flex-1 min-h-0 w-full">
         <div className="p-2 space-y-1 w-full">
           {/* ═══════════════════════════════════════════════════════════════════
-              ENTRY GROUP - Authentication
+              SIGN UP / LOGIN
           ═══════════════════════════════════════════════════════════════════ */}
-          <Collapsible open={expandedGroups.has('entry')} onOpenChange={() => toggleGroup('entry')}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-2 hover:bg-gray-50 rounded-lg transition-colors">
-              <ChevronRight className={cn(
-                "w-4 h-4 text-gray-400 transition-transform",
-                expandedGroups.has('entry') && "rotate-90"
-              )} />
-              <Lock className="w-4 h-4 text-green-600" />
-              <span className="text-sm font-semibold text-gray-700 flex-1 text-left">Authentication</span>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pl-4 pr-1 py-1 space-y-1">
-              <button
-                onClick={() => {
-                  onSelectSpecialPage('signup')
-                  onSelectSection('')
-                }}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors text-left",
-                  activeSpecialPage === 'signup' 
-                    ? "bg-green-50 text-green-900 border border-green-200" 
-                    : "text-gray-700 hover:bg-gray-50"
-                )}
-              >
-                <Lock className="w-4 h-4 text-green-600" />
-                <span className="font-medium">Sign Up / Login</span>
-              </button>
-            </CollapsibleContent>
-          </Collapsible>
+          <button
+            onClick={() => {
+              onSelectSpecialPage('signup')
+              onSelectSection('')
+            }}
+            className={cn(
+              "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors text-left",
+              activeSpecialPage === 'signup' 
+                ? "bg-green-50 text-green-900 border border-green-200" 
+                : "text-gray-700 hover:bg-gray-50"
+            )}
+          >
+            <Lock className="w-4 h-4 text-green-600" />
+            <span className="font-medium">Sign Up / Login</span>
+          </button>
 
           <Separator className="my-2" />
 

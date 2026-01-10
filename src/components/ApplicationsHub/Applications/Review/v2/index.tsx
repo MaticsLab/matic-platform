@@ -69,8 +69,20 @@ export function ReviewWorkspaceV2({
 
   // Transform submission to Application format
   const mapSubmissionToApplication = useCallback((sub: FormSubmission, stagesData: Stage[], revMap: ReviewersMap): Application => {
-    const data = typeof sub.data === 'string' ? JSON.parse(sub.data) : (sub.data || {});
-    const metadata = typeof sub.metadata === 'string' ? JSON.parse(sub.metadata) : (sub.metadata || {});
+    // OPTIMIZATION: Cache parsed data/metadata to avoid re-parsing
+    // Most submissions already have parsed objects, only parse if string
+    const data = typeof sub.data === 'string' 
+      ? (() => {
+          try { return JSON.parse(sub.data) } 
+          catch { return {} }
+        })()
+      : (sub.data || {});
+    const metadata = typeof sub.metadata === 'string'
+      ? (() => {
+          try { return JSON.parse(sub.metadata) }
+          catch { return {} }
+        })()
+      : (sub.metadata || {});
     
     // Use the full_name from portal_applicants table (from portal signup)
     // This is the primary source of truth for applicant names
@@ -175,49 +187,82 @@ export function ReviewWorkspaceV2({
     };
   }, [form, selectedWorkflow]);
 
-  // Load data - optimized with parallel fetching
+  // Load data - optimized with progressive loading
   const loadData = useCallback(async () => {
     if (!formId || isLoadingRef.current) return;
     
     isLoadingRef.current = true;
     setIsLoading(true);
+    
     try {
-      // OPTIMIZATION: Fetch form, workflows, and rubrics in parallel (reduces sequential wait time)
-      // This reduces load time from ~300ms sequential to ~100ms parallel
+      // OPTIMIZATION: Fetch submissions FIRST (most important data) to show list immediately
+      // Then fetch other data in parallel without blocking
+      const submissionsPromise = goClient.get<FormSubmission[]>(`/forms/${formId}/submissions?limit=25&offset=0`);
+      
+      // Fetch form, workflows, and rubrics in parallel (but don't wait for them)
+      const formPromise = goClient.get<Form>(`/forms/${formId}`);
+      const workflowsPromise = workflowsClient.listWorkflows(workspaceId, formId || undefined);
+      const rubricsPromise = workflowsClient.listRubrics(workspaceId).catch(() => []);
+      
+      // Wait for submissions first (critical path)
+      const submissions = await submissionsPromise;
+      
+      // Set empty reviewers map initially (will be populated later)
+      setReviewersMap({});
+      
+      // OPTIMIZATION: Set loading to false IMMEDIATELY after getting submissions
+      // This shows the list right away, even if it's empty initially
+      setIsLoading(false);
+      isLoadingRef.current = false;
+      
+      // Process and show submissions immediately (even without full metadata)
+      if (submissions.length > 0) {
+        // Use minimal stages data for initial render
+        const minimalStages: Stage[] = [];
+        const minimalRevMap: ReviewersMap = {};
+        
+        // Process submissions with minimal data
+        const processSubmissions = () => {
+          const apps = submissions.map(sub => mapSubmissionToApplication(sub, minimalStages, minimalRevMap));
+          setApplications(apps);
+        };
+        
+        if (typeof requestIdleCallback !== 'undefined') {
+          requestIdleCallback(processSubmissions, { timeout: 50 });
+        } else {
+          setTimeout(processSubmissions, 0);
+        }
+      } else {
+        setApplications([]);
+      }
+      
+      // Now fetch and process the rest of the data in the background
       const [loadedForm, workflowsData, rubricsData] = await Promise.all([
-        goClient.get<Form>(`/forms/${formId}`), // Removed cache bust (_t param) for better browser caching
-        workflowsClient.listWorkflows(workspaceId, formId || undefined),
-        workflowsClient.listRubrics(workspaceId).catch(() => []) // Fail silently, return empty array
+        formPromise,
+        workflowsPromise,
+        rubricsPromise
       ]);
       
       setForm(loadedForm);
       setWorkflows(workflowsData);
       setRubrics(rubricsData || []);
       
-      // Build reviewers map from form settings (exclude removed reviewers)
+      // Build reviewers map from form settings
       const formReviewers = (loadedForm.settings as any)?.reviewers || [];
       let revMap: ReviewersMap = {};
       formReviewers.forEach((r: any) => {
-        // Skip removed/archived reviewers
         if (r.id && !r.removed && r.status !== 'removed') {
           revMap[r.id] = { name: r.name || UNKNOWN, email: r.email, role: r.role };
         }
       });
       
-      // OPTIMIZATION: Fetch stages and submissions in parallel
+      // Fetch stages if workflows exist
       let stagesData: Stage[] = [];
-      let submissions: FormSubmission[] = [];
-      
       if (workflowsData.length > 0) {
         const wf = workflowsData[0];
         setSelectedWorkflow(wf);
         
-        // Fetch stages and submissions in parallel
-        const [stagesList, submissionsData] = await Promise.all([
-          workflowsClient.listStages(workspaceId, wf.id),
-          goClient.get<FormSubmission[]>(`/forms/${formId}/submissions?limit=100&offset=0`)
-        ]);
-        
+        const stagesList = await workflowsClient.listStages(workspaceId, wf.id);
         stagesData = stagesList.map((s: ApplicationStage) => ({
           id: s.id,
           name: s.name,
@@ -225,64 +270,68 @@ export function ReviewWorkspaceV2({
           order: s.order_index
         }));
         setStages(stagesData);
-        submissions = submissionsData;
-      } else {
-        // If no workflows, just fetch submissions
-        submissions = await goClient.get<FormSubmission[]>(`/forms/${formId}/submissions?limit=100&offset=0`);
       }
       
-      // OPTIMIZATION: Build reviewers map from submission metadata (assigned_reviewers and review_history)
-      // This handles cases where reviewers were assigned but form.settings.reviewers wasn't saved
-      // Only process first 20 submissions to avoid performance issues - most reviewers will be in form settings
-      (submissions || []).slice(0, 20).forEach((sub: FormSubmission) => {
-        // OPTIMIZATION: Cache parsed metadata to avoid re-parsing
+      // Build reviewers map from submission metadata (in background, don't block)
+      const processedReviewerIds = new Set<string>();
+      (submissions || []).slice(0, 10).forEach((sub: FormSubmission) => {
         const metadata = typeof sub.metadata === 'string' ? JSON.parse(sub.metadata) : (sub.metadata || {});
         
-        // Check reviewer_info which is stored when reviewers are assigned
         const reviewerInfo = metadata.reviewer_info || {};
         Object.entries(reviewerInfo).forEach(([reviewerId, info]: [string, any]) => {
-          if (reviewerId && !revMap[reviewerId]) {
+          if (reviewerId && !revMap[reviewerId] && !processedReviewerIds.has(reviewerId)) {
             revMap[reviewerId] = {
               name: info?.name || 'Reviewer',
               email: info?.email,
               role: info?.role
             };
+            processedReviewerIds.add(reviewerId);
           }
         });
         
-        // Extract from review history - these have reviewer names
         const reviewHistory = Array.isArray(metadata.review_history) ? metadata.review_history : [];
         reviewHistory.forEach((rh: any) => {
-          if (rh.reviewer_id && rh.reviewer_name && !revMap[rh.reviewer_id]) {
+          if (rh.reviewer_id && rh.reviewer_name && !revMap[rh.reviewer_id] && !processedReviewerIds.has(rh.reviewer_id)) {
             revMap[rh.reviewer_id] = { 
               name: rh.reviewer_name, 
               role: rh.reviewer_role || undefined 
             };
+            processedReviewerIds.add(rh.reviewer_id);
           }
         });
         
-        // Also check for reviewer_assignments which may have more info
         const reviewerAssignments = metadata.reviewer_assignments || {};
         Object.entries(reviewerAssignments).forEach(([reviewerId, info]: [string, any]) => {
-          if (reviewerId && !revMap[reviewerId]) {
+          if (reviewerId && !revMap[reviewerId] && !processedReviewerIds.has(reviewerId)) {
             revMap[reviewerId] = {
               name: info?.name || info?.reviewer_name || `Reviewer`,
               email: info?.email,
               role: info?.role
             };
+            processedReviewerIds.add(reviewerId);
           }
         });
       });
       
       setReviewersMap(revMap);
       
-      // Map submissions to application format
-      const apps = (submissions || []).map(sub => mapSubmissionToApplication(sub, stagesData, revMap));
-      setApplications(apps);
+      // Re-process submissions with complete data (stages and reviewers) in background
+      if (submissions.length > 0) {
+        const processWithCompleteData = () => {
+          const apps = submissions.map(sub => mapSubmissionToApplication(sub, stagesData, revMap));
+          setApplications(apps);
+        };
+        
+        if (typeof requestIdleCallback !== 'undefined') {
+          requestIdleCallback(processWithCompleteData, { timeout: 100 });
+        } else {
+          setTimeout(processWithCompleteData, 0);
+        }
+      }
       
       // Update pagination state
-      setHasMore(submissions.length === 100); // If we got 100, there might be more
-      currentOffsetRef.current = 100;
+      setHasMore(submissions.length === 25); // If we got 25, there might be more
+      currentOffsetRef.current = 25;
       
       // OPTIMIZATION: Defer activity building - only build when needed (lazy loading)
       // Activities are expensive to compute and not needed for initial render
@@ -293,7 +342,6 @@ export function ReviewWorkspaceV2({
     } catch (error) {
       console.error('Failed to load data:', error);
       toast.error('Failed to load applications');
-    } finally {
       setIsLoading(false);
       isLoadingRef.current = false;
     }

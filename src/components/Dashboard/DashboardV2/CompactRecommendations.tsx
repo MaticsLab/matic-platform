@@ -67,8 +67,11 @@ export function CompactRecommendations({
         }))
         
         setRecommenders(transformed)
-      } catch (error) {
-        console.error('Failed to fetch recommendations:', error)
+      } catch (error: any) {
+        // Silently handle 404s - endpoint may not exist yet
+        if (error?.status !== 404) {
+          console.error('Failed to fetch recommendations:', error)
+        }
         setRecommenders([])
       } finally {
         setIsLoading(false)

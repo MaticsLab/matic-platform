@@ -4,13 +4,16 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
 	"github.com/Jsanchez767/matic-platform/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -420,4 +423,124 @@ func PortalChangePassword(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully"})
+}
+
+// PortalSyncBetterAuthApplicantRequest for syncing Better Auth user with portal applicant
+type PortalSyncBetterAuthApplicantRequest struct {
+	FormID         string `json:"form_id" binding:"required"`
+	Email          string `json:"email" binding:"required,email"`
+	BetterAuthUserID string `json:"better_auth_user_id" binding:"required"`
+	Name           string `json:"name"`
+	FirstName      string `json:"first_name"`
+	LastName       string `json:"last_name"`
+}
+
+// POST /api/v1/portal/sync-better-auth-applicant
+// Syncs a Better Auth user with a portal_applicant record
+// Creates portal_applicant if it doesn't exist, updates if it does
+func PortalSyncBetterAuthApplicant(c *gin.Context) {
+	var req PortalSyncBetterAuthApplicantRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Determine display name
+	displayName := req.Name
+	if displayName == "" {
+		if req.FirstName != "" || req.LastName != "" {
+			displayName = fmt.Sprintf("%s %s", req.FirstName, req.LastName)
+		} else {
+			displayName = req.Email
+		}
+	}
+	displayName = strings.TrimSpace(displayName)
+
+	// Parse form ID
+	formID, err := uuid.Parse(req.FormID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid form_id"})
+		return
+	}
+
+	// Check if portal_applicant already exists for this form and email
+	var applicant models.PortalApplicant
+	err = database.DB.Where("form_id = ? AND email = ?", formID, req.Email).First(&applicant).Error
+
+	if err != nil {
+		// Create new portal_applicant (no password since Better Auth handles auth)
+		// Use a placeholder password hash - Better Auth handles actual authentication
+		placeholderHash, _ := bcrypt.GenerateFromPassword([]byte("better-auth-handled"), bcrypt.DefaultCost)
+		
+		applicant = models.PortalApplicant{
+			FormID:       formID,
+			Email:        req.Email,
+			PasswordHash: string(placeholderHash), // Placeholder - Better Auth handles auth
+			FullName:     displayName,
+		}
+
+		if err := database.DB.Create(&applicant).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create applicant: " + err.Error()})
+			return
+		}
+	} else {
+		// Update existing applicant
+		applicant.FullName = displayName
+		if err := database.DB.Save(&applicant).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update applicant: " + err.Error()})
+			return
+		}
+	}
+
+	// Try to get existing submission data
+	var rowID *uuid.UUID
+	var status string
+	var submissionData map[string]interface{}
+
+	var submission struct {
+		ID       uuid.UUID      `gorm:"column:id"`
+		Data     datatypes.JSON `gorm:"column:data"`
+		Metadata datatypes.JSON `gorm:"column:metadata"`
+	}
+
+	// Try to find submission by email
+	database.DB.Raw(`
+		SELECT id, data, metadata 
+		FROM application_submissions 
+		WHERE form_id = ? AND data->>'email' = ?
+		ORDER BY created_at DESC 
+		LIMIT 1
+	`, formID, req.Email).Scan(&submission)
+
+	if submission.ID != uuid.Nil {
+		rowID = &submission.ID
+		if submission.Metadata != nil {
+			var metadata map[string]interface{}
+			json.Unmarshal(submission.Metadata, &metadata)
+			if s, ok := metadata["status"].(string); ok {
+				status = s
+			}
+		}
+		if submission.Data != nil {
+			json.Unmarshal(submission.Data, &submissionData)
+		}
+	}
+
+	// Update applicant with submission info
+	if rowID != nil {
+		applicant.RowID = rowID
+	}
+	if err := database.DB.Save(&applicant).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update applicant: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":              applicant.ID,
+		"email":           applicant.Email,
+		"name":            applicant.FullName,
+		"row_id":          applicant.RowID,
+		"status":          status,
+		"submission_data": submissionData,
+	})
 }

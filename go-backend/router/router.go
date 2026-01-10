@@ -247,11 +247,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		portalDashboard := api.Group("/portal")
 		// TODO: Add portal auth middleware for proper security
 		{
-			portalDashboard.PUT("/profile/:applicant_id", handlers.PortalUpdateProfile)
-			portalDashboard.PUT("/profile/:applicant_id/password", handlers.PortalChangePassword)
-			portalDashboard.GET("/applications/:id", handlers.GetApplicantDashboard)
-			portalDashboard.GET("/applications/:id/activities", handlers.ListPortalActivities)
-			portalDashboard.POST("/applications/:id/activities", handlers.CreatePortalActivity)
+		portalDashboard.PUT("/profile/:applicant_id", handlers.PortalUpdateProfile)
+		portalDashboard.PUT("/profile/:applicant_id/password", handlers.PortalChangePassword)
+		portalDashboard.POST("/sync-better-auth-applicant", handlers.PortalSyncBetterAuthApplicant)
+		portalDashboard.GET("/applications/:id", handlers.GetApplicantDashboard)
+		portalDashboard.GET("/applications/:id/activities", handlers.ListPortalActivities)
+		portalDashboard.POST("/applications/:id/activities", handlers.CreatePortalActivity)
 			portalDashboard.POST("/applications/:id/activities/read", handlers.MarkActivitiesRead)
 
 			// Document routes

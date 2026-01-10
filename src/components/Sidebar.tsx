@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { 
   Home, Activity, Inbox, BarChart3, Users, Settings, 
   GraduationCap, ChevronRight, PanelLeftClose, PanelLeftOpen, Workflow,
-  Building2, Building, ChevronDown
+  Building2, Building, ChevronDown, ContactRound
 } from 'lucide-react'
 import { useTabContext } from './WorkspaceTabProvider'
 import { cn } from '@/lib/utils'
@@ -61,6 +61,13 @@ export function Sidebar({
       icon: BarChart3,
       url: `/workspace/${workspaceId}/tables`,
       type: 'table'
+    },
+    {
+      id: 'crm',
+      label: 'CRM',
+      icon: ContactRound,
+      url: `/workspace/${workspaceId}/crm`,
+      type: 'custom'
     },
     {
       id: 'workflows',
@@ -264,7 +271,7 @@ export function Sidebar({
                     {hoveredItem === item.id && (
                       <div className="absolute left-full top-0 ml-2 z-50 sidebar-hover-panel">
                         <SidebarHoverPanel
-                          hubType={item.id as 'data' | 'applications' | 'workflows'}
+                          hubType={item.id as 'data' | 'applications' | 'workflows' | 'crm'}
                           workspaceId={workspaceId}
                           isVisible={true}
                           onClose={() => setHoveredItem(null)}

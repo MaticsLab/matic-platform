@@ -12,6 +12,7 @@ import { EnrolledView } from './ActivitiesHub/EnrolledView'
 import { AddParticipantDialog } from './ActivitiesHub/AddParticipantDialog'
 import { ParticipantDetailPanel } from './ActivitiesHub/ParticipantDetailPanel'
 import { ApplicationsHub } from './ApplicationsHub/ApplicationsHub'
+import { CRMPage } from './CRM/CRMPage'
 import { useState, useEffect } from 'react'
 import { activitiesSupabase } from '@/lib/api/activities-supabase'
 import { getWorkspaceStats } from '@/lib/api/reports-client'
@@ -525,6 +526,11 @@ export function TabContentRouter({ tab: propTab, workspaceId }: TabContentRouter
       // Handle Applications Hub
       if (tab.url?.includes('/applications')) {
         return <ApplicationsHub workspaceId={workspaceId} />
+      }
+
+      // Handle CRM
+      if (tab.url?.includes('/crm')) {
+        return <CRMPage workspaceId={workspaceId} />
       }
 
       // Handle People Hub

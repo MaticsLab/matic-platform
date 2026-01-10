@@ -97,16 +97,47 @@ const INITIAL_CONFIG: PortalConfig = {
       supported: [],
       rightToLeft: false
     },
-    loginFields: [
-      { id: 'l1', type: 'email', label: 'Email', required: true, width: 'full' },
-      { id: 'l2', type: 'text', label: 'Password', required: true, width: 'full' }
-    ],
-    signupFields: [
-      { id: 's1', type: 'text', label: 'Full Name', required: true, width: 'full' },
-      { id: 's2', type: 'email', label: 'Email', required: true, width: 'full' },
-      { id: 's3', type: 'text', label: 'Password', required: true, width: 'full' }
-    ]
+    // loginFields and signupFields removed - using default Better Auth fields
   }
+}
+
+// Wrapper component to add state management for AuthPageRenderer preview
+function AuthPagePreviewWithState({ 
+  type, 
+  config, 
+  onSelectField, 
+  selectedFieldId, 
+  onUpdateSettings, 
+  isMobilePreview 
+}: { 
+  type: 'login' | 'signup'
+  config: PortalConfig
+  onSelectField?: (fieldId: string) => void
+  selectedFieldId?: string | null
+  onUpdateSettings?: (updates: Partial<PortalConfig['settings']>) => void
+  isMobilePreview?: boolean
+}) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [signupData, setSignupData] = useState<Record<string, any>>({})
+
+  return (
+    <AuthPageRenderer
+      type={type}
+      config={config}
+      email={email}
+      password={password}
+      signupData={signupData}
+      onEmailChange={setEmail}
+      onPasswordChange={setPassword}
+      onSignupDataChange={setSignupData}
+      onSelectField={onSelectField}
+      selectedFieldId={selectedFieldId}
+      onUpdateSettings={onUpdateSettings}
+      isPreview={true}
+      isMobilePreview={isMobilePreview}
+    />
+  )
 }
 
 export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: string, initialFormId?: string | null }) {
@@ -132,8 +163,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [useBlockEditor, setUseBlockEditor] = useState(true) // Toggle for block editor vs FormBuilder
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatarUrl?: string } | null>(null)
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
-  const [activeTopTab, setActiveTopTab] = useState<'edit' | 'integrate' | 'share'>('edit')
-  const [leftSidebarTab, setLeftSidebarTab] = useState<'structure' | 'elements'>('structure')
+  const [activeTopTab, setActiveTopTab] = useState<'edit' | 'share'>('edit')
   const [showThemeSidebar, setShowThemeSidebar] = useState(false)
   const [themePageType, setThemePageType] = useState<'login' | 'signup' | 'sections'>('signup')
   const [isCanvasScrolled, setIsCanvasScrolled] = useState(false)
@@ -764,7 +794,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     const newSection = createSectionTemplate(type)
     setConfig(prev => ({ ...prev, sections: [...prev.sections, newSection] }))
     setActiveSectionId(newSection.id)
-    setLeftSidebarTab('elements')
     setHasUnsavedChanges(true)
     setIsPublished(false)
   }
@@ -1178,15 +1207,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                  Edit
                </button>
                <button 
-                 onClick={() => setActiveTopTab('integrate')}
-                 className={cn(
-                   "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
-                   activeTopTab === 'integrate' ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"
-                 )}
-               >
-                 Integrate
-               </button>
-               <button 
                  onClick={() => setActiveTopTab('share')}
                  className={cn(
                    "px-4 py-1.5 text-sm font-medium rounded-full transition-all",
@@ -1243,21 +1263,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
           </div>
         )}
         
-        {activeTopTab === 'integrate' && (
-          <div className="flex-1 overflow-auto bg-gray-50 p-8">
-            <div className="max-w-2xl mx-auto py-8">
-              <h3 className="text-lg font-medium text-gray-900 mb-6 text-center">Integration Options</h3>
-              {/* Google Drive Integration Panel */}
-              <div className="mb-8">
-                <GoogleDriveIntegration workspaceId={workspaceId || ''} formId={formId || ''} />
-              </div>
-              {/* Future integrations can be added below */}
-              <div className="text-center text-gray-500 text-sm mt-8">
-                Coming soon: Embed codes, API access, and webhook integrations.
-              </div>
-            </div>
-          </div>
-        )}
 
         {activeTopTab === 'edit' && (
         <div className="flex-1 flex overflow-hidden">
@@ -1285,70 +1290,44 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
               </div>
             ) : (
               <div className="w-[380px] min-w-[380px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 overflow-y-auto overflow-x-hidden">
-                <Tabs value={leftSidebarTab} onValueChange={(value) => setLeftSidebarTab(value as any)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-100">
-                    <TabsList className="w-full grid grid-cols-2 bg-gray-100 p-1 rounded-full h-auto">
-                      <TabsTrigger value="structure" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Sections</TabsTrigger>
-                      <TabsTrigger value="elements" className="rounded-full data-[state=active]:bg-white data-[state=active]:shadow-sm py-1.5 text-sm font-medium">Fields</TabsTrigger>
-                    </TabsList>
-                  </div>
-
-            <TabsContent value="structure" className="flex-1 data-[state=active]:flex flex-col mt-0 min-h-0 overflow-hidden w-full">
-              <UnifiedSidebar
-                sections={config.sections}
-                activeSectionId={activeSectionId}
-                activeSpecialPage={activeSpecialPage}
-                onSelectSection={(id) => {
-                  setActiveSectionId(id)
-                  setSelectedFieldId(null)
-                  setSelectedEndingId(null)
-                }}
-                onSelectSpecialPage={(page) => {
-                  setActiveSpecialPage(page)
-                  if (page) {
-                    setActiveSectionId('')
+                <UnifiedSidebar
+                  sections={config.sections}
+                  activeSectionId={activeSectionId}
+                  activeSpecialPage={activeSpecialPage}
+                  onSelectSection={(id) => {
+                    setActiveSectionId(id)
                     setSelectedFieldId(null)
-                  }
-                }}
-                onReorderSections={(sections: Section[]) => {
-                  setConfig(prev => ({ ...prev, sections }))
-                  setHasUnsavedChanges(true)
-                }}
-                onDeleteSection={(sectionId: string) => {
-                  setConfig(prev => ({
-                    ...prev,
-                    sections: Array.isArray(prev.sections) ? prev.sections.filter(s => s.id !== sectionId) : Array.isArray(prev.sections) ? prev.sections : []
-                  }))
-                  setHasUnsavedChanges(true)
-                  if (activeSectionId === sectionId) {
-                    const remaining = Array.isArray(config.sections) ? config.sections.filter(s => s.id !== sectionId) : Array.isArray(config.sections) ? config.sections : []
-                    if (remaining.length > 0) {
-                      setActiveSectionId(remaining[0].id)
+                    setSelectedEndingId(null)
+                  }}
+                  onSelectSpecialPage={(page) => {
+                    setActiveSpecialPage(page)
+                    if (page) {
+                      setActiveSectionId('')
+                      setSelectedFieldId(null)
                     }
-                  }
-                }}
-                onAddSection={(type) => handleAddSection(type as Section['sectionType'])}
-                onUpdateSection={handleUpdateSection}
-                dashboardSettings={dashboardSettings}
-                onDashboardSettingsChange={handleDashboardSettingsChange}
-              />
-            </TabsContent>
-
-            <TabsContent value="elements" className="flex-1 mt-0 overflow-hidden data-[state=active]:flex flex-col min-h-0">
-               {/* Show ending blocks toolbox only for ending sections - cover uses inline editor */}
-               {activeSection?.sectionType === 'ending' ? (
-                 <EndingBlocksToolbox onAddBlock={handleAddBlock} />
-               ) : activeSection?.sectionType === 'cover' ? (
-                 <div className="p-4 text-sm text-gray-500">
-                   <p className="mb-2 font-medium">✨ Notion-style Editor</p>
-                   <p className="text-xs">Click anywhere to add content</p>
-                   <p className="text-xs">Click the + button to add blocks</p>
-                 </div>
-               ) : (
-                 <FieldToolbox onAddField={handleAddField} />
-               )}
-            </TabsContent>
-          </Tabs>
+                  }}
+                  onReorderSections={(sections: Section[]) => {
+                    setConfig(prev => ({ ...prev, sections }))
+                    setHasUnsavedChanges(true)
+                  }}
+                  onDeleteSection={(sectionId: string) => {
+                    setConfig(prev => ({
+                      ...prev,
+                      sections: Array.isArray(prev.sections) ? prev.sections.filter(s => s.id !== sectionId) : Array.isArray(prev.sections) ? prev.sections : []
+                    }))
+                    setHasUnsavedChanges(true)
+                    if (activeSectionId === sectionId) {
+                      const remaining = Array.isArray(config.sections) ? config.sections.filter(s => s.id !== sectionId) : Array.isArray(config.sections) ? config.sections : []
+                      if (remaining.length > 0) {
+                        setActiveSectionId(remaining[0].id)
+                      }
+                    }
+                  }}
+                  onAddSection={(type) => handleAddSection(type as Section['sectionType'])}
+                  onUpdateSection={handleUpdateSection}
+                  dashboardSettings={dashboardSettings}
+                  onDashboardSettingsChange={handleDashboardSettingsChange}
+                />
               </div>
             )}
 
@@ -1404,8 +1383,10 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         initialSectionId={activeSectionId}
                       />
                     </div>
-                  ) : activeSpecialPage === 'signup' ? (
-                    <AuthPageRenderer
+                  ) : (
+                    <div className="w-full">
+                      {activeSpecialPage === 'signup' ? (
+                    <AuthPagePreviewWithState
                       type={themePageType === 'login' ? 'login' : 'signup'}
                       config={displayConfig}
                       onSelectField={setSelectedFieldId}
@@ -1415,7 +1396,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         setHasUnsavedChanges(true)
                         setIsPublished(false)
                       }}
-                      isPreview={true}
                       isMobilePreview={viewMode === 'mobile'}
                     />
                   ) : activeSpecialPage === 'review' ? (
@@ -1491,6 +1471,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       </div>
                       <p className="font-medium text-gray-600">No section selected</p>
                       <p className="text-sm text-gray-400 mt-1">Choose a section from the sidebar to start editing</p>
+                    </div>
+                  )}
                     </div>
                   )}
                 </div>

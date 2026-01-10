@@ -1,7 +1,7 @@
 
 import { APP_DOMAIN } from '@/constants/app-domain';
 import { createAuthClient } from "better-auth/react";
-import { organizationClient, multiSessionClient } from "better-auth/client/plugins";
+import { organizationClient, multiSessionClient, magicLinkClient } from "better-auth/client/plugins";
 
 // Create the Better Auth client for frontend use
 export const authClient = createAuthClient({
@@ -11,6 +11,7 @@ export const authClient = createAuthClient({
   plugins: [
     organizationClient(),
     multiSessionClient(),
+    magicLinkClient(),
   ],
 });
 

@@ -572,7 +572,7 @@ export function ReviewPanel({
               disabled={isSaving}
               className="text-red-600 border-red-200 hover:bg-red-50"
             >
-              <ThumbsDown className="w-3.5 h-3.5 mr-1" />
+              <ThumbsDown className="w-3.5 h-3.5" />
               Reject
             </Button>
             <Button
@@ -582,7 +582,7 @@ export function ReviewPanel({
               disabled={isSaving}
               className="text-yellow-600 border-yellow-200 hover:bg-yellow-50"
             >
-              <MinusCircle className="w-3.5 h-3.5 mr-1" />
+              <MinusCircle className="w-3.5 h-3.5" />
               Maybe
             </Button>
             <Button
@@ -592,7 +592,7 @@ export function ReviewPanel({
               disabled={isSaving}
               className="text-green-600 border-green-200 hover:bg-green-50"
             >
-              <ThumbsUp className="w-3.5 h-3.5 mr-1" />
+              <ThumbsUp className="w-3.5 h-3.5" />
               Accept
             </Button>
           </div>
@@ -605,7 +605,7 @@ export function ReviewPanel({
               onClick={() => handleSave()}
               disabled={isSaving}
             >
-              <Save className="w-3.5 h-3.5 mr-1" />
+              <Save className="w-3.5 h-3.5" />
               Save Draft
             </Button>
             <Button
@@ -618,7 +618,7 @@ export function ReviewPanel({
                 <>Saving...</>
               ) : (
                 <>
-                  <Check className="w-3.5 h-3.5 mr-1" />
+                  <Check className="w-3.5 h-3.5" />
                   Save & Next
                 </>
               )}

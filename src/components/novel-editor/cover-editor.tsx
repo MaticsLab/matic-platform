@@ -127,7 +127,7 @@ export function NovelCoverEditor({
             handleDrop: (view, event, _slice, moved) => handleImageDrop(view, event, moved, uploadFn),
             attributes: {
               class:
-                "prose prose-lg dark:prose-invert prose-headings:font-semibold focus:outline-none max-w-full p-8",
+                "prose prose-lg dark:prose-invert prose-headings:font-semibold focus:outline-none max-w-full px-8 pt-12 pb-8",
             },
           }}
           onUpdate={({ editor }) => {

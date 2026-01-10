@@ -33,7 +33,7 @@ func LoadConfig() *Config {
 
 	return &Config{
 		DatabaseURL:            os.Getenv("DATABASE_URL"),
-		Port:                   getEnv("PORT", "8000"),
+		Port:                   getEnv("PORT", "8080"),
 		GinMode:                getEnv("GIN_MODE", "debug"),
 		AllowedOrigins:         origins,
 		JWTSecret:              getEnv("JWT_SECRET", "your-secret-key"),

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { ArrowRight, Mail, Lock } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { ArrowRight, Mail, Lock, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
@@ -9,6 +9,7 @@ import { Label } from '@/ui-components/label'
 import { Field, PortalConfig } from '@/types/portal'
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
 import { RichTextEditor, RichTextContent } from '@/components/PortalBuilder/RichTextEditor'
+import { toast } from 'sonner'
 
 interface AuthPageRendererProps {
   type: 'login' | 'signup'
@@ -20,7 +21,9 @@ interface AuthPageRendererProps {
   onPasswordChange?: (password: string) => void
   onSignupDataChange?: (data: Record<string, any>) => void
   onSubmit?: (e: React.FormEvent) => void
+  onMagicLink?: (email: string) => Promise<void>
   isLoading?: boolean
+  isMagicLinkLoading?: boolean
   onSelectField?: (fieldId: string) => void
   selectedFieldId?: string | null
   onUpdateSettings?: (updates: Partial<PortalConfig['settings']>) => void
@@ -39,7 +42,9 @@ export function AuthPageRenderer({
   onPasswordChange,
   onSignupDataChange,
   onSubmit,
+  onMagicLink,
   isLoading = false,
+  isMagicLinkLoading = false,
   onSelectField,
   selectedFieldId,
   onUpdateSettings,
@@ -65,7 +70,23 @@ export function AuthPageRenderer({
         ? 'Please sign up to continue your application.'
         : 'Please log in to continue your application.'
       )
-  const buttonText = pageSettings?.buttonText || (isSignup ? 'Create Account' : 'Log In')
+  // Dynamic button text based on password input
+  // Use useMemo to ensure it updates when password changes
+  const buttonText = useMemo(() => {
+    if (isSignup) {
+      // For signup: if password is provided, show custom text or "Create Account", otherwise show "Email me a signup link"
+      if (password && password.trim().length > 0) {
+        return pageSettings?.buttonText || 'Create Account'
+      }
+      return 'Email me a signup link'
+    }
+    
+    // For login: if password is provided, show "Log In", otherwise show "Email me a login link"
+    if (password && password.trim().length > 0) {
+      return pageSettings?.buttonText || 'Log In'
+    }
+    return 'Email me a login link'
+  }, [isSignup, password, pageSettings?.buttonText])
   const titleMargin = pageSettings?.titleMargin || {}
   const descriptionMargin = pageSettings?.descriptionMargin || {}
   
@@ -307,7 +328,22 @@ export function AuthPageRenderer({
                 </div>
 
                 <div className={cn(isMobilePreview ? "space-y-1" : "space-y-2")}>
-                  <Label htmlFor="password" className={cn(isMobilePreview && "text-xs")}>Password</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className={cn(isMobilePreview && "text-xs")}>Password</Label>
+                    <a 
+                      href="#" 
+                      className={cn(
+                        "text-xs text-gray-500 hover:text-gray-700",
+                        isMobilePreview && "text-[10px]"
+                      )}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        // TODO: Implement forgot password flow
+                      }}
+                    >
+                      Forgot password?
+                    </a>
+                  </div>
                   <div className="relative">
                     <Lock className={cn(
                       "absolute left-3 top-1/2 -translate-y-1/2 text-gray-400",
@@ -317,41 +353,124 @@ export function AuthPageRenderer({
                       id="password" 
                       type="password"
                       autoComplete="current-password"
+                      placeholder="Optional"
                       className={cn(
                         "pl-10",
                         isMobilePreview && "h-8 text-xs"
                       )}
                       value={password}
                       onChange={(e) => onPasswordChange?.(e.target.value)}
-                      required
                       disabled={isPreview}
                     />
                   </div>
                 </div>
               </>
             ) : (
-              // Signup fields - from portal config
-              (settings.signupFields || []).map((field) => (
-                <div
-                  key={field.id}
-                  onClick={() => isPreview && onSelectField?.(field.id)}
-                  className={cn(
-                    "rounded-lg transition-all",
-                    isPreview && "cursor-pointer",
-                    isPreview && selectedFieldId === field.id 
-                      ? "ring-2 ring-blue-500 ring-offset-2 p-2 -m-2" 
-                      : isPreview && "hover:bg-gray-50 p-2 -m-2"
-                  )}
-                >
-                  <PortalFieldAdapter
-                    field={field}
-                    value={signupData[field.id]}
-                    onChange={(value) => handleFieldChange(field.id, value)}
-                    formData={signupData}
-                    disabled={isPreview}
-                  />
-                </div>
-              ))
+              // Signup fields - always use default Better Auth fields (full name, email, password)
+              (() => {
+                // Default Better Auth signup fields - always use these
+                const defaultFields: Field[] = [
+                  {
+                    id: 'full_name',
+                    type: 'text',
+                    label: 'Full name',
+                    required: true,
+                    placeholder: 'Enter your full name'
+                  },
+                  {
+                    id: 'email',
+                    type: 'email',
+                    label: 'Email',
+                    required: true,
+                    placeholder: 'you@example.com'
+                  },
+                  {
+                    id: 'password',
+                    type: 'password',
+                    label: 'Password',
+                    required: false,
+                    placeholder: 'Optional'
+                  }
+                ]
+                
+                return defaultFields.map((field) => {
+                    // Special handling for email field to sync with email state
+                    if (field.id === 'email') {
+                      return (
+                        <div
+                          key={field.id}
+                          className={cn(isMobilePreview ? "space-y-1" : "space-y-2")}
+                        >
+                          <Label htmlFor={field.id} className={cn(isMobilePreview && "text-xs")}>
+                            {field.label} {field.required && <span className="text-red-500">*</span>}
+                          </Label>
+                          <Input
+                            id={field.id}
+                            type="email"
+                            placeholder={field.placeholder}
+                            className={cn(isMobilePreview && "h-8 text-xs")}
+                            value={email}
+                            onChange={(e) => {
+                              onEmailChange?.(e.target.value)
+                              handleFieldChange(field.id, e.target.value)
+                            }}
+                            required={field.required}
+                            disabled={isPreview}
+                          />
+                        </div>
+                      )
+                    }
+                    
+                    // Special handling for password field
+                    if (field.id === 'password') {
+                      return (
+                        <div
+                          key={field.id}
+                          className={cn(isMobilePreview ? "space-y-1" : "space-y-2")}
+                        >
+                          <Label htmlFor={field.id} className={cn(isMobilePreview && "text-xs")}>
+                            {field.label}
+                          </Label>
+                          <Input
+                            id={field.id}
+                            type="password"
+                            autoComplete="new-password"
+                            placeholder={field.placeholder}
+                            className={cn(isMobilePreview && "h-8 text-xs")}
+                            value={password}
+                            onChange={(e) => {
+                              onPasswordChange?.(e.target.value)
+                              handleFieldChange(field.id, e.target.value)
+                            }}
+                            disabled={isPreview}
+                          />
+                        </div>
+                      )
+                    }
+                    
+                    // Regular text fields (full_name)
+                    return (
+                      <div
+                        key={field.id}
+                        className={cn(isMobilePreview ? "space-y-1" : "space-y-2")}
+                      >
+                        <Label htmlFor={field.id} className={cn(isMobilePreview && "text-xs")}>
+                          {field.label} {field.required && <span className="text-red-500">*</span>}
+                        </Label>
+                        <Input
+                          id={field.id}
+                          type="text"
+                          placeholder={field.placeholder}
+                          className={cn(isMobilePreview && "h-8 text-xs")}
+                          value={signupData[field.id] || ''}
+                          onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                          required={field.required}
+                          disabled={isPreview}
+                        />
+                      </div>
+                    )
+                  })
+              })()
             )}
 
             {/* Submit Button - Editable text in preview mode */}
@@ -374,10 +493,25 @@ export function AuthPageRenderer({
                 )}
                 style={{ backgroundColor: themeColor }}
                 disabled={isLoading}
-                onClick={(e) => {
+                onClick={async (e) => {
                   if (isPreview && onUpdateSettings) {
                     e.preventDefault()
                     setEditingField('button')
+                    return
+                  }
+                  
+                  // For login: if no password, trigger magic link instead
+                  if (!isSignup && (!password || password.trim().length === 0) && onMagicLink && email.trim()) {
+                    e.preventDefault()
+                    await onMagicLink(email.trim())
+                    return
+                  }
+                  
+                  // For signup: if no password, trigger magic link instead
+                  if (isSignup && (!password || password.trim().length === 0) && onMagicLink && email.trim()) {
+                    e.preventDefault()
+                    await onMagicLink(email.trim())
+                    return
                   }
                 }}
               >
@@ -385,7 +519,7 @@ export function AuthPageRenderer({
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <span className="flex items-center gap-2">
-                    {buttonText} 
+                    {buttonText}
                     <ArrowRight className="w-4 h-4" />
                   </span>
                 )}

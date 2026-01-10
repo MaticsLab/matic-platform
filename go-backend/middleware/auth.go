@@ -54,9 +54,10 @@ func validateBetterAuthSessionToken(token string) (*models.BetterAuthSession, bo
 	return &session, true
 }
 
-// extractTokenFromRequest extracts the token from either Authorization header or cookies
+// extractTokenFromRequest extracts the token from Authorization header (primary) or cookies (fallback)
+// OPTIMIZATION: Prioritize Authorization header since that's what API clients use
 func extractTokenFromRequest(c *gin.Context) string {
-	// First, try Authorization header
+	// Primary: Authorization header (used by API clients)
 	authHeader := c.GetHeader("Authorization")
 	if authHeader != "" {
 		parts := strings.Split(authHeader, " ")
@@ -65,21 +66,19 @@ func extractTokenFromRequest(c *gin.Context) string {
 		}
 	}
 
-	// Fallback: Check cookies for Better Auth session token
-	// Better Auth stores tokens in HTTP-only cookies with various possible names
+	// Fallback: Check cookies (for browser-based requests)
+	// Better Auth stores tokens in HTTP-only cookies
 	cookieNames := []string{
 		"__Secure-better-auth.session_token",
 		"better-auth.session_token",
 		"better-auth_session_token",
 		"better_auth_session",
 		"session_token",
-		"better-auth.sessionToken",
 	}
 
 	for _, cookieName := range cookieNames {
 		if cookie, err := c.Cookie(cookieName); err == nil && cookie != "" {
 			// If cookie is signed (contains .), extract just the token part
-			// Better Auth might sign cookies, so we need to handle that
 			if strings.Contains(cookie, ".") {
 				return strings.Split(cookie, ".")[0]
 			}
@@ -91,9 +90,10 @@ func extractTokenFromRequest(c *gin.Context) string {
 }
 
 // AuthMiddleware validates Better Auth tokens only
+// OPTIMIZATION: Simplified validation - prioritize session tokens (most common), then JWT
 func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Extract token from either Authorization header or cookies
+		// Extract token from Authorization header (primary) or cookies (fallback)
 		tokenString := extractTokenFromRequest(c)
 		if tokenString == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization required. Please provide a token in the Authorization header or session cookie."})
@@ -101,10 +101,10 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		// First, try to validate as a Better Auth session token (database lookup)
-		// Better Auth session tokens are not JWTs - they're random strings stored in db
+		// PRIMARY: Validate as Better Auth session token (database lookup)
+		// Session tokens are random strings stored in ba_sessions table (not JWTs)
+		// This is the most common case for Better Auth
 		if session, valid := validateBetterAuthSessionToken(tokenString); valid {
-			fmt.Println("✅ Validated Better Auth session token via database")
 			c.Set("user_id", session.UserID)
 			c.Set("userID", session.UserID)
 			c.Set("user_email", session.User.Email)
@@ -118,43 +118,36 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		// Try to parse the token to determine the auth provider (JWT-based)
+		// FALLBACK: Try JWT token validation (for API tokens or special cases)
 		parser := new(jwt.Parser)
-
-		// Try parsing as Better Auth JWT token
 		betterAuthToken, _, betterAuthErr := parser.ParseUnverified(tokenString, &BetterAuthClaims{})
 
 		if betterAuthErr == nil && betterAuthToken != nil {
-			if claims, ok := betterAuthToken.Claims.(*BetterAuthClaims); ok {
-				// Check if this looks like a Better Auth token (has session ID or specific issuer)
-				if claims.Sid != "" || strings.Contains(claims.Iss, "localhost:3000") || strings.Contains(claims.Iss, "maticsapp.com") {
-					// Verify Better Auth token with secret
-					verifiedToken, err := jwt.ParseWithClaims(tokenString, &BetterAuthClaims{}, func(token *jwt.Token) (interface{}, error) {
-						return []byte(cfg.BetterAuthSecret), nil
-					})
+			if _, ok := betterAuthToken.Claims.(*BetterAuthClaims); ok {
+				// Verify Better Auth JWT token with secret
+				verifiedToken, err := jwt.ParseWithClaims(tokenString, &BetterAuthClaims{}, func(token *jwt.Token) (interface{}, error) {
+					return []byte(cfg.BetterAuthSecret), nil
+				})
 
-					if err == nil && verifiedToken.Valid {
-						if verifiedClaims, ok := verifiedToken.Claims.(*BetterAuthClaims); ok {
-							fmt.Println("✅ Validated Better Auth JWT token")
-							c.Set("user_id", verifiedClaims.Sub)
-							c.Set("userID", verifiedClaims.Sub)
-							c.Set("user_email", verifiedClaims.Email)
-							c.Set("user_name", verifiedClaims.Name)
-							c.Set("auth_provider", AuthProviderBetterAuth)
-							c.Set("session_id", verifiedClaims.Sid)
-							if verifiedClaims.OrgId != "" {
-								c.Set("organization_id", verifiedClaims.OrgId)
-							}
-							c.Next()
-							return
+				if err == nil && verifiedToken.Valid {
+					if verifiedClaims, ok := verifiedToken.Claims.(*BetterAuthClaims); ok {
+						c.Set("user_id", verifiedClaims.Sub)
+						c.Set("userID", verifiedClaims.Sub)
+						c.Set("user_email", verifiedClaims.Email)
+						c.Set("user_name", verifiedClaims.Name)
+						c.Set("auth_provider", AuthProviderBetterAuth)
+						c.Set("session_id", verifiedClaims.Sid)
+						if verifiedClaims.OrgId != "" {
+							c.Set("organization_id", verifiedClaims.OrgId)
 						}
+						c.Next()
+						return
 					}
 				}
 			}
 		}
 
-		// Token is invalid or not a Better Auth token
-		fmt.Printf("❌ Token validation failed: Invalid or expired Better Auth token\n")
+		// Token is invalid or expired
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 		c.Abort()
 	}

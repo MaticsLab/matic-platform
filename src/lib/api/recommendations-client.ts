@@ -140,12 +140,15 @@ export const recommendationsClient = {
     })
     
     if (!response.ok) {
-      // Return empty array if no recommendations found or not authorized
+      // Return empty array if no recommendations found or not authorized (404/401)
+      // This is expected if the endpoint doesn't exist yet or user has no recommendations
       if (response.status === 404 || response.status === 401) {
         return []
       }
-      const error = await response.json().catch(() => ({ error: 'Failed to fetch recommendation requests' }))
-      throw new Error(error.error || 'Failed to fetch recommendation requests')
+      // For other errors, create an error object with status for better handling
+      const error: any = new Error('Failed to fetch recommendation requests')
+      error.status = response.status
+      throw error
     }
     
     return response.json()

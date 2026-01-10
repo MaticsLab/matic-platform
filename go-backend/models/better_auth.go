@@ -17,6 +17,8 @@ type BetterAuthUser struct {
 	MigratedFromSupabase bool      `json:"migratedFromSupabase" gorm:"column:migrated_from_supabase;default:false"`
 	FullName             *string   `json:"fullName" gorm:"column:full_name"`
 	AvatarURL            *string   `json:"avatarUrl" gorm:"column:avatar_url"`
+	UserType             string    `json:"userType" gorm:"column:user_type;default:'staff'"` // staff, applicant, reviewer
+	Metadata             []byte    `json:"metadata,omitempty" gorm:"column:metadata;type:jsonb;default:'{}'"` // JSONB metadata
 }
 
 // TableName returns the table name for BetterAuthUser

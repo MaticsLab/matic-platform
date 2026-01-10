@@ -504,82 +504,83 @@ export function DynamicApplicationForm({
 
   return (
     <div className={cn("flex flex-col", isExternal ? "min-h-screen bg-white" : "bg-gray-50")}>
-      {/* Top Bar */}
-      <div className={cn(
-        isExternal ? "sticky top-0 z-30" : "",
-        "transition-all",
-        isExternal ? "bg-white/80 backdrop-blur-md border-b border-gray-100" : "bg-white border-b border-gray-200"
-      )}>
-        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            {!isExternal && onBack && (
-              <Button variant="ghost" size="sm" onClick={onBack}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-            )}
-            
-            <div className="flex items-center gap-3">
-              {config.settings.logoUrl ? (
-                <img src={config.settings.logoUrl} alt="Logo" className="h-8 w-auto" />
-              ) : (
-                <div 
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold"
-                  style={{ backgroundColor: config.settings.themeColor || '#000' }}
-                >
-                  {config.settings.name.charAt(0)}
-                </div>
+      {/* Top Bar - Removed per user request when isExternal is true */}
+      {!isExternal && (
+        <div className={cn(
+          "transition-all",
+          "bg-white border-b border-gray-200"
+        )}>
+          <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {onBack && (
+                <Button variant="ghost" size="sm" onClick={onBack}>
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
               )}
-              <span className="font-semibold text-gray-900">{translatedConfig.settings.name}</span>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            {config.settings.language?.enabled && supportedLanguages.length > 1 && (
-              <StandaloneLanguageSelector
-                activeLanguage={activeLanguage}
-                supportedLanguages={supportedLanguages}
-                onLanguageChange={(v) => {
-                  setActiveLanguage(v)
-                  setActiveSectionId((applyTranslationsToConfig(config, v).sections?.[0]?.id) || translatedConfig.sections?.[0]?.id || '')
-                }}
-              />
-            )}
-            <div className="text-right hidden sm:block">
-              <div className="text-xs text-gray-500 mb-1 flex items-center justify-end gap-2">
-                <span>Step {activeSectionIndex + 1} of {translatedConfig.sections?.length || 0}</span>
-                {isAutosaving && (
-                  <span className="text-blue-500 flex items-center gap-1">
-                    <Save className="w-3 h-3 animate-pulse" />
-                    Saving...
-                  </span>
+              
+              <div className="flex items-center gap-3">
+                {config.settings.logoUrl ? (
+                  <img src={config.settings.logoUrl} alt="Logo" className="h-8 w-auto" />
+                ) : (
+                  <div 
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold"
+                    style={{ backgroundColor: config.settings.themeColor || '#000' }}
+                  >
+                    {config.settings.name.charAt(0)}
+                  </div>
                 )}
+                <span className="font-semibold text-gray-900">{translatedConfig.settings.name}</span>
               </div>
-              <Progress value={calculateProgress()} className="w-32 h-2" />
             </div>
-            {onDashboard && (
+            
+            <div className="flex items-center gap-4">
+              {config.settings.language?.enabled && supportedLanguages.length > 1 && (
+                <StandaloneLanguageSelector
+                  activeLanguage={activeLanguage}
+                  supportedLanguages={supportedLanguages}
+                  onLanguageChange={(v) => {
+                    setActiveLanguage(v)
+                    setActiveSectionId((applyTranslationsToConfig(config, v).sections?.[0]?.id) || translatedConfig.sections?.[0]?.id || '')
+                  }}
+                />
+              )}
+              <div className="text-right hidden sm:block">
+                <div className="text-xs text-gray-500 mb-1 flex items-center justify-end gap-2">
+                  <span>Step {activeSectionIndex + 1} of {translatedConfig.sections?.length || 0}</span>
+                  {isAutosaving && (
+                    <span className="text-blue-500 flex items-center gap-1">
+                      <Save className="w-3 h-3 animate-pulse" />
+                      Saving...
+                    </span>
+                  )}
+                </div>
+                <Progress value={calculateProgress()} className="w-32 h-2" />
+              </div>
+              {onDashboard && (
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDashboard}
+                  disabled={isSaving}
+                  className="text-gray-600 hover:text-gray-900"
+                >
+                  <LayoutDashboard className="w-4 h-4 mr-2" />
+                  {isSaving ? 'Saving...' : 'My Dashboard'}
+                </Button>
+              )}
               <Button 
-                variant="outline"
-                size="sm"
-                onClick={handleDashboard}
+                className={cn(isExternal && "hover:opacity-90")}
+                style={{ backgroundColor: config.settings.themeColor || '#000' }}
+                onClick={handleSaveAndExit}
                 disabled={isSaving}
-                className="text-gray-600 hover:text-gray-900"
               >
-                <LayoutDashboard className="w-4 h-4 mr-2" />
-                {isSaving ? 'Saving...' : 'My Dashboard'}
+                {isSaving ? 'Saving...' : ui.saveAndExit}
               </Button>
-            )}
-            <Button 
-              className={cn(isExternal && "hover:opacity-90")}
-              style={{ backgroundColor: config.settings.themeColor || '#000' }}
-              onClick={handleSaveAndExit}
-              disabled={isSaving}
-            >
-              {isSaving ? 'Saving...' : ui.saveAndExit}
-            </Button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main content area with optional left sidebar for tabs */}
       <div className={cn(
@@ -588,38 +589,9 @@ export function DynamicApplicationForm({
       )}
       >
         <div className={cn(
-          "w-full flex gap-8",
+          "w-full",
           isExternal ? "min-h-[600px]" : ""
         )}>
-          {isExternal && (
-            <aside className="hidden lg:block w-64 shrink-0">
-              <div className="sticky top-4 space-y-2">
-                {(Array.isArray(translatedConfig.sections) ? translatedConfig.sections : []).map((section: Section, idx: number) => {
-                  const isActive = section.id === activeSectionId
-                  const isCompleted = idx < activeSectionIndex
-                  return (
-                    <button
-                      key={section.id}
-                      onClick={() => setActiveSectionId(section.id)}
-                      className={cn(
-                        "w-full flex items-center justify-between rounded-md px-3 py-2 text-sm",
-                        "transition-colors",
-                        isActive
-                          ? "bg-gray-900 text-white"
-                          : isCompleted
-                          ? "bg-green-50 text-green-700 hover:bg-green-100"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      )}
-                    >
-                      <span className="truncate text-left">{safeFieldString(section.title)}</span>
-                      {isCompleted && <Check className="w-4 h-4" />}
-                    </button>
-                  )
-                })}
-              </div>
-            </aside>
-          )}
-
           <div className="flex-1 min-w-0">
         <AnimatePresence mode="wait">
           {activeSection && (

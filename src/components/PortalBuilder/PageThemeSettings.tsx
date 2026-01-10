@@ -7,10 +7,12 @@ import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui-components/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui-components/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
 import { PortalConfig } from '@/types/portal'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { ColorPicker } from './ColorPicker'
 
 interface PageThemeSettingsProps {
   pageType: 'login' | 'signup' | 'sections'
@@ -486,19 +488,80 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
           </div>
         )}
 
-        {/* Theme Color */}
+        {/* Font Selection */}
         <div className="space-y-2">
-          <Label>Brand Color</Label>
-          <div className="flex items-center gap-3">
-            <div 
-              className="w-10 h-10 rounded-lg border border-gray-200 shadow-sm"
-              style={{ backgroundColor: settings.themeColor }}
+          <Label>Font</Label>
+          <p className="text-xs text-gray-500">
+            By default we use "Inter", but you can switch to a different font below. Note that this font only affects your portal and not the internal user experience.
+          </p>
+          <Select
+            value={settings.font || 'inter'}
+            onValueChange={(value) => onUpdate({ font: value as 'inter' | 'roboto' | 'serif' | 'mono' })}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="inter">Inter</SelectItem>
+              <SelectItem value="roboto">Roboto</SelectItem>
+              <SelectItem value="serif">Serif</SelectItem>
+              <SelectItem value="mono">Mono</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Brand Colors Section */}
+        <div className="space-y-4 pt-4 border-t">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">Brand colors</h3>
+            <p className="text-xs text-gray-500">
+              Customize the colors in your portal. Note that these colors only affect your portal and not the internal user experience. The accent is used for buttons, tags, and other UI elements.
+            </p>
+          </div>
+
+          {/* Accent Color (Primary/Button Color) */}
+          <div className="space-y-2">
+            <Label>Accent color</Label>
+            <ColorPicker
+              value={settings.themeColor || '#3B82F6'}
+              onChange={(color) => onUpdate({ themeColor: color })}
             />
-            <Input 
-              value={settings.themeColor} 
-              onChange={(e) => onUpdate({ themeColor: e.target.value })}
-              className="flex-1 font-mono text-sm"
-              placeholder="#3B82F6"
+            <p className="text-xs text-gray-500">Used for buttons, tags, and other UI elements</p>
+          </div>
+
+          {/* Sidebar Background Color */}
+          <div className="space-y-2">
+            <Label>Sidebar background color</Label>
+            <ColorPicker
+              value={(settings as any).sidebarBackgroundColor || '#101010'}
+              onChange={(color) => onUpdate({ sidebarBackgroundColor: color } as any)}
+            />
+          </div>
+
+          {/* Sidebar Text Color */}
+          <div className="space-y-2">
+            <Label>Sidebar text color</Label>
+            <ColorPicker
+              value={(settings as any).sidebarTextColor || '#BCE7F4'}
+              onChange={(color) => onUpdate({ sidebarTextColor: color } as any)}
+            />
+          </div>
+
+          {/* Background Color */}
+          <div className="space-y-2">
+            <Label>Background color</Label>
+            <ColorPicker
+              value={(settings as any).backgroundColor || '#FFFFFF'}
+              onChange={(color) => onUpdate({ backgroundColor: color } as any)}
+            />
+          </div>
+
+          {/* Text Color */}
+          <div className="space-y-2">
+            <Label>Text color</Label>
+            <ColorPicker
+              value={(settings as any).textColor || '#1F2937'}
+              onChange={(color) => onUpdate({ textColor: color } as any)}
             />
           </div>
         </div>

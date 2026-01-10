@@ -1179,7 +1179,10 @@ func ListFormSubmissions(c *gin.Context) {
 	}
 
 	var rows []models.Row
-	query := database.DB.Where("table_id = ?", tableID).Order("created_at DESC")
+	// OPTIMIZATION: Select only needed columns to reduce data transfer
+	query := database.DB.Select("id, table_id, data, metadata, is_archived, position, stage_group_id, tags, created_by, updated_by, ba_created_by, ba_updated_by, created_at, updated_at").
+		Where("table_id = ?", tableID).
+		Order("created_at DESC")
 
 	// Apply pagination
 	query = query.Offset(offset).Limit(limit)
@@ -1191,7 +1194,7 @@ func ListFormSubmissions(c *gin.Context) {
 	}
 	fmt.Printf("Found %d submissions for form %s (limit: %d, offset: %d)\n", len(rows), formID, limit, offset)
 
-	// Get all portal applicants for this form to map emails to full_names
+	// OPTIMIZATION: Get all portal applicants for this form to map emails to full_names
 	// portal_applicants.form_id can be either the table_id or any view_id for this table
 	var viewIDs []uuid.UUID
 	var views []models.View
@@ -1212,38 +1215,106 @@ func ListFormSubmissions(c *gin.Context) {
 		}
 	}
 
-	// Enhance rows with portal applicant full_name by modifying the Data JSONB field
-	result := make([]map[string]interface{}, len(rows))
+	// OPTIMIZATION: Build response directly without double marshaling
+	// Use a type that matches the JSON structure we want (compatible with FormSubmission interface)
+	type SubmissionResponse struct {
+		ID                uuid.UUID              `json:"id"`
+		TableID           uuid.UUID              `json:"table_id"`
+		FormID             string                 `json:"form_id"` // Alias for table_id for frontend compatibility
+		Data               map[string]interface{} `json:"data"`
+		Metadata           map[string]interface{} `json:"metadata"`
+		IsArchived         bool                   `json:"is_archived"`
+		Position           int64                  `json:"position"`
+		StageGroupID       *uuid.UUID             `json:"stage_group_id,omitempty"`
+		Tags               []interface{}           `json:"tags"`
+		CreatedBy          *uuid.UUID             `json:"created_by,omitempty"`
+		UpdatedBy          *uuid.UUID             `json:"updated_by,omitempty"`
+		BACreatedBy        *string                `json:"ba_created_by,omitempty"`
+		BAUpdatedBy        *string                `json:"ba_updated_by,omitempty"`
+		CreatedAt          time.Time              `json:"created_at"`
+		UpdatedAt          time.Time              `json:"updated_at"`
+		SubmittedAt        time.Time              `json:"submitted_at"` // Alias for created_at for frontend compatibility
+		ApplicantFullName  string                 `json:"applicant_full_name,omitempty"`
+		// Status can be derived from metadata if needed
+		Status             string                 `json:"status,omitempty"`
+	}
+
+	result := make([]SubmissionResponse, len(rows))
+	
+	// Process rows - extract email and lookup full_name efficiently
 	for i, row := range rows {
-		// Convert row to map for JSON response
-		rowMap := make(map[string]interface{})
-		rowBytes, _ := json.Marshal(row)
-		json.Unmarshal(rowBytes, &rowMap)
-
-		// Extract email from row data
+		// Parse Data JSONB field once (it's already JSON, just need to unmarshal)
 		var rowData map[string]interface{}
-		if err := json.Unmarshal(row.Data, &rowData); err == nil {
-			// Try multiple locations for email
-			var email string
-			if e, ok := rowData["_applicant_email"].(string); ok && e != "" {
-				email = e
-			} else if e, ok := rowData["email"].(string); ok && e != "" {
-				email = e
-			} else if personal, ok := rowData["personal"].(map[string]interface{}); ok {
-				if e, ok := personal["personalEmail"].(string); ok && e != "" {
-					email = e
-				}
+		if len(row.Data) > 0 {
+			if err := json.Unmarshal(row.Data, &rowData); err != nil {
+				rowData = make(map[string]interface{})
 			}
-
-			// Look up full_name from portal applicants and add to response
-			if email != "" {
-				if fullName, exists := emailToFullName[email]; exists {
-					rowMap["applicant_full_name"] = fullName
-				}
+		} else {
+			rowData = make(map[string]interface{})
+		}
+		
+		// Parse Metadata JSONB field once
+		var metadata map[string]interface{}
+		if len(row.Metadata) > 0 {
+			if err := json.Unmarshal(row.Metadata, &metadata); err != nil {
+				metadata = make(map[string]interface{})
+			}
+		} else {
+			metadata = make(map[string]interface{})
+		}
+		
+		// Parse Tags JSONB field
+		var tags []interface{}
+		if len(row.Tags) > 0 {
+			json.Unmarshal(row.Tags, &tags)
+		}
+		
+		// Extract email efficiently - try multiple locations
+		var email string
+		if e, ok := rowData["_applicant_email"].(string); ok && e != "" {
+			email = e
+		} else if e, ok := rowData["email"].(string); ok && e != "" {
+			email = e
+		} else if personal, ok := rowData["personal"].(map[string]interface{}); ok {
+			if e, ok := personal["personalEmail"].(string); ok && e != "" {
+				email = e
 			}
 		}
-
-		result[i] = rowMap
+		
+		// Look up full_name from portal applicants
+		applicantFullName := ""
+		if email != "" {
+			if fullName, exists := emailToFullName[email]; exists {
+				applicantFullName = fullName
+			}
+		}
+		
+		// Extract status from metadata if available
+		status := ""
+		if s, ok := metadata["status"].(string); ok && s != "" {
+			status = s
+		}
+		
+		result[i] = SubmissionResponse{
+			ID:                row.ID,
+			TableID:           row.TableID,
+			FormID:            row.TableID.String(), // Frontend expects form_id
+			Data:              rowData,
+			Metadata:          metadata,
+			IsArchived:        row.IsArchived,
+			Position:          row.Position,
+			StageGroupID:      row.StageGroupID,
+			Tags:              tags,
+			CreatedBy:         row.CreatedBy,
+			UpdatedBy:         row.UpdatedBy,
+			BACreatedBy:       row.BACreatedBy,
+			BAUpdatedBy:       row.BAUpdatedBy,
+			CreatedAt:         row.CreatedAt,
+			UpdatedAt:         row.UpdatedAt,
+			SubmittedAt:       row.CreatedAt, // Frontend expects submitted_at
+			ApplicantFullName: applicantFullName,
+			Status:            status,
+		}
 	}
 
 	c.JSON(http.StatusOK, result)
