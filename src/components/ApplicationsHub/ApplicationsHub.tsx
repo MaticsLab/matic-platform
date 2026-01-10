@@ -113,9 +113,23 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
         console.error('ApplicationsHub: Error details:', {
           message: error?.message,
           status: error?.status,
-          response: error?.response
+          response: error?.response,
+          workspaceId
         })
-        toast.error(`Failed to load applications: ${error?.message || 'Unknown error'}`)
+        
+        // Provide more helpful error messages
+        let errorMessage = error?.message || 'Unknown error'
+        if (error?.status === 401 || error?.status === 403) {
+          errorMessage = 'Authentication required. Please log in again.'
+        } else if (error?.status === 404) {
+          errorMessage = 'Workspace not found or you do not have access.'
+        } else if (error?.status === 500) {
+          errorMessage = 'Server error. Please try again later.'
+        } else if (!error?.status && error?.message?.includes('fetch')) {
+          errorMessage = 'Unable to connect to server. Please check your connection.'
+        }
+        
+        toast.error(`Failed to load applications: ${errorMessage}`)
         setForms([])
       } finally {
         setIsLoading(false)

@@ -52,23 +52,55 @@ export async function goFetch<T>(
     url += `?${searchParams.toString()}`
   }
 
-  // Get auth token from Better Auth only
-  // Better Auth stores tokens in HTTP-only cookies, so we try to get it from the session
-  // If not available, we rely on cookies being sent automatically with credentials: 'include'
+  // Get auth token from Better Auth
+  // For cross-domain requests (Vercel -> backend.maticslab.com), we need to send
+  // the token in the Authorization header since cookies may not be sent cross-domain
   let token: string | null = null
-  try {
-    const { getSessionToken: getTokenFromHelpers } = await import('@/lib/auth-helpers')
-    token = await getTokenFromHelpers()
-  } catch (error) {
-    console.debug('Failed to get token from auth-helpers:', error)
+  
+  if (typeof window !== 'undefined') {
+    try {
+      // First, try to get token from our custom get-session endpoint
+      // This endpoint can access the actual session token from Better Auth
+      const baseURL = window.location.origin
+      const sessionResponse = await fetch(`${baseURL}/api/auth/get-session`, {
+        method: 'GET',
+        credentials: 'include', // Include cookies
+        headers: { 'Content-Type': 'application/json' },
+      })
+      
+      if (sessionResponse.ok) {
+        const sessionData = await sessionResponse.json()
+        // The get-session endpoint returns token in session.token
+        token = sessionData?.session?.token || null
+      }
+      
+      // Fallback: try auth helpers
+      if (!token) {
+        try {
+          const { getSessionToken: getTokenFromHelpers } = await import('@/lib/auth-helpers')
+          token = await getTokenFromHelpers()
+        } catch (helperError) {
+          console.debug('Failed to get token from auth-helpers:', helperError)
+        }
+      }
+      
+      // Final fallback: try Better Auth client directly
+      if (!token) {
+        try {
+          const { authClient } = await import('@/lib/better-auth-client')
+          const session = await authClient.getSession()
+          if (session?.data?.session) {
+            token = (session.data.session as any)?.token || null
+          }
+        } catch (authError) {
+          console.debug('Failed to get token from Better Auth client:', authError)
+        }
+      }
+    } catch (error) {
+      console.debug('Failed to get auth token:', error)
+    }
   }
   
-  // Don't fallback to Supabase - we're using Better Auth only
-  // If token is not available, rely on cookies being sent with credentials: 'include'
-  // Better Auth tokens are stored in HTTP-only cookies which JavaScript can't read,
-  // but they will be sent automatically with credentials: 'include'
-  
-  // Debug: log if token is missing for non-public endpoints
   // Public portal forms and field-types endpoint don't require auth tokens
   const isPublicEndpoint = 
     (endpoint.includes('/forms/') && endpoint.includes('/submit')) ||
@@ -76,10 +108,9 @@ export async function goFetch<T>(
     endpoint.includes('/field-types') ||
     endpoint.includes('/ending-pages/match')
   
-  if (!token && !isPublicEndpoint) {
-    // Don't warn - cookies will be sent automatically
-    // Better Auth stores tokens in HTTP-only cookies which we can't read,
-    // but they'll be included in the request via credentials: 'include'
+  // Log warning if token is missing for protected endpoints (helpful for debugging)
+  if (!token && !isPublicEndpoint && typeof window !== 'undefined') {
+    console.warn('⚠️ No auth token available for API call:', endpoint, '- Cookies will be sent but may not work cross-domain')
   }
 
   // Make request
