@@ -234,6 +234,139 @@ func ListForms(c *gin.Context) {
 	c.JSON(http.StatusOK, forms)
 }
 
+// FormListItemDTO - Lightweight form data for hub list view
+type FormListItemDTO struct {
+	ID                 uuid.UUID `json:"id"`
+	ViewID             *uuid.UUID `json:"view_id,omitempty"`
+	WorkspaceID        uuid.UUID `json:"workspace_id"`
+	Name               string    `json:"name"`
+	Slug               string    `json:"slug"`
+	CustomSlug         *string   `json:"custom_slug,omitempty"`
+	Description        string    `json:"description"`
+	IsPublished        bool      `json:"is_published"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+	PreviewTitle       *string   `json:"preview_title,omitempty"`
+	PreviewDescription *string   `json:"preview_description,omitempty"`
+	PreviewImageURL    *string   `json:"preview_image_url,omitempty"`
+	SubmissionCount    int       `json:"submission_count,omitempty"` // Optional: count of submissions
+}
+
+// ListFormsOptimized - Fast endpoint for Applications Hub
+// Returns only essential fields without loading all form fields
+func ListFormsOptimized(c *gin.Context) {
+	workspaceID := c.Query("workspace_id")
+	if workspaceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id is required"})
+		return
+	}
+
+	// Parse workspace ID
+	workspaceUUID, err := uuid.Parse(workspaceID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
+		return
+	}
+
+	// Get all tables (forms) in the workspace - single query, no fields loaded
+	var tables []models.Table
+	if err := database.DB.Where("workspace_id = ?", workspaceUUID).
+		Select("id, workspace_id, name, slug, custom_slug, description, created_at, updated_at, preview_title, preview_description, preview_image_url").
+		Order("created_at DESC").
+		Find(&tables).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Batch fetch views and submission counts in parallel
+	type viewResult struct {
+		TableID    uuid.UUID
+		ViewID     *uuid.UUID
+		IsPublished bool
+	}
+	
+	type countResult struct {
+		TableID uuid.UUID
+		Count   int
+	}
+
+	// Get all table IDs
+	tableIDs := make([]uuid.UUID, len(tables))
+	for i, table := range tables {
+		tableIDs[i] = table.ID
+	}
+
+	// Fetch views in batch
+	var views []models.View
+	database.DB.Where("table_id IN ? AND type = ?", tableIDs, "form").
+		Select("id, table_id, config").
+		Find(&views)
+
+	// Build view map for quick lookup
+	viewMap := make(map[uuid.UUID]viewResult)
+	for _, view := range views {
+		var config map[string]interface{}
+		json.Unmarshal(view.Config, &config)
+		isPublished := false
+		if val, ok := config["is_published"].(bool); ok {
+			isPublished = val
+		}
+		viewMap[view.TableID] = viewResult{
+			TableID:     view.TableID,
+			ViewID:      &view.ID,
+			IsPublished: isPublished,
+		}
+	}
+
+	// Fetch submission counts in batch using raw SQL for performance
+	var counts []countResult
+	if len(tableIDs) > 0 {
+		database.DB.Raw(`
+			SELECT table_id, COUNT(*) as count
+			FROM table_rows
+			WHERE table_id IN ?
+			GROUP BY table_id
+		`, tableIDs).Scan(&counts)
+	}
+
+	// Build count map
+	countMap := make(map[uuid.UUID]int)
+	for _, count := range counts {
+		countMap[count.TableID] = count.Count
+	}
+
+	// Convert to DTO format
+	forms := make([]FormListItemDTO, 0, len(tables))
+	for _, table := range tables {
+		view, hasView := viewMap[table.ID]
+		submissionCount := countMap[table.ID]
+
+		form := FormListItemDTO{
+			ID:                 table.ID,
+			WorkspaceID:        table.WorkspaceID,
+			Name:               table.Name,
+			Slug:               table.Slug,
+			CustomSlug:         table.CustomSlug,
+			Description:        table.Description,
+			CreatedAt:          table.CreatedAt,
+			UpdatedAt:          table.UpdatedAt,
+			PreviewTitle:       table.PreviewTitle,
+			PreviewDescription: table.PreviewDescription,
+			PreviewImageURL:    table.PreviewImageURL,
+			SubmissionCount:    submissionCount,
+		}
+
+		if hasView {
+			form.ViewID = view.ViewID
+			form.IsPublished = view.IsPublished
+		}
+
+		forms = append(forms, form)
+	}
+
+	c.JSON(http.StatusOK, forms)
+}
+
 type CreateFormInput struct {
 	WorkspaceID uuid.UUID              `json:"workspace_id" binding:"required"`
 	Name        string                 `json:"name" binding:"required"`

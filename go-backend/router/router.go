@@ -507,8 +507,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			forms := protected.Group("/forms")
 			{
 				forms.GET("", handlers.ListForms)
+				forms.GET("/list", handlers.ListFormsOptimized) // Optimized endpoint for Applications Hub (must be before /:id)
 				forms.POST("", handlers.CreateForm)
-				forms.GET("/:id", handlers.GetForm)
+				forms.GET("/:id", handlers.GetForm) // This must come after /list to avoid route conflicts
 				forms.GET("/:id/full", handlers.GetFormWithSubmissionsAndWorkflow) // Combined endpoint for Review Workspace
 				forms.PATCH("/:id", handlers.UpdateForm)
 				forms.PUT("/:id/structure", handlers.UpdateFormStructure)    // Add this line
