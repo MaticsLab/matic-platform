@@ -167,9 +167,31 @@ func ListForms(c *gin.Context) {
 		return
 	}
 
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	// Verify user is an active member of this workspace
+	member, memberExists := checkWorkspaceMembership(workspaceUUID, userID)
+	if !memberExists {
+		c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
+		return
+	}
+
 	// Get all tables (forms) in the workspace
 	var tables []models.Table
-	if err := database.DB.Where("workspace_id = ?", workspaceUUID).Order("created_at DESC").Find(&tables).Error; err != nil {
+	query := database.DB.Where("workspace_id = ?", workspaceUUID).Order("created_at DESC")
+
+	// If user has hub_access restrictions (non-empty array), filter to only those tables
+	if len(member.HubAccess) > 0 {
+		query = query.Where("id = ANY(?)", member.HubAccess)
+	}
+	// If hub_access is empty/null, user has access to all tables
+
+	if err := query.Find(&tables).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -268,12 +290,33 @@ func ListFormsOptimized(c *gin.Context) {
 		return
 	}
 
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	// Verify user is an active member of this workspace
+	member, memberExists := checkWorkspaceMembership(workspaceUUID, userID)
+	if !memberExists {
+		c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
+		return
+	}
+
 	// Get all tables (forms) in the workspace - single query, no fields loaded
 	var tables []models.Table
-	if err := database.DB.Where("workspace_id = ?", workspaceUUID).
+	query := database.DB.Where("workspace_id = ?", workspaceUUID).
 		Select("id, workspace_id, name, slug, custom_slug, description, created_at, updated_at, preview_title, preview_description, preview_image_url").
-		Order("created_at DESC").
-		Find(&tables).Error; err != nil {
+		Order("created_at DESC")
+
+	// If user has hub_access restrictions (non-empty array), filter to only those tables
+	if len(member.HubAccess) > 0 {
+		query = query.Where("id = ANY(?)", member.HubAccess)
+	}
+	// If hub_access is empty/null, user has access to all tables
+
+	if err := query.Find(&tables).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
