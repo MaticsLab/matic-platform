@@ -98,9 +98,12 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
       try {
         setIsLoading(true)
         const data = await goClient.get<Form[]>('/forms', { workspace_id: workspaceId })
-        setForms(data || [])
+        // Ensure data is an array
+        const formsArray = Array.isArray(data) ? data : []
+        setForms(formsArray)
       } catch (error) {
         console.error('Failed to fetch forms:', error)
+        setForms([])
       } finally {
         setIsLoading(false)
       }
@@ -234,7 +237,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
     try {
       setIsDeleting(true)
       await formsClient.delete(formToDelete.id)
-      setForms(forms.filter(f => f.id !== formToDelete.id))
+      setForms((Array.isArray(forms) ? forms : []).filter(f => f.id !== formToDelete.id))
       toast.success('Application deleted successfully')
       setDeleteDialogOpen(false)
       setFormToDelete(null)
@@ -256,7 +259,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
     )
   }
 
-  const filteredForms = forms.filter(form => {
+  const filteredForms = (Array.isArray(forms) ? forms : []).filter(form => {
     const matchesSearch = !searchQuery || 
       form.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (form.description || '').toLowerCase().includes(searchQuery.toLowerCase())
@@ -283,21 +286,21 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
         <div className="bg-gray-50 rounded-lg p-3 space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-600">Total</span>
-            <span className="font-semibold text-gray-900">{forms.length}</span>
+            <span className="font-semibold text-gray-900">{(Array.isArray(forms) ? forms : []).length}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-600 flex items-center gap-1.5">
               <CheckCircle className="w-3.5 h-3.5 text-green-500" />
               Active
             </span>
-            <span className="font-semibold text-green-600">{forms.filter(f => f.is_public).length}</span>
+            <span className="font-semibold text-green-600">{(Array.isArray(forms) ? forms : []).filter(f => f.is_public).length}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-600 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-gray-400" />
               Draft
             </span>
-            <span className="font-semibold text-gray-600">{forms.filter(f => !f.is_public).length}</span>
+            <span className="font-semibold text-gray-600">{(Array.isArray(forms) ? forms : []).filter(f => !f.is_public).length}</span>
           </div>
         </div>
 

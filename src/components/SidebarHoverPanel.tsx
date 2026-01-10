@@ -46,30 +46,33 @@ export function SidebarHoverPanel({ hubType, workspaceId, isVisible, onClose }: 
             })
             if (response.ok) {
               const tables: DataTable[] = await response.json()
-              setData(tables || [])
+              const tablesArray = Array.isArray(tables) ? tables : []
+              setData(tablesArray)
               setStats({
-                total: tables.length,
-                totalRows: tables.reduce((sum, t) => sum + (t.row_count || 0), 0),
-                totalColumns: tables.reduce((sum, t) => sum + (t.columns?.length || 0), 0),
+                total: tablesArray.length,
+                totalRows: tablesArray.reduce((sum, t) => sum + (t.row_count || 0), 0),
+                totalColumns: tablesArray.reduce((sum, t) => sum + (t.columns?.length || 0), 0),
               })
             }
             break
           }
           case 'applications': {
             const forms = await formsClient.list(workspaceId)
-            setData(forms || [])
+            const formsArray = Array.isArray(forms) ? forms : []
+            setData(formsArray)
             setStats({
-              total: forms.length,
-              active: forms.filter((f: Form) => f.is_public || f.status === 'published').length,
-              draft: forms.filter((f: Form) => !f.is_public || f.status === 'draft').length,
+              total: formsArray.length,
+              active: formsArray.filter((f: Form) => f.is_public || f.status === 'published').length,
+              draft: formsArray.filter((f: Form) => !f.is_public || f.status === 'draft').length,
             })
             break
           }
           case 'workflows': {
             const workflows = await automationWorkflowsClient.list(workspaceId)
-            setData(workflows || [])
+            const workflowsArray = Array.isArray(workflows) ? workflows : []
+            setData(workflowsArray)
             setStats({
-              total: workflows.length,
+              total: workflowsArray.length,
             })
             break
           }
@@ -114,7 +117,7 @@ export function SidebarHoverPanel({ hubType, workspaceId, isVisible, onClose }: 
   const Icon = config.icon
 
   // Filter data based on search and status
-  const filteredData = data.filter((item) => {
+  const filteredData = (Array.isArray(data) ? data : []).filter((item) => {
     const matchesSearch = !searchQuery || 
       (item.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (item.description || '').toLowerCase().includes(searchQuery.toLowerCase())
