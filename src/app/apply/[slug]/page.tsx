@@ -90,7 +90,7 @@ export default function ApplicationPage({
   searchParams 
 }: { 
   params: { slug: string }, 
-  searchParams: { subdomain?: string; v2?: string } 
+  searchParams: { subdomain?: string; v1?: string; v2?: string } 
 }) {
   // Use PublicPortalV2 as the default (new design with sidebar navigation)
   // Can fall back to original with ?v1=true if needed
