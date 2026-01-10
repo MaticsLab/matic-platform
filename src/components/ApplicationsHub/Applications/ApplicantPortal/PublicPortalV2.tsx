@@ -510,7 +510,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
               // Verify magic link was successful
               const session = await authClient.getSession()
               if (session?.data?.session?.user) {
-                const user = session.data.session.user
+              setEmail(email)
                 setEmail(user.email)
                 
                 // Sync with portal_applicant
