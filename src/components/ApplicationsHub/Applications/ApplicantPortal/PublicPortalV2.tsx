@@ -1086,7 +1086,7 @@ function ApplicationView({
     if (sectionFields.length === 0) return 100
     
     const filledFields = sectionFields.filter(field => {
-      const value = initialData[field.id] || initialData[field.name]
+      const value = initialData[field.id]
       return value !== undefined && value !== null && value !== ''
     })
     
