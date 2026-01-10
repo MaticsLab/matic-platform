@@ -32,10 +32,13 @@ export function useOrganizationDiscovery() {
       // Fetch from Go backend (uses auth context internally)
       const apiOrganizations = await organizationsClient.list()
       
-      console.log('✅ Organizations loaded:', apiOrganizations)
-      setOrganizations(apiOrganizations || [])
+      // Ensure apiOrganizations is an array
+      const organizationsArray = Array.isArray(apiOrganizations) ? apiOrganizations : []
       
-      return apiOrganizations || []
+      console.log('✅ Organizations loaded:', organizationsArray)
+      setOrganizations(organizationsArray)
+      
+      return organizationsArray
     } catch (error) {
       console.error('❌ Error fetching organizations:', error)
       setOrganizations([])
@@ -112,7 +115,7 @@ export function useOrganizationDiscovery() {
   }
 
   return {
-    organizations,
+    organizations: Array.isArray(organizations) ? organizations : [],
     currentOrganization,
     loading: loading || authLoading,
     user,

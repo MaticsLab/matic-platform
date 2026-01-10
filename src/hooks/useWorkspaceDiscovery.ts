@@ -32,8 +32,11 @@ export function useWorkspaceDiscovery() {
       // Fetch from Go backend (uses auth context internally)
       const apiWorkspaces = await workspacesSupabase.getWorkspacesForUser(userId)
       
+      // Ensure apiWorkspaces is an array
+      const workspacesArray = Array.isArray(apiWorkspaces) ? apiWorkspaces : []
+      
       // Convert API response to hook format
-      const formattedWorkspaces: Workspace[] = (apiWorkspaces || []).map((workspace: APIWorkspace) => ({
+      const formattedWorkspaces: Workspace[] = workspacesArray.map((workspace: APIWorkspace) => ({
         id: workspace.id,
         name: workspace.name,
         slug: workspace.slug,
@@ -104,7 +107,7 @@ export function useWorkspaceDiscovery() {
   }
 
   return {
-    workspaces,
+    workspaces: Array.isArray(workspaces) ? workspaces : [],
     currentWorkspace,
     loading: loading || authLoading,
     user: hybridUser,
