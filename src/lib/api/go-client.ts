@@ -3,7 +3,23 @@
  * Base client for communicating with the Go backend API
  */
 
-const GO_API_URL = process.env.NEXT_PUBLIC_GO_API_URL || 'https://backend.maticslab.com/api/v1'
+// Use local backend in development, production URL otherwise
+// Check if we're in browser and on localhost, or if NEXT_PUBLIC_GO_API_URL is not set
+const getApiUrl = () => {
+  if (process.env.NEXT_PUBLIC_GO_API_URL) {
+    return process.env.NEXT_PUBLIC_GO_API_URL
+  }
+  // In browser, check if we're on localhost
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:8000/api/v1'
+    }
+  }
+  // Server-side or production
+  return 'https://backend.maticslab.com/api/v1'
+}
+
+const GO_API_URL = getApiUrl()
 
 export class GoAPIError extends Error {
   constructor(

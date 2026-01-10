@@ -12,7 +12,16 @@ const handlers = toNextJsHandler(auth);
 
 // Wrap handlers with logging
 export async function GET(request: NextRequest) {
-  console.log("[Better Auth] GET request:", request.nextUrl.pathname);
+  const pathname = request.nextUrl.pathname;
+  console.log("[Better Auth] GET request:", pathname);
+  
+  // Handle compatibility route: /api/auth/get-session -> /api/auth/session
+  if (pathname === "/api/auth/get-session") {
+    // Redirect to the correct Better Auth session endpoint
+    const sessionUrl = new URL("/api/auth/session", request.url);
+    return NextResponse.redirect(sessionUrl);
+  }
+  
   try {
     return await handlers.GET(request);
   } catch (error: any) {
@@ -22,7 +31,16 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  console.log("[Better Auth] POST request:", request.nextUrl.pathname);
+  const pathname = request.nextUrl.pathname;
+  console.log("[Better Auth] POST request:", pathname);
+  
+  // Handle compatibility route: /api/auth/get-session -> /api/auth/session
+  if (pathname === "/api/auth/get-session") {
+    // Redirect to the correct Better Auth session endpoint
+    const sessionUrl = new URL("/api/auth/session", request.url);
+    return NextResponse.redirect(sessionUrl);
+  }
+  
   try {
     return await handlers.POST(request);
   } catch (error: any) {
