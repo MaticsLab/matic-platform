@@ -95,23 +95,34 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
   // Fetch forms
   useEffect(() => {
     const fetchForms = async () => {
+      if (!workspaceId) {
+        console.warn('ApplicationsHub: No workspaceId provided')
+        setForms([])
+        setIsLoading(false)
+        return
+      }
+
       try {
         setIsLoading(true)
-        const data = await goClient.get<Form[]>('/forms', { workspace_id: workspaceId })
-        // Ensure data is an array
-        const formsArray = Array.isArray(data) ? data : []
+        console.log('ApplicationsHub: Fetching forms for workspace:', workspaceId)
+        const formsArray = await formsClient.list(workspaceId)
+        console.log('ApplicationsHub: Received forms array with length:', formsArray.length)
         setForms(formsArray)
-      } catch (error) {
-        console.error('Failed to fetch forms:', error)
+      } catch (error: any) {
+        console.error('ApplicationsHub: Failed to fetch forms:', error)
+        console.error('ApplicationsHub: Error details:', {
+          message: error?.message,
+          status: error?.status,
+          response: error?.response
+        })
+        toast.error(`Failed to load applications: ${error?.message || 'Unknown error'}`)
         setForms([])
       } finally {
         setIsLoading(false)
       }
     }
     
-    if (workspaceId) {
-      fetchForms()
-    }
+    fetchForms()
   }, [workspaceId])
 
   // Persist state changes to metadata

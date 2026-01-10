@@ -39,43 +39,78 @@ export interface PortalForm extends Form {
   workspace_subdomain?: string | null
 }
 
-export const formsClient = {
-  list: (workspaceId: string) => 
-    goClient.get<Form[]>('/forms', { workspace_id: workspaceId }),
+/**
+ * Normalize form response from backend to match frontend Form type
+ * Backend returns is_published, frontend expects is_public
+ */
+function normalizeFormResponse(form: any): Form {
+  return {
+    ...form,
+    is_public: form.is_published ?? form.is_public ?? false,
+    status: form.status || 'draft',
+    version: form.version || 1,
+    created_by: form.created_by || '',
+    submit_settings: form.submit_settings || {},
+  }
+}
 
-  get: (id: string) => 
-    goClient.get<Form>(`/forms/${id}`),
+export const formsClient = {
+  list: async (workspaceId: string) => {
+    const data = await goClient.get<any[]>('/forms', { workspace_id: workspaceId })
+    const formsArray = Array.isArray(data) ? data : []
+    return formsArray.map(normalizeFormResponse)
+  },
+
+  get: async (id: string) => {
+    const form = await goClient.get<any>(`/forms/${id}`)
+    return normalizeFormResponse(form)
+  },
 
   // Combined endpoint: form + submissions + all workflow data in ONE call
   // This is the fastest way to load the Review Workspace
-  getFull: (id: string) =>
-    goClient.get<FormWithWorkflowData>(`/forms/${id}/full`),
+  getFull: async (id: string) => {
+    const data = await goClient.get<any>(`/forms/${id}/full`)
+    return {
+      ...data,
+      form: normalizeFormResponse(data.form)
+    } as FormWithWorkflowData
+  },
 
-  getBySlug: (slug: string) =>
-    goClient.get<Form>(`/forms/by-slug/${slug}`),
+  getBySlug: async (slug: string) => {
+    const form = await goClient.get<any>(`/forms/by-slug/${slug}`)
+    return normalizeFormResponse(form)
+  },
 
   // Resolve form by subdomain + slug (for pretty URLs)
-  getBySubdomainSlug: (subdomain: string, slug: string) =>
-    goClient.get<PortalForm>(`/forms/by-subdomain/${subdomain}/${slug}`),
+  getBySubdomainSlug: async (subdomain: string, slug: string) => {
+    const form = await goClient.get<any>(`/forms/by-subdomain/${subdomain}/${slug}`)
+    return normalizeFormResponse(form) as PortalForm
+  },
 
-  create: (data: { workspace_id: string; name: string; description?: string }) => 
-    goClient.post<Form>('/forms', data),
+  create: async (data: { workspace_id: string; name: string; description?: string }) => {
+    const form = await goClient.post<any>('/forms', data)
+    return normalizeFormResponse(form)
+  },
 
-  update: (id: string, data: { 
+  update: async (id: string, data: { 
     name?: string; 
     description?: string; 
     is_published?: boolean;
     preview_title?: string | null;
     preview_description?: string | null;
     preview_image_url?: string | null;
-  }) => 
-    goClient.patch<Form>(`/forms/${id}`, data),
+  }) => {
+    const form = await goClient.patch<any>(`/forms/${id}`, data)
+    return normalizeFormResponse(form)
+  },
 
   updateStructure: (id: string, config: PortalConfig) => 
     goClient.put(`/forms/${id}/structure`, config),
 
-  updateCustomSlug: (id: string, customSlug: string | null) =>
-    goClient.put<Form>(`/forms/${id}/custom-slug`, { custom_slug: customSlug }),
+  updateCustomSlug: async (id: string, customSlug: string | null) => {
+    const form = await goClient.put<any>(`/forms/${id}/custom-slug`, { custom_slug: customSlug })
+    return normalizeFormResponse(form)
+  },
 
   delete: (id: string) => 
     goClient.delete(`/forms/${id}`),
