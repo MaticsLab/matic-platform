@@ -650,7 +650,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     setIsMagicLinkLoading(true)
     try {
       // Magic link works for both signup and login - Better Auth handles it automatically
-      const result = await authClient.signIn.magicLink({
+      const result = await authClient.magicLink({
         email: emailAddress,
         callbackURL: `${window.location.origin}/apply/${slug}?verified=true&formId=${form.id}`,
       })
