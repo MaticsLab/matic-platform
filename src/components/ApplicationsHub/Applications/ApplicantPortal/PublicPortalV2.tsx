@@ -571,18 +571,17 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
             } else {
               // Check for existing Better Auth session
               const session = await authClient.getSession()
-              if (session?.data?.session?.user) {
-                const user = session.data.session.user
-                // Check if this user has a portal_applicant for this form
+              if (session?.data?.session) {
+                // Use the email variable for lookup
                 try {
                   const baseUrl = getApiUrl()
-                  const res = await fetch(`${baseUrl}/forms/${formData.id}/submission?email=${encodeURIComponent(user.email)}`)
+                  const res = await fetch(`${baseUrl}/forms/${formData.id}/submission?email=${encodeURIComponent(email)}`)
                   if (res.ok) {
                     const rowData = await res.json()
                     if (rowData.id) {
                       // User has a submission, restore session
-                      setEmail(user.email)
-                      setApplicantName(user.name || user.email)
+                      setEmail(email)
+                      setApplicantName(email.split('@')[0])
                       const existingData = rowData.data || rowData
                       if (existingData && Object.keys(existingData).length > 0) {
                         setInitialData(existingData)
