@@ -541,7 +541,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
                     }
                     
                     // Fetch submission data
-                    const res = await fetch(`${baseUrl}/forms/${formData.id}/submission?email=${encodeURIComponent(user.email)}`)
+                    const res = await fetch(`${baseUrl}/forms/${formData.id}/submission?email=${encodeURIComponent(email)}`)
                     if (res.ok) {
                       const rowData = await res.json()
                       let existingData = rowData.data || rowData
