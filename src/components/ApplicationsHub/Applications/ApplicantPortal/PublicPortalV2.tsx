@@ -40,6 +40,7 @@ async function loadAndMergeDocuments(
   existingData: Record<string, any>
 ): Promise<Record<string, any>> {
   try {
+                let betterAuthUserId: string | undefined;
     const docsRes = await fetch(`${baseUrl}/portal/documents?row_id=${rowId}`)
     if (!docsRes.ok) return existingData
     
