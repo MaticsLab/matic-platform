@@ -97,7 +97,15 @@ const INITIAL_CONFIG: PortalConfig = {
       supported: [],
       rightToLeft: false
     },
-    // loginFields and signupFields removed - using default Better Auth fields
+    loginFields: [
+      { id: 'email', type: 'email', label: 'Email', required: true },
+      { id: 'password', type: 'password', label: 'Password', required: true }
+    ],
+    signupFields: [
+      { id: 'full_name', type: 'text', label: 'Full Name', required: true },
+      { id: 'email', type: 'email', label: 'Email', required: true },
+      { id: 'password', type: 'password', label: 'Password', required: true }
+    ]
   }
 }
 

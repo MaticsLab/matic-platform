@@ -6,6 +6,7 @@ export type FieldType =
   | 'divider' | 'heading' | 'paragraph' | 'callout'
   | 'group' | 'repeater'
   | 'recommendation'
+  | 'password'
 
 // Import ending block type
 import type { EndingBlock } from './ending-blocks'

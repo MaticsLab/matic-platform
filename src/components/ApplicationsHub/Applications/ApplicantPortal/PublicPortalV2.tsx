@@ -40,8 +40,7 @@ async function loadAndMergeDocuments(
   existingData: Record<string, any>
 ): Promise<Record<string, any>> {
   try {
-                            let betterAuthUserId: string | undefined;
-                let betterAuthUserId: string | undefined;
+// ...existing code...
     const docsRes = await fetch(`${baseUrl}/portal/documents?row_id=${rowId}`)
     if (!docsRes.ok) return existingData
     
@@ -672,6 +671,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
 
   // Handle authentication with Better Auth
   const handleAuth = async (e: React.FormEvent) => {
+      let betterAuthUserId: string | undefined;
     e.preventDefault()
     if (!form?.id) {
       toast.error('Form not loaded')
@@ -1354,7 +1354,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     }
 
     // Add review section at the end (if not already present)
-    const hasReviewSection = sections.some(s => s.sectionType === 'review')
+    const hasReviewSection = sections.some((s: import('@/types/portal').Section) => s.sectionType === 'review')
     if (!hasReviewSection) {
       sections.push({
         id: 'review',
