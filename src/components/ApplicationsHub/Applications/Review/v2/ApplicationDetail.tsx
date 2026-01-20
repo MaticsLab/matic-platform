@@ -840,6 +840,7 @@ export function ApplicationDetail({
       setLoadingRecommendations(true);
       try {
         const data = await recommendationsClient.getForReview(application.id);
+        console.log('[ApplicationDetail] Loaded recommendations:', data?.length, data);
         setRecommendations(data || []);
       } catch (err) {
         console.error('[ApplicationDetail] Failed to fetch recommendations:', err);
@@ -850,6 +851,38 @@ export function ApplicationDetail({
     };
     fetchRecommendations();
   }, [application.id]);
+
+  // Extract recommendation documents for display
+  const recommendationDocuments = useMemo(() => {
+    const docs: { name: string; url: string; contentType: string; recommenderName: string; submittedAt?: string }[] = [];
+    
+    recommendations.forEach(rec => {
+      if (rec.status === 'submitted' && rec.response) {
+        try {
+          const response = typeof rec.response === 'string' ? JSON.parse(rec.response) : rec.response;
+          
+          // Check for uploaded_document in response
+          if (response.uploaded_document) {
+            const doc = response.uploaded_document;
+            if (doc.url) {
+              docs.push({
+                name: doc.name || doc.filename || `Recommendation from ${rec.recommender_name}`,
+                url: doc.url,
+                contentType: doc.content_type || doc.mime_type || 'application/pdf',
+                recommenderName: rec.recommender_name,
+                submittedAt: rec.submitted_at
+              });
+            }
+          }
+        } catch (err) {
+          console.error('[ApplicationDetail] Failed to parse recommendation response:', err);
+        }
+      }
+    });
+    
+    console.log('[ApplicationDetail] Extracted recommendation documents:', docs.length, docs);
+    return docs;
+  }, [recommendations]);
 
   // Send reminder to recommender
   const handleSendReminder = async (requestId: string) => {
@@ -993,6 +1026,9 @@ export function ApplicationDetail({
     // Count storage files first (these are reliable)
     uploaded += storageFiles.length;
     
+    // Count recommendation documents
+    uploaded += recommendationDocuments.length;
+    
     // Check fields for file/image upload types
     if (fields && fields.length > 0) {
       fields.forEach(field => {
@@ -1038,7 +1074,7 @@ export function ApplicationDetail({
     }
     
     return { uploaded, missing };
-  }, [fields, application.raw_data, storageFiles]);
+  }, [fields, application.raw_data, storageFiles, recommendationDocuments]);
 
   // Helper to check if HTML body has actual content (strips HTML tags and checks for text)
   const hasBodyContent = (html: string): boolean => {
@@ -2075,60 +2111,134 @@ export function ApplicationDetail({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {recommendations.map((rec) => (
+                  {recommendations.map((rec) => {
+                    const isExpanded = expandedRecommendations.has(rec.id);
+                    let uploadedDocument = null;
+                    
+                    // Extract document from response
+                    if (rec.status === 'submitted' && rec.response) {
+                      try {
+                        const response = typeof rec.response === 'string' ? JSON.parse(rec.response) : rec.response;
+                        uploadedDocument = response.uploaded_document;
+                      } catch (err) {
+                        console.error('Failed to parse recommendation response:', err);
+                      }
+                    }
+                    
+                    return (
                     <div 
                       key={rec.id} 
                       className={cn(
-                        "p-3 rounded-lg border",
+                        "rounded-lg border",
                         rec.status === 'submitted' ? "bg-green-50 border-green-200" :
                         rec.status === 'expired' ? "bg-red-50 border-red-200" :
                         rec.status === 'cancelled' ? "bg-gray-50 border-gray-200" :
                         "bg-yellow-50 border-yellow-200"
                       )}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            {rec.status === 'submitted' ? (
-                              <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
-                            ) : rec.status === 'expired' ? (
-                              <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
-                            ) : rec.status === 'cancelled' ? (
-                              <XCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                            ) : (
-                              <Clock3 className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+                      <div className="p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              {rec.status === 'submitted' ? (
+                                <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                              ) : rec.status === 'expired' ? (
+                                <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                              ) : rec.status === 'cancelled' ? (
+                                <XCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                              ) : (
+                                <Clock3 className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+                              )}
+                              <span className="font-medium text-sm text-gray-900 truncate">
+                                {rec.recommender_name}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-500 truncate">
+                              {rec.recommender_email}
+                              {rec.recommender_relationship && ` • ${rec.recommender_relationship}`}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              Status: <span className="capitalize">{rec.status}</span>
+                              {rec.created_at && (
+                                <> • Requested {new Date(rec.created_at).toLocaleDateString()}</>
+                              )}
+                              {rec.submitted_at && rec.status === 'submitted' && (
+                                <> • Submitted {new Date(rec.submitted_at).toLocaleDateString()}</>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {rec.status === 'pending' && (
+                              <button
+                                onClick={() => handleSendReminder(rec.id)}
+                                disabled={sendingReminder === rec.id}
+                                className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              >
+                                {sendingReminder === rec.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  'Remind'
+                                )}
+                              </button>
                             )}
-                            <span className="font-medium text-sm text-gray-900 truncate">
-                              {rec.recommender_name}
-                            </span>
-                          </div>
-                          <div className="text-xs text-gray-500 truncate">
-                            {rec.recommender_email}
-                            {rec.recommender_relationship && ` • ${rec.recommender_relationship}`}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            Status: <span className="capitalize">{rec.status}</span>
-                            {rec.created_at && (
-                              <> • Requested {new Date(rec.created_at).toLocaleDateString()}</>
+                            {rec.status === 'submitted' && (
+                              <button
+                                onClick={() => {
+                                  const newExpanded = new Set(expandedRecommendations);
+                                  if (isExpanded) {
+                                    newExpanded.delete(rec.id);
+                                  } else {
+                                    newExpanded.add(rec.id);
+                                  }
+                                  setExpandedRecommendations(newExpanded);
+                                }}
+                                className="p-1 hover:bg-white/50 rounded transition-colors"
+                              >
+                                {isExpanded ? (
+                                  <ChevronUp className="w-4 h-4 text-gray-500" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                                )}
+                              </button>
                             )}
                           </div>
                         </div>
-                        {rec.status === 'pending' && (
-                          <button
-                            onClick={() => handleSendReminder(rec.id)}
-                            disabled={sendingReminder === rec.id}
-                            className="px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          >
-                            {sendingReminder === rec.id ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              'Remind'
-                            )}
-                          </button>
-                        )}
                       </div>
+                      
+                      {/* Expanded details for submitted recommendations */}
+                      {isExpanded && rec.status === 'submitted' && (
+                        <div className="border-t border-green-200 bg-white p-3 space-y-2">
+                          {uploadedDocument && uploadedDocument.url && (
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded bg-green-100 flex items-center justify-center">
+                                <FileSignature className="w-4 h-4 text-green-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {uploadedDocument.name || uploadedDocument.filename || 'Recommendation Letter'}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {uploadedDocument.content_type || uploadedDocument.mime_type || 'Document'}
+                                </p>
+                              </div>
+                              <a
+                                href={uploadedDocument.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                                title="View document"
+                              >
+                                <Eye className="w-4 h-4 text-gray-500" />
+                              </a>
+                            </div>
+                          )}
+                          {!uploadedDocument && (
+                            <p className="text-xs text-gray-500 italic">No document attached</p>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  ))}
+                  )})}
                 </div>
               )}
             </div>
@@ -2152,12 +2262,47 @@ export function ApplicationDetail({
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
                 </div>
-              ) : storageFiles.length === 0 && availableDocuments.length === 0 ? (
+              ) : storageFiles.length === 0 && availableDocuments.length === 0 && recommendationDocuments.length === 0 ? (
                 <div className="text-center py-8 text-sm text-gray-500">
                   No documents found
                 </div>
               ) : (
                 <div className="space-y-3">
+                  {/* Recommendation Documents */}
+                  {recommendationDocuments.length > 0 && (
+                    <div className="mb-4">
+                      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-1">
+                        Recommendations
+                      </h3>
+                      {recommendationDocuments.map((doc, idx) => (
+                        <div key={`rec-doc-${idx}`} className="border border-green-200 bg-green-50 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                              <FileSignature className="w-5 h-5 text-green-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{doc.name}</p>
+                              <p className="text-xs text-gray-500">
+                                <span className="text-green-600 font-medium">From {doc.recommenderName}</span>
+                                {doc.contentType && ` • ${doc.contentType}`}
+                                {doc.submittedAt && ` • ${new Date(doc.submittedAt).toLocaleDateString()}`}
+                              </p>
+                            </div>
+                            <a
+                              href={doc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 hover:bg-green-100 rounded transition-colors"
+                              title="View document"
+                            >
+                              <Eye className="w-4 h-4 text-green-600" />
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
                   {/* Storage Files */}
                   {storageFiles.map((file) => {
                     const fileUrl = file.public_url || file.storage_path;
