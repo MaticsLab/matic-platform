@@ -53,8 +53,17 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
         tablesGoClient.getRowsByTable(tableId)
       ])
 
+      console.log('Export - Table:', table)
+      console.log('Export - Rows:', rows)
+      console.log('Export - Rows length:', rows?.length)
+
       if (!table || !rows) {
         toast.error('Failed to fetch table data')
+        return
+      }
+
+      if (rows.length === 0) {
+        toast.error('No data to export - table is empty')
         return
       }
 
@@ -62,11 +71,14 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
       const columns = table.columns || []
       const visibleColumns = columns.filter(col => col.is_visible !== false)
       
+      console.log('Export - Visible columns:', visibleColumns)
+      
       // Header row
       const headers = visibleColumns.map(col => `"${col.label || col.name}"`).join(',')
       
       // Data rows
       const csvRows = rows.map(row => {
+        console.log('Export - Processing row:', row)
         return visibleColumns.map(col => {
           const value = row.data[col.name]
           
@@ -85,6 +97,8 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
           return `"${strValue}"`
         }).join(',')
       })
+      
+      console.log('Export - CSV rows:', csvRows)
       
       const csvContent = [headers, ...csvRows].join('\n')
       
