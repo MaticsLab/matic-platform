@@ -136,7 +136,7 @@ export default function SubmitButtonBlock({
       
       {/* Edit mode info */}
       {mode === 'edit' && (
-        <p className="text-xs text-gray-400 text-center mt-2 italic">
+        <p className="text-xs text-muted-foreground text-center mt-2 italic">
           {redirectTo ? `Redirects to: ${redirectTo}` : 'Submits the form'}
         </p>
       )}

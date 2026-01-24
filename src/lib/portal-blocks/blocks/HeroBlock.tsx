@@ -52,7 +52,7 @@ export default function HeroBlock({ block, mode, themeColor, className }: HeroBl
   }
   
   const hasImage = !!backgroundImage;
-  const textColorClass = hasImage ? 'text-white' : backgroundColor ? 'text-white' : 'text-gray-900';
+  const textColorClass = hasImage ? 'text-white' : backgroundColor ? 'text-white' : 'text-foreground';
   
   return (
     <div 

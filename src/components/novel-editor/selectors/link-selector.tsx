@@ -46,7 +46,7 @@ export const LinkSelector = ({ open, onOpenChange }: LinkSelectorProps) => {
           <p className="text-base">↗</p>
           <p
             className={cn("underline decoration-stone-400 underline-offset-4", {
-              "text-blue-500": editor.isActive("link"),
+              "text-primary": editor.isActive("link"),
             })}
           >
             Link
@@ -79,7 +79,7 @@ export const LinkSelector = ({ open, onOpenChange }: LinkSelectorProps) => {
               size="icon"
               variant="outline"
               type="button"
-              className="flex h-8 items-center rounded-sm p-1 text-red-600 transition-all hover:bg-red-100 dark:hover:bg-red-800"
+              className="flex h-8 items-center rounded-sm p-1 text-destructive transition-all hover:bg-destructive/10 dark:hover:bg-destructive/20"
               onClick={() => {
                 editor.chain().focus().unsetLink().run();
                 if (inputRef.current) inputRef.current.value = "";

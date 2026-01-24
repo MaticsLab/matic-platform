@@ -8,6 +8,7 @@ import { goClient } from '@/lib/api/go-client';
 import { workflowsClient, ReviewWorkflow, ApplicationStage, Rubric } from '@/lib/api/workflows-client';
 import { Form, FormSubmission } from '@/types/forms';
 import { useApplicationsRealtime, RealtimeApplication } from '@/hooks/useApplicationsRealtime';
+import { useWorkspaceDiscovery } from '@/hooks/useWorkspaceDiscovery';
 import { 
   Application, 
   ApplicationStatus, 
@@ -20,6 +21,7 @@ import { Header } from './Header';
 import { PipelineHeader } from './PipelineHeader';
 import { ApplicationList } from './ApplicationList';
 import { ApplicationDetail } from './ApplicationDetail';
+import { ApplicationDetailSheet } from './ApplicationDetailSheet';
 import { PipelineActivityPanel } from './PipelineActivityPanel';
 import { ReviewPanel } from './ReviewPanel';
 import { cn } from '@/lib/utils';
@@ -37,6 +39,9 @@ export function ReviewWorkspaceV2({
   onBack,
   onViewChange 
 }: ReviewWorkspaceV2Props) {
+  // Get workspace info for portal editor navigation
+  const { currentWorkspace } = useWorkspaceDiscovery();
+  
   // Core state
   const [isLoading, setIsLoading] = useState(true);
   const [form, setForm] = useState<Form | null>(null);
@@ -723,6 +728,8 @@ export function ReviewWorkspaceV2({
             selectedWorkflowId={selectedWorkflow?.id}
             onWorkflowChange={handleWorkflowChange}
             onDownload={() => handleDownloadCSV(filteredApplications)}
+            workspaceSlug={currentWorkspace?.slug}
+            formId={formId}
           />
           
           <div className="flex-1 overflow-y-auto">
@@ -743,32 +750,36 @@ export function ReviewWorkspaceV2({
           </div>
         </div>
         
-        {selectedApp && !showPipelineActivity && !isReviewMode && (
-          <div className="flex-1 min-h-0 h-full overflow-hidden bg-white flex flex-col">
-            <ApplicationDetail 
-              application={selectedApp}
-              stages={stages}
-              reviewersMap={reviewersMap}
-              onStatusChange={handleStatusChange}
-              onClose={() => setSelectedApp(null)}
-              onStartReview={(appId) => {
-                setIsReviewMode(true);
-              }}
-              onDelete={async (appId) => {
-                try {
-                  await goClient.delete(`/forms/${formId}/submissions/${appId}`);
-                  setApplications(prev => prev.filter(a => a.id !== appId));
-                  setSelectedApp(null);
-                  toast.success('Application deleted');
-                } catch (error) {
-                  toast.error('Failed to delete application');
-                }
-              }}
-              workspaceId={workspaceId || undefined}
-              formId={formId || undefined}
-              fields={form?.fields || []}
-            />
-          </div>
+        {/* Application Detail Sheet */}
+        {selectedApp && (
+          <ApplicationDetailSheet
+            open={!showPipelineActivity && !isReviewMode}
+            onOpenChange={(open) => {
+              if (!open) {
+                setSelectedApp(null);
+              }
+            }}
+            application={selectedApp}
+            stages={stages}
+            reviewersMap={reviewersMap}
+            workspaceId={workspaceId || ''}
+            formId={formId || undefined}
+            onStatusChange={handleStatusChange}
+            onStartReview={(appId) => {
+              setIsReviewMode(true);
+            }}
+            onDelete={async (appId) => {
+              try {
+                await goClient.delete(`/forms/${formId}/submissions/${appId}`);
+                setApplications(prev => prev.filter(a => a.id !== appId));
+                setSelectedApp(null);
+                toast.success('Application deleted');
+              } catch (error) {
+                toast.error('Failed to delete application');
+              }
+            }}
+            fields={form?.fields || []}
+          />
         )}
         
         {showPipelineActivity && (

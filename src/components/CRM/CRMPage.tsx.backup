@@ -1,0 +1,595 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Search, List, Download, Plus, ChevronDown, MoreVertical, HelpCircle, X, Mail, Calendar, User, Shield, Filter } from 'lucide-react';
+import { Button } from '@/ui-components/button';
+import { Input } from '@/ui-components/input';
+import { Badge } from '@/ui-components/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/ui-components/avatar';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui-components/card';
+import { Skeleton } from '@/ui-components/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/ui-components/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/ui-components/dropdown-menu';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/ui-components/sheet';
+import { Separator } from '@/ui-components/separator';
+import { adminClient, BetterAuthUser } from '@/lib/api/admin-client';
+import { toast } from 'sonner';
+
+interface Client {
+  id: string;
+  name: string;
+  email: string;
+  status: 'Active' | 'Inactive';
+  creationDate: string;
+  avatar?: string;
+  avatarInitial?: string;
+  userType?: string;
+  fullName?: string;
+  lastSignInAt?: string;
+  updatedAt?: string;
+  rawData?: BetterAuthUser; // Store the raw data for detail view
+}
+
+interface CRMPageProps {
+  workspaceId: string;
+}
+
+export function CRMPage({ workspaceId }: CRMPageProps) {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  // Fetch Better Auth users from portals
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadUsers = async () => {
+      try {
+        setIsLoading(true);
+        console.log('🔍 [CRM] Fetching portal applicants...');
+        
+        // Use the admin client which handles authentication properly
+        const users = await adminClient.listBetterAuthUsers();
+        
+        console.log('📦 [CRM] Fetched users:', users);
+        console.log('📦 [CRM] Response type:', typeof users, 'Is array:', Array.isArray(users));
+        
+        if (!isMounted) return; // Prevent state updates if component unmounted
+        
+        // Handle null or undefined response
+        if (!users || !Array.isArray(users)) {
+          console.warn('⚠️ [CRM] Invalid response format:', users);
+          setClients([]);
+          setIsLoading(false);
+          return;
+        }
+        
+        console.log(`✅ [CRM] Processing ${users.length} portal applicants`);
+        
+        // Transform Better Auth users to Client format
+        const clientsData: Client[] = users.map((user: BetterAuthUser) => {
+          const name = user.full_name || user.name || user.email.split('@')[0];
+          const nameParts = name.split(' ');
+          const initial = nameParts.length > 1 
+            ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
+            : name.charAt(0).toUpperCase();
+          
+          const createdDate = new Date(user.created_at);
+          const formattedDate = createdDate.toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric' 
+          });
+          
+          // Determine status based on last sign in (if available) or default to Active
+          const status: 'Active' | 'Inactive' = user.last_sign_in_at 
+            ? 'Active' 
+            : 'Active'; // Default to Active for Better Auth users
+          
+          return {
+            id: user.id,
+            name,
+            email: user.email,
+            status,
+            creationDate: formattedDate,
+            userType: user.user_type,
+            fullName: user.full_name,
+            lastSignInAt: user.last_sign_in_at,
+            updatedAt: user.updated_at,
+            rawData: user, // Store raw data for detail view
+            avatar: user.avatar_url || undefined,
+            avatarInitial: initial,
+          };
+        });
+        
+        setClients(clientsData);
+      } catch (error: any) {
+        if (!isMounted) return; // Prevent toast if component unmounted
+        
+        console.error('❌ [CRM] Failed to load portal applicants:', error);
+        console.error('❌ [CRM] Error details:', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          response: error.response,
+        });
+        
+        // Show appropriate error message based on error type
+        let errorMessage = 'Failed to load clients';
+        if (error.status === 401) {
+          errorMessage = 'Authentication failed. Please refresh the page and try again.';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        // Only show toast for actual errors, not if it's just "Admin access required" from old server
+        if (!errorMessage.includes('Admin access required')) {
+          toast.error(errorMessage);
+        }
+        setClients([]);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadUsers();
+    
+    return () => {
+      isMounted = false; // Cleanup to prevent state updates after unmount
+    };
+  }, [workspaceId]);
+
+  const getStatusColor = (status: 'Active' | 'Inactive') => {
+    return status === 'Active' 
+      ? 'bg-green-100 text-green-800' 
+      : 'bg-yellow-100 text-yellow-800';
+  };
+
+  const handleViewDetails = (client: Client) => {
+    setSelectedClient(client);
+    setIsDetailsOpen(true);
+  };
+
+  const formatDateTime = (dateString?: string) => {
+    if (!dateString) return 'Never';
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const getUserTypeBadge = (userType?: string) => {
+    const colors = {
+      staff: 'bg-purple-100 text-purple-800',
+      applicant: 'bg-blue-100 text-blue-800',
+      reviewer: 'bg-orange-100 text-orange-800',
+    };
+    return colors[userType as keyof typeof colors] || 'bg-gray-100 text-gray-800';
+  };
+
+  // Filter clients based on search query
+  const filteredClients = clients.filter((client) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      client.name.toLowerCase().includes(query) ||
+      client.email.toLowerCase().includes(query) ||
+      client.userType?.toLowerCase().includes(query)
+    );
+  });
+
+  return (
+    <div className="h-full flex flex-col bg-gradient-to-br from-gray-50 to-gray-100/50">
+      {/* Header */}
+      <div className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">CRM</h1>
+              <p className="text-sm text-gray-500 mt-1">Manage your client relationships</p>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm">
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </Button>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create
+                    <ChevronDown className="w-4 h-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Create New</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <User className="w-4 h-4 mr-2" />
+                    New Client
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Download className="w-4 h-4 mr-2" />
+                    Import Clients
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Bulk Create
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          {/* Search and Filters */}
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Search clients by name, email, or type..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Button variant="outline" size="sm">
+              <Filter className="w-4 h-4 mr-2" />
+              Filters
+            </Button>
+            <div  {filteredClients.map((client) => (
+                    <TableRow key={client.id} className="hover:bg-gray-50/50">
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar>
+                            <AvatarImage src={client.avatar} alt={client.name} />
+                            <AvatarFallback className="bg-blue-500 text-white">
+                              {client.avatarInitial || client.name.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {client.name}
+                            </div>
+                            <div className="text-sm text-gray-500">{client.email}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {client.userType && (
+                          <Badge variant="secondary" className={getUserTypeBadge(client.userType)}>
+                            {client.userType.charAt(0).toUpperCase() + client.userType.slice(1)}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge
+                          variant={client.status === 'Active' ? 'default' : 'secondary'}
+                          className={getStatusColor(client.status)}
+                        >
+                          {client.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-gray-500">
+                        {client.creationDate}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleViewDetails(client)}>
+                              <User className="w-4 h-4 mr-2" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Mail className="w-4 h-4 mr-2" />
+                              Send Email
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-red-600">
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>  {isLoading ? (
+              <div className="p-6 space-y-4">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <Skeleton className="h-12 w-12 rounded-full" />
+                    <div className="space-y-2 flex-1">
+                      <Skeleton className="h-4 w-[250px]" />
+                      <Skeleton className="h-3 w-[200px]" />
+                    </div>
+                    <Skeleton className="h-6 w-16" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                ))}
+              </div>
+            ) : filteredClients.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+                <Search className="w-12 h-12 mb-4 text-gray-300" />
+                <p className="text-lg font-medium">No clients found</p>
+                <p className="text-sm">Try adjusting your search or filters</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[300px]">Client</TableHead>
+                    <TableHead className="text-center">Type</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-right">Created</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCdy className="bg-white divide-y divide-gray-200">
+              {clients.map((client) => (
+                <tr key={client.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-3">
+                      {client.avatar ? (
+                        <img
+                          src={client.avatar}
+                          alt={client.name}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium text-sm">
+                          {client.avatarInitial || client.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {client.name}
+                        </div>
+                        <div className="text-sm text-gray-500">{client.email}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(client.status)}`}>
+                      {client.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
+                    {client.creationDate}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="p-1 hover:bg-gray-100 rounded">
+                          <MoreVertical className="w-4 h-4 text-gray-400" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleViewDetails(client)}>
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>Edit</DropdownMenuItem>
+                        <DropdownMenuItem>Delete</DropdownMenuItem>
+            <SheetDescription>
+              View and manage client information
+            </SheetDescription>
+          </SheetHeader>
+
+          {selectedClient && (
+            <div className="mt-6 space-y-6">
+              {/* Profile Section */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-start gap-4">
+                    <Avatar className="w-20 h-20">
+                      <AvatarImage src={selectedClient.avatar} alt={selectedClient.name} />
+                      <AvatarFallback className="bg-blue-500 text-white text-2xl">
+                        {selectedClient.avatarInitial || selectedClient.name.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <h2 className="text-xl font-semibold text-gray-900">
+                        {selectedClient.fullName || selectedClient.name}
+                      </h2>
+                      <p className="text-sm text-gray-500 mt-1">{selectedClient.email}</p>
+                      <div className="flex items-center gap-2 mt-3">
+                        <Badge
+                          variant={selectedClient.status === 'Active' ? 'default' : 'secondary'}
+                          className={getStatusColor(selectedClient.status)}
+                        >
+                          {selectedClient.status}
+                        </Badge>
+                        {selectedClient.userType && (
+                          <Badge variant="secondary" className={getUserTypeBadge(selectedClient.userType)}>
+                            {selectedClient.userType.charAt(0).toUpperCase() + selectedClient.userType.slice(1)}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Information Grid */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Account Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Email */}
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-blue-50">
+                      <Mail className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-500">Email Address</p>
+                      <p className="text-sm text-gray-900 mt-1">{selectedClient.email}</p>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* User Type */}
+                  {selectedClient.userType && (
+                    <>
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-purple-50">
+                          <Shield className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-500">Account Type</p>
+                          <p className="text-sm text-gray-900 mt-1">
+                            {selectedClient.userType.charAt(0).toUpperCase() + selectedClient.userType.slice(1)}
+                          </p>
+                        </div>
+                      </div>
+                      <Separator />
+                    </>
+                  )}
+
+                  {/* Creation Date */}
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-green-50">
+                      <Calendar className="w-4 h-4 text-green-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-500">Account Created</p>
+                      <p className="text-sm text-gray-900 mt-1">
+                        {formatDateTime(selectedClient.rawData?.created_at)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Last Sign In */}
+                  {selectedClient.lastSignInAt && (
+                    <>
+                      <Separator />
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-orange-50">
+                          <User className="w-4 h-4 text-orange-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-500">Last Sign In</p>
+                          <p className="text-sm text-gray-900 mt-1">
+                            {formatDateTime(selectedClient.lastSignInAt)}
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Last Updated */}
+                  {selectedClient.updatedAt && (
+                    <>
+                      <Separator />
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-gray-50">
+                          <Calendar className="w-4 h-4 text-gray-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-500">Last Updated</p>
+                          <p className="text-sm text-gray-900 mt-1">
+                            {formatDateTime(selectedClient.updatedAt)}
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Actions */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Quick Actions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Button variant="outline" className="w-full justify-start">
+                    <Mail className="w-4 h-4 mr-2" />
+                    Send Email
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start">
+                    <User className="w-4 h-4 mr-2" />
+                    Edit Profile
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Debug Info */}
+              <Card className="border-dashed">
+                <CardContent className="pt-6">
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-gray-500 font-medium hover:text-gray-700">
+                      Technical Details
+                    </summary>
+                    <div className="mt-3 p-3 bg-gray-50 rounded-md font-mono">
+                      <p className="text-gray-600 break-all">
+                        <span className="font-semibold">User ID:</span> {selectedClient.id}
+                      </p>
+                    </div>
+                  </details>
+                </CardContent>
+              </Cardutton>
+              </div>
+
+              {/* Debug Info (can be removed in production) */}
+              <div className="border-t pt-6">
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-gray-500 font-medium">
+                    Technical Details
+                  </summary>
+                  <div className="mt-2 p-3 bg-gray-50 rounded-md">
+                    <p className="text-gray-600 break-all">
+                      <span className="font-medium">User ID:</span> {selectedClient.id}
+                    </p>
+                  </div>
+                </details>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+}

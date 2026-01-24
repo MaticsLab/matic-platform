@@ -91,7 +91,7 @@ export function ToastContainer() {
             <span className="text-sm font-medium">{toast.message}</span>
             <button
               onClick={() => removeToast(toast.id)}
-              className="ml-2 text-white hover:text-gray-200"
+              className="ml-2 text-white hover:text-muted-foreground"
             >
               ×
             </button>

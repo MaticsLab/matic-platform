@@ -43,7 +43,7 @@ const placeholder = Placeholder.configure({
 const tiptapLink = TiptapLink.configure({
   HTMLAttributes: {
     class: cx(
-      "text-blue-600 underline underline-offset-[3px] hover:text-blue-700 transition-colors cursor-pointer",
+      "text-primary underline underline-offset-[3px] hover:text-primary/80 transition-colors cursor-pointer",
     ),
   },
 });
@@ -52,7 +52,7 @@ const tiptapImage = TiptapImage.extend({
   addProseMirrorPlugins() {
     return [
       UploadImagesPlugin({
-        imageClass: cx("opacity-40 rounded-lg border border-gray-200"),
+        imageClass: cx("opacity-40 rounded-lg border border-border"),
       }),
     ];
   },
@@ -84,7 +84,7 @@ const taskItem = TaskItem.configure({
 
 const horizontalRule = HorizontalRule.configure({
   HTMLAttributes: {
-    class: cx("mt-4 mb-6 border-t border-gray-300"),
+    class: cx("mt-4 mb-6 border-t border-border"),
   },
 });
 
@@ -108,12 +108,12 @@ const starterKit = StarterKit.configure({
   },
   blockquote: {
     HTMLAttributes: {
-      class: cx("border-l-4 border-gray-300 pl-4"),
+      class: cx("border-l-4 border-border pl-4"),
     },
   },
   code: {
     HTMLAttributes: {
-      class: cx("rounded-md bg-gray-200 px-1.5 py-1 font-mono font-medium"),
+      class: cx("rounded-md bg-muted px-1.5 py-1 font-mono font-medium"),
       spellcheck: "false",
     },
   },
@@ -145,7 +145,7 @@ const twitter = Twitter.configure({
 
 const mathematics = Mathematics.configure({
   HTMLAttributes: {
-    class: cx("text-foreground rounded p-1 hover:bg-gray-100 cursor-pointer"),
+    class: cx("text-foreground rounded p-1 hover:bg-accent cursor-pointer"),
   },
   katexOptions: {
     throwOnError: false,

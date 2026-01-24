@@ -127,7 +127,7 @@ function UnknownBlock({ block, mode }: BlockComponentProps) {
   if (mode === 'view') return null;
   
   return (
-    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-500">
+    <div className="border-2 border-dashed border-border rounded-lg p-4 text-center text-muted-foreground">
       <p className="text-sm">Unknown block type: <code>{block.type}</code></p>
     </div>
   );
@@ -136,7 +136,7 @@ function UnknownBlock({ block, mode }: BlockComponentProps) {
 // Loading fallback
 function BlockLoadingFallback() {
   return (
-    <div className="animate-pulse bg-gray-100 rounded-lg h-12" />
+    <div className="animate-pulse bg-muted rounded-lg h-12" />
   );
 }
 
@@ -168,8 +168,8 @@ function EditableWrapper({
       className={cn(
         'group relative transition-all',
         isSelected 
-          ? 'ring-2 ring-blue-500 ring-offset-2 rounded-lg' 
-          : 'hover:ring-1 hover:ring-blue-200 rounded-lg'
+          ? 'ring-2 ring-primary ring-offset-2 rounded-lg' 
+          : 'hover:ring-1 hover:ring-primary/20 rounded-lg'
       )}
       onClick={(e) => {
         e.stopPropagation();
@@ -184,8 +184,8 @@ function EditableWrapper({
           isSelected && 'opacity-100'
         )}
       >
-        <div className="p-1 rounded hover:bg-gray-100">
-          <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+        <div className="p-1 rounded hover:bg-accent">
+          <svg className="w-4 h-4 text-muted-foreground" fill="currentColor" viewBox="0 0 24 24">
             <circle cx="9" cy="5" r="1.5" />
             <circle cx="15" cy="5" r="1.5" />
             <circle cx="9" cy="12" r="1.5" />
@@ -387,7 +387,7 @@ export function PortalRenderer({
   
   if (!currentPage) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-500">
+      <div className="flex items-center justify-center h-full text-muted-foreground">
         <p>No accessible pages</p>
       </div>
     );
@@ -403,7 +403,7 @@ export function PortalRenderer({
     >
       {/* Navigation (if page has it enabled) */}
       {currentPage.settings?.showNavigation && visiblePages.length > 1 && (
-        <nav className="border-b bg-white px-4 py-3">
+        <nav className="border-b bg-background px-4 py-3">
           <div className="max-w-4xl mx-auto flex gap-4">
             {visiblePages.map(page => (
               <button
@@ -412,8 +412,8 @@ export function PortalRenderer({
                 className={cn(
                   'px-3 py-1 rounded-md text-sm transition-colors',
                   currentPage.id === page.id
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:text-foreground'
                 )}
               >
                 {page.title}

@@ -18,7 +18,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui-components/dropdown-menu'
-import { SidebarHoverPanel } from './SidebarHoverPanel'
 
 interface SidebarProps {
   workspaceId: string
@@ -90,26 +89,26 @@ export function Sidebar({
   return (
     <div 
       className={cn(
-        "bg-white border border-gray-200 flex flex-col h-full flex-shrink-0 transition-all duration-300 ease-in-out relative group/sidebar rounded-xl shadow-sm",
+        "bg-background border border-border flex flex-col h-full flex-shrink-0 transition-all duration-300 ease-in-out relative group/sidebar rounded-xl shadow-sm",
         isCollapsed ? "w-12" : "w-44"
       )}
     >
       {/* Workspace Dropdown at Top */}
       {!isCollapsed && currentWorkspace && (
-        <div className="px-2 pt-1.5 pb-2 border-b border-gray-200">
+        <div className="px-2 pt-1.5 pb-2 border-b border-border">
           {/* Organization Selector - Only show if user has multiple organizations */}
           {organizations.length > 1 && currentOrganization && switchToOrganization && (
             <DropdownMenu>
-              <DropdownMenuTrigger className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-gray-100 transition-colors mb-2">
-                <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Building className="h-3.5 w-3.5 text-white" />
+              <DropdownMenuTrigger className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors mb-2">
+                <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Building className="h-3.5 w-3.5 text-primary-foreground" />
                 </div>
                 <div className="flex-1 flex items-center gap-1 min-w-0">
-                  <span className="text-xs text-gray-700 font-medium truncate">{currentOrganization.name}</span>
-                  <ChevronDown className="h-3 w-3 text-gray-500 flex-shrink-0" />
+                  <span className="text-xs text-foreground font-medium truncate">{currentOrganization.name}</span>
+                  <ChevronDown className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                 </div>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-64 bg-white">
+              <DropdownMenuContent align="start" className="w-64">
                 <DropdownMenuLabel>Switch Organization</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {organizations.map((org) => {
@@ -118,15 +117,15 @@ export function Sidebar({
                     <DropdownMenuItem 
                       key={org.id}
                       onClick={() => !isCurrent && switchToOrganization(org.id)}
-                      className={isCurrent ? 'bg-gray-50' : ''}
+                      className={isCurrent ? 'bg-muted' : ''}
                     >
                       <div className="flex items-center gap-3 w-full">
-                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <Building className="h-4 w-4 text-white" />
+                        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Building className="h-4 w-4 text-primary-foreground" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-sm">{org.name}</div>
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-muted-foreground">
                             {isCurrent ? 'Current organization' : 'Switch to this organization'}
                           </div>
                         </div>
@@ -141,7 +140,7 @@ export function Sidebar({
           {/* Workspace Selector */}
           {handleWorkspaceSwitch && getWorkspaceColorClass && getWorkspaceColorStyle && (
             <DropdownMenu>
-              <DropdownMenuTrigger className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+              <DropdownMenuTrigger className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors">
                 <div 
                   className={`w-8 h-8 ${getWorkspaceColorClass(currentWorkspace)} rounded-lg flex items-center justify-center flex-shrink-0`}
                   style={getWorkspaceColorStyle(currentWorkspace)}
@@ -149,11 +148,11 @@ export function Sidebar({
                   <Building2 className="h-4 w-4 text-white" />
                 </div>
                 <div className="flex-1 flex items-center gap-2 min-w-0">
-                  <span className="text-sm text-gray-900 truncate">{currentWorkspace.name}</span>
-                  <ChevronDown className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-sm text-foreground truncate">{currentWorkspace.name}</span>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 </div>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-64 bg-white">
+              <DropdownMenuContent align="start" className="w-64">
                 <DropdownMenuLabel>Switch Workspace</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {workspaces.map((ws) => {
@@ -165,7 +164,7 @@ export function Sidebar({
                     <DropdownMenuItem 
                       key={ws.id}
                       onClick={() => !isCurrent && handleWorkspaceSwitch(ws.slug)}
-                      className={isCurrent ? 'bg-gray-50' : ''}
+                      className={isCurrent ? 'bg-muted' : ''}
                     >
                       <div className="flex items-center gap-3 w-full">
                         <div 
@@ -176,7 +175,7 @@ export function Sidebar({
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-sm">{ws.name}</div>
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-muted-foreground">
                             {isCurrent ? 'Current workspace' : 'Switch to this workspace'}
                           </div>
                         </div>
@@ -211,14 +210,14 @@ export function Sidebar({
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors",
                     isActive 
-                      ? "bg-blue-50 text-blue-700" 
-                      : "text-gray-700 hover:bg-gray-50 hover:text-gray-900",
+                      ? "bg-primary/10 text-primary" 
+                      : "text-foreground hover:bg-accent hover:text-accent-foreground",
                     isCollapsed && "justify-center px-2"
                   )}
                 >
                   <item.icon size={18} className={isActive ? 'text-blue-600' : 'text-gray-400'} />
                   {!isCollapsed && <span className="flex-1 text-left truncate">{item.label}</span>}
-                  {!isCollapsed && isActive && <ChevronRight size={14} className="text-blue-600" />}
+                  {!isCollapsed && isActive && <ChevronRight size={14} className="text-primary" />}
                 </button>
               )
 
@@ -241,20 +240,15 @@ export function Sidebar({
                       className={cn(
                         "w-full flex items-center justify-center px-1 py-1.5 text-sm font-medium rounded-lg transition-colors",
                         isActive 
-                          ? "bg-blue-50 text-blue-700" 
-                          : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                          ? "bg-primary/10 text-primary" 
+                          : "text-foreground hover:bg-accent hover:text-accent-foreground"
                       )}
                     >
-                      <item.icon size={18} className={isActive ? 'text-blue-600' : 'text-gray-400'} />
+                      <item.icon size={18} className={isActive ? 'text-primary' : 'text-muted-foreground'} />
                     </button>
                     {hoveredItem === item.id && (
-                      <div className="absolute left-full top-0 ml-2 z-50 sidebar-hover-panel">
-                        <SidebarHoverPanel
-                          hubType={item.id as 'data' | 'applications' | 'workflows' | 'crm'}
-                          workspaceId={workspaceId}
-                          isVisible={true}
-                          onClose={() => setHoveredItem(null)}
-                        />
+                      <div className="absolute left-full top-0 ml-2 z-50 sidebar-hover-panel bg-popover border rounded-md shadow-md p-2">
+                        <span className="text-xs text-muted-foreground capitalize">{item.id}</span>
                       </div>
                     )}
                   </div>
@@ -268,13 +262,13 @@ export function Sidebar({
       </div>
 
       {/* Collapse Toggle Button */}
-      <div className={cn("border-t border-gray-200", isCollapsed ? "p-1" : "p-2")}>
+      <div className={cn("border-t border-border", isCollapsed ? "p-1" : "p-2")}>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(
-            "w-full flex items-center gap-2 text-gray-500 hover:text-gray-900",
+            "w-full flex items-center gap-2 text-muted-foreground hover:text-foreground",
             isCollapsed && "justify-center px-0"
           )}
         >

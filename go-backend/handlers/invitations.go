@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -11,7 +14,6 @@ import (
 
 	"github.com/Jsanchez767/matic-platform/database"
 	"github.com/Jsanchez767/matic-platform/models"
-	"github.com/Jsanchez767/matic-platform/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -66,8 +68,7 @@ func CreateInvitation(c *gin.Context) {
 	}
 
 	userIDStr := userID.(string)
-	// Get legacy UUID for backward compatibility
-	inviterID := getLegacyUserID(userIDStr)
+	// For Better Auth users, don't set legacy invited_by to avoid foreign key constraints
 	baInviterID := userIDStr // Better Auth user ID (TEXT)
 
 	workspaceID, err := uuid.Parse(req.WorkspaceID)
@@ -127,7 +128,7 @@ func CreateInvitation(c *gin.Context) {
 		role = "member"
 	}
 
-	// Create pending workspace member
+	// Create pending workspace member (Better Auth approach)
 	pendingMember := models.WorkspaceMember{
 		ID:              uuid.New(),
 		WorkspaceID:     workspaceID,
@@ -136,8 +137,8 @@ func CreateInvitation(c *gin.Context) {
 		Role:            role,
 		Status:          "pending",
 		InvitedEmail:    req.Email,
-		InvitedBy:       inviterID,      // Legacy UUID (if available)
-		BAInvitedBy:     &baInviterID,  // Better Auth user ID (TEXT)
+		InvitedBy:       nil,          // Don't set for Better Auth users to avoid FK constraint
+		BAInvitedBy:     &baInviterID, // Better Auth user ID (TEXT)
 		InviteToken:     token,
 		InviteExpiresAt: &expiresAt,
 		InvitedAt:       &invitedAt,
@@ -276,7 +277,7 @@ func AcceptInvitation(c *gin.Context) {
 
 	acceptingUserIDStr := userID.(string)
 	acceptingUserID := getLegacyUserID(acceptingUserIDStr) // Legacy UUID (if available)
-	baAcceptingUserID := acceptingUserIDStr               // Better Auth user ID (TEXT)
+	baAcceptingUserID := acceptingUserIDStr                // Better Auth user ID (TEXT)
 
 	var pendingMember models.WorkspaceMember
 	if err := database.DB.Where("invite_token = ? AND status = ?", token, "pending").First(&pendingMember).Error; err != nil {
@@ -464,7 +465,7 @@ func DeclineInvitation(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Invitation declined"})
 }
 
-// sendInvitationEmail sends an invitation email via Supabase Auth
+// sendInvitationEmail sends an invitation email via Resend
 func sendInvitationEmail(email, token, workspaceName string) error {
 	// Build the invite URL with our custom token
 	siteURL := os.Getenv("SITE_URL")
@@ -479,26 +480,141 @@ func sendInvitationEmail(email, token, workspaceName string) error {
 	log.Printf("📧 Sending invitation email to %s for workspace '%s'", email, workspaceName)
 	log.Printf("📧 Invite URL: %s", inviteURL)
 
-	// Use Supabase Auth service to send magic link email
-	supabaseAuth := services.NewSupabaseAuthService()
+	// Check for global Resend API key first for system emails
+	globalResendKey := os.Getenv("RESEND_API_KEY")
+	if globalResendKey == "" {
+		log.Printf("⚠️ No global RESEND_API_KEY found in environment variables")
+		log.Printf("💡 To send invitation emails, please set RESEND_API_KEY in your .env file")
+		log.Printf("💡 You can get an API key from https://resend.com/api-keys")
+		log.Printf("💡 The invitation was created successfully - user can still use the direct link: %s", inviteURL)
+		return fmt.Errorf("RESEND_API_KEY not configured")
+	}
 
-	// Try to invite the user via Supabase Auth Admin API
-	// This will send an email through Supabase's email service
-	_, err := supabaseAuth.InviteUserByEmail(email, inviteURL)
+	// Create email content
+	subject := fmt.Sprintf("You're invited to join %s on Matic", workspaceName)
+
+	// HTML email template
+	htmlBody := fmt.Sprintf(`
+	<!DOCTYPE html>
+	<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Workspace Invitation</title>
+		<style>
+			body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px 0; background-color: #f8fafc; }
+			.container { max-width: 560px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
+			.header { background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 32px; text-align: center; }
+			.header h1 { color: white; margin: 0; font-size: 24px; font-weight: 600; }
+			.content { padding: 32px; }
+			.workspace-name { color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+			.message { color: #4b5563; line-height: 1.6; margin-bottom: 24px; }
+			.button { display: inline-block; background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500; margin: 16px 0; }
+			.button:hover { background: #5a67d8; }
+			.footer { background: #f9fafb; padding: 24px 32px; color: #6b7280; font-size: 14px; text-align: center; }
+			.footer a { color: #667eea; text-decoration: none; }
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<div class="header">
+				<h1>🎉 You're Invited!</h1>
+			</div>
+			<div class="content">
+				<div class="workspace-name">Join \"%s\" on Matic</div>
+				<div class="message">
+					You've been invited to collaborate in the <strong>%s</strong> workspace. 
+					Matic helps teams collect, organize, and review data with powerful forms and workflows.
+				</div>
+				<div class="message">
+					Click the button below to accept your invitation and set up your account:
+				</div>
+				<div style=\"text-align: center;\">
+					<a href=\"%s\" class=\"button\">Accept Invitation & Set Up Account</a>
+				</div>
+				<div class=\"message\" style=\"margin-top: 24px; font-size: 14px; color: #6b7280;\">
+					If the button doesn't work, you can also copy and paste this link into your browser:
+					<br><a href=\"%s\" style=\"color: #667eea; word-break: break-all;\">%s</a>
+				</div>
+			</div>
+			<div class=\"footer\">
+				<div>This invitation will expire in 7 days.</div>
+				<div style=\"margin-top: 8px;\">Powered by <a href=\"https://maticsapp.com\">Matic</a></div>
+			</div>
+		</div>
+	</body>
+	</html>
+	`, workspaceName, workspaceName, inviteURL, inviteURL, inviteURL)
+
+	// Plain text fallback
+	textBody := fmt.Sprintf(`You're invited to join \"%s\" on Matic!
+
+You've been invited to collaborate in the %s workspace. Matic helps teams collect, organize, and review data with powerful forms and workflows.
+
+To accept your invitation and set up your account, visit:
+%s
+
+This invitation will expire in 7 days.
+
+Powered by Matic - https://maticsapp.com`, workspaceName, workspaceName, inviteURL)
+
+	// Send directly via Resend API using global key
+	resendURL := "https://api.resend.com/emails"
+	payload := map[string]interface{}{
+		"from":    "invitations@maticsapp.com",
+		"to":      []string{email},
+		"subject": subject,
+		"text":    textBody,
+		"html":    htmlBody,
+	}
+
+	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		log.Printf("⚠️ Supabase invite failed (user may already exist): %v", err)
+		log.Printf("⚠️ Failed to marshal email payload: %v", err)
+		return err
+	}
 
-		// If invite fails (user might already exist), try sending a magic link instead
-		err = supabaseAuth.SendMagicLinkEmail(email, inviteURL)
-		if err != nil {
-			log.Printf("⚠️ Supabase magic link also failed: %v", err)
-			// Don't fail the whole request - the invitation is still created
-			// User can use the direct invite link
-			return nil
+	// Create HTTP request
+	req, err := http.NewRequest("POST", resendURL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		log.Printf("⚠️ Failed to create HTTP request: %v", err)
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+globalResendKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	// Send the request
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("⚠️ Failed to send HTTP request to Resend: %v", err)
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Read response
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("⚠️ Failed to read response body: %v", err)
+		return err
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Printf("⚠️ Resend API returned error (status %d): %s", resp.StatusCode, string(respBody))
+		return fmt.Errorf("resend API error: %d - %s", resp.StatusCode, string(respBody))
+	}
+
+	// Parse response to get message ID
+	var resendResponse map[string]interface{}
+	if err := json.Unmarshal(respBody, &resendResponse); err == nil {
+		if messageID, ok := resendResponse["id"].(string); ok {
+			log.Printf("✅ Invitation email sent to %s via Resend (MessageID: %s)", email, messageID)
+		} else {
+			log.Printf("✅ Invitation email sent to %s via Resend", email)
 		}
-		log.Printf("✅ Magic link email sent to %s", email)
 	} else {
-		log.Printf("✅ Invitation email sent to %s via Supabase", email)
+		log.Printf("✅ Invitation email sent to %s via Resend", email)
 	}
 
 	return nil

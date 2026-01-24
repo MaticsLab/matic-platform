@@ -36,7 +36,7 @@ export default function HeadingBlock({ block, mode, className }: HeadingBlockPro
   const Tag = `h${level}` as keyof JSX.IntrinsicElements;
   
   return (
-    <Tag className={cn(sizeClass, alignClass, 'text-gray-900', className)}>
+    <Tag className={cn(sizeClass, alignClass, 'text-foreground', className)}>
       {content || (mode === 'edit' ? 'Click to edit heading' : '')}
     </Tag>
   );

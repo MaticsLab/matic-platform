@@ -146,6 +146,8 @@ export interface PipelineHeaderProps {
   selectedWorkflowId?: string;
   onWorkflowChange?: (id: string) => void;
   onDownload?: () => void;
+  workspaceSlug?: string;
+  formId?: string;
 }
 
 export interface PipelineActivityPanelProps {

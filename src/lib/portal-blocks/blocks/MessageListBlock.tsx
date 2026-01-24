@@ -85,7 +85,7 @@ export default function MessageListBlock({
         {/* Messages */}
         <div className="max-h-80 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">
+            <div className="text-center py-8 text-muted-foreground">
               <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p>{emptyMessage}</p>
             </div>
@@ -113,14 +113,14 @@ export default function MessageListBlock({
                     <span className="text-sm font-medium">
                       {message.sender.name}
                     </span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-muted-foreground">
                       {new Date(message.timestamp).toLocaleDateString()}
                     </span>
                   </div>
                   <div className={cn(
                     'inline-block px-3 py-2 rounded-lg text-sm',
                     message.sender.isStaff 
-                      ? 'bg-gray-100 text-gray-800' 
+                      ? 'bg-muted text-foreground' 
                       : 'bg-blue-500 text-white'
                   )}>
                     {message.content}
@@ -154,7 +154,7 @@ export default function MessageListBlock({
         
         {/* Edit mode info */}
         {mode === 'edit' && (
-          <p className="text-xs text-gray-400 text-center py-2 border-t italic">
+          <p className="text-xs text-muted-foreground text-center py-2 border-t italic">
             Messages will appear here when staff communicates with applicant
           </p>
         )}

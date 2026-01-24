@@ -2502,18 +2502,6 @@ export function ApplicationDetail({
                   Cc Bcc
                 </button>
               </div>
-
-              {/* Suggested Emails */}
-              {application.email && (
-                <div className="ml-14">
-                  <button
-                    onClick={() => setEmailTo(application.email || '')}
-                    className="text-xs text-blue-600 hover:text-blue-700 hover:underline bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors"
-                  >
-                    {application.email}
-                  </button>
-                </div>
-              )}
               
               {showCcBcc && (
                 <>

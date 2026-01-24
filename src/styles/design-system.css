@@ -12,9 +12,7 @@
  * - Themeable design tokens
  */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* ==========================================
    DESIGN TOKENS & CSS VARIABLES

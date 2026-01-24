@@ -40,7 +40,7 @@ export function BlockEditor({
   if (!blockDef) {
     return (
       <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-        <p className="text-red-700 font-medium">Unknown block type: {block.blockType}</p>
+        <p className="text-destructive font-medium">Unknown block type: {block.blockType}</p>
       </div>
     )
   }
@@ -67,13 +67,13 @@ export function BlockEditor({
   }
 
   return (
-    <div className={`p-4 bg-white border border-gray-200 rounded-lg ${block.metadata.hidden ? 'opacity-50' : ''}`}>
+    <div className={`p-4 bg-background border border-border rounded-lg ${block.metadata.hidden ? 'opacity-50' : ''}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className="flex-1">
             <h3 className="font-semibold text-sm">{blockDef.label}</h3>
-            <p className="text-xs text-gray-500">{blockDef.description}</p>
+            <p className="text-xs text-muted-foreground">{blockDef.description}</p>
           </div>
         </div>
 
@@ -96,7 +96,7 @@ export function BlockEditor({
               <button
                 onClick={onMoveUp}
                 disabled={!canMoveUp}
-                className="p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors"
+                className="p-1.5 text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors"
                 title="Move up"
               >
                 <ChevronUp className="w-4 h-4" />
@@ -105,7 +105,7 @@ export function BlockEditor({
               <button
                 onClick={onMoveDown}
                 disabled={!canMoveDown}
-                className="p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors"
+                className="p-1.5 text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors"
                 title="Move down"
               >
                 <ChevronDown className="w-4 h-4" />
@@ -113,7 +113,7 @@ export function BlockEditor({
 
               <button
                 onClick={handleToggleLocked}
-                className="p-1.5 text-gray-500 hover:bg-gray-100 rounded transition-colors"
+                className="p-1.5 text-muted-foreground hover:bg-accent rounded transition-colors"
                 title={block.metadata.locked ? 'Unlock' : 'Lock'}
               >
                 {block.metadata.locked ? (
@@ -125,7 +125,7 @@ export function BlockEditor({
 
               <button
                 onClick={onDelete}
-                className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                className="p-1.5 text-destructive hover:bg-destructive/10 rounded transition-colors"
                 title="Delete"
               >
                 <Trash2 className="w-4 h-4" />
@@ -155,21 +155,21 @@ export function BlockEditor({
           )) : null}
 
           {/* Advanced Options */}
-          <div className="pt-4 border-t border-gray-200">
+          <div className="pt-4 border-t border-border">
             <button
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-sm text-gray-600 hover:text-gray-900 font-medium"
+              className="text-sm text-muted-foreground hover:text-foreground font-medium"
             >
               {showAdvanced ? '▼' : '▶'} Advanced Options
             </button>
 
             {showAdvanced && (
-              <div className="space-y-4 mt-4 pt-4 border-t border-gray-100">
+              <div className="space-y-4 mt-4 pt-4 border-t border-border">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Spacing</label>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-xs text-gray-600">Margin Top</label>
+                      <label className="text-xs text-muted-foreground">Margin Top</label>
                       <input
                         type="number"
                         value={block.styles?.marginTop || 0}

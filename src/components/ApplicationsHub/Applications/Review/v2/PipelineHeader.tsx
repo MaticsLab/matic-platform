@@ -1,7 +1,7 @@
 'use client';
 
 import { Application, ApplicationStatus, PipelineHeaderProps, Stage } from './types';
-import { Download, ChevronDown, Mail, SlidersHorizontal } from 'lucide-react';
+import { Download, ChevronDown, Mail, SlidersHorizontal, FileText } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
@@ -25,7 +25,9 @@ export function PipelineHeader({
   workflows,
   selectedWorkflowId,
   onWorkflowChange,
-  onDownload
+  onDownload,
+  workspaceSlug,
+  formId
 }: PipelineHeaderProps) {
   const [showFilterPopover, setShowFilterPopover] = useState(false);
   
@@ -154,6 +156,15 @@ export function PipelineHeader({
                 </div>
               </PopoverContent>
             </Popover>
+            {workspaceSlug && formId && (
+              <button 
+                onClick={() => window.location.href = `/workspace/${workspaceSlug}/portal-editor?formId=${formId}`}
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
+                title="Portal Editor"
+              >
+                <FileText className="w-4 h-4" />
+              </button>
+            )}
             <button 
               onClick={() => onDownload?.()}
               className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"

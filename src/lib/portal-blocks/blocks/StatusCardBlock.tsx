@@ -59,15 +59,15 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-700 border-gray-200',
-  submitted: 'bg-blue-100 text-blue-700 border-blue-200',
+  draft: 'bg-muted text-muted-foreground border-border',
+  submitted: 'bg-primary/10 text-primary border-primary/20',
   in_review: 'bg-yellow-100 text-yellow-700 border-yellow-200',
   pending: 'bg-orange-100 text-orange-700 border-orange-200',
   approved: 'bg-green-100 text-green-700 border-green-200',
-  rejected: 'bg-red-100 text-red-700 border-red-200',
+  rejected: 'bg-destructive/10 text-destructive border-destructive/20',
   completed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  error: 'bg-red-100 text-red-700 border-red-200',
-  cancelled: 'bg-gray-100 text-gray-500 border-gray-200',
+  error: 'bg-destructive/10 text-destructive border-destructive/20',
+  cancelled: 'bg-muted text-muted-foreground border-border',
   processing: 'bg-purple-100 text-purple-700 border-purple-200',
 };
 
@@ -119,22 +119,22 @@ export default function StatusCardBlock({
         {showProgress && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Progress</span>
+              <span className="text-muted-foreground">Progress</span>
               <span className="font-medium">{progressPercent}%</span>
             </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
               <div 
                 className="h-full bg-blue-500 transition-all duration-500"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
-            <div className="flex justify-between text-xs text-gray-400">
+            <div className="flex justify-between text-xs text-muted-foreground">
               {progressStages.map((stage, i) => (
                 <span 
                   key={stage}
                   className={cn(
                     'capitalize',
-                    i <= currentStageIndex && 'text-blue-600 font-medium'
+                    i <= currentStageIndex && 'text-primary font-medium'
                   )}
                 >
                   {stage.replace(/_/g, ' ')}
@@ -147,17 +147,17 @@ export default function StatusCardBlock({
         {/* Timeline */}
         {showTimeline && timeline.length > 0 && (
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-gray-700">History</h4>
+            <h4 className="text-sm font-medium text-foreground">History</h4>
             <div className="space-y-3">
               {timeline.map((event, index) => (
                 <div key={index} className="flex gap-3">
                   <div className="flex flex-col items-center">
                     <div className={cn(
                       'w-2 h-2 rounded-full',
-                      index === 0 ? 'bg-blue-500' : 'bg-gray-300'
+                      index === 0 ? 'bg-primary' : 'bg-muted-foreground'
                     )} />
                     {index < timeline.length - 1 && (
-                      <div className="w-0.5 h-full bg-gray-200" />
+                      <div className="w-0.5 h-full bg-border" />
                     )}
                   </div>
                   <div className="flex-1 pb-3">

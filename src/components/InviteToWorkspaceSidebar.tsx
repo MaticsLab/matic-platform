@@ -90,6 +90,7 @@ export function InviteToWorkspaceSidebar({
   const loadData = useCallback(async () => {
     if (!workspaceId) return
 
+    console.log('InviteToWorkspaceSidebar: Loading data for workspace:', workspaceId)
     setIsLoading(true)
     try {
       const [hubsData, membersData, invitationsData] = await Promise.all([
@@ -97,6 +98,9 @@ export function InviteToWorkspaceSidebar({
         membersClient.list(workspaceId),
         invitationsClient.list(workspaceId),
       ])
+
+      console.log('InviteToWorkspaceSidebar: Raw members data:', membersData)
+      console.log('InviteToWorkspaceSidebar: Raw invitations data:', invitationsData)
 
       setHubs(hubsData || [])
       setMembers(membersData || [])

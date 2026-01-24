@@ -138,7 +138,11 @@ func ListActivitiesHubs(c *gin.Context) {
 		return
 	}
 
-	memberExists := database.DB.Where("workspace_id = ? AND user_id = ? AND status = ?", wsID, userID, "active").First(&member).Error == nil
+	// Check if user is a member via either legacy user_id (UUID) or ba_user_id (string)
+	memberExists := database.DB.Where(
+		"workspace_id = ? AND (user_id::text = ? OR ba_user_id = ?) AND status = ?",
+		wsID, userID, userID, "active",
+	).First(&member).Error == nil
 	if !memberExists {
 		c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
 		return
@@ -340,17 +344,23 @@ func CreateActivitiesHub(c *gin.Context) {
 	settingsJSON, _ := json.Marshal(settings)
 
 	table := models.Table{
-		WorkspaceID:  input.WorkspaceID,
-		Name:         input.Name,
-		Slug:         input.Slug,
-		Description:  input.Description,
-		Icon:         "calendar",
-		Color:        "#10B981",
-		HubType:      "activities",
-		EntityType:   "event",
-		Settings:     datatypes.JSON(settingsJSON),
-		CreatedBy:    func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
-		BACreatedBy:  &baUserID, // Better Auth user ID (TEXT)
+		WorkspaceID: input.WorkspaceID,
+		Name:        input.Name,
+		Slug:        input.Slug,
+		Description: input.Description,
+		Icon:        "calendar",
+		Color:       "#10B981",
+		HubType:     "activities",
+		EntityType:  "event",
+		Settings:    datatypes.JSON(settingsJSON),
+		CreatedBy: func() uuid.UUID {
+			if legacyUserID != nil {
+				return *legacyUserID
+			} else {
+				return uuid.Nil
+			}
+		}(),
+		BACreatedBy: &baUserID, // Better Auth user ID (TEXT)
 	}
 
 	if err := database.DB.Create(&table).Error; err != nil {
@@ -605,12 +615,18 @@ func CreateActivitiesHubTab(c *gin.Context) {
 	configJSON, _ := json.Marshal(config)
 
 	view := models.View{
-		TableID:     hubUUID,
-		Name:         input.Name,
-		Type:         "tab",
-		Config:       datatypes.JSON(configJSON),
-		CreatedBy:    func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
-		BACreatedBy:  &baUserID, // Better Auth user ID (TEXT)
+		TableID: hubUUID,
+		Name:    input.Name,
+		Type:    "tab",
+		Config:  datatypes.JSON(configJSON),
+		CreatedBy: func() uuid.UUID {
+			if legacyUserID != nil {
+				return *legacyUserID
+			} else {
+				return uuid.Nil
+			}
+		}(),
+		BACreatedBy: &baUserID, // Better Auth user ID (TEXT)
 	}
 
 	if err := database.DB.Create(&view).Error; err != nil {

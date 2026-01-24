@@ -156,15 +156,21 @@ func CreateWorkspace(c *gin.Context) {
 	}
 
 	workspace := models.Workspace{
-		OrganizationID:  input.OrganizationID,
-		Name:            input.Name,
-		Slug:            input.Slug,
-		Description:     input.Description,
-		Color:           color,
-		Icon:            icon,
-		Settings:        mapToJSON(input.Settings),
-		CreatedBy:       func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
-		BACreatedBy:     &baUserID, // Better Auth user ID (TEXT)
+		OrganizationID: input.OrganizationID,
+		Name:           input.Name,
+		Slug:           input.Slug,
+		Description:    input.Description,
+		Color:          color,
+		Icon:           icon,
+		Settings:       mapToJSON(input.Settings),
+		CreatedBy: func() uuid.UUID {
+			if legacyUserID != nil {
+				return *legacyUserID
+			} else {
+				return uuid.Nil
+			}
+		}(),
+		BACreatedBy: &baUserID, // Better Auth user ID (TEXT)
 	}
 
 	// Begin transaction to create workspace and add creator as member
@@ -377,21 +383,33 @@ func ListWorkspaceMembers(c *gin.Context) {
 		return
 	}
 
+	log.Printf("ListWorkspaceMembers: Looking for members in workspace %s", wsID)
+
 	var members []models.WorkspaceMember
 	if err := database.DB.Where("workspace_id = ? AND status = ?", wsID, "active").Find(&members).Error; err != nil {
+		log.Printf("ListWorkspaceMembers: Database error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch members"})
 		return
 	}
 
-	// Fetch names from auth.users for members with user_id
+	log.Printf("ListWorkspaceMembers: Found %d members", len(members))
+
+	// Fetch names from both auth.users (Supabase) and ba_users (Better Auth)
 	if len(members) > 0 {
+		// Get legacy Supabase user IDs
 		userIDs := make([]uuid.UUID, 0)
+		baUserIDs := make([]string, 0)
+
 		for _, m := range members {
 			if m.UserID != nil {
 				userIDs = append(userIDs, *m.UserID)
 			}
+			if m.BAUserID != nil {
+				baUserIDs = append(baUserIDs, *m.BAUserID)
+			}
 		}
 
+		// Query Supabase users
 		if len(userIDs) > 0 {
 			type UserProfile struct {
 				ID        uuid.UUID
@@ -418,6 +436,58 @@ func ListWorkspaceMembers(c *gin.Context) {
 					if profile, exists := profileMap[*m.UserID]; exists {
 						members[i].FirstName = profile.FirstName
 						members[i].LastName = profile.LastName
+					}
+				}
+			}
+		}
+
+		// Query Better Auth users
+		if len(baUserIDs) > 0 {
+			type BAUserProfile struct {
+				ID       string
+				Name     string
+				Email    string
+				FullName *string
+			}
+			var baProfiles []BAUserProfile
+			database.DB.Raw(`
+				SELECT id, name, email, full_name
+				FROM ba_users WHERE id IN ?
+			`, baUserIDs).Scan(&baProfiles)
+
+			// Create a map for quick lookup
+			baProfileMap := make(map[string]BAUserProfile)
+			for _, p := range baProfiles {
+				baProfileMap[p.ID] = p
+			}
+
+			// Populate names in members
+			for i, m := range members {
+				if m.BAUserID != nil {
+					if profile, exists := baProfileMap[*m.BAUserID]; exists {
+						if profile.FullName != nil && *profile.FullName != "" {
+							// Split full name into first and last
+							nameParts := strings.Fields(*profile.FullName)
+							if len(nameParts) > 0 {
+								members[i].FirstName = nameParts[0]
+								if len(nameParts) > 1 {
+									members[i].LastName = strings.Join(nameParts[1:], " ")
+								}
+							}
+						} else if profile.Name != "" {
+							// Split name into first and last
+							nameParts := strings.Fields(profile.Name)
+							if len(nameParts) > 0 {
+								members[i].FirstName = nameParts[0]
+								if len(nameParts) > 1 {
+									members[i].LastName = strings.Join(nameParts[1:], " ")
+								}
+							}
+						}
+						// Set email if not set from invitation
+						if members[i].InvitedEmail == "" {
+							members[i].InvitedEmail = profile.Email
+						}
 					}
 				}
 			}

@@ -92,14 +92,14 @@ export default function RepeaterBlock({
       {(title || description) && (
         <div className="space-y-1">
           {title && <h3 className="text-lg font-semibold">{title}</h3>}
-          {description && <p className="text-sm text-gray-500">{description}</p>}
+          {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </div>
       )}
       
       {/* Items */}
       <div className="space-y-3">
         {items.length === 0 && mode === 'edit' && (
-          <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center text-gray-400">
+          <div className="border-2 border-dashed border-border rounded-lg p-8 text-center text-muted-foreground">
             <p>No items yet</p>
             <p className="text-sm">Click &quot;{addButtonLabel}&quot; to add the first item</p>
           </div>
@@ -110,7 +110,7 @@ export default function RepeaterBlock({
             <CardHeader className="py-3 px-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <GripVertical className="h-4 w-4 text-gray-400 cursor-grab" />
+                  <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
                   <CardTitle className="text-base">
                     {itemLabel} {index + 1}
                   </CardTitle>
@@ -132,7 +132,7 @@ export default function RepeaterBlock({
                       variant="ghost"
                       size="sm"
                       onClick={() => removeItem(index)}
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -144,7 +144,7 @@ export default function RepeaterBlock({
               <CardContent className="pt-0">
                 {block.children && renderChildren?.(block.children, index)}
                 {!block.children?.length && mode === 'edit' && (
-                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center text-gray-400 text-sm">
+                  <div className="border-2 border-dashed border-border rounded-lg p-4 text-center text-muted-foreground text-sm">
                     Define repeater fields
                   </div>
                 )}
@@ -169,7 +169,7 @@ export default function RepeaterBlock({
       
       {/* Limits info */}
       {mode === 'edit' && (
-        <p className="text-xs text-gray-400 text-center">
+        <p className="text-xs text-muted-foreground text-center">
           {minItems > 0 && `Minimum: ${minItems} · `}
           Maximum: {maxItems} items
         </p>
