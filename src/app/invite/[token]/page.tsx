@@ -96,14 +96,7 @@ export default function InvitePage() {
   const handleDecline = async () => {
     setIsDeclining(true)
     try {
-      // Call the decline endpoint
-      const response = await fetch(`/api/v1/invitations/decline/${token}`, {
-        method: 'POST',
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to decline invitation')
-      }
+      await invitationsClient.decline(token)
       
       toast.success('Invitation declined')
       router.push('/')

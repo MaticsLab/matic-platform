@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Home, 
   MessageCircle, 
@@ -14,9 +14,24 @@ import {
   Menu,
   X,
   Layers,
-  List
+  List,
+  LogIn,
+  ExternalLink,
+  Database,
+  LayoutGrid,
+  Workflow
 } from 'lucide-react';
 import logoImage from 'figma:asset/4e755e9106121b931299b33c6038f396b9d38aca.png';
+
+// Authentication mock for demo - in real app this would come from your auth system
+interface User {
+  id: string;
+  email: string;
+  name: string;
+}
+
+// Simulate auth state
+const mockUser: User | null = null; // Change to a user object to simulate signed in state
 
 type NavigationMode = 'portal' | 'application';
 
@@ -33,13 +48,40 @@ export function ScholarshipPortal() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showSectionsPopover, setShowSectionsPopover] = useState(false);
+  const [user, setUser] = useState<User | null>(mockUser);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
-  // Portal navigation items
+  // Demo function to simulate sign in
+  const handleSignIn = async () => {
+    setIsSigningIn(true);
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setUser({
+      id: '1',
+      email: 'demo@example.com',
+      name: 'Demo User'
+    });
+    setIsSigningIn(false);
+  };
+
+  // Function to navigate to real workspace
+  const goToWorkspace = () => {
+    // In a real implementation, this would redirect to the actual workspace
+    window.open('/workspaces', '_blank');
+  };
+
+  // Function to open real app pages in new tab (simulating actual app navigation)
+  const openRealPage = (path: string) => {
+    window.open(path, '_blank');
+  };
+
+  // Portal navigation items - now using real app pages
   const portalNavItems: NavItem[] = [
-    { id: 'home', name: 'Home', icon: Home },
-    { id: 'messages', name: 'Messages', icon: MessageCircle, badge: '3' },
-    { id: 'files', name: 'Files', icon: FileText },
-    { id: 'tasks', name: 'Tasks', icon: Calendar, badge: '2' },
+    { id: 'home', name: 'Dashboard', icon: Home },
+    { id: 'tables', name: 'Database', icon: Database },
+    { id: 'forms', name: 'Forms', icon: FileText },
+    { id: 'workflows', name: 'Workflows', icon: Workflow },
+    { id: 'activities', name: 'Activities', icon: Calendar },
   ];
 
   // Application section items
@@ -179,16 +221,43 @@ export function ScholarshipPortal() {
                 Continue Application
               </button>
             )}
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all text-sm shadow-sm">
-              Save & Exit
-            </button>
+            
+            {/* Authentication Controls */}
+            {!user ? (
+              <button 
+                onClick={handleSignIn}
+                disabled={isSigningIn}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all text-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                {isSigningIn ? (
+                  <><span className="animate-spin">⚪</span> Signing In...</>
+                ) : (
+                  <><LogIn className="w-4 h-4" /> Sign In</>
+                )}
+              </button>
+            ) : (
+              <>
+                <button 
+                  onClick={goToWorkspace}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all text-sm flex items-center gap-2"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Go to Workspace
+                </button>
+                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all text-sm shadow-sm">
+                  Save & Exit
+                </button>
+              </>
+            )}
+            
             <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <Bell className="w-5 h-5 text-gray-600" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
             </button>
+            
             <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
               <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm">
-                JD
+                {user ? user.name.charAt(0).toUpperCase() : 'JD'}
               </div>
             </div>
           </div>
@@ -392,16 +461,69 @@ export function ScholarshipPortal() {
                     </div>
                   </button>
 
-                  <button className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-left">
-                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <MessageCircle className="w-5 h-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <h4 className="text-gray-900 text-sm">Contact Support</h4>
-                      <p className="text-xs text-gray-500">Get help with your application</p>
-                    </div>
-                  </button>
+                  {user ? (
+                    <button 
+                      onClick={goToWorkspace}
+                      className="flex items-center gap-3 p-4 border border-green-200 bg-green-50 rounded-lg hover:border-green-300 hover:bg-green-100 transition-colors text-left"
+                    >
+                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                        <ExternalLink className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div>
+                        <h4 className="text-gray-900 text-sm">Go to Workspace</h4>
+                        <p className="text-xs text-gray-500">Access your main workspace</p>
+                      </div>
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={handleSignIn}
+                      disabled={isSigningIn}
+                      className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-left disabled:opacity-50"
+                    >
+                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <LogIn className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <h4 className="text-gray-900 text-sm">
+                          {isSigningIn ? 'Signing In...' : 'Sign In'}
+                        </h4>
+                        <p className="text-xs text-gray-500">Access your workspace</p>
+                      </div>
+                    </button>
+                  )}
                 </div>
+                
+                {user && (
+                  <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <LayoutGrid className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium text-blue-900 mb-1">
+                          Welcome back, {user.name}!
+                        </h4>
+                        <p className="text-xs text-blue-700 mb-3">
+                          You have access to the full platform. Explore your workspace or continue with this demo application.
+                        </p>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={goToWorkspace}
+                            className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
+                          >
+                            Open Workspace
+                          </button>
+                          <button 
+                            onClick={() => openRealPage('/workspace/demo/tables')}
+                            className="px-3 py-1.5 bg-white text-blue-600 border border-blue-300 rounded text-xs hover:bg-blue-50 transition-colors"
+                          >
+                            View Database
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -413,13 +535,13 @@ export function ScholarshipPortal() {
                   {portalNavItems.find(item => item.id === activeSection)?.name || 'Portal Section'}
                 </h2>
                 <p className="text-gray-600 mb-6">
-                  Content for the {activeSection} section would be displayed here.
+                  This section shows a preview of the actual {activeSection} feature from the real application.
                 </p>
                 
                 <div className="bg-gray-50 rounded-lg p-12 border border-gray-200 text-center">
-                  <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     {portalNavItems.find(item => item.id === activeSection)?.icon && (
-                      <div className="w-8 h-8 text-gray-400">
+                      <div className="w-8 h-8 text-blue-600">
                         {(() => {
                           const Icon = portalNavItems.find(item => item.id === activeSection)?.icon;
                           return Icon ? <Icon className="w-full h-full" /> : null;
@@ -427,9 +549,45 @@ export function ScholarshipPortal() {
                       </div>
                     )}
                   </div>
-                  <p className="text-sm text-gray-500">
-                    This section is ready to be customized with {activeSection} content
+                  <p className="text-lg font-medium text-gray-900 mb-2">
+                    {portalNavItems.find(item => item.id === activeSection)?.name} Preview
                   </p>
+                  <p className="text-sm text-gray-500 mb-6">
+                    This is a preview of the actual {activeSection.toLowerCase()} functionality from our main platform.
+                  </p>
+                  
+                  {user ? (
+                    <button 
+                      onClick={() => {
+                        const pathMap: Record<string, string> = {
+                          'tables': '/workspace/demo/tables',
+                          'forms': '/workspace/demo/forms', 
+                          'workflows': '/workspace/demo/workflows',
+                          'activities': '/workspace/demo/activities-hub'
+                        };
+                        openRealPage(pathMap[activeSection] || '/workspaces');
+                      }}
+                      className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2 mx-auto"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Open in Main App
+                    </button>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-500">Sign in to access the full platform</p>
+                      <button 
+                        onClick={handleSignIn}
+                        disabled={isSigningIn}
+                        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2 mx-auto disabled:opacity-50"
+                      >
+                        {isSigningIn ? (
+                          <><span className="animate-spin">⚪</span> Signing In...</>
+                        ) : (
+                          <><LogIn className="w-4 h-4" /> Sign In to Continue</>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

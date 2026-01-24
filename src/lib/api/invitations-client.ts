@@ -74,6 +74,15 @@ export async function acceptInvitation(token: string): Promise<{
   })
 }
 
+/**
+ * Decline an invitation
+ */
+export async function declineInvitation(token: string): Promise<{ message: string }> {
+  return goFetch(`/invitations/decline/${token}`, {
+    method: 'POST',
+  })
+}
+
 // ============================================================================
 // Member Operations
 // ============================================================================
@@ -121,6 +130,7 @@ export const invitationsClient = {
   resend: resendInvitation,
   getByToken: getInvitationByToken,
   accept: acceptInvitation,
+  decline: declineInvitation,
 }
 
 export const membersClient = {
