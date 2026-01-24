@@ -39,35 +39,10 @@ export function CRMPage({ workspaceId }: CRMPageProps) {
         setIsLoading(true);
         console.log('🔍 [CRM] Fetching portal applicants...');
         
-        // Make the API call directly to see the raw response
-        const baseUrl = typeof window !== 'undefined' 
-          ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-            ? 'http://localhost:8080/api/v1'
-            : 'https://backend.maticslab.com/api/v1'
-          : 'https://backend.maticslab.com/api/v1';
+        // Use the admin client which handles authentication properly
+        const users = await adminClient.listBetterAuthUsers();
         
-        const response = await fetch(`${baseUrl}/admin/users?type=better_auth`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        console.log('📡 [CRM] Response status:', response.status, response.statusText);
-        console.log('📡 [CRM] Response headers:', Object.fromEntries(response.headers.entries()));
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('❌ [CRM] API error:', response.status, errorText);
-          throw new Error(`Failed to fetch: ${response.status} ${errorText}`);
-        }
-        
-        const responseText = await response.text();
-        console.log('📦 [CRM] Raw response text:', responseText);
-        
-        const users = responseText ? JSON.parse(responseText) : null;
-        console.log('📦 [CRM] Parsed response:', users);
+        console.log('📦 [CRM] Fetched users:', users);
         console.log('📦 [CRM] Response type:', typeof users, 'Is array:', Array.isArray(users));
         
         if (!isMounted) return; // Prevent state updates if component unmounted
@@ -125,8 +100,15 @@ export function CRMPage({ workspaceId }: CRMPageProps) {
           response: error.response,
         });
         
+        // Show appropriate error message based on error type
+        let errorMessage = 'Failed to load clients';
+        if (error.status === 401) {
+          errorMessage = 'Authentication failed. Please refresh the page and try again.';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
         // Only show toast for actual errors, not if it's just "Admin access required" from old server
-        const errorMessage = error.message || 'Failed to load clients';
         if (!errorMessage.includes('Admin access required')) {
           toast.error(errorMessage);
         }

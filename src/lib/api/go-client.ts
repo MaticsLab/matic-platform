@@ -72,6 +72,13 @@ export async function goFetch<T>(
         const sessionData = await sessionResponse.json()
         // The get-session endpoint returns token in session.token
         token = sessionData?.session?.token || null
+        if (token) {
+          console.debug('✅ [Go Client] Got token from get-session endpoint')
+        } else {
+          console.warn('⚠️ [Go Client] get-session returned data but no token:', sessionData)
+        }
+      } else {
+        console.warn('⚠️ [Go Client] get-session failed with status:', sessionResponse.status)
       }
       
       // Fallback: try auth helpers
@@ -79,6 +86,9 @@ export async function goFetch<T>(
         try {
           const { getSessionToken: getTokenFromHelpers } = await import('@/lib/auth-helpers')
           token = await getTokenFromHelpers()
+          if (token) {
+            console.debug('✅ [Go Client] Got token from auth-helpers')
+          }
         } catch (helperError) {
           console.debug('Failed to get token from auth-helpers:', helperError)
         }
@@ -91,13 +101,16 @@ export async function goFetch<T>(
           const session = await authClient.getSession()
           if (session?.data?.session) {
             token = (session.data.session as any)?.token || null
+            if (token) {
+              console.debug('✅ [Go Client] Got token from Better Auth client')
+            }
           }
         } catch (authError) {
           console.debug('Failed to get token from Better Auth client:', authError)
         }
       }
     } catch (error) {
-      console.debug('Failed to get auth token:', error)
+      console.error('❌ [Go Client] Failed to get auth token:', error)
     }
   }
   
@@ -110,7 +123,10 @@ export async function goFetch<T>(
   
   // Log warning if token is missing for protected endpoints (helpful for debugging)
   if (!token && !isPublicEndpoint && typeof window !== 'undefined') {
-    console.warn('⚠️ No auth token available for API call:', endpoint, '- Cookies will be sent but may not work cross-domain')
+    console.error('❌ [Go Client] No auth token available for protected API call:', endpoint)
+    console.error('❌ [Go Client] This will result in 401 Unauthorized. Check browser console for auth errors.')
+  } else if (token && typeof window !== 'undefined') {
+    console.debug('✅ [Go Client] Making authenticated request to:', endpoint)
   }
 
   // Make request
