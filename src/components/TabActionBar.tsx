@@ -72,15 +72,23 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
       const visibleColumns = columns.filter(col => col.is_visible !== false)
       
       console.log('Export - Visible columns:', visibleColumns)
+      console.log('Export - Column names:', visibleColumns.map(c => c.name))
       
       // Header row
       const headers = visibleColumns.map(col => `"${col.label || col.name}"`).join(',')
       
-      // Data rows
+      // Data rows - Check both col.name and col.id as keys
       const csvRows = rows.map(row => {
         console.log('Export - Processing row:', row)
+        console.log('Export - Row data keys:', Object.keys(row.data || {}))
         return visibleColumns.map(col => {
-          const value = row.data[col.name]
+          // Try col.name first, then col.id
+          let value = row.data?.[col.name]
+          if (value === null || value === undefined) {
+            value = row.data?.[col.id]
+          }
+          
+          console.log(`Export - Column ${col.name} (${col.id}): value =`, value)
           
           if (value === null || value === undefined) {
             return '""'
