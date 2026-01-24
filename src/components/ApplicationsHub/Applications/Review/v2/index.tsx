@@ -544,6 +544,12 @@ export function ReviewWorkspaceV2({
 
     // Build CSV rows
     const rows = appsToDownload.map(app => {
+      // Map reviewer IDs to names using reviewersMap
+      const reviewerNames = (app.assignedReviewerIds || [])
+        .map(id => reviewersMap[id]?.name || id) // Use name from map, fallback to ID
+        .filter(Boolean)
+        .join('; ');
+      
       const row: string[] = [
         app.id || '',
         app.firstName || '',
@@ -560,7 +566,7 @@ export function ReviewWorkspaceV2({
         app.maxScore?.toString() || '',
         app.reviewedCount?.toString() || '',
         app.totalReviewers?.toString() || '',
-        app.assignedTo?.join('; ') || '',
+        reviewerNames,
         app.tags?.join('; ') || '',
         app.flagged ? 'Yes' : 'No',
         app.priority || '',
