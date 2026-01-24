@@ -84,7 +84,7 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
         return visibleColumns.map(col => {
           // Try col.name first, then col.id
           let value = row.data?.[col.name]
-          if (value === null || value === undefined) {
+          if ((value === null || value === undefined) && col.id) {
             value = row.data?.[col.id]
           }
           

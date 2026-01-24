@@ -254,17 +254,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         }
       },
       {
-        id: 'nav-workflows',
-        title: 'Workflows',
-        icon: GitCompare,
-        type: 'navigation',
-        category: 'Navigate',
-        action: () => {
-          router.push(`/workspace/${workspaceSlug}/workflows`)
-          onClose()
-        }
-      },
-      {
         id: 'nav-settings',
         title: 'Settings',
         icon: Settings,

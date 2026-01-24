@@ -68,13 +68,6 @@ export function Sidebar({
       icon: ContactRound,
       url: `/workspace/${workspaceId}/crm`,
       type: 'custom'
-    },
-    {
-      id: 'workflows',
-      label: 'Workflows',
-      icon: Workflow,
-      url: `/workspace/${workspaceId}/workflows`,
-      type: 'custom'
     }
   ]
 
