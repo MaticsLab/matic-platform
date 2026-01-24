@@ -91,8 +91,10 @@ function portalFieldToDefinition(portalField: PortalField): Field {
   const fieldTypeId = PORTAL_TO_UNIFIED_TYPE[portalField.type] || 'text';
   
   // Safely get label and description as strings (could be objects from translations)
+  // Priority: label > name > id
   const safeLabel = typeof portalField.label === 'string' ? portalField.label : 
-                    (portalField.label ? String(portalField.label) : portalField.id);
+                    (portalField.label ? String(portalField.label) : 
+                    ((portalField as any).name || portalField.id));
   
   // Get description from either top-level or config (field settings stores in config.description)
   const rawDescription = portalField.description || portalField.config?.description;
