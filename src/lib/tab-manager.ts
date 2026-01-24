@@ -26,15 +26,14 @@ export class TabManager {
     this.workspaceId = workspaceId
     this.storageKey = `workspace_tabs_${workspaceId}`
     
-    // Initialize with Overview tab if no tabs exist
+    // Initialize with Applications Hub tab if no tabs exist
     const tabs = this.getTabs()
     if (tabs.length === 0) {
       this.addTab({
-        id: 'overview',
-        title: 'Overview',
-        url: `/workspace/${workspaceId}`,
+        id: 'applications',
+        title: 'Programs',
+        url: `/workspace/${workspaceId}/applications`,
         type: 'custom',
-        icon: 'home',
         workspaceId
       })
     }
@@ -124,15 +123,14 @@ export class TabManager {
     // Don't allow closing the last tab
     if (tabs.length === 1) return
 
-    // Don't allow closing the Overview/workspace tab (check all possible identifiers)
+    // Don't allow closing the Applications Hub tab (check all possible identifiers)
     const tab = tabs[index]
-    const isWorkspaceTab = 
-      tab.id === 'overview' || 
-      (tab.title === 'Overview' && tab.url === `/workspace/${this.workspaceId}`) ||
-      (tab.type === 'custom' && tab.icon === 'home')
+    const isApplicationsTab = 
+      tab.id === 'applications' || 
+      (tab.title === 'Programs' && tab.url === `/workspace/${this.workspaceId}/applications`)
     
-    if (isWorkspaceTab) {
-      console.log('Cannot close the workspace Overview tab')
+    if (isApplicationsTab) {
+      console.log('Cannot close the Applications Hub tab')
       return
     }
 

@@ -422,7 +422,8 @@ export function TabContentRouter({ tab: propTab, workspaceId }: TabContentRouter
   const tab = propTab !== undefined ? propTab : activeTab
 
   if (!tab) {
-    return <WorkspaceDashboard workspaceId={workspaceId} />
+    // No tab active - redirect to applications hub
+    return <ApplicationsHub workspaceId={workspaceId} />
   }
 
   // Route tab content based on type and URL
@@ -517,12 +518,6 @@ export function TabContentRouter({ tab: propTab, workspaceId }: TabContentRouter
         return <ActivitiesHubListPage workspaceId={workspaceId} />
       }
 
-
-      // Handle Overview - show Dashboard
-      if (tab.url === `/w/${workspaceId}` || tab.url === `/workspace/${workspaceId}` || tab.title === 'Overview') {
-        return <WorkspaceDashboard workspaceId={workspaceId} />
-      }
-      
       // Handle Applications Hub
       if (tab.url?.includes('/applications')) {
         return <ApplicationsHub workspaceId={workspaceId} />

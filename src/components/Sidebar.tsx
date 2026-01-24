@@ -74,22 +74,8 @@ export function Sidebar({
   const handleNavigate = (item: any) => {
     if (!tabManager) return
 
-    // If it's home, we might want to close other tabs or just focus the overview tab
-    if (item.id === 'home') {
-      // Find overview tab
-      const tabs = tabManager.getTabs()
-      const overviewTab = tabs.find(t => t.title === 'Overview')
-      if (overviewTab) {
-        tabManager.setActiveTab(overviewTab.id)
-      } else {
-        tabManager.addTab({
-          title: 'Overview',
-          type: 'custom',
-          url: `/workspace/${workspaceId}`,
-          workspaceId
-        })
-      }
-    } else {
+    // Navigate directly to the item
+    if (true) {
       // Add or focus tab for the hub
       tabManager.addTab({
         title: item.label,

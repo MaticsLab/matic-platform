@@ -153,11 +153,10 @@ export function TabNavigation({
           {currentTabs.map((tab) => {
             const IconComponent = TAB_ICONS[tab.type] || FileText
             const isActive = currentActiveTab?.id === tab.id
-            // Check for Overview/workspace tab - be specific to avoid matching all workspace tabs
-            const isOverviewTab = 
-              tab.id === 'overview' || 
-              (tab.title === 'Overview' && tab.url === `/workspace/${workspaceId}`) ||
-              (tab.type === 'custom' && tab.icon === 'home')
+            // Check if it's the Applications Hub tab (can't be closed)
+            const isApplicationsTab = 
+              tab.id === 'applications' || 
+              (tab.title === 'Programs' && tab.url === `/workspace/${workspaceId}/applications`)
             
             return (
               <div
@@ -172,7 +171,7 @@ export function TabNavigation({
                 <span className="truncate">
                   {tab.title}
                 </span>
-                {!isOverviewTab && (
+                {!isApplicationsTab && (
                   <button
                     onClick={(e) => handleTabClose(e, tab.id)}
                     className={cn(

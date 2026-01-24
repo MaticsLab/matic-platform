@@ -160,10 +160,7 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
       ]
     }
 
-    // Overview tab - show main modules
-    if (activeTab?.id === 'overview' || activeTab?.title === 'Overview') {
-      return []
-    }
+    // No special actions for overview (removed)
 
     // Table tab - show table-specific actions
     if (activeTab?.type === 'table') {

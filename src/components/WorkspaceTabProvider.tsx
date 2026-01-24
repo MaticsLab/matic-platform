@@ -102,14 +102,13 @@ export function WorkspaceTabProvider({ children, workspaceId }: WorkspaceTabProv
       const currentTabs = manager.getTabs()
       const currentActiveTab = manager.getActiveTab()
       
-      // Auto-create Overview tab if all tabs are closed
+      // Auto-create Applications Hub tab if all tabs are closed
       if (currentTabs.length === 0) {
         manager.addTab({
-          id: 'overview',
-          title: 'Overview',
+          id: 'applications',
+          title: 'Programs',
           type: 'custom',
-          url: `/workspace/${workspaceId}`,
-          icon: 'home',
+          url: `/workspace/${workspaceId}/applications`,
           workspaceId
         })
         return // The subscription will fire again with the new tab
@@ -126,11 +125,10 @@ export function WorkspaceTabProvider({ children, workspaceId }: WorkspaceTabProv
     // Create default tab if no tabs exist
     if (initialTabs.length === 0) {
       manager.addTab({
-        id: 'overview',
-        title: 'Overview',
+        id: 'applications',
+        title: 'Programs',
         type: 'custom',
-        url: `/workspace/${workspaceId}`,
-        icon: 'home',
+        url: `/workspace/${workspaceId}/applications`,
         workspaceId
       })
     }
