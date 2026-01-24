@@ -161,6 +161,16 @@ export function PortalBuilderDemoSafe() {
   const [isSaving, setIsSaving] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [rightSidebarTab, setRightSidebarTab] = useState<'add' | 'settings'>('add')
+  
+  // Mock dashboard settings for the demo
+  const mockDashboardSettings = {
+    showStatus: true,
+    showTimeline: true,
+    showChat: true,
+    showDocuments: true,
+    welcomeTitle: 'Welcome to Your Dashboard',
+    welcomeText: 'Track your application progress and communicate with our team.'
+  }
 
   const currentSection = config.sections.find(s => s.id === activeSectionId)
 
@@ -315,6 +325,7 @@ export function PortalBuilderDemoSafe() {
               sections={config.sections}
               activeSectionId={activeSectionId}
               activeSpecialPage={activeSpecialPage}
+              dashboardSettings={mockDashboardSettings}
               onSelectSection={(id) => {
                 setActiveSectionId(id)
                 setSelectedFieldId(null)
