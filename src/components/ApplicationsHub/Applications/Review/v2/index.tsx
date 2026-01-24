@@ -729,7 +729,7 @@ export function ReviewWorkspaceV2({
             onWorkflowChange={handleWorkflowChange}
             onDownload={() => handleDownloadCSV(filteredApplications)}
             workspaceSlug={currentWorkspace?.slug}
-            formId={formId}
+            formId={formId ?? undefined}
           />
           
           <div className="flex-1 overflow-y-auto">

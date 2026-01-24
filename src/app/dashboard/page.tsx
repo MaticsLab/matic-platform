@@ -15,9 +15,13 @@ import {
 } from "@/ui-components/sidebar"
 
 export default function Page() {
+  // For the generic dashboard page, we'll provide a default workspaceId
+  // In a real app, this would come from params, search params, or user context
+  const defaultWorkspaceId = "default-workspace"
+  
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar workspaceId={defaultWorkspaceId} />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
           <div className="flex items-center gap-2 px-4">
