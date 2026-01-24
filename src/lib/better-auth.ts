@@ -387,12 +387,14 @@ export const auth = betterAuth({
   // Advanced configuration for production cookie handling
   advanced: {
     cookies: {
-      // Use secure cookies in production
-      secure: process.env.NODE_ENV === "production",
-      // Allow cookies to be sent cross-domain (frontend and backend on different domains)
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      // Set cookie domain to allow sharing across subdomains
-      domain: process.env.NODE_ENV === "production" ? ".maticsapp.com" : undefined,
+      sessionToken: {
+        name: "better-auth.session_token",
+        attributes: {
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+          domain: process.env.NODE_ENV === "production" ? ".maticsapp.com" : undefined,
+        },
+      },
     },
   },
 });
