@@ -102,16 +102,14 @@ const DEMO_CONFIG: PortalConfig = {
       rightToLeft: false
     },
     loginFields: [
-      { type: 'email', label: 'Email', required: true },
-      { type: 'password', label: 'Password', required: true }
+      { id: 'email', type: 'email', label: 'Email', required: true },
+      { id: 'password', type: 'password', label: 'Password', required: true }
     ],
-    passwordRequirements: {
-      minLength: 8,
-      requireUppercase: true,
-      requireLowercase: true,
-      requireNumbers: true,
-      requireSymbols: false
-    }
+    signupFields: [
+      { id: 'name', type: 'text', label: 'Name', required: true },
+      { id: 'email', type: 'email', label: 'Email', required: true },
+      { id: 'password', type: 'password', label: 'Password', required: true }
+    ],
   }
 }
 
@@ -353,6 +351,10 @@ export function PortalBuilderDemoSafe() {
                   setActiveSectionId(remainingSections[0].id)
                 }
                 setHasUnsavedChanges(true)
+              }}
+              onDashboardSettingsChange={(settings) => {
+                // Handle dashboard settings change
+                console.log('Dashboard settings changed:', settings)
               }}
             />
           </div>
