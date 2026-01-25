@@ -375,10 +375,9 @@ export function PortalBuilderDemoSafe() {
               {isPreview ? (
                 <DynamicApplicationForm 
                   config={config}
-                  onSubmit={() => {}}
-                  onSaveDraft={() => {}}
-                  isSubmitting={false}
-                  isSavingDraft={false}
+                  onSubmit={async () => {
+                    // Handle form submission
+                  }}
                 />
               ) : (
                 displaySection && displaySection.sectionType === 'form' ? (
