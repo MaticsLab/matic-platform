@@ -142,7 +142,7 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
         icon: Layout,
         type: 'navigation',
         category: 'Navigate',
-        action: () => navigateTo(`/workspace/${workspaceSlug}/activities-hubs`, 'Activities', 'custom')
+        action: () => navigateTo(`/workspace/${workspaceSlug}`, 'Activities', 'custom')
       },
       {
         id: 'nav-applications',
@@ -260,8 +260,8 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
           title = 'Programs'
       }
     } else if (result.hubType === 'activities') {
-      // Activities hub content
-      url = `/workspace/${workspaceSlug}/activities-hubs/${result.entityId}`
+      // Activities hub content - redirect to workspace
+      url = `/workspace/${workspaceSlug}`
       title = `${result.title} | Activities`
     } else {
       // Default routing based on entity type

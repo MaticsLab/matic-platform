@@ -177,11 +177,11 @@ export function AppSidebar({
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    onClick={() => handleTabClick('activities-hubs')}
-                    tooltip="Activities Hub"
+                    onClick={() => handleTabClick('workspace')}
+                    tooltip="Workspace Overview"
                   >
                     <Code2 />
-                    <span>Activities Hub</span>
+                    <span>Workspace</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>

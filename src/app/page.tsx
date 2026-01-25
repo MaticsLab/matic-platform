@@ -98,11 +98,8 @@ function Navigation() {
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">M</span>
-            </div>
-            <span className="text-xl font-semibold text-gray-900">Matic</span>
+<Link href="/" className="flex items-center">
+          <span className="text-2xl font-black text-gray-900 tracking-tight">MaticsApp</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -110,8 +107,8 @@ function Navigation() {
             <Link href="#features" className="text-gray-600 hover:text-gray-900 transition-colors">
               Features
             </Link>
-            <Link href="#demo" className="text-gray-600 hover:text-gray-900 transition-colors">
-              Demo
+            <Link href="/pricing" className="text-gray-600 hover:text-gray-900 transition-colors">
+              Pricing
             </Link>
           </div>
 
@@ -119,15 +116,15 @@ function Navigation() {
           <div className="hidden md:flex items-center gap-4">
             {isAuthenticated ? (
               <Link href="/workspaces">
-                <Button>Go to Dashboard</Button>
+                <Button>Go to Workspace</Button>
               </Link>
             ) : (
               <>
-                <Link href="/login">
-                  <Button variant="ghost">Sign In</Button>
+                <Link href="/signup-v2?mode=login">
+                  <Button variant="ghost">Log in</Button>
                 </Link>
-                <Link href="/signup">
-                  <Button>Get Started Free</Button>
+                <Link href="/signup-v2">
+                  <Button>Get started</Button>
                 </Link>
               </>
             )}
@@ -148,21 +145,21 @@ function Navigation() {
             <Link href="#features" className="block text-gray-600 hover:text-gray-900">
               Features
             </Link>
-            <Link href="#demo" className="block text-gray-600 hover:text-gray-900">
-              Demo
+            <Link href="/pricing" className="block text-gray-600 hover:text-gray-900">
+              Pricing
             </Link>
             <div className="pt-4 border-t space-y-2">
               {isAuthenticated ? (
                 <Link href="/workspaces" className="block">
-                  <Button className="w-full">Go to Dashboard</Button>
+                  <Button className="w-full">Go to Workspace</Button>
                 </Link>
               ) : (
                 <>
-                  <Link href="/login" className="block">
-                    <Button variant="outline" className="w-full">Sign In</Button>
+                  <Link href="/signup-v2?mode=login" className="block">
+                    <Button variant="outline" className="w-full">Log in</Button>
                   </Link>
-                  <Link href="/signup" className="block">
-                    <Button className="w-full">Get Started Free</Button>
+                  <Link href="/signup-v2" className="block">
+                    <Button className="w-full">Get started</Button>
                   </Link>
                 </>
               )}
@@ -175,67 +172,522 @@ function Navigation() {
 }
 
 // ============================================================================
-// Hero Section
 // ============================================================================
-function HeroSection() {
+// Animated Icons Components
+// ============================================================================
+function AnimatedIcon({ icon: Icon, className, delay = 0 }: { 
+  icon: any, 
+  className?: string, 
+  delay?: number 
+}) {
   return (
-    <section className="relative pt-32 pb-20 overflow-hidden">
-      {/* Background Gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-indigo-50" />
-      <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-gradient-to-br from-blue-100/40 to-indigo-100/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
-      
-      <div className="relative max-w-7xl mx-auto px-6">
-        <div className="text-center max-w-4xl mx-auto">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-100 rounded-full text-sm text-blue-700 mb-8">
-            <Sparkles className="w-4 h-4" />
-            <span>Now with AI-powered workflows</span>
-            <ChevronRight className="w-4 h-4" />
-          </div>
+    <div 
+      className={`absolute animate-pulse opacity-20 ${className}`}
+      style={{ animationDelay: `${delay}ms`, animationDuration: '3s' }}
+    >
+      <Icon className="w-8 h-8 text-gray-700" />
+    </div>
+  )
+}
 
-          {/* Headline */}
-          <h1 className="text-5xl md:text-7xl font-bold text-gray-900 tracking-tight mb-6">
-            Build better
-            <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent"> workflows </span>
-            for your team
+// ============================================================================
+// Feature Tabs Data with Demo Content
+// ============================================================================
+const featureTabs = [
+  {
+    id: 'forms',
+    label: 'Forms',
+    title: 'Create any form you need',
+    description: 'Build the exact form you need, in minutes.',
+    features: [
+      'Drag-and-drop form builder',
+      'Over 25 field types',
+      'Conditional logic & branching',
+      'Custom styling & branding'
+    ],
+    color: 'blue',
+    demoType: 'portal'
+  },
+  {
+    id: 'tables', 
+    label: 'Data Tables',
+    title: 'Organize your data beautifully',
+    description: 'Turn form responses into structured, searchable data.',
+    features: [
+      'Automatic data organization',
+      'Advanced filtering & sorting',
+      'Custom views & layouts',
+      'Export to any format'
+    ],
+    color: 'purple',
+    demoType: 'table'
+  },
+  {
+    id: 'workflows',
+    label: 'Workflows', 
+    title: 'Automate your processes',
+    description: 'Streamline reviews and approvals with smart workflows.',
+    features: [
+      'Multi-stage review processes',
+      'Automatic notifications',
+      'Custom approval rules',
+      'Team collaboration tools'
+    ],
+    color: 'green',
+    demoType: 'builder'
+  },
+  {
+    id: 'signatures',
+    label: 'Signatures',
+    title: 'Collect digital signatures',
+    description: 'Create, track, and e-sign documents seamlessly.',
+    features: [
+      'Electronic signature collection',
+      'Secure document signing',
+      'Automated agreement workflows',
+      'Legal compliance & tracking'
+    ],
+    color: 'orange',
+    demoType: 'signature'
+  }
+]
+
+// ============================================================================
+// Demo Content Components
+// ============================================================================
+function PortalDemo() {
+  const [animatedFields, setAnimatedFields] = useState<Array<{id: number, type: string, label: string, selected?: boolean}>>([])
+  
+  const portalFields = [
+    { type: 'auth', label: 'Sign Up / Login', selected: false },
+    { type: 'form', label: 'Application Form', selected: false },
+    { type: 'section', label: 'Personal Information', selected: false },
+    { type: 'section', label: 'Educational Background', selected: false },
+    { type: 'review', label: 'Review & Submit', selected: false },
+  ]
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAnimatedFields(prev => {
+        if (prev.length >= portalFields.length) {
+          return []
+        }
+        const nextField = portalFields[prev.length]
+        return [...prev, { ...nextField, id: Date.now() + prev.length, selected: prev.length === 2 }]
+      })
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <div className="w-full bg-white rounded-xl border border-gray-200 overflow-hidden" style={{ height: '450px' }}>
+      {/* Browser-like Header */}
+      <div className="bg-gray-100 px-4 py-3 border-b flex items-center gap-2">
+        <div className="flex gap-1.5">
+          <div className="w-3 h-3 bg-red-400 rounded-full"></div>
+          <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
+          <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+        </div>
+        <div className="flex-1 bg-white rounded px-3 py-1 text-xs text-gray-600 ml-4">
+          maticsapp.com/forms/survey
+        </div>
+      </div>
+
+      {/* Portal Builder Interface */}
+      <div className="bg-white p-4 border-b">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">M</span>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">Portal Builder</h3>
+              <p className="text-xs text-gray-500">Scholarship Portal</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+              <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+            </div>
+            <button className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded">Preview</button>
+            <button className="text-xs px-2 py-1 bg-green-500 text-white rounded">Saved</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b bg-gray-50">
+        <div className="flex">
+          <button className="px-4 py-2 bg-blue-500 text-white text-sm font-medium">App</button>
+          <button className="px-4 py-2 text-gray-600 text-sm">Forms</button>
+          <button className="px-4 py-2 text-gray-600 text-sm">Database</button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex flex-1 h-full">
+        {/* Left Sidebar - Portal Structure */}
+        <div className="w-64 bg-gray-50 border-r p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-sm font-semibold text-gray-900">Portal Structure</h4>
+            <button className="w-6 h-6 bg-gray-800 text-white rounded flex items-center justify-center text-xs">+</button>
+          </div>
+          
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 p-2 text-xs text-teal-600 bg-teal-50 rounded">
+              <span>🔐</span>
+              <span>Sign Up / Login</span>
+            </div>
+            
+            {animatedFields.map((field, index) => (
+              <div 
+                key={field.id}
+                className={`flex items-center gap-2 p-2 text-xs rounded animate-fade-in-up ${
+                  field.selected ? 'bg-yellow-100 text-gray-700' : 'text-gray-600'
+                }`}
+                style={{ 
+                  animationDelay: `${index * 0.1}s`,
+                  animationDuration: '0.4s',
+                  animationFillMode: 'both'
+                }}
+              >
+                {field.type === 'form' && <span>📝</span>}
+                {field.type === 'section' && field.label.includes('Personal') && <span>👤</span>}
+                {field.type === 'section' && field.label.includes('Educational') && <span>🎓</span>}
+                {field.type === 'review' && <span>✅</span>}
+                {field.type === 'auth' && <span>🔐</span>}
+                <span>{field.label}</span>
+                {index < 3 && (
+                  <span className="ml-auto text-xs text-gray-400">{index + 2}</span>
+                )}
+              </div>
+            ))}
+            
+            {/* After Submission - Static */}
+            <div className="flex items-center gap-2 p-2 text-xs text-gray-600">
+              <span>📊</span>
+              <span>After Submission</span>
+            </div>
+            
+            <div className="pl-6 space-y-1">
+              <div className="flex items-center gap-2 p-1 text-xs text-gray-500">
+                <span>📊</span>
+                <span>Applicant Dashboard</span>
+                <span className="ml-auto">▼</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Side - Preview */}
+        <div className="flex-1 p-6 bg-gray-50">
+          <div className="bg-white rounded-lg border h-full p-6">
+            {animatedFields.find(f => f.selected) ? (
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-2">Personal Information</h4>
+                <p className="text-sm text-gray-500 mb-6">Add a description to help users</p>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                    <input 
+                      type="text" 
+                      placeholder="Enter your full name"
+                      className="w-full p-3 border border-gray-300 rounded-lg text-sm"
+                    />
+                    <span className="text-red-500 text-xs">*</span>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input 
+                      type="email" 
+                      placeholder="Enter your email"
+                      className="w-full p-3 border border-gray-300 rounded-lg text-sm"
+                    />
+                    <span className="text-red-500 text-xs">*</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-gray-400">
+                <div className="w-16 h-16 bg-gray-100 rounded-lg mx-auto mb-4 flex items-center justify-center">
+                  <span className="text-2xl">+</span>
+                </div>
+                <p className="text-sm">Start building your form</p>
+                <p className="text-xs text-gray-300 mt-1">Type <span className="bg-gray-100 px-1 rounded">/</span> for commands</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TableDemo() {
+  return (
+    <div className="bg-white rounded-xl p-6 shadow-sm border">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-lg font-semibold">Scholarship Applications</h3>
+        <div className="flex items-center gap-2">
+          <div className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-medium">
+            45 New
+          </div>
+        </div>
+      </div>
+      
+      <div className="space-y-3">
+        {[
+          { name: 'Sarah Chen', status: 'Under Review', score: '94%', date: 'Jan 20' },
+          { name: 'Marcus Johnson', status: 'Approved', score: '87%', date: 'Jan 19' },
+          { name: 'Elena Rodriguez', status: 'Pending', score: '92%', date: 'Jan 18' },
+          { name: 'David Kim', status: 'Under Review', score: '89%', date: 'Jan 17' }
+        ].map((item, index) => (
+          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                <span className="text-xs font-medium text-blue-600">
+                  {item.name.split(' ').map(n => n[0]).join('')}
+                </span>
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">{item.name}</p>
+                <p className="text-xs text-gray-500">{item.date}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium text-gray-700">{item.score}</span>
+              <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                item.status === 'Approved' ? 'bg-green-100 text-green-700' :
+                item.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                'bg-blue-100 text-blue-700'
+              }`}>
+                {item.status}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function BuilderDemo() {
+  return (
+    <div className="bg-white rounded-xl p-6 shadow-sm border">
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold mb-2">Workflow Builder</h3>
+        <p className="text-sm text-gray-600">Design multi-stage review processes</p>
+      </div>
+      
+      <div className="space-y-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
+            <FileText className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1">
+            <p className="font-medium">Application Submitted</p>
+            <p className="text-sm text-gray-500">Automatic trigger</p>
+          </div>
+          <ArrowRight className="w-5 h-5 text-gray-400" />
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
+            <Users className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1">
+            <p className="font-medium">Initial Review</p>
+            <p className="text-sm text-gray-500">Assigned to: Review Team</p>
+          </div>
+          <ArrowRight className="w-5 h-5 text-gray-400" />
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
+            <CheckCircle2 className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1">
+            <p className="font-medium">Final Decision</p>
+            <p className="text-sm text-gray-500">Send notification</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SignatureDemo() {
+  return (
+    <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-6 border border-orange-200">
+      <div className="bg-white rounded-lg p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-orange-500 rounded flex items-center justify-center">
+              <span className="text-white text-xs font-bold">B</span>
+            </div>
+            <span className="font-medium">BATES LAW FIRM</span>
+          </div>
+        </div>
+        
+        <h3 className="text-lg font-semibold mb-4">Request for Attorney Representation</h3>
+        
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm text-gray-600">Full Name</label>
+              <div className="mt-1 p-2 bg-gray-50 rounded border-2 border-dashed border-gray-300 text-sm text-gray-500">
+                Enter your name
+              </div>
+            </div>
+            <div>
+              <label className="text-sm text-gray-600">Phone Number</label>
+              <div className="mt-1 p-2 bg-gray-50 rounded border-2 border-dashed border-gray-300 text-sm text-gray-500">
+                Enter phone
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <label className="text-sm text-gray-600">Email</label>
+            <div className="mt-1 p-2 bg-gray-50 rounded border-2 border-dashed border-gray-300 text-sm text-gray-500">
+              Enter email address
+            </div>
+          </div>
+          
+          <div className="border-2 border-dashed border-orange-300 rounded-lg p-4 text-center">
+            <p className="text-sm text-gray-600 mb-2">Add signature</p>
+            <div className="bg-white rounded p-4 border border-gray-200">
+              <div className="text-2xl font-script text-gray-400 italic text-center">
+                Samantha Jones
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex justify-center">
+            <button className="bg-yellow-400 hover:bg-yellow-500 text-black px-6 py-2 rounded-lg font-medium">
+              Submit
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+function HeroSection() {
+  const { data } = useSession()
+  const isAuthenticated = !!data?.user
+  const [activeTab, setActiveTab] = useState('forms')
+  
+  return (
+    <section className="relative pt-24 pb-16 overflow-hidden">
+      {/* Background Gradient - Fillout Style */}
+      <div className="absolute inset-0 bg-gradient-to-br from-amber-200 via-yellow-200 to-amber-300" />
+      <div className="absolute inset-0 bg-gradient-to-br from-yellow-300/50 via-amber-200/30 to-orange-300/40" />
+      
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-20 left-[10%] w-32 h-32 bg-white/20 rounded-full blur-xl animate-float" />
+        <div className="absolute top-40 right-[15%] w-24 h-24 bg-orange-200/30 rounded-full blur-lg animate-float" style={{ animationDelay: '1s' }} />
+        <div className="absolute bottom-20 left-[20%] w-20 h-20 bg-yellow-200/40 rounded-full blur-lg animate-float" style={{ animationDelay: '2s' }} />
+      </div>
+      
+      {/* Floating Icons */}
+      <AnimatedIcon icon={FileText} className="top-20 left-[15%]" delay={0} />
+      <AnimatedIcon icon={Database} className="top-32 right-[20%]" delay={500} />
+      <AnimatedIcon icon={Workflow} className="bottom-40 left-[25%]" delay={1000} />
+      <AnimatedIcon icon={BarChart3} className="bottom-20 right-[15%]" delay={1500} />
+      <AnimatedIcon icon={CheckCircle2} className="top-48 left-[8%]" delay={2000} />
+      <AnimatedIcon icon={Users} className="top-60 right-[12%]" delay={2500} />
+      
+      <div className="relative w-full px-3">
+        <div className="text-center max-w-5xl mx-auto">
+          {/* Main Headline */}
+          <h1 className="text-6xl md:text-8xl font-black text-gray-900 tracking-tight mb-8 leading-tight">
+            Build, collect,
+            <span className="block">review together</span>
           </h1>
 
-          {/* Subheadline */}
-          <p className="text-xl text-gray-600 mb-10 max-w-2xl mx-auto">
-            Create powerful forms, organize data in flexible tables, and streamline review processes—all in one beautiful platform.
-          </p>
-
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <Link href="/signup">
-              <Button size="lg" className="text-lg px-8 py-6 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-all">
-                Start for Free
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
-            </Link>
-            <Link href="#demo">
-              <Button size="lg" variant="outline" className="text-lg px-8 py-6">
-                <Play className="w-5 h-5 mr-2" />
-                Watch Demo
-              </Button>
-            </Link>
+          {/* CTA Button */}
+          <div className="mb-20">
+            {isAuthenticated ? (
+              <Link href="/workspaces">
+                <Button size="lg" className="bg-black hover:bg-gray-800 text-white text-lg px-10 py-6 rounded-lg font-semibold shadow-xl hover:shadow-2xl transition-all transform hover:scale-105">
+                  Go to Workspace
+                  <ArrowRight className="w-5 h-5 ml-3" />
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/signup-v2">
+                <Button size="lg" className="bg-black hover:bg-gray-800 text-white text-lg px-10 py-6 rounded-lg font-semibold shadow-xl hover:shadow-2xl transition-all transform hover:scale-105">
+                  Get started — it's free
+                  <ArrowRight className="w-5 h-5 ml-3" />
+                </Button>
+              </Link>
+            )}
           </div>
 
-          {/* Social Proof */}
-          <div className="flex flex-col items-center gap-4">
-            <div className="flex -space-x-3">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 border-2 border-white flex items-center justify-center text-xs font-medium text-gray-600"
+          {/* Feature Tabs */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-2xl">
+            {/* Tab Navigation */}
+            <div className="flex flex-wrap justify-center gap-8 mb-12">
+              {featureTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-6 py-3 rounded-lg font-medium text-lg transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-gray-900 text-white shadow-lg'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                  }`}
                 >
-                  {String.fromCharCode(64 + i)}
-                </div>
+                  {tab.label}
+                </button>
               ))}
             </div>
-            <p className="text-sm text-gray-500">
-              <span className="font-semibold text-gray-700">500+</span> teams already use Matic
-            </p>
+            
+            {/* Tab Content */}
+            {featureTabs.map((tab) => (
+              activeTab === tab.id && (
+                <div key={tab.id} className="text-left w-full px-4">
+                  <div className="grid md:grid-cols-3 gap-12 items-center">
+                    <div className="md:col-span-1">
+                      <div className={`inline-block px-4 py-2 rounded-full text-sm font-medium mb-4 ${
+                        tab.color === 'blue' ? 'bg-blue-100 text-blue-700' :
+                        tab.color === 'purple' ? 'bg-purple-100 text-purple-700' :
+                        tab.color === 'green' ? 'bg-green-100 text-green-700' :
+                        'bg-orange-100 text-orange-700'
+                      }`}>
+                        {tab.label.toUpperCase()}
+                      </div>
+                      <h3 className="text-3xl font-bold text-gray-900 mb-4">
+                        {tab.title}
+                      </h3>
+                      <p className="text-lg text-gray-600 mb-8">
+                        {tab.description}
+                      </p>
+                      <ul className="space-y-4">
+                        {tab.features.map((feature, index) => (
+                          <li key={index} className="flex items-center gap-3">
+                            <div className="w-2 h-2 bg-gray-900 rounded-full" />
+                            <span className="text-gray-700">{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="md:col-span-2 rounded-2xl overflow-hidden">
+                      {tab.demoType === 'portal' && <PortalDemo />}
+                      {tab.demoType === 'table' && <TableDemo />}
+                      {tab.demoType === 'builder' && <BuilderDemo />}
+                      {tab.demoType === 'signature' && <SignatureDemo />}
+                    </div>
+                  </div>
+                </div>
+              )
+            ))}
           </div>
         </div>
       </div>
@@ -676,13 +1128,6 @@ function RealEmailAIDemo() {
               )}
             </div>
           </div>
-        </div>
-
-        {/* Demo Info */}
-        <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
-          <p className="text-sm text-amber-800">
-            <strong>Live Demo:</strong> This is the actual AI Email Composer from our platform. In the real application, it connects to OpenAI's API to generate personalized emails with merge tags.
-          </p>
         </div>
       </div>
     </div>
@@ -1605,6 +2050,169 @@ function InteractiveWorkspaceDemo() {
 }
 
 // ============================================================================
+// "It All Starts" Section (Fillout Inspired)
+// ============================================================================
+function ItAllStartsSection() {
+  const [animatedFields, setAnimatedFields] = useState<Array<{id: number, type: string, label: string, icon: any, color: string}>>([])
+  
+  const fieldTypes = [
+    { type: 'text', label: 'Full Name', icon: Type, color: 'bg-blue-500' },
+    { type: 'email', label: 'Email Address', icon: Mail, color: 'bg-green-500' },
+    { type: 'phone', label: 'Phone Number', icon: Phone, color: 'bg-purple-500' },
+    { type: 'dropdown', label: 'Department', icon: ChevronDown, color: 'bg-orange-500' },
+    { type: 'textarea', label: 'Message', icon: MessageSquare, color: 'bg-pink-500' },
+    { type: 'date', label: 'Preferred Date', icon: Calendar, color: 'bg-indigo-500' }
+  ]
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAnimatedFields(prev => {
+        if (prev.length >= 4) {
+          return []
+        }
+        const nextField = fieldTypes[prev.length]
+        return [...prev, { ...nextField, id: Date.now() + prev.length }]
+      })
+    }, 1500)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <section className="pt-40 pb-24 bg-gray-900 relative overflow-hidden">
+      {/* Background Elements */}
+      <div className="absolute inset-0">
+        <div className="absolute top-20 left-10 w-32 h-32 bg-gradient-to-br from-green-500/20 to-blue-500/20 rounded-full blur-2xl animate-float" />
+        <div className="absolute bottom-20 right-10 w-40 h-40 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full blur-2xl animate-float" style={{ animationDelay: '2s' }} />
+      </div>
+      
+      <div className="relative max-w-7xl mx-auto px-6">
+        <div className="text-center mb-20">
+          {/* Floating Icons */}
+          <div className="relative inline-block">
+            <div className="absolute -top-8 -left-8 w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center transform -rotate-12 animate-pulse">
+              <Sparkles className="w-6 h-6 text-white" />
+            </div>
+            <h2 className="text-5xl md:text-7xl font-black text-white mb-6">
+              It all starts with a form
+            </h2>
+            <div className="absolute -top-4 -right-12 w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center transform rotate-12 animate-pulse" style={{ animationDelay: '1s' }}>
+              <ArrowRight className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <p className="text-xl text-gray-300 max-w-2xl mx-auto">
+            Build the exact form you need, in minutes.
+          </p>
+        </div>
+
+        {/* Animated Form Builder */}
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-white rounded-3xl p-8 relative overflow-hidden">
+            {/* Builder Header */}
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">M</span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Form Builder</h3>
+                  <p className="text-gray-500 text-sm">maticsapp.com/forms/survey</p>
+                </div>
+              </div>
+              
+              {/* Tabs */}
+              <div className="flex gap-2 border-b">
+                <button className="px-4 py-2 bg-blue-500 text-white rounded-t-lg text-sm font-medium">App</button>
+                <button className="px-4 py-2 text-gray-600 text-sm">Forms</button>
+                <button className="px-4 py-2 text-gray-600 text-sm">Database</button>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-12">
+              {/* Left Side - Field Palette */}
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold text-gray-900 mb-4">Field Types</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  {fieldTypes.slice(0, 6).map((field, index) => (
+                    <div 
+                      key={field.type} 
+                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all duration-500 ${
+                        animatedFields.find(f => f.type === field.type) 
+                          ? 'border-transparent bg-gray-100 opacity-50 scale-95' 
+                          : 'border-gray-200 hover:border-blue-300 bg-white'
+                      }`}
+                      style={{ 
+                        animationDelay: `${index * 0.2}s`,
+                        transform: animatedFields.find(f => f.type === field.type) ? 'scale(0.95)' : 'scale(1)'
+                      }}
+                    >
+                      <div className={`w-8 h-8 ${field.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <field.icon className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">{field.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right Side - Form Preview */}
+              <div className="bg-gray-50 rounded-xl p-6 relative min-h-[400px]">
+                <div className="text-center mb-6">
+                  <h4 className="text-lg font-semibold text-gray-900">Live Preview</h4>
+                  <p className="text-sm text-gray-500">Watch fields appear as you add them</p>
+                </div>
+                
+                <div className="space-y-4">
+                  {animatedFields.map((field, index) => (
+                    <div 
+                      key={field.id}
+                      className="bg-white rounded-lg p-4 border-2 border-blue-200 animate-fade-in-up"
+                      style={{ 
+                        animationDelay: `${index * 0.1}s`,
+                        animationDuration: '0.6s',
+                        animationFillMode: 'both'
+                      }}
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className={`w-6 h-6 ${field.color} rounded flex items-center justify-center`}>
+                          <field.icon className="w-3 h-3 text-white" />
+                        </div>
+                        <label className="text-sm font-medium text-gray-700">{field.label}</label>
+                      </div>
+                      <div className="w-full p-2 bg-gray-50 border border-gray-200 rounded text-sm text-gray-400">
+                        {field.type === 'textarea' ? 'Enter your message here...' : 
+                         field.type === 'dropdown' ? 'Select an option' :
+                         field.type === 'date' ? 'Select a date' :
+                         `Enter your ${field.label.toLowerCase()}`}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {animatedFields.length > 0 && (
+                    <div className="mt-6 animate-fade-in" style={{ animationDelay: '0.8s' }}>
+                      <button className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-lg transition-colors">
+                        Submit Form
+                      </button>
+                    </div>
+                  )}
+                  
+                  {animatedFields.length === 0 && (
+                    <div className="text-center py-12 text-gray-400">
+                      <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-sm">Your form will appear here</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ============================================================================
 // Features Section
 // ============================================================================
 function FeaturesSection() {
@@ -1706,10 +2314,15 @@ function CTASection() {
           Join hundreds of teams using Matic to collect data, manage reviews, and collaborate better.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link href="/signup">
+          <Link href="/signup-v2">
             <Button size="lg" className="text-lg px-8 py-6 shadow-lg shadow-blue-500/25">
               Get Started Free
               <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+          </Link>
+          <Link href="/pricing">
+            <Button size="lg" variant="outline" className="text-lg px-8 py-6">
+              View Pricing
             </Button>
           </Link>
         </div>
@@ -1726,57 +2339,118 @@ function CTASection() {
 // ============================================================================
 function Footer() {
   return (
-    <footer className="bg-gray-900 text-gray-400 py-16">
+    <footer className="bg-gray-900 text-white py-16">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="grid md:grid-cols-4 gap-12 mb-12">
-          {/* Brand */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">M</span>
-              </div>
-              <span className="text-xl font-semibold text-white">Matic</span>
-            </div>
-            <p className="text-sm">
-              The modern platform for forms, data, and workflows.
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-8 mb-12">
+          {/* Logo and Description */}
+          <div className="lg:col-span-2">
+            <Link href="/" className="inline-block mb-6">
+              <span className="text-3xl font-black text-amber-400 tracking-tight">MaticsApp</span>
+            </Link>
+            <p className="text-gray-400 mb-6 text-lg">
+              The all-in-one form solution
             </p>
+            <div className="flex gap-4">
+              <Link href="#" className="text-gray-400 hover:text-white transition-colors">
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+                </svg>
+              </Link>
+              <Link href="#" className="text-gray-400 hover:text-white transition-colors">
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
+                </svg>
+              </Link>
+              <Link href="#" className="text-gray-400 hover:text-white transition-colors">
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 0c-6.627 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+              </Link>
+            </div>
+          </div>
+
+          {/* General */}
+          <div>
+            <h4 className="text-white font-semibold mb-6 uppercase tracking-wider text-sm">General</h4>
+            <ul className="space-y-4 text-sm">
+              <li><Link href="/" className="text-gray-400 hover:text-white transition-colors">Home</Link></li>
+              <li><Link href="/pricing" className="text-gray-400 hover:text-white transition-colors">Pricing</Link></li>
+              <li><Link href="/integrations" className="text-gray-400 hover:text-white transition-colors">Integrations</Link></li>
+              <li><Link href="/careers" className="text-gray-400 hover:text-white transition-colors">Careers</Link></li>
+              <li><Link href="/contact" className="text-gray-400 hover:text-white transition-colors">Report abuse</Link></li>
+              <li><Link href="/blog" className="text-gray-400 hover:text-white transition-colors">What's new</Link></li>
+              <li><Link href="/blog" className="text-gray-400 hover:text-white transition-colors">Blog</Link></li>
+              <li><Link href="/enterprise" className="text-gray-400 hover:text-white transition-colors">Enterprise</Link></li>
+            </ul>
           </div>
 
           {/* Product */}
           <div>
-            <h4 className="text-white font-semibold mb-4">Product</h4>
-            <ul className="space-y-2 text-sm">
-              <li><Link href="#features" className="hover:text-white transition-colors">Features</Link></li>
-              <li><Link href="#demo" className="hover:text-white transition-colors">Demo</Link></li>
+            <h4 className="text-white font-semibold mb-6 uppercase tracking-wider text-sm">Product</h4>
+            <ul className="space-y-4 text-sm">
+              <li><Link href="/forms" className="text-gray-400 hover:text-white transition-colors">Forms</Link></li>
+              <li><Link href="/scheduling" className="text-gray-400 hover:text-white transition-colors">Scheduling</Link></li>
+              <li><Link href="/pdf" className="text-gray-400 hover:text-white transition-colors">PDF generation</Link></li>
+              <li><Link href="/payments" className="text-gray-400 hover:text-white transition-colors">Payments</Link></li>
+              <li><Link href="/workflows" className="text-gray-400 hover:text-white transition-colors">Workflows</Link></li>
+              <li><Link href="/conversion" className="text-gray-400 hover:text-white transition-colors">Conversion kit</Link></li>
+              <li><Link href="/zite" className="text-gray-400 hover:text-white transition-colors">Zite</Link></li>
             </ul>
           </div>
 
-          {/* Company */}
+          {/* AI Tools */}
           <div>
-            <h4 className="text-white font-semibold mb-4">Company</h4>
-            <ul className="space-y-2 text-sm">
-              <li><Link href="/about" className="hover:text-white transition-colors">About</Link></li>
-              <li><Link href="/blog" className="hover:text-white transition-colors">Blog</Link></li>
-              <li><Link href="/careers" className="hover:text-white transition-colors">Careers</Link></li>
+            <h4 className="text-white font-semibold mb-6 uppercase tracking-wider text-sm">AI Tools</h4>
+            <ul className="space-y-4 text-sm">
+              <li><Link href="/ai-quiz" className="text-gray-400 hover:text-white transition-colors">AI Quiz Maker</Link></li>
+              <li><Link href="/ai-form" className="text-gray-400 hover:text-white transition-colors">AI Form Builder</Link></li>
+              <li><Link href="/ai-survey" className="text-gray-400 hover:text-white transition-colors">AI Survey Maker</Link></li>
+              <li><Link href="/google-import" className="text-gray-400 hover:text-white transition-colors">Import Google Form</Link></li>
+              <li><Link href="/ai-signature" className="text-gray-400 hover:text-white transition-colors">AI Signature Maker</Link></li>
+              <li><Link href="/survey-questions" className="text-gray-400 hover:text-white transition-colors">Survey questions</Link></li>
+              <li><Link href="/pdf-to-form" className="text-gray-400 hover:text-white transition-colors">PDF to Form</Link></li>
             </ul>
           </div>
 
-          {/* Legal */}
+          {/* Resources */}
           <div>
-            <h4 className="text-white font-semibold mb-4">Legal</h4>
-            <ul className="space-y-2 text-sm">
-              <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link></li>
-              <li><Link href="/terms" className="hover:text-white transition-colors">Terms</Link></li>
+            <h4 className="text-white font-semibold mb-6 uppercase tracking-wider text-sm">Resources</h4>
+            <ul className="space-y-4 text-sm">
+              <li><Link href="/help" className="text-gray-400 hover:text-white transition-colors">Help Center</Link></li>
+              <li><Link href="/about" className="text-gray-400 hover:text-white transition-colors">About MaticsApp</Link></li>
+              <li><Link href="/status" className="text-gray-400 hover:text-white transition-colors">Status</Link></li>
+              <li><Link href="/form-builder" className="text-gray-400 hover:text-white transition-colors">Form builder comparison</Link></li>
+              <li><Link href="/vs-jotform" className="text-gray-400 hover:text-white transition-colors">MaticsApp vs Jotform</Link></li>
+              <li><Link href="/vs-typeform" className="text-gray-400 hover:text-white transition-colors">vs Typeform</Link></li>
+              <li><Link href="/vs-google-forms" className="text-gray-400 hover:text-white transition-colors">vs Google Forms</Link></li>
+              <li><Link href="/vs-surveymonkey" className="text-gray-400 hover:text-white transition-colors">vs SurveyMonkey</Link></li>
+              <li><Link href="/vs-formstack" className="text-gray-400 hover:text-white transition-colors">vs Formstack</Link></li>
+              <li><Link href="/vs-formassembly" className="text-gray-400 hover:text-white transition-colors">vs FormAssembly</Link></li>
             </ul>
           </div>
         </div>
 
-        <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm">© 2026 Matic. All rights reserved.</p>
-          <div className="flex gap-6">
-            <a href="#" className="hover:text-white transition-colors">Twitter</a>
-            <a href="#" className="hover:text-white transition-colors">LinkedIn</a>
-            <a href="#" className="hover:text-white transition-colors">GitHub</a>
+        {/* Bottom Footer */}
+        <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center">
+          <div className="flex flex-wrap gap-6 mb-4 md:mb-0">
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-full">
+              <span className="text-xs font-semibold">SOC II Type 2</span>
+              <span className="text-xs">Compliant</span>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-full">
+              <span className="text-xs font-semibold">256-bit AES</span>
+              <span className="text-xs">Data encryption</span>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-full">
+              <span className="text-xs font-semibold">24/5 Tech support</span>
+              <span className="text-xs">Here if you need us</span>
+            </div>
+          </div>
+          <div className="flex gap-6 text-xs text-gray-400">
+            <Link href="/press" className="hover:text-white transition-colors">Press kit</Link>
+            <Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-white transition-colors">Terms</Link>
+            <span>© 2026 MaticsApp, Inc.</span>
           </div>
         </div>
       </div>
@@ -1792,7 +2466,7 @@ export default function LandingPage() {
     <main className="min-h-screen">
       <Navigation />
       <HeroSection />
-      <InteractiveWorkspaceDemo />
+      <ItAllStartsSection />
       <FeaturesSection />
       <CTASection />
       <Footer />
