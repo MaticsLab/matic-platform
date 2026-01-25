@@ -1943,7 +1943,7 @@ function InteractiveFormDemo() {
 // Interactive Workspace Demo - Using Real Application Components
 // ============================================================================
 function InteractiveWorkspaceDemo() {
-  const [activeView, setActiveView] = useState<'portal' | 'email-ai' | 'table'>('portal')
+  const [activeView, setActiveView] = useState<'portal' | 'builder' | 'email-ai' | 'table'>('portal')
   const [portalLayout, setPortalLayout] = useState<'sidebar' | 'tabbed' | 'minimal'>('sidebar')
   const [isVisible, setIsVisible] = useState(false)
   const sectionRef = useRef<HTMLDivElement>(null)
