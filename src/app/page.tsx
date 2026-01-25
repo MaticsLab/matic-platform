@@ -1943,7 +1943,7 @@ function InteractiveFormDemo() {
 // Interactive Workspace Demo - Using Real Application Components
 // ============================================================================
 function InteractiveWorkspaceDemo() {
-  const [activeView, setActiveView] = useState<'portal' | 'builder' | 'email-ai' | 'table'>('portal')
+  const [activeView, setActiveView] = useState<'portal' | 'email-ai' | 'table'>('portal')
   const [portalLayout, setPortalLayout] = useState<'sidebar' | 'tabbed' | 'minimal'>('sidebar')
   const [isVisible, setIsVisible] = useState(false)
   const sectionRef = useRef<HTMLDivElement>(null)
@@ -1974,7 +1974,6 @@ function InteractiveWorkspaceDemo() {
           <div className="flex justify-center gap-2 mb-8">
             {[
               { key: 'portal', icon: LayoutDashboard, label: 'Public Portal' },
-              { key: 'builder', icon: Settings, label: 'Portal Builder' },
               { key: 'email-ai', icon: Sparkles, label: 'AI Email Composer' },
               { key: 'table', icon: Table2, label: 'Data Tables' },
             ].map(({ key, icon: Icon, label }) => (
@@ -2005,7 +2004,6 @@ function InteractiveWorkspaceDemo() {
               <div className="flex-1 text-center">
                 <span className="text-sm text-gray-500">
                   {activeView === 'portal' && 'Applicant Portal'}
-                  {activeView === 'builder' && 'Portal Builder'}
                   {activeView === 'email-ai' && 'AI Email Composer'}
                   {activeView === 'table' && 'Data Table'}
                   {' — Matic Platform'}
@@ -2023,13 +2021,6 @@ function InteractiveWorkspaceDemo() {
             <div className="min-h-[600px] bg-gray-50/30">
               {activeView === 'portal' && (
                 <RealPortalDemo portalLayout={portalLayout} setPortalLayout={setPortalLayout} />
-              )}
-              {activeView === 'builder' && (
-                <iframe 
-                  src="/portal-builder-demo" 
-                  className="w-full h-[700px] border-0"
-                  title="Portal Builder Demo"
-                />
               )}
               {activeView === 'email-ai' && <RealEmailAIDemo />}
               {activeView === 'table' && (
