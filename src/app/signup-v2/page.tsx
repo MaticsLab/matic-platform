@@ -56,6 +56,7 @@ export default function AuthPage() {
       } else {
         await signUp.email({
           email,
+          name: email.split('@')[0], // Use email prefix as default name
           password: password || 'temp-password', // This will be handled by email verification
           callbackURL: '/workspaces'
         })
