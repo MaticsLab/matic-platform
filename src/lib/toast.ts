@@ -73,3 +73,23 @@ export const toast = {
     return sonnerToast.loading(message, options)
   },
 }
+
+// Backward compatibility: showToast function for legacy code
+export function showToast(
+  message: string, 
+  type: 'info' | 'success' | 'warning' | 'error' = 'info', 
+  duration = 5000
+) {
+  const options = { duration }
+  switch (type) {
+    case 'success':
+      return toast.success(message, options)
+    case 'error':
+      return toast.error(message, options)
+    case 'warning':
+      return toast.warning(message, options)
+    case 'info':
+    default:
+      return toast.info(message, options)
+  }
+}
