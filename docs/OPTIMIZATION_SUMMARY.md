@@ -86,17 +86,6 @@ Three functions for automatic cleanup:
 
 ### Immediate (Required):
 
-1. **Backup Database**:
-   ```bash
-   pg_dump "postgresql://postgres:Alfredo5710s674011@db.bpvdnphvunezonyrjwub.supabase.co:5432/postgres" \
-     > backup_$(date +%Y%m%d_%H%M%S).sql
-   ```
-
-2. **Run Migration 019**:
-   ```bash
-   psql "postgresql://postgres:Alfredo5710s674011@db.bpvdnphvunezonyrjwub.supabase.co:5432/postgres" \
-     < docs/migrations/019_schema_cleanup_and_optimization.sql
-   ```
 
 3. **Initialize Job Processor** in `go-backend/main.go`:
    ```go

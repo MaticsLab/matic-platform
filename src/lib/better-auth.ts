@@ -4,6 +4,13 @@ import { organization, multiSession, magicLink } from "better-auth/plugins";
 import { Pool } from "pg";
 import { Resend } from "resend";
 
+// Type definitions for Better Auth callbacks
+interface UserForReset {
+  id: string;
+  email: string;
+  name?: string;
+}
+
 // Check if we're in a build environment (no DATABASE_URL)
 const isBuildTime = !process.env.DATABASE_URL;
 
@@ -80,7 +87,7 @@ const authConfig = {
     requireEmailVerification: false,
     autoSignIn: true,
     // Password reset configuration
-    sendResetPassword: async ({ user, url }) => {
+    sendResetPassword: async ({ user, url }: { user: UserForReset; url: string }) => {
       if (!resend) {
         console.error("[Better Auth] Resend not configured - RESEND_API_KEY missing");
         return;
@@ -198,7 +205,7 @@ const authConfig = {
       
       // Organization lifecycle hooks
       organizationHooks: {
-        beforeCreateOrganization: async ({ organization, user }) => {
+        beforeCreateOrganization: async ({ organization, user }: { organization: any; user: any }) => {
           // Custom validation logic
           console.log(`Creating organization: ${organization.name} for user: ${user.email}`);
           
@@ -211,7 +218,7 @@ const authConfig = {
           };
         },
         
-        afterCreateOrganization: async ({ organization, member, user }) => {
+        afterCreateOrganization: async ({ organization, member, user }: { organization: any; member: any; user: any }) => {
           // Post-creation setup
           console.log(`Organization ${organization.name} created successfully`);
           
@@ -220,23 +227,23 @@ const authConfig = {
         },
         
         // Member lifecycle hooks
-        beforeAddMember: async ({ member, user, organization }) => {
+        beforeAddMember: async ({ member, user, organization }: { member: any; user: any; organization: any }) => {
           console.log(`Adding ${user.email} to ${organization.name}`);
           return { data: { ...member } };
         },
         
-        afterAddMember: async ({ member, user, organization }) => {
+        afterAddMember: async ({ member, user, organization }: { member: any; user: any; organization: any }) => {
           // Send welcome email, setup user resources
           console.log(`${user.email} successfully added to ${organization.name}`);
         },
         
         // Invitation lifecycle hooks
-        afterCreateInvitation: async ({ invitation, inviter, organization }) => {
+        afterCreateInvitation: async ({ invitation, inviter, organization }: { invitation: any; inviter: any; organization: any }) => {
           // Track invitation metrics
           console.log(`Invitation sent to ${invitation.email} for ${organization.name}`);
         },
         
-        afterAcceptInvitation: async ({ invitation, member, user, organization }) => {
+        afterAcceptInvitation: async ({ invitation, member, user, organization }: { invitation: any; member: any; user: any; organization: any }) => {
           // Setup new member resources
           console.log(`${user.email} accepted invitation to ${organization.name}`);
         },
@@ -250,7 +257,7 @@ const authConfig = {
     
     // Magic Link plugin for passwordless authentication
     magicLink({
-      sendMagicLink: async ({ email, url, token }, ctx) => {
+      sendMagicLink: async ({ email, url, token }: { email: string; url: string; token: string }, ctx: any) => {
         if (!resend) {
           console.error("[Better Auth] Resend not configured - RESEND_API_KEY missing");
           return;
@@ -405,14 +412,14 @@ const authConfig = {
     additionalFields: {
       // Link to Supabase user for migration
       supabaseUserId: {
-        type: "string",
+        type: "string" as const,
         required: false,
         input: false,
         fieldName: "supabase_user_id",
       },
       // Track if user migrated from Supabase
       migratedFromSupabase: {
-        type: "boolean",
+        type: "boolean" as const,
         required: false,
         defaultValue: false,
         input: false,
@@ -420,13 +427,13 @@ const authConfig = {
       },
       // Store user's full name separately
       fullName: {
-        type: "string",
+        type: "string" as const,
         required: false,
         fieldName: "full_name",
       },
       // Avatar URL
       avatarUrl: {
-        type: "string",
+        type: "string" as const,
         required: false,
         fieldName: "avatar_url",
       },
@@ -483,7 +490,7 @@ const authConfig = {
         name: "better-auth.session_token",
         attributes: {
           secure: process.env.NODE_ENV === "production",
-          sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+          sameSite: process.env.NODE_ENV === "production" ? ("none" as const) : ("lax" as const),
           domain: process.env.NODE_ENV === "production" ? ".maticsapp.com" : undefined,
         },
       },

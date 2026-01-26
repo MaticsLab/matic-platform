@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import * as React from 'react'
 import {
   Building2,
   Users,
@@ -12,6 +13,7 @@ import {
   Mail,
   MoreHorizontal,
   ChevronRight,
+  Plus,
 } from 'lucide-react'
 
 import {
@@ -41,6 +43,8 @@ import {
   DropdownMenuTrigger,
 } from '@/ui-components/dropdown-menu'
 import { Button } from '@/ui-components/button'
+import { Input } from '@/ui-components/input'
+import { Label } from '@/ui-components/label'
 import { Badge } from '@/ui-components/badge'
 import { Separator } from '@/ui-components/separator'
 import { useActiveOrganization, useListOrganizations, organizationAPI } from '@/lib/better-auth-client'
@@ -52,8 +56,11 @@ interface OrganizationMenuProps {
 
 export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
   const [showDetails, setShowDetails] = useState(false)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [createForm, setCreateForm] = useState({ name: '', slug: '' })
+  const [creating, setCreating] = useState(false)
   const { data: currentOrg } = useActiveOrganization()
-  const { data: organizations, isLoading: orgsLoading, refetch: refetchOrgs } = useListOrganizations()
+  const { data: organizations, isPending: orgsLoading, refetch: refetchOrgs } = useListOrganizations()
   const [members, setMembers] = useState<any[]>([])
   const [invitations, setInvitations] = useState<any[]>([])
   const [loadingMembers, setLoadingMembers] = useState(false)
@@ -64,14 +71,18 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
     setLoadingMembers(true)
     try {
       // Load members
-      const membersResponse = await organizationAPI.listMembers({ orgId: currentOrg.id })
-      if (membersResponse.data) {
-        setMembers(membersResponse.data)
+      const membersResponse = await organizationAPI.listMembers({
+        query: { organizationId: currentOrg.id }
+      })
+      if (membersResponse.data?.members) {
+        setMembers(membersResponse.data.members)
       }
 
       // Load invitations
-      const invitationsResponse = await organizationAPI.listInvitations({ orgId: currentOrg.id })
-      if (invitationsResponse.data) {
+      const invitationsResponse = await organizationAPI.listInvitations({
+        query: { organizationId: currentOrg.id }
+      })
+      if (invitationsResponse.data?.length) {
         setInvitations(invitationsResponse.data)
       }
     } catch (error) {
@@ -114,11 +125,131 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
     toast.info('Invite dialog would open here')
   }
 
+  const handleCreateOrganization = async () => {
+    if (!createForm.name.trim()) {
+      toast.error('Organization name is required')
+      return
+    }
+    
+    try {
+      setCreating(true)
+      const result = await organizationAPI.create({
+        name: createForm.name.trim(),
+        slug: createForm.slug.trim() || createForm.name.toLowerCase().replace(/\s+/g, '-'),
+      })
+      
+      if (result.error) {
+        toast.error(result.error.message || 'Failed to create organization')
+        return
+      }
+      
+      toast.success(`Organization "${createForm.name}" created successfully!`)
+      setShowCreateDialog(false)
+      setCreateForm({ name: '', slug: '' })
+      refetchOrgs()
+      
+    } catch (error: any) {
+      console.error('Failed to create organization:', error)
+      toast.error(error?.message || 'Failed to create organization')
+    } finally {
+      setCreating(false)
+    }
+  }
+
   if (!currentOrg) {
+    // Check if user has organizations but none is active
+    const hasOrganizations = organizations && organizations.length > 0
+    
     return (
-      <div className="p-3 text-center">
-        <Building2 className="h-6 w-6 text-gray-400 mx-auto mb-1" />
-        <p className="text-xs text-gray-500">No organization selected</p>
+      <div className="min-w-72">
+        <div className="p-3 text-center">
+          <Building2 className="h-6 w-6 text-gray-400 mx-auto mb-2" />
+          <p className="text-xs text-gray-500 mb-3">
+            {hasOrganizations ? 'No organization selected' : 'No organizations yet'}
+          </p>
+          
+          {hasOrganizations ? (
+            <div className="space-y-2">
+              <p className="text-xs text-gray-500">Select an organization:</p>
+              <div className="space-y-1">
+                {organizations?.map((org) => (
+                  <Button
+                    key={org.id}
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={async () => {
+                      try {
+                        await organizationAPI.setActive({ organizationId: org.id })
+                        toast.success(`Switched to ${org.name}`)
+                        refetchOrgs()
+                      } catch (error) {
+                        toast.error('Failed to set active organization')
+                      }
+                    }}
+                  >
+                    {org.name}
+                  </Button>
+                ))}
+              </div>
+              <Separator className="my-2" />
+            </div>
+          ) : null}
+          
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="w-full">
+                <Plus className="h-3 w-3 mr-2" />
+                Create Organization
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create Organization</DialogTitle>
+                <DialogDescription>
+                  Create a new organization to collaborate with your team.
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="org-name">Organization Name</Label>
+                  <Input
+                    id="org-name"
+                    placeholder="Enter organization name"
+                    value={createForm.name}
+                    onChange={(e) => setCreateForm({ 
+                      ...createForm, 
+                      name: e.target.value,
+                      slug: createForm.slug || e.target.value.toLowerCase().replace(/\s+/g, '-')
+                    })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="org-slug">Organization Slug</Label>
+                  <Input
+                    id="org-slug"
+                    placeholder="organization-slug"
+                    value={createForm.slug}
+                    onChange={(e) => setCreateForm({ ...createForm, slug: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Used in URLs and must be unique
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-2 mt-6">
+                <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateOrganization} disabled={creating}>
+                  {creating ? 'Creating...' : 'Create Organization'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
     )
   }
@@ -134,7 +265,7 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
           <div className="flex-1 min-w-0">
             <h3 className="font-medium text-sm truncate">{currentOrg.name}</h3>
             <p className="text-xs text-gray-500 truncate">
-              {currentOrg.description || 'Organization'}
+              Organization
             </p>
           </div>
           <Dialog open={showDetails} onOpenChange={setShowDetails}>
@@ -174,12 +305,6 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
                       <span className="text-sm text-gray-500">Slug:</span>
                       <span className="text-sm font-mono">{currentOrg.slug}</span>
                     </div>
-                    {currentOrg.description && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">Description:</span>
-                        <span className="text-sm">{currentOrg.description}</span>
-                      </div>
-                    )}
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-500">Created:</span>
                       <span className="text-sm">

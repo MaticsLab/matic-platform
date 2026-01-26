@@ -247,12 +247,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		portalDashboard := api.Group("/portal")
 		// TODO: Add portal auth middleware for proper security
 		{
-		portalDashboard.PUT("/profile/:applicant_id", handlers.PortalUpdateProfile)
-		portalDashboard.PUT("/profile/:applicant_id/password", handlers.PortalChangePassword)
-		portalDashboard.POST("/sync-better-auth-applicant", handlers.PortalSyncBetterAuthApplicant)
-		portalDashboard.GET("/applications/:id", handlers.GetApplicantDashboard)
-		portalDashboard.GET("/applications/:id/activities", handlers.ListPortalActivities)
-		portalDashboard.POST("/applications/:id/activities", handlers.CreatePortalActivity)
+			portalDashboard.PUT("/profile/:applicant_id", handlers.PortalUpdateProfile)
+			portalDashboard.PUT("/profile/:applicant_id/password", handlers.PortalChangePassword)
+			portalDashboard.POST("/sync-better-auth-applicant", handlers.PortalSyncBetterAuthApplicant)
+			portalDashboard.GET("/applications/:id", handlers.GetApplicantDashboard)
+			portalDashboard.GET("/applications/:id/activities", handlers.ListPortalActivities)
+			portalDashboard.POST("/applications/:id/activities", handlers.CreatePortalActivity)
 			portalDashboard.POST("/applications/:id/activities/read", handlers.MarkActivitiesRead)
 
 			// Document routes
@@ -297,6 +297,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		// Public Dashboard Layout (for applicant portal to render their dashboard)
 		// Dashboard config is not sensitive - just layout metadata
 		api.GET("/forms/:id/dashboard", handlers.GetDashboardLayout)
+
+		// Public Invitation Routes (for viewing invitation details)
+		api.GET("/invitations/by-token/:token", handlers.GetInvitationByToken)
 
 		// Protected routes - require authentication
 		protected := api.Group("")
@@ -349,7 +352,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				invitations.POST("", handlers.CreateInvitation)
 				invitations.DELETE("/:id", handlers.RevokeInvitation)
 				invitations.POST("/:id/resend", handlers.ResendInvitation)
-				invitations.GET("/by-token/:token", handlers.GetInvitationByToken)
+				// Note: GetInvitationByToken is public (above) so users can see details before logging in
 				invitations.POST("/accept/:token", handlers.AcceptInvitation)
 				invitations.POST("/decline/:token", handlers.DeclineInvitation)
 			}
@@ -510,7 +513,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				forms.GET("", handlers.ListForms)
 				forms.GET("/list", handlers.ListFormsOptimized) // Optimized endpoint for Applications Hub (must be before /:id)
 				forms.POST("", handlers.CreateForm)
-				forms.GET("/:id", handlers.GetForm) // This must come after /list to avoid route conflicts
+				forms.GET("/:id", handlers.GetForm)                                // This must come after /list to avoid route conflicts
 				forms.GET("/:id/full", handlers.GetFormWithSubmissionsAndWorkflow) // Combined endpoint for Review Workspace
 				forms.PATCH("/:id", handlers.UpdateForm)
 				forms.PUT("/:id/structure", handlers.UpdateFormStructure)    // Add this line
