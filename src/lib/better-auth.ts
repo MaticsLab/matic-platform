@@ -497,18 +497,6 @@ const authConfig = {
         },
       },
     },
-  },
-
-  // Rate Limiting for API protection
-  rateLimit: {
-    enabled: true,
-    window: 60, // 1 minute window
-    max: 100, // 100 requests per minute per IP
-    storage: "memory", // Use memory for single-server, "database" for distributed
-  },
-
-  // Advanced security settings
-  advanced: {
     // Cross-subdomain cookie sharing for *.maticsapp.com
     crossSubdomainCookies: {
       enabled: true,
@@ -516,11 +504,19 @@ const authConfig = {
     },
     // Cookie attributes for security
     defaultCookieAttributes: {
-      sameSite: "lax", // Balance security and usability
+      sameSite: "lax" as const, // Balance security and usability
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       path: "/",
     },
+  },
+
+  // Rate Limiting for API protection
+  rateLimit: {
+    enabled: true,
+    window: 60, // 1 minute window
+    max: 100, // 100 requests per minute per IP
+    storage: "memory" as const, // Use memory for single-server, "database" for distributed
   },
 };
 

@@ -417,7 +417,7 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
                           <div key={member.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors">
                             <div className="flex items-center gap-3 flex-1 min-w-0">
                               <Avatar className="h-9 w-9 border-2 border-gray-100">
-                                <AvatarImage src={member.user?.image} />
+                                <AvatarImage src={member.user?.image || undefined} />
                                 <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xs font-medium">
                                   {member.user?.name?.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 
                                    member.user?.email?.substring(0, 2).toUpperCase() || 'U'}
@@ -428,22 +428,15 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
                                   <span className="text-sm font-medium truncate">
                                     {member.user?.name || 'Unknown User'}
                                   </span>
-                                  {member.user?.email_verified && (
-                                    <Badge variant="outline" className="text-xs px-1.5 py-0 border-green-200 text-green-700">
-                                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                      </svg>
-                                    </Badge>
-                                  )}
                                 </div>
                                 <div className="text-xs text-gray-500 truncate">
                                   {member.user?.email}
                                 </div>
                                 <div className="text-xs text-gray-400 mt-0.5">
-                                  Joined {new Date(member.createdAt).toLocaleDateString('en-US', { 
+                                  Joined {new Date(member.created_at).toLocaleDateString('en-US', { 
                                     month: 'short', 
                                     day: 'numeric',
-                                    year: new Date(member.createdAt).getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+                                    year: new Date(member.created_at).getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
                                   })}
                                 </div>
                               </div>
@@ -494,21 +487,21 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
                               <div className="flex-1 min-w-0">
                                 <div className="text-sm font-medium truncate">{invitation.email}</div>
                                 <div className="text-xs text-gray-500 flex items-center gap-1">
-                                  <span>Invited by</span>
+                                  <span>Role:</span>
                                   <span className="font-medium">
-                                    {invitation.inviter?.user?.name || invitation.inviter?.user?.email || 'Unknown'}
+                                    {Array.isArray(invitation.role) ? invitation.role.join(', ') : invitation.role}
                                   </span>
                                 </div>
                                 <div className="text-xs text-gray-400 mt-0.5">
-                                  {new Date(invitation.createdAt).toLocaleDateString('en-US', { 
+                                  {new Date(invitation.created_at).toLocaleDateString('en-US', { 
                                     month: 'short', 
                                     day: 'numeric',
                                     hour: 'numeric',
                                     minute: '2-digit'
                                   })}
-                                  {invitation.expiresAt && (
+                                  {invitation.expires_at && (
                                     <span className="ml-2">
-                                      • Expires {new Date(invitation.expiresAt).toLocaleDateString('en-US', { 
+                                      • Expires {new Date(invitation.expires_at).toLocaleDateString('en-US', { 
                                         month: 'short', 
                                         day: 'numeric'
                                       })}

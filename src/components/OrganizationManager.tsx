@@ -358,10 +358,10 @@ export function OrganizationManager() {
                         {getRoleIcon(member.role)}
                         <div>
                           <p className="font-medium">
-                            {member.user.name || member.user.email}
+                            {member.user?.name || member.user?.email || 'Unknown'}
                           </p>
-                          {member.user.name && (
-                            <p className="text-sm text-gray-500">{member.user.email}</p>
+                          {member.user?.name && (
+                            <p className="text-sm text-gray-500">{member.user?.email}</p>
                           )}
                         </div>
                       </div>
@@ -399,11 +399,11 @@ export function OrganizationManager() {
                       <div>
                         <p className="font-medium">{invitation.email}</p>
                         <p className="text-sm text-gray-500">
-                          Invited by {invitation.inviter.user.name || invitation.inviter.user.email}
+                          Role: {Array.isArray(invitation.role) ? invitation.role.join(', ') : invitation.role}
                         </p>
-                        {invitation.expiresAt && (
+                        {invitation.expires_at && (
                           <p className="text-xs text-gray-400">
-                            Expires: {new Date(invitation.expiresAt).toLocaleDateString()}
+                            Expires: {new Date(invitation.expires_at).toLocaleDateString()}
                           </p>
                         )}
                       </div>
