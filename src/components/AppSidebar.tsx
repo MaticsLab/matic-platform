@@ -46,6 +46,7 @@ import {
 import { Switch } from '@/ui-components/switch'
 import { useTabContext } from './WorkspaceTabProvider'
 import ModeToggle from '@/components/mode-toggle'
+import { OrganizationMenu } from './OrganizationMenu'
 import { cn } from '@/lib/utils'
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -240,7 +241,7 @@ export function AppSidebar({
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="w-56 rounded-lg"
+                className="min-w-80 rounded-lg"
                 side="right"
                 align="end"
                 sideOffset={4}
@@ -263,6 +264,16 @@ export function AppSidebar({
                     </div>
                   </div>
                 </DropdownMenuLabel>
+                
+                <DropdownMenuSeparator />
+                
+                {/* Organization Section */}
+                <div className="p-1">
+                  <div className="text-xs font-medium text-gray-500 px-2 py-1.5">
+                    Organization
+                  </div>
+                  <OrganizationMenu />
+                </div>
                 
                 <DropdownMenuSeparator />
                 
