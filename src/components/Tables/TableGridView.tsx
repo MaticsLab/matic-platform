@@ -5,8 +5,6 @@ import { Plus, ChevronDown, Trash2, Copy, Settings, EyeOff, Eye, Grid3x3, Kanban
 import { ColumnEditorModal } from './ColumnEditorModal'
 import { LinkField } from './LinkField'
 import { AddressField, AddressValue } from './AddressField'
-import { pulseSupabase } from '@/lib/api/pulse-supabase'
-import type { PulseEnabledTable } from '@/lib/api/pulse-client'
 import { tablesGoClient } from '@/lib/api/tables-go-client'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/better-auth-client'
@@ -22,6 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/ui-components/popover
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/ui-components/sheet'
 import { Textarea } from '@/ui-components/textarea'
 import { toast } from 'sonner'
+import { LoadingOverlay } from '@/components/LoadingOverlay'
 
 interface Column {
   id: string
@@ -132,8 +131,6 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
     barcode: string
     position: { x: number; y: number }
   } | null>(null)
-  const [pulseConfig, setPulseConfig] = useState<PulseEnabledTable | null>(null)
-  const [isPulseEnabled, setIsPulseEnabled] = useState(false)
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
   const [resizingColumn, setResizingColumn] = useState<{ id: string; startX: number; startWidth: number } | null>(null)
@@ -424,7 +421,6 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
 
   useEffect(() => {
     loadTableData()
-    loadPulseConfig()
   }, [tableId])
 
   // Set up real-time subscription for table_row_links changes
@@ -514,25 +510,6 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
       return () => document.removeEventListener('click', handleClickOutside)
     }
   }, [activeColumnMenu])
-
-  // Load Pulse configuration
-  const loadPulseConfig = async () => {
-    try {
-      const config = await pulseSupabase.getPulseConfig(tableId)
-      if (config && config.enabled) {
-        setPulseConfig(config)
-        setIsPulseEnabled(true)
-        console.log('✅ Pulse enabled for this table:', config)
-      } else {
-        setPulseConfig(null)
-        setIsPulseEnabled(false)
-      }
-    } catch (error) {
-      // Pulse not enabled - that's ok
-      setPulseConfig(null)
-      setIsPulseEnabled(false)
-    }
-  }
 
   // Filter and sort rows
   const filteredRows = useMemo(() => {
@@ -1693,14 +1670,7 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
   }
 
   if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading table...</p>
-        </div>
-      </div>
-    )
+    return <LoadingOverlay message="Loading table..." fullScreen={false} />
   }
 
   if (currentView !== 'grid') {

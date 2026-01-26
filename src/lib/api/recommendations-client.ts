@@ -133,25 +133,38 @@ export const recommendationsClient = {
    */
   listFromPortal: async (submissionId: string): Promise<RecommendationRequest[]> => {
     const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
-    const response = await fetch(`${API_BASE}/portal/dashboard/recommendations?submission_id=${submissionId}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include', // Include portal auth cookie
-    })
-    
-    if (!response.ok) {
-      // Return empty array if no recommendations found or not authorized (404/401)
-      // This is expected if the endpoint doesn't exist yet or user has no recommendations
-      if (response.status === 404 || response.status === 401) {
+    try {
+      const response = await fetch(`${API_BASE}/portal/dashboard/recommendations?submission_id=${submissionId}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include portal auth cookie
+      })
+      
+      if (!response.ok) {
+        // Return empty array if no recommendations found or not authorized (404/401)
+        // This is expected if the endpoint doesn't exist yet or user has no recommendations
+        if (response.status === 404 || response.status === 401) {
+          return []
+        }
+        // For other errors, create an error object with status for better handling
+        const error: any = new Error('Failed to fetch recommendation requests')
+        error.status = response.status
+        throw error
+      }
+      
+      return response.json()
+    } catch (error: any) {
+      // Silently handle network errors (endpoint doesn't exist yet)
+      if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
         return []
       }
-      // For other errors, create an error object with status for better handling
-      const error: any = new Error('Failed to fetch recommendation requests')
-      error.status = response.status
+      // For 404/401, return empty array
+      if (error?.status === 404 || error?.status === 401) {
+        return []
+      }
+      // Re-throw other errors
       throw error
     }
-    
-    return response.json()
   },
 
   // Public endpoints (no auth required - for recommenders)

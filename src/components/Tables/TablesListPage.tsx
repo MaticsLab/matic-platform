@@ -5,9 +5,10 @@ import { Plus, Search, Table2, MoreVertical, Edit, Trash2, Copy, Upload } from '
 import { useTabContext } from '../WorkspaceTabProvider'
 import { CreateTableModal, TableFormData } from './CreateTableModal'
 import { CSVImportModal } from './CSVImportModal'
-import { getSessionToken } from '@/lib/supabase'
+import { getSessionToken } from '@/lib/auth-helpers'
 import { toast } from 'sonner'
 import type { DataTable } from '@/types/data-tables'
+import { LoadingOverlay } from '@/components/LoadingOverlay'
 
 const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'https://backend.maticslab.com/api/v1'
 
@@ -247,14 +248,7 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
   )
 
   if (loading) {
-    return (
-      <div className="h-full bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading tables...</p>
-        </div>
-      </div>
-    )
+    return <LoadingOverlay message="Loading tables..." fullScreen={false} />
   }
 
   return (

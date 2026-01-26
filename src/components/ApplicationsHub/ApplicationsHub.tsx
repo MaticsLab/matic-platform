@@ -40,6 +40,7 @@ import { formsClient } from '@/lib/api/forms-client'
 import { Form } from '@/types/forms'
 import { useSearch, HubSearchContext } from '@/components/Search'
 import { cn } from '@/lib/utils'
+import { LoadingOverlay } from '@/components/LoadingOverlay'
 
 interface ApplicationsHubProps {
   workspaceId: string
@@ -359,9 +360,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
       <div className="flex-1 overflow-y-auto bg-white border-l border-gray-200">
         <div className="p-6">
           {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-            </div>
+            <LoadingOverlay message="Loading applications..." fullScreen={false} />
           ) : filteredForms.length === 0 ? (
             <div className="text-center py-16">
               <GraduationCap className="w-12 h-12 text-gray-300 mx-auto mb-4" />

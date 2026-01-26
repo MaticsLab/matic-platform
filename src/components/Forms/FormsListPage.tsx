@@ -9,6 +9,7 @@ import { Badge } from '@/ui-components/badge'
 import { formsSupabase } from '@/lib/api/forms-supabase'
 import type { Form } from '@/types/forms'
 import { toast } from 'sonner'
+import { LoadingOverlay } from '@/components/LoadingOverlay'
 
 interface FormsListPageProps {
   workspaceId: string
@@ -75,14 +76,7 @@ export function FormsListPage({ workspaceId }: FormsListPageProps) {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-          <p className="text-gray-600">Loading forms...</p>
-        </div>
-      </div>
-    )
+    return <LoadingOverlay message="Loading forms..." fullScreen={false} />
   }
 
   if (forms.length === 0) {

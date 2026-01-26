@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/Jsanchez767/matic-platform/database"
 	"github.com/Jsanchez767/matic-platform/middleware"
@@ -11,6 +12,7 @@ import (
 	"github.com/Jsanchez767/matic-platform/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // Data Table Handlers
@@ -73,9 +75,20 @@ func GetDataTable(c *gin.Context) {
 	id := c.Param("id")
 
 	var table models.Table
-	if err := database.DB.Preload("Fields").
-		Preload("Fields.FieldType"). // Preload field type registry for each field
-		Preload("Views").
+	// PERFORMANCE OPTIMIZATION: Strategic preloading with field selection
+	// Only load essential fields to reduce data transfer and query time
+	if err := database.DB.
+		Preload("Fields", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, table_id, name, label, type, field_type_id, config, validation, position, width, is_visible, is_primary, created_at").
+				Preload("FieldType").
+				Where("is_visible = ?", true).
+				Order("position ASC")
+		}).
+		Preload("Views", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, table_id, name, type, description, config, filters, sorts, grouping, is_shared, is_locked, created_at").
+				Order("created_at DESC").
+				Limit(20) // Limit views to recent 20 to prevent loading hundreds
+		}).
 		First(&table, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data table not found"})
 		return
@@ -266,16 +279,49 @@ func DeleteDataTable(c *gin.Context) {
 func ListTableRows(c *gin.Context) {
 	tableID := c.Param("id")
 
+	// PERFORMANCE OPTIMIZATION: Add pagination to prevent loading thousands of rows
+	// Parse pagination parameters
+	limit := 100 // Default limit
+	offset := 0
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 500 {
+			limit = l // Max 500 rows per request
+		}
+	}
+
+	if offsetStr := c.Query("offset"); offsetStr != "" {
+		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+			offset = o
+		}
+	}
+
+	// Get total count for pagination metadata
+	var totalCount int64
+	if err := database.DB.Model(&models.Row{}).Where("table_id = ?", tableID).Count(&totalCount).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count rows"})
+		return
+	}
+
 	var rows []models.Row
-	// Fetch rows without invalid preloads (StageGroup relationship not defined in schema)
 	if err := database.DB.Where("table_id = ?", tableID).
 		Order("position ASC").
+		Limit(limit).
+		Offset(offset).
 		Find(&rows).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, rows)
+	// Return paginated response
+	c.JSON(http.StatusOK, gin.H{
+		"rows":        rows,
+		"total":       totalCount,
+		"limit":       limit,
+		"offset":      offset,
+		"has_more":    int64(offset+len(rows)) < totalCount,
+		"total_pages": (totalCount + int64(limit) - 1) / int64(limit),
+	})
 }
 
 type CreateTableRowInput struct {

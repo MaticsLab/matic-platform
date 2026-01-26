@@ -5,8 +5,7 @@ import { X, User, Lock, Loader2, Check, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
-import { portalAuthClient } from '@/lib/api/portal-auth-client'
-import { authClient } from '@/lib/better-auth-client'
+import { useApplicantProfile } from '@/hooks/useApplicantProfile'
 import { toast } from 'sonner'
 
 interface AccountSettingsModalProps {
@@ -51,7 +50,9 @@ export function AccountSettingsModal({
   const initialName = parseName(currentName)
   const [firstName, setFirstName] = useState(initialName.first)
   const [lastName, setLastName] = useState(initialName.last)
-  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
+  
+  // Use applicant profile hook for dual updates
+  const { updateProfile, loading: isUpdatingProfile } = useApplicantProfile(applicantId)
   
   // Password state
   const [currentPassword, setCurrentPassword] = useState('')
@@ -70,45 +71,17 @@ export function AccountSettingsModal({
       return
     }
 
-    setIsUpdatingProfile(true)
-    try {
-      const fullName = `${firstName.trim()} ${lastName.trim()}`.trim()
-      
-      // Update Better Auth user profile (if method is available)
-      try {
-        // Check if updateUser method exists on authClient
-        if (typeof (authClient as any).updateUser === 'function') {
-          const result = await (authClient as any).updateUser({
-            name: fullName,
-          })
-          
-          if (result?.error) {
-            console.warn('Failed to update Better Auth profile:', result.error)
-          }
-        }
-      } catch (baError) {
-        console.warn('Better Auth update failed, continuing with portal update:', baError)
-      }
-      
-      // Also update portal applicant for form-specific data
-      try {
-        await portalAuthClient.updateProfile(applicantId, { 
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          full_name: fullName
-        })
-      } catch (portalError) {
-        console.warn('Portal applicant update failed:', portalError)
-      }
-      
+    const fullName = `${firstName.trim()} ${lastName.trim()}`.trim()
+    const success = await updateProfile({
+      name: fullName,
+      first_name: firstName.trim(),
+      last_name: lastName.trim()
+    })
+    
+    if (success) {
       // Update both callbacks for backward compatibility
       onNameUpdate(fullName)
       onNameUpdateFull?.(firstName.trim(), lastName.trim())
-      toast.success('Profile updated successfully')
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update profile')
-    } finally {
-      setIsUpdatingProfile(false)
     }
   }
 

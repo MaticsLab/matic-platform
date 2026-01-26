@@ -1,4 +1,4 @@
-import { getSessionToken } from '../supabase'
+// Better Auth uses HTTP-only cookies - no manual token needed
 import { semanticSearchClient } from './semantic-search-client'
 import type { SemanticSearchResult } from '@/types/search'
 
@@ -56,13 +56,11 @@ class SearchClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const token = await getSessionToken()
-    
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
+      credentials: 'include', // Send cookies (Better Auth session)
       headers: {
         'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },
     })

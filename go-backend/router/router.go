@@ -40,10 +40,14 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Cookie", "X-Portal-Token"},
-		ExposeHeaders:    []string{"Content-Length"},
+		ExposeHeaders:    []string{"Content-Length", "X-Response-Time", "X-Response-Time-Ms"},
 		AllowCredentials: true,
 	}
 	r.Use(cors.New(corsConfig))
+
+	// PERFORMANCE MONITORING: Log slow requests (>500ms)
+	r.Use(middleware.PerformanceLoggingMiddleware(500))
+	r.Use(middleware.RequestTimingMiddleware())
 
 	// Load HTML templates
 	r.LoadHTMLGlob("templates/*")
@@ -69,7 +73,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				"workspaces":      "/api/v1/workspaces",
 				"tables":          "/api/v1/tables",
 				"forms":           "/api/v1/forms",
-				"activities_hubs": "/api/v1/activities-hubs",
 			},
 			"documentation": gin.H{
 				"html":   "/",
@@ -104,19 +107,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 						"get":    "GET /api/v1/workspaces/:id",
 						"update": "PATCH /api/v1/workspaces/:id",
 						"delete": "DELETE /api/v1/workspaces/:id",
-					},
-					"activities_hubs": gin.H{
-						"list":         "GET /api/v1/activities-hubs",
-						"create":       "POST /api/v1/activities-hubs",
-						"get":          "GET /api/v1/activities-hubs/:hub_id",
-						"get_by_slug":  "GET /api/v1/activities-hubs/by-slug/:slug",
-						"update":       "PATCH /api/v1/activities-hubs/:hub_id",
-						"delete":       "DELETE /api/v1/activities-hubs/:hub_id",
-						"list_tabs":    "GET /api/v1/activities-hubs/:hub_id/tabs",
-						"create_tab":   "POST /api/v1/activities-hubs/:hub_id/tabs",
-						"update_tab":   "PATCH /api/v1/activities-hubs/:hub_id/tabs/:tab_id",
-						"delete_tab":   "DELETE /api/v1/activities-hubs/:hub_id/tabs/:tab_id",
-						"reorder_tabs": "POST /api/v1/activities-hubs/:hub_id/tabs/reorder",
 					},
 					"tables": gin.H{
 						"list":          "GET /api/v1/tables",
@@ -157,19 +147,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 						"update": "PATCH /api/v1/workspaces/:id",
 						"delete": "DELETE /api/v1/workspaces/:id",
 					},
-					"activities_hubs": gin.H{
-						"list":         "GET /api/v1/activities-hubs",
-						"create":       "POST /api/v1/activities-hubs",
-						"get":          "GET /api/v1/activities-hubs/:hub_id",
-						"get_by_slug":  "GET /api/v1/activities-hubs/by-slug/:slug",
-						"update":       "PATCH /api/v1/activities-hubs/:hub_id",
-						"delete":       "DELETE /api/v1/activities-hubs/:hub_id",
-						"list_tabs":    "GET /api/v1/activities-hubs/:hub_id/tabs",
-						"create_tab":   "POST /api/v1/activities-hubs/:hub_id/tabs",
-						"update_tab":   "PATCH /api/v1/activities-hubs/:hub_id/tabs/:tab_id",
-						"delete_tab":   "DELETE /api/v1/activities-hubs/:hub_id/tabs/:tab_id",
-						"reorder_tabs": "POST /api/v1/activities-hubs/:hub_id/tabs/reorder",
-					},
+					
 					"tables": gin.H{
 						"list":          "GET /api/v1/tables",
 						"create":        "POST /api/v1/tables",
@@ -213,12 +191,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.POST("/forms/:id/submit", handlers.SubmitForm)
 		api.GET("/forms/:id/submission", handlers.GetFormSubmission)
 
-		// Portal Authentication Routes (Public) - Legacy
-		api.POST("/portal/signup", handlers.PortalSignup)
-		api.POST("/portal/login", handlers.PortalLogin)
-		api.POST("/portal/request-reset", handlers.PortalRequestReset)
-		api.POST("/portal/reset-password", handlers.PortalResetPassword)
-
 		// Portal Authentication V2 Routes (Better Auth based)
 		api.POST("/portal/v2/signup", handlers.PortalSignupV2)
 		api.POST("/portal/v2/login", handlers.PortalLoginV2)
@@ -247,9 +219,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		portalDashboard := api.Group("/portal")
 		// TODO: Add portal auth middleware for proper security
 		{
-			portalDashboard.PUT("/profile/:applicant_id", handlers.PortalUpdateProfile)
-			portalDashboard.PUT("/profile/:applicant_id/password", handlers.PortalChangePassword)
-			portalDashboard.POST("/sync-better-auth-applicant", handlers.PortalSyncBetterAuthApplicant)
+			// TODO: Implement these handlers
+			// portalDashboard.PUT("/profile/:applicant_id", handlers.PortalUpdateProfile)
+			// portalDashboard.PUT("/profile/:applicant_id/password", handlers.PortalChangePassword)
+			// portalDashboard.POST("/sync-better-auth-applicant", handlers.PortalSyncBetterAuthApplicant)
 			portalDashboard.GET("/applications/:id", handlers.GetApplicantDashboard)
 			portalDashboard.GET("/applications/:id/activities", handlers.ListPortalActivities)
 			portalDashboard.POST("/applications/:id/activities", handlers.CreatePortalActivity)
@@ -319,11 +292,19 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			workspaces := protected.Group("/workspaces")
 			{
 				workspaces.GET("", handlers.ListWorkspaces)
+				workspaces.GET("/init", handlers.GetWorkspacesInit) // Optimized endpoint for workspace page load
 				workspaces.POST("", handlers.CreateWorkspace)
 				workspaces.GET("/by-slug/:slug", handlers.GetWorkspaceBySlug) // Get by slug (before :id to avoid conflict)
 				workspaces.GET("/:id", handlers.GetWorkspace)
 				workspaces.PATCH("/:id", handlers.UpdateWorkspace)
 				workspaces.DELETE("/:id", handlers.DeleteWorkspace)
+
+				// Workspace Members
+				workspaces.GET("/:id/members-with-auth", handlers.GetWorkspaceMembersWithAuth)
+
+				// Workspace Invitations
+				workspaces.GET("/:id/invitations", handlers.GetWorkspaceInvitations)
+				workspaces.POST("/:id/invitations", handlers.CreateWorkspaceInvitation)
 
 				// Workspace Integrations (Google Drive, etc.)
 				workspaces.GET("/:id/integrations", handlers.ListWorkspaceIntegrations)
@@ -357,25 +338,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				invitations.POST("/decline/:token", handlers.DeclineInvitation)
 			}
 
-			// Activities Hubs (separate base path to avoid conflicts with /workspaces/:id)
-			activitiesHubs := protected.Group("/activities-hubs")
-			{
-				activitiesHubs.GET("", handlers.ListActivitiesHubs)                   // ?workspace_id=xxx
-				activitiesHubs.POST("", handlers.CreateActivitiesHub)                 // workspace_id in body
-				activitiesHubs.GET("/by-slug/:slug", handlers.GetActivitiesHubBySlug) // ?workspace_id=xxx
-				activitiesHubs.GET("/:hub_id", handlers.GetActivitiesHub)
-				activitiesHubs.PATCH("/:hub_id", handlers.UpdateActivitiesHub)
-				activitiesHubs.DELETE("/:hub_id", handlers.DeleteActivitiesHub)
-				activitiesHubs.PATCH("/:hub_id/visibility", handlers.ToggleHubVisibility) // Toggle hub visibility (admin only)
-
-				// Activities Hub Tabs
-				activitiesHubs.GET("/:hub_id/tabs", handlers.ListActivitiesHubTabs)
-				activitiesHubs.POST("/:hub_id/tabs", handlers.CreateActivitiesHubTab)
-				activitiesHubs.PATCH("/:hub_id/tabs/:tab_id", handlers.UpdateActivitiesHubTab)
-				activitiesHubs.DELETE("/:hub_id/tabs/:tab_id", handlers.DeleteActivitiesHubTab)
-				activitiesHubs.POST("/:hub_id/tabs/reorder", handlers.ReorderActivitiesHubTabs)
-			}
-
 			// Data Tables
 			tables := protected.Group("/tables")
 			{
@@ -384,7 +346,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				tables.GET("/:id", handlers.GetDataTable)
 				tables.PATCH("/:id", handlers.UpdateDataTable)
 				tables.DELETE("/:id", handlers.DeleteDataTable)
-				tables.PATCH("/:id/visibility", handlers.ToggleHubVisibility) // Toggle visibility (admin only)
 
 				// Table rows
 				tables.GET("/:id/rows", handlers.ListTableRows)
@@ -778,17 +739,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				email.GET("/queue/stats", handlers.GetEmailQueueStats)
 			}
 
-			// Change Requests (Approval Workflow)
-			changeRequests := protected.Group("/change-requests")
-			{
-				changeRequests.GET("", handlers.ListChangeRequests)
-				changeRequests.POST("", handlers.CreateChangeRequest)
-				changeRequests.GET("/:id", handlers.GetChangeRequest)
-				changeRequests.POST("/:id/review", handlers.ReviewChangeRequest)
-				changeRequests.POST("/:id/cancel", handlers.CancelChangeRequest)
-				changeRequests.GET("/row/:row_id", handlers.GetPendingChangesForRow)
-			}
-
 			// AI Reports
 			reports := protected.Group("/reports")
 			{
@@ -804,47 +754,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			{
 				admin.GET("/users", handlers.ListAuthUsers)
 				admin.DELETE("/users", handlers.DeleteUser)
-			}
-
-			// ============================================================
-			// HUB & MODULE MANAGEMENT
-			// ============================================================
-
-			// Hub modules with fields
-			hubs := protected.Group("/hubs")
-			{
-				// Get hub modules with full field info
-				hubs.GET("/:hub_id/modules", handlers.GetHubModulesWithFields)
-
-				// Enable module with fields
-				hubs.POST("/:hub_id/modules/enable", handlers.EnableModuleWithFields)
-
-				// Sub-modules
-				hubs.GET("/:hub_id/sub-modules", handlers.ListSubModules)
-				hubs.POST("/:hub_id/sub-modules", handlers.CreateSubModule)
-				hubs.POST("/:hub_id/sub-modules/reorder", handlers.ReorderSubModules)
-			}
-
-			// Sub-module operations
-			subModules := protected.Group("/sub-modules")
-			{
-				subModules.GET("/:sub_module_id", handlers.GetSubModule)
-				subModules.PATCH("/:sub_module_id", handlers.UpdateSubModule)
-				subModules.DELETE("/:sub_module_id", handlers.DeleteSubModule)
-				subModules.GET("/:sub_module_id/rows", handlers.GetSubModuleRows)
-			}
-
-			// Module field definitions
-			moduleFields := protected.Group("/modules")
-			{
-				moduleFields.GET("/:module_id/fields", handlers.GetModuleFields)
-			}
-
-			// Module history settings
-			moduleSettings := protected.Group("/module-configs")
-			{
-				moduleSettings.GET("/:config_id/history-settings", handlers.GetModuleHistorySettings)
-				moduleSettings.PUT("/:config_id/history-settings", handlers.UpdateModuleHistorySettings)
 			}
 
 			// AI Services

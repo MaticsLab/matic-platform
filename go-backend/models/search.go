@@ -1,11 +1,120 @@
 package models
 
 import (
+	"database/sql/driver"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 )
+
+// StringArray is a custom type for handling PostgreSQL text[] arrays
+type StringArray []string
+
+// Value implements the driver.Valuer interface for StringArray
+func (a StringArray) Value() (driver.Value, error) {
+	if a == nil {
+		return nil, nil
+	}
+	if len(a) == 0 {
+		return "{}", nil
+	}
+	// PostgreSQL array format: {"value1","value2","value3"}
+	var b strings.Builder
+	b.WriteString("{")
+	for i, s := range a {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		// Escape quotes and backslashes in the string
+		escaped := strings.ReplaceAll(s, `\`, `\\`)
+		escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+		b.WriteString(`"`)
+		b.WriteString(escaped)
+		b.WriteString(`"`)
+	}
+	b.WriteString("}")
+	return b.String(), nil
+}
+
+// Scan implements the sql.Scanner interface for StringArray
+func (a *StringArray) Scan(value interface{}) error {
+	if value == nil {
+		*a = nil
+		return nil
+	}
+
+	switch v := value.(type) {
+	case []byte:
+		return a.parseArray(string(v))
+	case string:
+		return a.parseArray(v)
+	default:
+		return fmt.Errorf("cannot scan type %T into StringArray", value)
+	}
+}
+
+// parseArray parses a PostgreSQL array string into a Go slice
+func (a *StringArray) parseArray(s string) error {
+	// Handle empty array
+	if s == "{}" {
+		*a = []string{}
+		return nil
+	}
+
+	// Remove surrounding braces
+	s = strings.TrimPrefix(s, "{")
+	s = strings.TrimSuffix(s, "}")
+
+	if s == "" {
+		*a = []string{}
+		return nil
+	}
+
+	// Split by comma and handle quoted strings
+	var result []string
+	var current strings.Builder
+	inQuotes := false
+	escaped := false
+
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+
+		if escaped {
+			current.WriteByte(c)
+			escaped = false
+			continue
+		}
+
+		if c == '\\' {
+			escaped = true
+			continue
+		}
+
+		if c == '"' {
+			inQuotes = !inQuotes
+			continue
+		}
+
+		if c == ',' && !inQuotes {
+			result = append(result, current.String())
+			current.Reset()
+			continue
+		}
+
+		current.WriteByte(c)
+	}
+
+	// Add the last element
+	if current.Len() > 0 || len(result) > 0 {
+		result = append(result, current.String())
+	}
+
+	*a = result
+	return nil
+}
 
 // SearchHistory model for tracking user searches (legacy - use SearchAnalytics)
 type SearchHistory struct {

@@ -4,10 +4,11 @@ import type { Edge, Node, XYPosition } from "@xyflow/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { Link2Off, Plus, Trash2 } from "lucide-react";
 import { nanoid } from "nanoid";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import { ConfirmOverlay } from "@/components/overlays/confirm-overlay";
 import { useOverlay } from "@/components/overlays/overlay-provider";
 import { cn } from "@/lib/utils";
+import { useClickOutside, useKeyPress } from "@/lib/event-utils";
 import {
   addNodeAtom,
   deleteEdgeAtom,
@@ -106,39 +107,9 @@ export function WorkflowContextMenu({
     onClose();
   }, [menuState, addNode, setSelectedNode, setActiveTab, onClose]);
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    if (!menuState) {
-      return;
-    }
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(event.target as globalThis.Node)
-      ) {
-        onClose();
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    // Use a small timeout to prevent the menu from closing immediately
-    const timeoutId = setTimeout(() => {
-      document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("keydown", handleEscape);
-    }, 0);
-
-    return () => {
-      clearTimeout(timeoutId);
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [menuState, onClose]);
+  // Close menu when clicking outside or pressing Escape
+  useClickOutside(menuRef, onClose, !!menuState);
+  useKeyPress("Escape", onClose);
 
   if (!menuState) {
     return null;

@@ -1,8 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSession } from '@/lib/better-auth-client'
 import { organizationAPI, useListOrganizations, useActiveOrganization } from '@/lib/better-auth-client'
+import { useOrganizationInvite } from '@/hooks/useOrganizationInvite'
+import { useOrganizationMembers } from '@/hooks/useOrganizationMembers'
+import { useOrganizationCreate } from '@/hooks/useOrganizationCreate'
 import { Button } from '@/ui-components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui-components/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/ui-components/dialog'
@@ -79,130 +82,51 @@ export function OrganizationManager() {
   const { data: activeOrg } = useActiveOrganization()
   
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null)
-  const [members, setMembers] = useState<Member[]>([])
-  const [invitations, setInvitations] = useState<Invitation[]>([])
-  const [loadingMembers, setLoadingMembers] = useState(false)
-  const [loadingInvitations, setLoadingInvitations] = useState(false)
+  
+  // Use custom hooks
+  const { inviteMember, loading: inviting } = useOrganizationInvite(selectedOrgId || '')
+  const { members, invitations, loading: loadingMembers, reload: reloadMembers, stats } = useOrganizationMembers(
+    selectedOrgId || '',
+    { autoLoad: false }
+  )
+  const { create, loading: creating, generateSlug } = useOrganizationCreate()
   
   // Create organization state
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [createForm, setCreateForm] = useState({ name: '', description: '' })
-  const [creating, setCreating] = useState(false)
   
   // Invite member state
   const [showInviteDialog, setShowInviteDialog] = useState(false)
   const [inviteForm, setInviteForm] = useState({ email: '', role: 'member' })
-  const [inviting, setInviting] = useState(false)
+
+  // Auto-load members when organization is selected
+  useEffect(() => {
+    if (selectedOrgId) {
+      reloadMembers()
+    }
+  }, [selectedOrgId, reloadMembers])
 
   async function loadOrganizationData(orgId: string) {
     setSelectedOrgId(orgId)
-    
-    // Load members
-    setLoadingMembers(true)
-    try {
-      const membersResult = await organizationAPI.listMembers({
-        query: { organizationId: orgId }
-      })
-      if (membersResult.data?.members) {
-        setMembers(membersResult.data.members)
-      }
-    } catch (error) {
-      console.error('Failed to load members:', error)
-      toast.error('Failed to load organization members')
-    } finally {
-      setLoadingMembers(false)
-    }
-    
-    // Load invitations
-    setLoadingInvitations(true)
-    try {
-      const invitationsResult = await organizationAPI.listInvitations({
-        query: { organizationId: orgId }
-      })
-      if (invitationsResult.data?.length) {
-        setInvitations(invitationsResult.data.map((inv: any) => ({
-          ...inv,
-          inviter: {
-            user: {
-              name: inv.inviter?.user?.name || 'Unknown',
-              email: inv.inviter?.user?.email || 'Unknown'
-            }
-          }
-        })))
-      }
-    } catch (error) {
-      console.error('Failed to load invitations:', error)
-      toast.error('Failed to load invitations')
-    } finally {
-      setLoadingInvitations(false)
-    }
   }
 
-  async function createOrganization() {
-    if (!createForm.name.trim()) {
-      toast.error('Organization name is required')
-      return
-    }
-    
-    try {
-      setCreating(true)
-      const result = await organizationAPI.create({
-        name: createForm.name.trim(),
-        slug: createForm.name.toLowerCase().replace(/\s+/g, '-'),
-        // Note: Better Auth organization plugin may not support description field
-        // Remove this line if it causes errors
-        // description: createForm.description.trim() || undefined,
-      })
-      
-      if (result.error) {
-        toast.error(result.error.message || 'Failed to create organization')
-        return
-      }
-      
-      toast.success(`Organization "${createForm.name}" created successfully!`)
+  async function handleCreateOrganization() {
+    const org = await create(createForm.name, undefined)
+    if (org) {
       setShowCreateDialog(false)
       setCreateForm({ name: '', description: '' })
       refetchOrganizations()
-      
-    } catch (error: any) {
-      console.error('Failed to create organization:', error)
-      toast.error(error?.message || 'Failed to create organization')
-    } finally {
-      setCreating(false)
     }
   }
 
-  async function inviteMember() {
-    if (!selectedOrgId || !inviteForm.email.trim()) {
-      toast.error('Email is required')
-      return
-    }
+  async function handleInviteMember() {
+    if (!selectedOrgId) return
     
-    try {
-      setInviting(true)
-      const result = await organizationAPI.inviteMember({
-        email: inviteForm.email.trim(),
-        role: inviteForm.role as 'member' | 'admin' | 'owner',
-        organizationId: selectedOrgId,
-      })
-      
-      if (result.error) {
-        toast.error(result.error.message || 'Failed to send invitation')
-        return
-      }
-      
-      toast.success(`Invitation sent to ${inviteForm.email}!`)
+    const result = await inviteMember(inviteForm.email, inviteForm.role as 'member' | 'admin' | 'owner')
+    if (result.success) {
       setShowInviteDialog(false)
       setInviteForm({ email: '', role: 'member' })
-      
-      // Reload invitations
-      loadOrganizationData(selectedOrgId)
-      
-    } catch (error: any) {
-      console.error('Failed to invite member:', error)
-      toast.error(error?.message || 'Failed to send invitation')
-    } finally {
-      setInviting(false)
+      reloadMembers()
     }
   }
 
@@ -223,16 +147,6 @@ export function OrganizationManager() {
       console.error('Failed to set active organization:', error)
       toast.error(error?.message || 'Failed to update active organization')
     }
-  }
-
-  if (!session) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center p-6">
-          <p className="text-gray-500">Please sign in to manage organizations</p>
-        </CardContent>
-      </Card>
-    )
   }
 
   return (
@@ -281,7 +195,7 @@ export function OrganizationManager() {
               <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
                 Cancel
               </Button>
-              <Button onClick={createOrganization} disabled={creating}>
+              <Button onClick={handleCreateOrganization} disabled={creating}>
                 {creating ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...</>
                 ) : (
@@ -419,7 +333,7 @@ export function OrganizationManager() {
                       <Button variant="outline" onClick={() => setShowInviteDialog(false)}>
                         Cancel
                       </Button>
-                      <Button onClick={inviteMember} disabled={inviting}>
+                      <Button onClick={handleInviteMember} disabled={inviting}>
                         {inviting ? (
                           <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
                         ) : (
@@ -472,7 +386,7 @@ export function OrganizationManager() {
               </div>
             </CardHeader>
             <CardContent>
-              {loadingInvitations ? (
+              {loadingMembers ? (
                 <div className="flex items-center justify-center p-4">
                   <Loader2 className="h-4 w-4 animate-spin" />
                 </div>

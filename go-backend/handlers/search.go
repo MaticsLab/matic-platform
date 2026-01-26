@@ -208,10 +208,6 @@ func SearchWorkspace(c *gin.Context) {
 	formResults := searchForms(workspaceUUID, workspace.Slug, query)
 	results = append(results, formResults...)
 
-	// Search Request Hubs
-	hubResults := searchActivitiesHubs(workspaceUUID, workspace.Slug, query)
-	results = append(results, hubResults...)
-
 	// Search Table Rows (if query is long enough)
 	if len(query) >= 3 {
 		rowResults := searchTableRows(workspaceUUID, workspace.Slug, query)
@@ -325,47 +321,6 @@ func searchForms(workspaceID uuid.UUID, workspaceSlug, query string) []SearchRes
 				"createdAt":       form.CreatedAt,
 			},
 			Path: fmt.Sprintf("Workspace / Forms / %s", form.Name),
-		})
-	}
-
-	return results
-}
-
-// searchActivitiesHubs is deprecated - activities hubs are now data_tables with hub_type='activities'
-// This function now searches for tables with hub_type='activities'
-func searchActivitiesHubs(workspaceID uuid.UUID, workspaceSlug, query string) []SearchResult {
-	var tables []models.Table
-	searchPattern := "%" + strings.ToLower(query) + "%"
-
-	database.DB.Where("workspace_id = ? AND hub_type = ? AND (LOWER(name) LIKE ? OR LOWER(description) LIKE ?)",
-		workspaceID, "activities", searchPattern, searchPattern).
-		Limit(20).
-		Find(&tables)
-
-	var results []SearchResult
-	for _, table := range tables {
-		score := calculateScore(table.Name, query)
-		if descScore := calculateScore(table.Description, query); descScore > score {
-			score = descScore
-		}
-
-		results = append(results, SearchResult{
-			ID:          table.ID.String(),
-			Title:       table.Name,
-			Subtitle:    table.Description,
-			Description: table.Description,
-			Type:        "activities-hub",
-			URL:         fmt.Sprintf("/workspace/%s/activities-hub/%s", workspaceSlug, table.Slug),
-			WorkspaceID: workspaceID.String(),
-			Score:       score,
-			Metadata: map[string]interface{}{
-				"hubType":     table.HubType,
-				"entityType":  table.EntityType,
-				"rowCount":    table.RowCount,
-				"lastUpdated": table.UpdatedAt,
-				"createdAt":   table.CreatedAt,
-			},
-			Path: fmt.Sprintf("Workspace / Activities Hubs / %s", table.Name),
 		})
 	}
 

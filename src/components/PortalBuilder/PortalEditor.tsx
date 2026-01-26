@@ -7,7 +7,7 @@ import { HTML5Backend } from 'react-dnd-html5-backend'
 import { 
   Layout, Settings, FileText, Plus, Save, Eye,
   ChevronLeft, Monitor, Smartphone, Palette, Lock, Loader2, X, CheckCircle2,
-  BookOpen, CheckCircle, Eye as EyeIcon, ScrollText, LayoutDashboard, ArrowLeft
+  BookOpen, CheckCircle, Eye as EyeIcon, ScrollText, ArrowLeft
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -27,11 +27,8 @@ import { AuthPageRenderer } from '@/components/Portal/AuthPageRenderer'
 import { ConfirmationPreview } from './ConfirmationPreview'
 import { ReviewPreview } from './ReviewPreview'
 import { EndingPagesBuilder } from '@/components/EndingPages/EndingPagesBuilder'
-import { VisualDashboardBuilder } from '@/components/ApplicantDashboard/VisualDashboardBuilder'
 import { UnifiedSidebar } from './UnifiedSidebar'
-import { DashboardPreview } from './DashboardPreview'
 import { PageThemeSettings } from './PageThemeSettings'
-import type { DashboardSettings } from '@/types/dashboard'
 import { EndingBlocksToolbox } from './EndingBlocksToolbox'
 import { EndingBlockEditor } from './EndingBlockEditor'
 import { CoverBlockEditor } from './CoverBlockEditor'
@@ -50,8 +47,8 @@ import { PresenceHeader, SectionCollaboratorIndicator, CursorOverlay, type Colla
 import { formsClient } from '@/lib/api/forms-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { v4 as uuidv4 } from 'uuid'
-import { dashboardClient } from '@/lib/api/dashboard-client'
 import { toast } from 'sonner'
+import { PortalEditorSkeleton } from './PortalEditorSkeleton'
 import { SettingsModal } from './SettingsModal'
 import {
   DropdownMenu,
@@ -151,7 +148,7 @@ function AuthPagePreviewWithState({
 export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: string, initialFormId?: string | null }) {
   const [config, setConfig] = useState<PortalConfig>(INITIAL_CONFIG)
   const [activeSectionId, setActiveSectionId] = useState<string>(INITIAL_CONFIG.sections[0].id)
-  const [activeSpecialPage, setActiveSpecialPage] = useState<'signup' | 'review' | 'dashboard' | null>(null)
+  const [activeSpecialPage, setActiveSpecialPage] = useState<'signup' | 'review' | null>(null)
   const [selectedEndingId, setSelectedEndingId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop')
   const [isPreview, setIsPreview] = useState(false)
@@ -176,14 +173,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [themePageType, setThemePageType] = useState<'login' | 'signup' | 'sections'>('signup')
   const [isCanvasScrolled, setIsCanvasScrolled] = useState(false)
   const [shareTabKey, setShareTabKey] = useState(0)
-  const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
-    showStatus: true,
-    showTimeline: true,
-    showChat: true,
-    showDocuments: true,
-    welcomeTitle: 'Welcome to Your Dashboard',
-    welcomeText: 'Track your application progress and communicate with our team.'
-  })
   
   // Track previous selected field for autosave on deselect
   const previousSelectedFieldId = useRef<string | null>(null)
@@ -221,7 +210,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     if (user.currentSection) {
       // Check if it's a special page
       if (user.currentSection.startsWith('special-')) {
-        const specialPage = user.currentSection.replace('special-', '') as 'signup' | 'review' | 'dashboard'
+        const specialPage = user.currentSection.replace('special-', '') as 'signup' | 'review'
         setActiveSpecialPage(specialPage)
         setActiveSectionId('')
       } else {
@@ -322,7 +311,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     const loadForm = async () => {
       setIsLoading(true)
       try {
-        const workspace = await workspacesClient.getBySlug(workspaceSlug)
+        // Parallel: Load workspace and forms list simultaneously
+        const [workspace, forms] = await Promise.all([
+          workspacesClient.getBySlug(workspaceSlug),
+          initialFormId ? null : formsClient.list(workspaceSlug).catch(() => [])
+        ])
+        
         if (!workspace) {
           toast.error('Workspace not found')
           return
@@ -331,6 +325,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
         let fullForm: any = null;
 
+        // If initialFormId provided, fetch that specific form
         if (initialFormId) {
             try {
                 fullForm = await formsClient.get(initialFormId)
@@ -340,9 +335,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             }
         }
 
-        if (!fullForm) {
-            const forms = await formsClient.list(workspace.id) as any[]
-            // Find a form that looks like our portal, or just use the first one for now
+        // Otherwise, use the forms list we already fetched in parallel
+        if (!fullForm && forms && forms.length > 0) {
             const portalForm = forms.find((f: any) => f.name === 'Scholarship Portal') || forms[0]
             
             if (portalForm) {
@@ -411,32 +405,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                ]
              }
 
-             // Load dashboard settings from dedicated dashboard layout endpoint first,
-             // fall back to form settings
-             try {
-               const dashboardLayout = await dashboardClient.getLayout(fullForm.id)
-               if (dashboardLayout?.settings) {
-                 setDashboardSettings(prev => ({
-                   ...prev,
-                   showStatus: dashboardLayout.settings.showStatus ?? dashboardLayout.settings.show_status ?? prev.showStatus,
-                   showTimeline: dashboardLayout.settings.showTimeline ?? dashboardLayout.settings.show_timeline ?? prev.showTimeline,
-                   showChat: dashboardLayout.settings.showChat ?? dashboardLayout.settings.show_chat ?? prev.showChat,
-                   showDocuments: dashboardLayout.settings.showDocuments ?? dashboardLayout.settings.show_documents ?? prev.showDocuments,
-                   welcomeTitle: dashboardLayout.settings.welcomeTitle ?? dashboardLayout.settings.welcome_title ?? prev.welcomeTitle,
-                   welcomeText: dashboardLayout.settings.welcomeText ?? dashboardLayout.settings.welcome_text ?? prev.welcomeText,
-                 }))
-               }
-             } catch (layoutError) {
-               // Fall back to form settings if dashboard layout endpoint fails
-               console.warn('Failed to load dashboard layout, using form settings:', layoutError)
-               if (fullForm.settings.dashboardSettings) {
-                 setDashboardSettings(prev => ({
-                   ...prev,
-                   ...fullForm.settings.dashboardSettings
-                 }))
-               }
-             }
-
              setConfig({
                  sections: sections,
                  settings: {
@@ -452,8 +420,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                        rightToLeft: false
                      },
                      loginFields: fullForm.settings.loginFields || INITIAL_CONFIG.settings.loginFields,
-                     signupFields,
-                     dashboardSettings: fullForm.settings.dashboardSettings
+                     signupFields
                  },
                  translations: fullForm.settings?.translations || {}
              })
@@ -558,20 +525,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             await formsClient.updateStructure(newForm.id, config)
             // Also set is_published to true so submissions are accepted
             await formsClient.update(newForm.id, { is_published: true })
-        }
-
-        // Save dashboard layout separately to dedicated endpoint
-        if (targetFormId) {
-            try {
-                await dashboardClient.updateLayout(targetFormId, {
-                    sections: [],  // Sections are managed by form settings
-                    settings: dashboardSettings
-                })
-                console.log('📤 Saved dashboard settings:', dashboardSettings)
-            } catch (dashboardError) {
-                console.warn('Failed to save dashboard layout:', dashboardError)
-                // Don't fail the whole save for dashboard layout issues
-            }
         }
 
         toast.success(`Portal published successfully! (${translationCount} languages)`)
@@ -777,15 +730,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
           { id: uuidv4(), type: 'heading', label: 'Review your answers', required: false, width: 'full' },
           { id: uuidv4(), type: 'paragraph', label: 'Double-check your responses before submitting.', required: false, width: 'full', config: { content: '' } }
         ]
-      }
-    }
-    if (type === 'dashboard') {
-      return {
-        id: uuidv4(),
-        title: 'Additional Information',
-        sectionType: 'dashboard',
-        description: 'Collect additional data after submission',
-        fields: []
       }
     }
 
@@ -1062,23 +1006,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     setIsPublished(false)
   }
 
-  const handleDashboardSettingsChange = (updates: Partial<DashboardSettings>) => {
-    setDashboardSettings(prev => ({ ...prev, ...updates }))
-    // Also store in config settings for persistence
-    setConfig(prev => {
-      const currentDashboardSettings = (prev.settings as any).dashboardSettings || {}
-      return {
-        ...prev,
-        settings: {
-          ...prev.settings,
-          dashboardSettings: { ...currentDashboardSettings, ...updates }
-        } as typeof prev.settings
-      }
-    })
-    setHasUnsavedChanges(true)
-    setIsPublished(false)
-  }
-
   // Helper functions for recursive updates
   function updateFieldRecursive(fields: Field[], targetId: string, updates: Partial<Field>): Field[] {
     return fields.map(field => {
@@ -1134,11 +1061,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const displaySection = displayConfig.sections.find((s: Section) => s.id === activeSectionId)
 
   if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center bg-gray-50">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    )
+    return <PortalEditorSkeleton />
   }
 
   return (
@@ -1333,8 +1256,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   }}
                   onAddSection={(type) => handleAddSection(type as Section['sectionType'])}
                   onUpdateSection={handleUpdateSection}
-                  dashboardSettings={dashboardSettings}
-                  onDashboardSettingsChange={handleDashboardSettingsChange}
                 />
               </div>
             )}
@@ -1414,14 +1335,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         setHasUnsavedChanges(true)
                         setIsPublished(false)
                       }}
-                    />
-                  ) : activeSpecialPage === 'dashboard' ? (
-                    <DashboardPreview 
-                      themeColor={config.settings.themeColor}
-                      logoUrl={config.settings.logoUrl}
-                      portalName={config.settings.name}
-                      dashboardSettings={dashboardSettings}
-                      config={displayConfig}
                     />
                   ) : displaySection?.sectionType === 'ending' ? (
                     <ConfirmationPreview 

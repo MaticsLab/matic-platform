@@ -16,6 +16,7 @@ interface ProtectedRouteProps {
  * 
  * Wraps a route/page to require authentication.
  * Automatically redirects to login if user is not authenticated.
+ * Redirects to user's last workspace or first available workspace after auth.
  * 
  * @example
  * ```tsx
@@ -30,7 +31,7 @@ interface ProtectedRouteProps {
  */
 export function ProtectedRoute({
   children,
-  redirectTo = '/login',
+  redirectTo = '/?login=true',
   requireOrganization = false,
   fallback,
 }: ProtectedRouteProps) {
@@ -42,29 +43,33 @@ export function ProtectedRoute({
     if (isPending) return
 
     if (!data?.session) {
-      const redirect = `${redirectTo}?redirect=${encodeURIComponent(pathname)}`
+      const separator = redirectTo.includes('?') ? '&' : '?'
+      const redirect = `${redirectTo}${separator}redirect=${encodeURIComponent(pathname)}`
       router.push(redirect)
       return
     }
 
     if (requireOrganization && !(data?.session as any)?.activeOrganizationId) {
-      router.push('/workspaces')
-      return
+      // Instead of going to /workspaces, redirect to last workspace or first available
+      const lastWorkspace = localStorage.getItem('lastWorkspace')
+      if (lastWorkspace) {
+        try {
+          const workspace = JSON.parse(lastWorkspace)
+          router.push(`/workspace/${workspace.slug}`)
+          return
+        } catch (e) {
+          // If JSON parse fails, treat it as a slug string
+          router.push(`/workspace/${lastWorkspace}`)
+          return
+        }
+      }
+      // If no last workspace, will need to fetch user's workspaces - handled by workspace discovery
     }
-  }, [data, isPending, router, redirectTo, requireOrganization, pathname])
+  }, [data, isPending, redirectTo, requireOrganization, pathname, router])
 
   // Show loading state while checking auth
   if (isPending) {
-    return (
-      fallback || (
-        <div className="flex items-center justify-center min-h-screen bg-gray-50">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-            <p className="text-gray-600">Loading...</p>
-          </div>
-        </div>
-      )
-    )
+    return fallback || null
   }
 
   // Show nothing while redirecting (will redirect via useEffect)
@@ -78,4 +83,5 @@ export function ProtectedRoute({
 
   return <>{children}</>
 }
+
 

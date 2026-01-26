@@ -56,9 +56,8 @@ function normalizeFormResponse(form: any): Form {
 
 export const formsClient = {
   list: async (workspaceId: string) => {
-    // Use the standard /forms endpoint with workspace_id query parameter
-    // This matches the API documentation: GET /api/v1/forms?workspace_id={id}
-    const data = await goClient.get<any[]>('/forms', { workspace_id: workspaceId })
+    // Use optimized /forms/list endpoint (doesn't load all fields, much faster)
+    const data = await goClient.get<any[]>('/forms/list', { workspace_id: workspaceId })
     const formsArray = Array.isArray(data) ? data : []
     return formsArray.map(normalizeFormResponse)
   },

@@ -1,6 +1,11 @@
 /**
  * Go Backend API Client
  * Base client for communicating with the Go backend API
+ * 
+ * BETTER AUTH INTEGRATION:
+ * Better Auth uses HTTP-only cookies for session tokens.
+ * No need to manually extract or pass tokens - they're sent automatically with credentials: 'include'
+ * The Go backend's AuthMiddleware extracts tokens from cookies (cookie-first, then Authorization header)
  */
 
 // Use local backend in development, production URL otherwise
@@ -52,95 +57,16 @@ export async function goFetch<T>(
     url += `?${searchParams.toString()}`
   }
 
-  // Get auth token from Better Auth
-  // For cross-domain requests (Vercel -> backend.maticslab.com), we need to send
-  // the token in the Authorization header since cookies may not be sent cross-domain
-  let token: string | null = null
+  // Better Auth uses HTTP-only cookies for session management
+  // No need to manually extract tokens - browser automatically sends cookies
+  // The Go backend reads session tokens from cookies via middleware
   
-  if (typeof window !== 'undefined') {
-    try {
-      // First, try to get token from our custom get-session endpoint
-      // This endpoint can access the actual session token from Better Auth
-      const baseURL = window.location.origin
-      const sessionResponse = await fetch(`${baseURL}/api/auth/get-session`, {
-        method: 'GET',
-        credentials: 'include', // Include cookies
-        headers: { 'Content-Type': 'application/json' },
-      })
-      
-      if (sessionResponse.ok) {
-        const sessionData = await sessionResponse.json()
-        // The get-session endpoint returns token in session.token
-        token = sessionData?.session?.token || null
-        if (token) {
-          console.debug('✅ [Go Client] Got token from get-session endpoint')
-        } else {
-          console.warn('⚠️ [Go Client] get-session returned data but no token:', sessionData)
-        }
-      } else {
-        console.warn('⚠️ [Go Client] get-session failed with status:', sessionResponse.status)
-      }
-      
-      // Fallback: try auth helpers
-      if (!token) {
-        try {
-          const { getSessionToken: getTokenFromHelpers } = await import('@/lib/auth-helpers')
-          token = await getTokenFromHelpers()
-          if (token) {
-            console.debug('✅ [Go Client] Got token from auth-helpers')
-          }
-        } catch (helperError) {
-          console.debug('Failed to get token from auth-helpers:', helperError)
-        }
-      }
-      
-      // Final fallback: try Better Auth client directly
-      if (!token) {
-        try {
-          const { authClient } = await import('@/lib/better-auth-client')
-          const session = await authClient.getSession()
-          if (session?.data?.session) {
-            token = (session.data.session as any)?.token || null
-            if (token) {
-              console.debug('✅ [Go Client] Got token from Better Auth client')
-            }
-          }
-        } catch (authError) {
-          console.debug('Failed to get token from Better Auth client:', authError)
-        }
-      }
-    } catch (error) {
-      console.error('❌ [Go Client] Failed to get auth token:', error)
-    }
-  }
-  
-  // Public portal forms and field-types endpoint don't require auth tokens
-  const isPublicEndpoint = 
-    (endpoint.includes('/forms/') && endpoint.includes('/submit')) ||
-    (endpoint.includes('/forms/') && endpoint.includes('/dashboard')) ||
-    endpoint.includes('/field-types') ||
-    endpoint.includes('/ending-pages/match')
-  
-  // Log warning if token is missing for protected endpoints (helpful for debugging)
-  if (!token && !isPublicEndpoint && typeof window !== 'undefined') {
-    console.error('❌ [Go Client] No auth token available for protected API call:', endpoint)
-    console.error('❌ [Go Client] This will result in 401 Unauthorized. Check browser console for auth errors.')
-  } else if (token && typeof window !== 'undefined') {
-    console.debug('✅ [Go Client] Making authenticated request to:', endpoint)
-  }
-
-  // Make request
-  // Include credentials to send cookies (Better Auth stores tokens in HTTP-only cookies)
-  // Only include Authorization header if we have a token (Better Auth JWT)
-  // Otherwise, rely on cookies for session token authentication
+  // Make request with credentials: 'include' to send cookies
   const response = await fetch(url, {
     ...fetchOptions,
-    credentials: 'include', // Include cookies for Better Auth session tokens
+    credentials: 'include', // Send Better Auth session cookies
     headers: {
       'Content-Type': 'application/json',
-      // Only send Authorization header if we have a Better Auth token
-      // Otherwise, rely on cookies (Better Auth session tokens are in HTTP-only cookies)
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...fetchOptions.headers,
     },
   })

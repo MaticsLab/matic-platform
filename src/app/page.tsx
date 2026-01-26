@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useSession } from '@/lib/better-auth-client'
+import { useWorkspaceResolution } from '@/hooks/useWorkspaceResolution'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Badge } from '@/ui-components/badge'
@@ -82,8 +83,9 @@ import {
 function Navigation() {
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const { data } = useSession()
+  const { data, isPending } = useSession()
   const isAuthenticated = !!data?.user
+  const { goToWorkspace } = useWorkspaceResolution()
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20)
@@ -115,15 +117,13 @@ function Navigation() {
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center gap-4">
             {isAuthenticated ? (
-              <Link href="/workspaces">
-                <Button>Go to Workspace</Button>
-              </Link>
+              <Button onClick={goToWorkspace}>Go to Workspace</Button>
             ) : (
-              <>
-                <Link href="/signup-v2?mode=login">
+              <>  
+                <Link href="/auth?mode=login">
                   <Button variant="ghost">Log in</Button>
                 </Link>
-                <Link href="/signup-v2">
+                <Link href="/auth">
                   <Button>Get started</Button>
                 </Link>
               </>
@@ -150,15 +150,13 @@ function Navigation() {
             </Link>
             <div className="pt-4 border-t space-y-2">
               {isAuthenticated ? (
-                <Link href="/workspaces" className="block">
-                  <Button className="w-full">Go to Workspace</Button>
-                </Link>
+                <Button onClick={goToWorkspace} className="w-full">Go to Workspace</Button>
               ) : (
                 <>
-                  <Link href="/signup-v2?mode=login" className="block">
+                  <Link href="/auth?mode=login" className="block">
                     <Button variant="outline" className="w-full">Log in</Button>
                   </Link>
-                  <Link href="/signup-v2" className="block">
+                  <Link href="/auth" className="block">
                     <Button className="w-full">Get started</Button>
                   </Link>
                 </>
@@ -614,16 +612,16 @@ function HeroSection() {
           {/* CTA Button */}
           <div className="mb-20">
             {isAuthenticated ? (
-              <Link href="/workspaces">
+              <Link href="/">
                 <Button size="lg" className="bg-black hover:bg-gray-800 text-white text-lg px-10 py-6 rounded-lg font-semibold shadow-xl hover:shadow-2xl transition-all transform hover:scale-105">
                   Go to Workspace
                   <ArrowRight className="w-5 h-5 ml-3" />
                 </Button>
               </Link>
             ) : (
-              <Link href="/signup-v2">
+              <Link href="/auth">
                 <Button size="lg" className="bg-black hover:bg-gray-800 text-white text-lg px-10 py-6 rounded-lg font-semibold shadow-xl hover:shadow-2xl transition-all transform hover:scale-105">
-                  Get started — it's free
+                  Get Started
                   <ArrowRight className="w-5 h-5 ml-3" />
                 </Button>
               </Link>
@@ -2041,169 +2039,6 @@ function InteractiveWorkspaceDemo() {
 }
 
 // ============================================================================
-// "It All Starts" Section (Fillout Inspired)
-// ============================================================================
-function ItAllStartsSection() {
-  const [animatedFields, setAnimatedFields] = useState<Array<{id: number, type: string, label: string, icon: any, color: string}>>([])
-  
-  const fieldTypes = [
-    { type: 'text', label: 'Full Name', icon: Type, color: 'bg-blue-500' },
-    { type: 'email', label: 'Email Address', icon: Mail, color: 'bg-green-500' },
-    { type: 'phone', label: 'Phone Number', icon: Phone, color: 'bg-purple-500' },
-    { type: 'dropdown', label: 'Department', icon: ChevronDown, color: 'bg-orange-500' },
-    { type: 'textarea', label: 'Message', icon: MessageSquare, color: 'bg-pink-500' },
-    { type: 'date', label: 'Preferred Date', icon: Calendar, color: 'bg-indigo-500' }
-  ]
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setAnimatedFields(prev => {
-        if (prev.length >= 4) {
-          return []
-        }
-        const nextField = fieldTypes[prev.length]
-        return [...prev, { ...nextField, id: Date.now() + prev.length }]
-      })
-    }, 1500)
-
-    return () => clearInterval(interval)
-  }, [])
-
-  return (
-    <section className="pt-40 pb-24 bg-gray-900 relative overflow-hidden">
-      {/* Background Elements */}
-      <div className="absolute inset-0">
-        <div className="absolute top-20 left-10 w-32 h-32 bg-gradient-to-br from-green-500/20 to-blue-500/20 rounded-full blur-2xl animate-float" />
-        <div className="absolute bottom-20 right-10 w-40 h-40 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full blur-2xl animate-float" style={{ animationDelay: '2s' }} />
-      </div>
-      
-      <div className="relative max-w-7xl mx-auto px-6">
-        <div className="text-center mb-20">
-          {/* Floating Icons */}
-          <div className="relative inline-block">
-            <div className="absolute -top-8 -left-8 w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center transform -rotate-12 animate-pulse">
-              <Sparkles className="w-6 h-6 text-white" />
-            </div>
-            <h2 className="text-5xl md:text-7xl font-black text-white mb-6">
-              It all starts with a form
-            </h2>
-            <div className="absolute -top-4 -right-12 w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center transform rotate-12 animate-pulse" style={{ animationDelay: '1s' }}>
-              <ArrowRight className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-            Build the exact form you need, in minutes.
-          </p>
-        </div>
-
-        {/* Animated Form Builder */}
-        <div className="max-w-6xl mx-auto">
-          <div className="bg-white rounded-3xl p-8 relative overflow-hidden">
-            {/* Builder Header */}
-            <div className="mb-8">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">M</span>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">Form Builder</h3>
-                  <p className="text-gray-500 text-sm">maticsapp.com/forms/survey</p>
-                </div>
-              </div>
-              
-              {/* Tabs */}
-              <div className="flex gap-2 border-b">
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-t-lg text-sm font-medium">App</button>
-                <button className="px-4 py-2 text-gray-600 text-sm">Forms</button>
-                <button className="px-4 py-2 text-gray-600 text-sm">Database</button>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-12">
-              {/* Left Side - Field Palette */}
-              <div className="space-y-4">
-                <h4 className="text-lg font-semibold text-gray-900 mb-4">Field Types</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  {fieldTypes.slice(0, 6).map((field, index) => (
-                    <div 
-                      key={field.type} 
-                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all duration-500 ${
-                        animatedFields.find(f => f.type === field.type) 
-                          ? 'border-transparent bg-gray-100 opacity-50 scale-95' 
-                          : 'border-gray-200 hover:border-blue-300 bg-white'
-                      }`}
-                      style={{ 
-                        animationDelay: `${index * 0.2}s`,
-                        transform: animatedFields.find(f => f.type === field.type) ? 'scale(0.95)' : 'scale(1)'
-                      }}
-                    >
-                      <div className={`w-8 h-8 ${field.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                        <field.icon className="w-4 h-4 text-white" />
-                      </div>
-                      <span className="text-sm font-medium text-gray-700">{field.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Right Side - Form Preview */}
-              <div className="bg-gray-50 rounded-xl p-6 relative min-h-[400px]">
-                <div className="text-center mb-6">
-                  <h4 className="text-lg font-semibold text-gray-900">Live Preview</h4>
-                  <p className="text-sm text-gray-500">Watch fields appear as you add them</p>
-                </div>
-                
-                <div className="space-y-4">
-                  {animatedFields.map((field, index) => (
-                    <div 
-                      key={field.id}
-                      className="bg-white rounded-lg p-4 border-2 border-blue-200 animate-fade-in-up"
-                      style={{ 
-                        animationDelay: `${index * 0.1}s`,
-                        animationDuration: '0.6s',
-                        animationFillMode: 'both'
-                      }}
-                    >
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className={`w-6 h-6 ${field.color} rounded flex items-center justify-center`}>
-                          <field.icon className="w-3 h-3 text-white" />
-                        </div>
-                        <label className="text-sm font-medium text-gray-700">{field.label}</label>
-                      </div>
-                      <div className="w-full p-2 bg-gray-50 border border-gray-200 rounded text-sm text-gray-400">
-                        {field.type === 'textarea' ? 'Enter your message here...' : 
-                         field.type === 'dropdown' ? 'Select an option' :
-                         field.type === 'date' ? 'Select a date' :
-                         `Enter your ${field.label.toLowerCase()}`}
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {animatedFields.length > 0 && (
-                    <div className="mt-6 animate-fade-in" style={{ animationDelay: '0.8s' }}>
-                      <button className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-lg transition-colors">
-                        Submit Form
-                      </button>
-                    </div>
-                  )}
-                  
-                  {animatedFields.length === 0 && (
-                    <div className="text-center py-12 text-gray-400">
-                      <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                      <p className="text-sm">Your form will appear here</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ============================================================================
 // Features Section
 // ============================================================================
 function FeaturesSection() {
@@ -2305,9 +2140,9 @@ function CTASection() {
           Join hundreds of teams using Matic to collect data, manage reviews, and collaborate better.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link href="/signup-v2">
+          <Link href="/auth">
             <Button size="lg" className="text-lg px-8 py-6 shadow-lg shadow-blue-500/25">
-              Get Started Free
+              Get Started
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
           </Link>
@@ -2317,9 +2152,6 @@ function CTASection() {
             </Button>
           </Link>
         </div>
-        <p className="text-sm text-gray-500 mt-6">
-          No credit card required · Free plan available
-        </p>
       </div>
     </section>
   )
@@ -2453,11 +2285,38 @@ function Footer() {
 // Main Page Component
 // ============================================================================
 export default function LandingPage() {
+  const { data, isPending } = useSession()
+  const { resolveAndNavigate } = useWorkspaceResolution()
+  const [isChecking, setIsChecking] = useState(true)
+
+  useEffect(() => {
+    const redirectToWorkspace = async () => {
+      // Only redirect if authenticated
+      if (isPending) return
+
+      if (data?.user) {
+        // Use the centralized workspace resolution hook
+        await resolveAndNavigate()
+      }
+      setIsChecking(false)
+    }
+
+    redirectToWorkspace()
+  }, [data, isPending, resolveAndNavigate])
+
+  // Show nothing while checking auth and redirecting
+  if (isPending || (isChecking && data?.user)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
   return (
     <main className="min-h-screen">
       <Navigation />
       <HeroSection />
-      <ItAllStartsSection />
       <FeaturesSection />
       <CTASection />
       <Footer />

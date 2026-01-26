@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { useSession as useBetterAuthSession, signOut as betterAuthSignOut } from "@/lib/better-auth-client";
+import { useSessionRefresh } from "@/hooks/useSessionRefresh";
 
 interface AuthContextValue {
   session: any | null;
@@ -16,18 +17,34 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const { data, isPending } = useBetterAuthSession();
+  const [hasMounted, setHasMounted] = useState(false);
+  
+  // Automatically refresh session before expiration
+  useSessionRefresh();
+  
   const session = data?.session || null;
   const user = data?.user || null;
 
+  // Handle mount state
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
   const signOut = async () => {
-    await betterAuthSignOut();
+    await betterAuthSignOut({
+      fetchOptions: {
+        onSuccess: () => {
+          window.location.href = '/';
+        }
+      }
+    });
   };
 
   // Check if embedded in iframe
   const isEmbedded = typeof window !== 'undefined' && window.parent !== window;
 
   return (
-    <AuthContext.Provider value={{ session, user, isPending, signOut, isEmbedded, hasMounted: true }}>
+    <AuthContext.Provider value={{ session, user, isPending, signOut, isEmbedded, hasMounted }}>
       {children}
     </AuthContext.Provider>
   );

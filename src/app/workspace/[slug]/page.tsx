@@ -10,7 +10,7 @@ import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { saveLastWorkspace } from '@/lib/utils'
 import type { Workspace } from '@/types/workspaces'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { LoadingOverlay } from '@/components/LoadingOverlay'
 
 function WorkspacePageContent() {
   const params = useParams()
@@ -50,11 +50,7 @@ function WorkspacePageContent() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-gray-500">Loading workspace...</div>
-      </div>
-    )
+    return <LoadingOverlay message="Loading workspace..." />
   }
 
   if (error || !workspace) {
@@ -63,7 +59,7 @@ function WorkspacePageContent() {
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2 text-gray-900">Workspace Not Found</h1>
           <p className="text-gray-600 mb-4">{error || 'Not Found'}</p>
-          <a href="/signup-v2?mode=login" className="text-blue-600 hover:underline">
+          <a href="/?login=true" className="text-blue-600 hover:underline">
             Back to Login
           </a>
         </div>
@@ -81,7 +77,7 @@ function WorkspacePageContent() {
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2 text-gray-900">Invalid Workspace</h1>
           <p className="text-gray-600 mb-4">Workspace ID is missing or invalid</p>
-          <a href="/signup-v2?mode=login" className="text-blue-600 hover:underline">
+          <a href="/?login=true" className="text-blue-600 hover:underline">
             Back to Login
           </a>
         </div>
@@ -118,11 +114,7 @@ function WorkspacePageContent() {
 
 export default function WorkspacePage() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    }>
+    <Suspense fallback={<LoadingOverlay />}>
       <ProtectedRoute>
         <WorkspacePageContent />
       </ProtectedRoute>

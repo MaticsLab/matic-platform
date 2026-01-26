@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/ui-components/button'
 import { useSession } from '@/lib/better-auth-client'
@@ -16,12 +16,21 @@ import {
 // Navigation Component
 // ============================================================================
 function Navigation() {
+  const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const { data } = useSession()
   const isAuthenticated = !!data?.user
 
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 20)
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   return (
-    <nav className="bg-white border-b">
+    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      isScrolled ? 'bg-white/95 backdrop-blur-md shadow-sm' : 'bg-white'
+    }`}>
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
@@ -47,11 +56,11 @@ function Navigation() {
               </Link>
             ) : (
               <>
-                <Link href="/signup-v2?mode=login">
-                  <Button variant="ghost">Sign In</Button>
+                <Link href="/auth?mode=login">
+                  <Button variant="ghost">Log in</Button>
                 </Link>
-                <Link href="/signup-v2">
-                  <Button>Get Started Free</Button>
+                <Link href="/auth">
+                  <Button>Get started</Button>
                 </Link>
               </>
             )}
@@ -60,7 +69,7 @@ function Navigation() {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg hover:bg-gray-100"
+            className="md:hidden p-2"
           >
             {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -82,11 +91,11 @@ function Navigation() {
                 </Link>
               ) : (
                 <>
-                  <Link href="/signup-v2?mode=login" className="block">
-                    <Button variant="outline" className="w-full">Sign In</Button>
+                  <Link href="/auth?mode=login" className="block">
+                    <Button variant="outline" className="w-full">Log in</Button>
                   </Link>
-                  <Link href="/signup-v2" className="block">
-                    <Button className="w-full">Get Started Free</Button>
+                  <Link href="/auth" className="block">
+                    <Button className="w-full">Get started</Button>
                   </Link>
                 </>
               )}
@@ -102,22 +111,6 @@ function Navigation() {
 // Pricing Plans Data
 // ============================================================================
 const plans = [
-  {
-    name: 'Free',
-    monthlyPrice: 0,
-    yearlyPrice: 0,
-    description: 'Perfect for getting started and personal projects.',
-    features: [
-      'Up to 3 forms',
-      'Up to 2 team members', 
-      '100 responses/month',
-      'Basic form builder',
-      'Email notifications',
-      'CSV exports'
-    ],
-    cta: 'Get started',
-    popular: false
-  },
   {
     name: 'Professional', 
     monthlyPrice: 75,
@@ -162,119 +155,6 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navigation />
-      
-      {/* Free Tier Showcase */}
-      <section className="py-16 bg-gradient-to-br from-purple-900 via-gray-900 to-gray-800">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-6xl font-bold text-white mb-4">
-              Make unlimited forms <span className="text-yellow-400">for free</span>
-            </h2>
-          </div>
-          
-          <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-8 relative overflow-hidden">
-            {/* FREE, FOREVER Badge */}
-            <div className="absolute top-6 left-6">
-              <div className="bg-black text-white px-4 py-2 rounded-full text-sm font-bold">
-                FREE, FOREVER
-              </div>
-            </div>
-            
-            <div className="grid md:grid-cols-4 gap-8 items-center">
-              {/* Features Grid */}
-              <div className="md:col-span-3 grid md:grid-cols-3 gap-6 mt-12 md:mt-0">
-                {/* Column 1 */}
-                <div className="space-y-4">
-                  {[
-                    'Unlimited forms',
-                    'Unlimited portals', 
-                    'Form portal builder',
-                    'Drag & drop builder',
-                    'Field validation',
-                    'Conditional logic',
-                    'File uploads',
-                    'Multi-page forms'
-                  ].map((feature, index) => (
-                    <div key={index} className="flex items-center gap-3 text-white">
-                      <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Check className="w-3 h-3 text-white" />
-                      </div>
-                      <span className="text-sm">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Column 2 */}
-                <div className="space-y-4">
-                  {[
-                    'Unlimited users',
-                    'Team collaboration',
-                    'Real-time updates',
-                    'Auto translations',
-                    'Mobile optimization',
-                    'Custom branding',
-                    'Email notifications',
-                    'Data export (CSV)'
-                  ].map((feature, index) => (
-                    <div key={index} className="flex items-center gap-3 text-white">
-                      <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Check className="w-3 h-3 text-white" />
-                      </div>
-                      <span className="text-sm">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Column 3 */}
-                <div className="space-y-4">
-                  {[
-                    '100 responses/month',
-                    'Data tables & views',
-                    'Advanced filtering',
-                    'Form analytics',
-                    'Workflow automation',
-                    'AI form suggestions',
-                    'API access',
-                    'And 25+ more features'
-                  ].map((feature, index) => (
-                    <div key={index} className="flex items-center gap-3 text-white">
-                      <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Check className="w-3 h-3 text-white" />
-                      </div>
-                      <span className="text-sm font-medium">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Free Pricing Card */}
-              <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 text-center">
-                <div className="mb-4">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-1">Free,</h3>
-                  <h3 className="text-2xl font-bold text-gray-900">forever</h3>
-                </div>
-                <div className="mb-6">
-                  <span className="text-5xl font-bold text-gray-900">$0</span>
-                  <span className="text-gray-500 text-sm ml-1">USD</span>
-                </div>
-                <Link href="/signup-v2">
-                  <Button className="w-full bg-black hover:bg-gray-800 text-white font-semibold py-3 text-lg">
-                    Get started
-                  </Button>
-                </Link>
-              </div>
-            </div>
-            
-            {/* Explore Premium Features */}
-            <div className="text-center mt-12">
-              <button className="text-white/80 hover:text-white text-sm font-medium flex items-center gap-2 mx-auto">
-                Explore premium features
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Pricing Plans Section */}
       <section className="py-20 bg-gray-50">
@@ -479,8 +359,7 @@ export default function PricingPage() {
                   How many forms can I make?
                 </h3>
                 <p className="text-gray-600 leading-relaxed">
-                  You can make an <strong>unlimited number of forms</strong> on all plans, 
-                  including the free plan.
+                  You can make an <strong>unlimited number of forms</strong> on all plans.
                 </p>
               </div>
 
@@ -538,9 +417,9 @@ export default function PricingPage() {
               </Link>{' '}
               for details.
             </p>
-            <Link href="/signup-v2">
+            <Link href="/auth">
               <Button className="bg-amber-500 hover:bg-amber-600 text-black px-8 py-3 text-lg font-semibold">
-                Get started — it's free
+                Get Started
               </Button>
             </Link>
           </div>

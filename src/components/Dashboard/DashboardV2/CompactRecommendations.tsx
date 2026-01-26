@@ -68,8 +68,9 @@ export function CompactRecommendations({
         
         setRecommenders(transformed)
       } catch (error: any) {
-        // Silently handle 404s - endpoint may not exist yet
-        if (error?.status !== 404) {
+        // Silently handle 404s and network errors - endpoint may not exist yet
+        // Only log unexpected errors
+        if (error?.status && error.status !== 404 && error.status !== 401) {
           console.error('Failed to fetch recommendations:', error)
         }
         setRecommenders([])

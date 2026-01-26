@@ -82,9 +82,22 @@ function SetPasswordForm() {
 
       setSuccess(true)
       
-      // Redirect to workspaces after a short delay
-      setTimeout(() => {
-        router.push('/workspaces')
+      // Redirect to last workspace or fetch user's first workspace
+      setTimeout(async () => {
+        const lastWorkspace = localStorage.getItem('lastWorkspace')
+        if (lastWorkspace) {
+          try {
+            const workspace = JSON.parse(lastWorkspace)
+            router.push(`/workspace/${workspace.slug}`)
+            return
+          } catch (e) {
+            // If JSON parse fails, treat it as a slug string
+            router.push(`/workspace/${lastWorkspace}`)
+            return
+          }
+        }
+        // If no last workspace stored, redirect to home which will handle workspace discovery
+        router.push('/')
       }, 2000)
     } catch (err: unknown) {
       console.error('Password update error:', err)
@@ -115,7 +128,7 @@ function SetPasswordForm() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Password Set Successfully!</h1>
             <p className="text-gray-600 mb-4">
-              Your account is now ready. Redirecting you to your workspaces...
+              Your account is now ready. Redirecting you to your workspace...
             </p>
             <Loader2 className="w-5 h-5 animate-spin text-blue-600 mx-auto" />
           </div>

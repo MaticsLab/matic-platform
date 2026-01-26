@@ -337,26 +337,22 @@ func GetApplicantSubmissions(c *gin.Context) {
 		return
 	}
 
-	var submissions []models.ApplicationSubmission
-	if err := database.DB.Where("user_id = ?", userID).Order("updated_at DESC").Find(&submissions).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Enrich with form info
+	// PERFORMANCE OPTIMIZATION: Use JOIN instead of N+1 query loop
+	// Single query with JOIN to get submissions + form names
 	type EnrichedSubmission struct {
 		models.ApplicationSubmission
 		FormName string `json:"form_name"`
 	}
 
-	results := make([]EnrichedSubmission, len(submissions))
-	for i, s := range submissions {
-		results[i] = EnrichedSubmission{ApplicationSubmission: s}
-
-		var table models.Table
-		if database.DB.First(&table, "id = ?", s.FormID).Error == nil {
-			results[i].FormName = table.Name
-		}
+	var results []EnrichedSubmission
+	if err := database.DB.Table("application_submissions").
+		Select("application_submissions.*, data_tables.name as form_name").
+		Joins("LEFT JOIN data_tables ON application_submissions.form_id = data_tables.id").
+		Where("application_submissions.user_id = ?", userID).
+		Order("application_submissions.updated_at DESC").
+		Scan(&results).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
 	c.JSON(http.StatusOK, results)

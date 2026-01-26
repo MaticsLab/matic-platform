@@ -69,9 +69,6 @@ function getBaseURL() {
   return "http://localhost:3000";
 }
 
-// Singleton instance to prevent multiple Better Auth imports
-let authInstance: ReturnType<typeof betterAuth> | null = null;
-
 // Auth configuration object
 const authConfig = {
   baseURL: getBaseURL(),
@@ -111,7 +108,7 @@ const authConfig = {
             </p>
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
             <p style="color: #9ca3af; font-size: 12px;">
-              © ${new Date().getFullYear()} Matic. All rights reserved.
+              © ${new Date().getFullYear()} MaticsApp. All rights reserved.
             </p>
           </div>
         `,
@@ -142,12 +139,7 @@ const authConfig = {
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
       enabled: !!process.env.GOOGLE_CLIENT_ID,
-    },
-    github: {
-      clientId: process.env.GITHUB_CLIENT_ID || "",
-      clientSecret: process.env.GITHUB_CLIENT_SECRET || "",
-      enabled: !!process.env.GITHUB_CLIENT_ID,
-    },
+    }
   },
 
   // Plugins
@@ -178,7 +170,7 @@ const authConfig = {
         const inviteLink = `${getBaseURL()}/accept-invitation/${data.id}`;
         
         await resend.emails.send({
-          from: process.env.EMAIL_FROM || "Matics <invitations@notifications.maticsapp.com>",
+          from: process.env.EMAIL_FROM || "MaticsApp <invitations@notifications.maticsapp.com>",
           to: data.email,
           subject: `You've been invited to join ${data.organization.name}`,
           html: `
@@ -437,6 +429,14 @@ const authConfig = {
         required: false,
         fieldName: "avatar_url",
       },
+      // User type: staff can access main app, applicants restricted to portal
+      userType: {
+        type: "string" as const,
+        required: false,
+        defaultValue: "applicant",
+        fieldName: "user_type",
+        input: true, // Allow setting during signup
+      },
     },
   },
   
@@ -444,9 +444,11 @@ const authConfig = {
     modelName: "ba_sessions",
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // Update session every 24 hours
+    freshAge: 60 * 15, // 15 minutes - require fresh session for sensitive operations
     cookieCache: {
       enabled: true,
       maxAge: 5 * 60, // 5 minutes cache
+      strategy: "compact" as const, // Smallest size, best performance
     },
     fields: {
       userId: "user_id",
@@ -496,20 +498,37 @@ const authConfig = {
       },
     },
   },
+
+  // Rate Limiting for API protection
+  rateLimit: {
+    enabled: true,
+    window: 60, // 1 minute window
+    max: 100, // 100 requests per minute per IP
+    storage: "memory", // Use memory for single-server, "database" for distributed
+  },
+
+  // Advanced security settings
+  advanced: {
+    // Cross-subdomain cookie sharing for *.maticsapp.com
+    crossSubdomainCookies: {
+      enabled: true,
+      domain: ".maticsapp.com",
+    },
+    // Cookie attributes for security
+    defaultCookieAttributes: {
+      sameSite: "lax", // Balance security and usability
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      path: "/",
+    },
+  },
 };
 
-// Create singleton instance
-function createAuthInstance() {
-  if (!authInstance) {
-    authInstance = betterAuth(authConfig);
-  }
-  return authInstance;
-}
-
-// Export the auth instance
-export const auth = createAuthInstance();
+// Create singleton instance - must be created at module load time for Next.js
+console.log('[Better Auth] Creating auth instance at module load');
+export const auth = betterAuth(authConfig);
 
 // Export types
-export type Auth = typeof auth;
-export type Session = typeof auth.$Infer.Session;
-export type User = typeof auth.$Infer.Session.user;
+export type Auth = ReturnType<typeof betterAuth>;
+export type Session = Auth['$Infer']['Session'];
+export type User = Auth['$Infer']['Session']['user'];

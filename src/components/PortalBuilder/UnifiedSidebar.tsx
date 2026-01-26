@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Lock, Eye as EyeIcon, LayoutDashboard, ScrollText, BookOpen, CheckCircle,
+  Lock, Eye as EyeIcon, ScrollText, BookOpen, CheckCircle,
   ChevronRight, ChevronDown, Plus, GripVertical, Trash2, Settings,
   Clock, MessageSquare, FileText, CheckCircle2, MoreVertical
 } from 'lucide-react'
@@ -27,22 +27,19 @@ import {
   DropdownMenuTrigger,
 } from '@/ui-components/dropdown-menu'
 import { Section } from '@/types/portal'
-import { DashboardSettings } from '@/types/dashboard'
 import { getCollaborationActions } from '@/lib/collaboration/collaboration-store'
 import { MentionInput } from './MentionInput'
 
 interface UnifiedSidebarProps {
   sections: Section[]
   activeSectionId: string
-  activeSpecialPage: 'signup' | 'review' | 'dashboard' | null
+  activeSpecialPage: 'signup' | 'review' | null
   onSelectSection: (id: string) => void
-  onSelectSpecialPage: (page: 'signup' | 'review' | 'dashboard' | null) => void
+  onSelectSpecialPage: (page: 'signup' | 'review' | null) => void
   onReorderSections: (sections: Section[]) => void
   onDeleteSection: (id: string) => void
   onAddSection: (type: string) => void
   onUpdateSection?: (sectionId: string, updates: Partial<Section>) => void
-  dashboardSettings: DashboardSettings
-  onDashboardSettingsChange: (settings: Partial<DashboardSettings>) => void
 }
 
 // Section type variants for styling
@@ -79,23 +76,7 @@ const SECTION_VARIANTS = {
     activeBg: 'bg-purple-100',
     border: 'border-purple-200'
   },
-  dashboard: { 
-    label: 'Dashboard', 
-    icon: LayoutDashboard, 
-    bg: 'bg-indigo-50', 
-    fg: 'text-indigo-600', 
-    activeBg: 'bg-indigo-100',
-    border: 'border-indigo-200'
-  },
 } as const
-
-// Dashboard built-in components
-const DASHBOARD_COMPONENTS = [
-  { key: 'showStatus', label: 'Status Card', icon: CheckCircle2, description: 'Application status indicator' },
-  { key: 'showTimeline', label: 'Activity Timeline', icon: Clock, description: 'History and updates' },
-  { key: 'showChat', label: 'Messages', icon: MessageSquare, description: 'Two-way communication' },
-  { key: 'showDocuments', label: 'Documents', icon: FileText, description: 'File uploads & requests' },
-]
 
 export function UnifiedSidebar({
   sections,
@@ -107,8 +88,6 @@ export function UnifiedSidebar({
   onDeleteSection,
   onAddSection,
   onUpdateSection,
-  dashboardSettings,
-  onDashboardSettingsChange,
 }: UnifiedSidebarProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['cover', 'form', 'after']))
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
@@ -136,8 +115,7 @@ export function UnifiedSidebar({
       // Track special pages too
       const pageNames = {
         signup: 'Sign Up / Login',
-        review: 'Review & Submit',
-        dashboard: 'Applicant Dashboard'
+        review: 'Review & Submit'
       }
       updateCurrentSection(`special-${activeSpecialPage}`, pageNames[activeSpecialPage])
     }
@@ -146,7 +124,6 @@ export function UnifiedSidebar({
   // Separate sections by type - covers and forms are combined in the Application Form group
   const applicationSections = Array.isArray(sections) ? sections.filter(s => s.sectionType === 'form' || s.sectionType === 'cover' || !s.sectionType) : []
   const endingSections = Array.isArray(sections) ? sections.filter(s => s.sectionType === 'ending') : []
-  const dashboardSections = Array.isArray(sections) ? sections.filter(s => s.sectionType === 'dashboard') : []
 
   // Drag handlers for form sections - use section ID to track dragged item
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null)
@@ -406,7 +383,7 @@ export function UnifiedSidebar({
           <Separator className="my-2" />
 
           {/* ═══════════════════════════════════════════════════════════════════
-              AFTER SUBMISSION GROUP - Dashboard & Endings
+              AFTER SUBMISSION GROUP - Ending Pages
           ═══════════════════════════════════════════════════════════════════ */}
           <Collapsible open={expandedGroups.has('after')} onOpenChange={() => toggleGroup('after')}>
             <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-2 hover:bg-gray-50 rounded-lg transition-colors">
@@ -414,101 +391,13 @@ export function UnifiedSidebar({
                 "w-4 h-4 text-gray-400 transition-transform",
                 expandedGroups.has('after') && "rotate-90"
               )} />
-              <LayoutDashboard className="w-4 h-4 text-orange-600" />
-              <span className="text-sm font-semibold text-gray-700 flex-1 text-left">After Submission</span>
+              <CheckCircle className="w-4 h-4 text-emerald-600" />
+              <span className="text-sm font-semibold text-gray-700 flex-1 text-left">Ending Pages</span>
             </CollapsibleTrigger>
             <CollapsibleContent className="pl-2 pr-2 py-1 space-y-1">
-              {/* Dashboard - Expandable with settings */}
-              <Collapsible 
-                open={activeSpecialPage === 'dashboard'}
-                onOpenChange={(open) => {
-                  if (open) {
-                    onSelectSpecialPage('dashboard')
-                    onSelectSection('')
-                  }
-                }}
-              >
-                <CollapsibleTrigger className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors text-left",
-                  activeSpecialPage === 'dashboard' 
-                    ? "bg-orange-50 text-orange-900 border border-orange-200" 
-                    : "text-gray-700 hover:bg-gray-50"
-                )}>
-                  <div className="w-7 h-7 rounded-lg bg-orange-50 flex items-center justify-center">
-                    <LayoutDashboard className="w-3.5 h-3.5 text-orange-600" />
-                  </div>
-                  <span className="font-medium flex-1">Applicant Dashboard</span>
-                  <ChevronDown className={cn(
-                    "w-4 h-4 text-gray-400 transition-transform",
-                    activeSpecialPage === 'dashboard' && "rotate-180"
-                  )} />
-                </CollapsibleTrigger>
-                
-                <CollapsibleContent className="mt-2 ml-2 space-y-3 pb-2">
-                  {/* Dashboard Components Toggles */}
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide px-1">Components</p>
-                    {DASHBOARD_COMPONENTS.map((comp) => {
-                      const Icon = comp.icon
-                      const isEnabled = dashboardSettings[comp.key as keyof DashboardSettings] as boolean
-                      return (
-                        <div 
-                          key={comp.key}
-                          className={cn(
-                            "flex items-center gap-2 p-2 rounded-lg border transition-all",
-                            isEnabled ? "bg-blue-50/50 border-blue-100" : "bg-gray-50 border-gray-100 opacity-70"
-                          )}
-                        >
-                          <Icon className={cn("w-4 h-4", isEnabled ? "text-blue-600" : "text-gray-400")} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-gray-900">{comp.label}</p>
-                          </div>
-                          <Switch
-                            checked={isEnabled}
-                            onCheckedChange={(checked) => onDashboardSettingsChange({ [comp.key]: checked })}
-                            className="scale-75"
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  <Separator />
-
-                  {/* Welcome Message Settings */}
-                  <div className="space-y-3">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide px-1">Welcome Message</p>
-                    <div className="space-y-3">
-                      <div>
-                        <Label className="text-xs text-gray-600 mb-1.5 block">Title</Label>
-                        <MentionInput
-                          value={dashboardSettings.welcomeTitle || ''}
-                          onChange={(value) => onDashboardSettingsChange({ welcomeTitle: value })}
-                          placeholder="Good morning, @firstName 👋"
-                          className="h-9 text-sm"
-                          availableFields={sections.flatMap(s => s.fields)}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-gray-600 mb-1.5 block">Description</Label>
-                        <MentionInput
-                          value={dashboardSettings.welcomeText || ''}
-                          onChange={(value) => onDashboardSettingsChange({ welcomeText: value })}
-                          placeholder="Here's an overview of your application."
-                          className="text-sm"
-                          availableFields={sections.flatMap(s => s.fields)}
-                          multiline
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-
               {/* Ending Pages */}
               {endingSections.length > 0 && (
                 <div className="pl-2 space-y-1">
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide px-1 py-1 truncate">Thank You Pages</p>
                   <AnimatePresence mode="popLayout">
                     {endingSections.map((section) => renderSectionItem(section, false))}
                   </AnimatePresence>

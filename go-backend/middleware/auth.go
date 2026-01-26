@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Jsanchez767/matic-platform/config"
 	"github.com/Jsanchez767/matic-platform/database"
@@ -12,7 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
-
 
 // BetterAuthClaims represents the claims in a Better Auth JWT token
 type BetterAuthClaims struct {
@@ -35,9 +36,50 @@ const (
 	AuthProviderBetterAuth AuthProvider = "better-auth"
 )
 
+// Session cache for performance (matches Better Auth cookie cache duration)
+var sessionCache sync.Map
+
+// CachedSession wraps session with expiration time
+type CachedSession struct {
+	Session     models.BetterAuthSession
+	CachedUntil time.Time
+}
+
+// Initialize cache cleanup goroutine
+func init() {
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			now := time.Now()
+			sessionCache.Range(func(key, value interface{}) bool {
+				if cached, ok := value.(*CachedSession); ok {
+					if now.After(cached.CachedUntil) {
+						sessionCache.Delete(key)
+					}
+				}
+				return true
+			})
+		}
+	}()
+}
+
 // validateBetterAuthSessionToken checks if a token is a valid Better Auth session token
-// by looking it up in the ba_sessions table
+// by looking it up in the ba_sessions table with caching for performance
 func validateBetterAuthSessionToken(token string) (*models.BetterAuthSession, bool) {
+	// Check cache first (5 minute TTL matches Better Auth cookie cache)
+	if cached, ok := sessionCache.Load(token); ok {
+		cachedSession := cached.(*CachedSession)
+		if time.Now().Before(cachedSession.CachedUntil) {
+			// Return cached session (creates a copy to avoid mutation)
+			session := cachedSession.Session
+			return &session, true
+		}
+		// Expired cache entry
+		sessionCache.Delete(token)
+	}
+
+	// Cache miss - query database
 	var session models.BetterAuthSession
 
 	result := database.DB.Preload("User").Where("token = ?", token).First(&session)
@@ -51,26 +93,24 @@ func validateBetterAuthSessionToken(token string) (*models.BetterAuthSession, bo
 		return nil, false
 	}
 
+	// Cache the valid session for 5 minutes (matches Better Auth cookie cache)
+	sessionCache.Store(token, &CachedSession{
+		Session:     session,
+		CachedUntil: time.Now().Add(5 * time.Minute),
+	})
+
 	return &session, true
 }
 
-// extractTokenFromRequest extracts the token from Authorization header (primary) or cookies (fallback)
-// OPTIMIZATION: Prioritize Authorization header since that's what API clients use
+// extractTokenFromRequest extracts the token from cookies (primary) or Authorization header (fallback)
+// BETTER AUTH BEST PRACTICE: Prioritize cookies since Better Auth uses cookie-based session management
+// Reference: https://www.better-auth.com/docs/concepts/session-management
 func extractTokenFromRequest(c *gin.Context) string {
-	// Primary: Authorization header (used by API clients)
-	authHeader := c.GetHeader("Authorization")
-	if authHeader != "" {
-		parts := strings.Split(authHeader, " ")
-		if len(parts) == 2 && parts[0] == "Bearer" {
-			return parts[1]
-		}
-	}
-
-	// Fallback: Check cookies (for browser-based requests)
-	// Better Auth stores tokens in HTTP-only cookies
+	// PRIMARY: Check cookies first (Better Auth standard for web apps)
+	// Better Auth stores session tokens in HTTP-only cookies
 	cookieNames := []string{
-		"__Secure-better-auth.session_token",
-		"better-auth.session_token",
+		"better-auth.session_token",          // Standard Better Auth cookie
+		"__Secure-better-auth.session_token", // Secure variant (HTTPS only)
 		"better-auth_session_token",
 		"better_auth_session",
 		"session_token",
@@ -78,11 +118,23 @@ func extractTokenFromRequest(c *gin.Context) string {
 
 	for _, cookieName := range cookieNames {
 		if cookie, err := c.Cookie(cookieName); err == nil && cookie != "" {
-			// If cookie is signed (contains .), extract just the token part
+			// Better Auth session tokens are stored directly in the cookie
+			// If using cookie cache strategies (compact/jwt/jwe), the token may contain periods
+			// but the session token itself is before the first period
 			if strings.Contains(cookie, ".") {
 				return strings.Split(cookie, ".")[0]
 			}
 			return cookie
+		}
+	}
+
+	// FALLBACK: Authorization header (for API clients & mobile apps)
+	// Useful for programmatic access without cookies
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			return parts[1]
 		}
 	}
 
@@ -242,7 +294,6 @@ func GetUserEmail(c *gin.Context) (string, bool) {
 	e, ok := email.(string)
 	return e, ok
 }
-
 
 // DebugTokenMiddleware logs token information (use only in development)
 func DebugTokenMiddleware() gin.HandlerFunc {

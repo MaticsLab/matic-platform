@@ -12,10 +12,25 @@ const MAIN_DOMAINS = [
   'localhost',
 ]
 
+// Public routes that don't require staff access (auth, public portal, etc.)
+const PUBLIC_ROUTES = [
+  '/auth',
+  '/apply',
+  '/portal',
+  '/api/auth',
+  '/_next',
+  '/static',
+]
+
 // Check if hostname is a Vercel preview deployment
 const isVercelPreview = (hostname: string) => hostname.includes('vercel.app')
 
-export function middleware(request: NextRequest) {
+// Check if route is public (accessible to applicants)
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTES.some(route => pathname.startsWith(route)) || pathname.includes('.')
+}
+
+export async function middleware(request: NextRequest) {
   const url = request.nextUrl
   const hostname = request.headers.get('host') || ''
   
@@ -31,6 +46,10 @@ export function middleware(request: NextRequest) {
 
   // Check if this is a main domain (not a custom subdomain)
   const isMainDomain = MAIN_DOMAINS.includes(hostname) || isVercelPreview(hostname)
+  
+  // For now, let client-side handle auth redirects
+  // Middleware session checks were causing redirect loops
+  // TODO: Re-enable after Better Auth session endpoint is stable
   
   // Handle forms.maticsapp.com - rewrite to /apply/{slug}
   if (hostname === 'forms.maticsapp.com' && url.pathname !== '/' && !url.pathname.startsWith('/apply')) {

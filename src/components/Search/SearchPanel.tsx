@@ -20,6 +20,7 @@ import {
   Zap
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useClickOutside, useEventListener } from '@/lib/event-utils'
 import { useSearch } from './SearchProvider'
 import { performSemanticSearch } from '@/lib/api/semantic-search-client'
 import { generateReport, isReportQueryLocal } from '@/lib/api/reports-client'
@@ -230,48 +231,33 @@ export function SearchPanel({ workspaceId, workspaceSlug, tabManager }: SearchPa
   }
 
   // Keyboard navigation
-  useEffect(() => {
+  // Keyboard navigation
+  useEventListener('keydown', (e: KeyboardEvent) => {
     if (!isPanelOpen) return
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault()
-          setSelectedIndex(prev => Math.min(prev + 1, results.length - 1))
-          break
-        case 'ArrowUp':
-          e.preventDefault()
-          setSelectedIndex(prev => Math.max(prev - 1, 0))
-          break
-        case 'Enter':
-          e.preventDefault()
-          if (results[selectedIndex]) {
-            results[selectedIndex].action()
-          }
-          break
-        case 'Escape':
-          closePanel()
-          break
-      }
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setSelectedIndex(prev => Math.min(prev + 1, results.length - 1))
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setSelectedIndex(prev => Math.max(prev - 1, 0))
+        break
+      case 'Enter':
+        e.preventDefault()
+        if (results[selectedIndex]) {
+          results[selectedIndex].action()
+        }
+        break
+      case 'Escape':
+        closePanel()
+        break
     }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isPanelOpen, results, selectedIndex, closePanel])
+  })
 
   // Click outside to close
-  useEffect(() => {
-    if (!isPanelOpen) return
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        closePanel()
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isPanelOpen, closePanel])
+  useClickOutside(panelRef, closePanel, isPanelOpen)
 
   // Group results by category
   const groupedResults = results.reduce((acc, result) => {

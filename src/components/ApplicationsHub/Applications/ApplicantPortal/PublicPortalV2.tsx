@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Mail, Lock, LayoutDashboard, FileText, MessageSquare, CheckSquare, Home, LogOut, Settings, Bell, CheckCircle2, Menu, X, PanelLeftOpen, PanelLeftClose } from 'lucide-react'
+import { ArrowRight, Mail, Lock, LayoutDashboard, FileText, MessageSquare, CheckSquare, Home, LogOut, Settings, Bell, CheckCircle2, Menu, X, PanelLeftOpen, PanelLeftClose, Save } from 'lucide-react'
 import { AccountSettingsModal } from '@/components/Dashboard/DashboardV2/AccountSettingsModal'
 import { Button } from '@/ui-components/button'
+import { UserMenu } from './UserMenu'
 import { Input } from '@/ui-components/input'
 import { Textarea } from '@/ui-components/textarea'
 import { Label } from '@/ui-components/label'
@@ -217,6 +218,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [navSidebarOpen, setNavSidebarOpen] = useState(true) // State for main navigation sidebar
   const [applicationProgress, setApplicationProgress] = useState<number>(0) // Progress for application view
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false) // Settings modal state
   
   // Ref to prevent duplicate form loads (React 18 Strict Mode)
   const formLoadRef = useRef<string | null>(null)
@@ -1503,6 +1505,11 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
             themeColor={accentColor}
             sidebarBgColor={sidebarBgColor}
             sidebarTextColor={sidebarTextColor}
+            applicantId={applicantId || undefined}
+            applicantName={applicantName}
+            email={email}
+            onLogout={handleLogout}
+            onOpenSettings={() => setIsSettingsOpen(true)}
           />
         )}
 
@@ -1529,6 +1536,8 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
             onSaveAndExit={currentView === 'application' ? handleSaveAndDashboard : undefined}
             progress={currentView === 'application' ? applicationProgress : undefined}
             isSaving={isRealtimeSaving}
+            isSettingsOpen={isSettingsOpen}
+            onSettingsOpenChange={setIsSettingsOpen}
           />
 
           {/* Content */}
@@ -1611,6 +1620,11 @@ interface PortalNavSidebarProps {
   themeColor: string
   sidebarBgColor?: string
   sidebarTextColor?: string
+  applicantId?: string
+  applicantName?: string
+  email?: string
+  onLogout: () => void
+  onOpenSettings?: () => void
 }
 
 function PortalNavSidebar({
@@ -1621,7 +1635,12 @@ function PortalNavSidebar({
   formName,
   themeColor,
   sidebarBgColor = '#101010',
-  sidebarTextColor = '#BCE7F4'
+  sidebarTextColor = '#BCE7F4',
+  applicantId,
+  applicantName,
+  email,
+  onLogout,
+  onOpenSettings
 }: PortalNavSidebarProps) {
   const navItems = [
     { id: 'messages' as PortalView, label: 'Messages', icon: MessageSquare },
@@ -1721,6 +1740,25 @@ function PortalNavSidebar({
           })}
         </div>
       </nav>
+      
+      {/* User Menu at Bottom - Always show if logged in */}
+      {(applicantId || applicantName || email) && (
+        <div 
+          className="p-2 border-t mt-auto"
+          style={{ borderColor: `${sidebarTextColor}33` }}
+        >
+          <UserMenu 
+            user={{
+              id: applicantId || 'unknown',
+              name: applicantName || 'User',
+              email: email || 'user@example.com'
+            }}
+            onSignOut={onLogout}
+            textColor={sidebarTextColor}
+            onOpenSettings={onOpenSettings}
+          />
+        </div>
+      )}
     </aside>
   )
 }
@@ -1746,6 +1784,8 @@ interface PortalHeaderProps {
   onSaveAndExit?: () => void // Add save and exit handler
   progress?: number // Progress percentage for progress bar
   isSaving?: boolean // Show saving state
+  isSettingsOpen?: boolean // Settings modal state
+  onSettingsOpenChange?: (open: boolean) => void // Settings modal state handler
 }
 
 function PortalHeader({
@@ -1767,9 +1807,10 @@ function PortalHeader({
   navSidebarOpen = true,
   onSaveAndExit,
   progress,
-  isSaving = false
+  isSaving = false,
+  isSettingsOpen = false,
+  onSettingsOpenChange
 }: PortalHeaderProps) {
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   
   const themeSettings = portalConfig.settings as any
   const backgroundColor = themeSettings?.backgroundColor || '#FFFFFF'
@@ -1849,36 +1890,33 @@ function PortalHeader({
               )}
               
               {/* Settings Button */}
-              {applicantId && (
+              {applicantId && onSettingsOpenChange && (
                 <Button 
                   variant="ghost" 
                   size="icon" 
                   className="hover:bg-gray-100 h-9 w-9"
-                  onClick={() => setIsSettingsOpen(true)}
+                  onClick={() => onSettingsOpenChange(true)}
+                  data-settings-trigger
                 >
                   <Settings className="w-4 h-4" />
                 </Button>
               )}
               
-              {applicantName && (
-                <span className="text-sm text-gray-600">{applicantName}</span>
-              )}
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={(e) => {
-                  e.preventDefault()
-                  if (onSaveAndExit) {
+              {/* Save and Exit Button - Made more visible */}
+              {onSaveAndExit && (
+                <Button 
+                  size="lg"
+                  onClick={(e) => {
+                    e.preventDefault()
                     onSaveAndExit()
-                  } else {
-                    onLogout()
-                  }
-                }}
-                disabled={isSaving}
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                {onSaveAndExit ? (isSaving ? 'Saving...' : 'Save and Exit') : 'Logout'}
-              </Button>
+                  }}
+                  disabled={isSaving}
+                  className="bg-yellow-600 hover:bg-yellow-700 text-white shadow-lg font-semibold gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  {isSaving ? 'Saving...' : 'Save & Exit'}
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -1913,10 +1951,10 @@ function PortalHeader({
       )}
       
       {/* Account Settings Modal */}
-      {applicantId && (
+      {applicantId && onSettingsOpenChange && (
         <AccountSettingsModal
           isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
+          onClose={() => onSettingsOpenChange(false)}
           applicantId={applicantId}
           currentName={applicantName}
           email={email}

@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { PortalEditor } from '@/components/PortalBuilder/PortalEditor'
 import { useParams, useSearchParams } from 'next/navigation'
+import { PortalEditorSkeleton } from '@/components/PortalBuilder/PortalEditorSkeleton'
 
 function PortalEditorPageContent() {
   const params = useParams()
@@ -20,7 +20,7 @@ function PortalEditorPageContent() {
 
 export default function PortalEditorPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute fallback={<PortalEditorSkeleton />}>
       <PortalEditorPageContent />
     </ProtectedRoute>
   )

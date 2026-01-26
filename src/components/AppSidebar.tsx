@@ -47,6 +47,7 @@ import { Switch } from '@/ui-components/switch'
 import { useTabContext } from './WorkspaceTabProvider'
 import ModeToggle from '@/components/mode-toggle'
 import { OrganizationMenu } from './OrganizationMenu'
+import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { cn } from '@/lib/utils'
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -122,23 +123,26 @@ export function AppSidebar({
     <Sidebar collapsible="icon" variant="inset" {...props}>
       {/* Header - Workspace Switcher */}
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="w-full justify-start">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <Building2 className="size-4" />
-              </div>
-              <div className={cn(
-                "grid flex-1 text-left text-sm leading-tight",
-                state === "collapsed" && "sr-only"
-              )}>
-                <span className="truncate font-semibold">
-                  {currentWorkspace?.name || 'Workspace'}
-                </span>
-              </div>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        {state === "collapsed" ? (
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" className="w-full justify-start">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                  <Building2 className="size-4" />
+                </div>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        ) : (
+          <div className="px-2 py-2">
+            <WorkspaceSwitcher
+              workspaces={workspaces}
+              currentWorkspace={currentWorkspace}
+              onSwitch={(workspace) => handleWorkspaceSwitch?.(workspace.slug)}
+              className="w-full"
+            />
+          </div>
+        )}
       </SidebarHeader>
 
       {/* Main Navigation */}

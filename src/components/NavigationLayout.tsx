@@ -10,7 +10,7 @@ import { AppSidebar } from './AppSidebar'  // Explicit capitalized import
 import { TabNavigation } from './TabNavigation'
 import { WorkspaceSettingsSidebar } from './WorkspaceSettingsSidebar'
 import { ProfileSidebar } from './ProfileSidebar'
-import { InviteToWorkspaceSidebar } from './InviteToWorkspaceSidebar'
+import { InviteToWorkspaceSidebarV2 } from './InviteToWorkspaceSidebarV2'
 import { UpdatePasswordDialog } from './UpdatePasswordDialog'
 import { ApiKeyDialog } from './ApiKeyDialog'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
@@ -62,7 +62,7 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
     try {
       await hybridSignOut()
       clearLastWorkspace()
-      window.location.href = '/signup-v2?mode=login'
+      window.location.href = '/'
     } catch (error) {
       console.error('Error signing out:', error)
     }
@@ -86,7 +86,7 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
   }
 
   const handleWorkspaceSwitch = (slug: string) => {
-    router.push(`/workspace/${slug}/activities-hubs`)
+    router.push(`/workspace/${slug}`)
   }
 
   const getUserName = (email: string | undefined) => {
@@ -188,7 +188,7 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
 
       {/* Invite Sidebar */}
       {currentWorkspace && showInviteSidebar && (
-        <InviteToWorkspaceSidebar
+        <InviteToWorkspaceSidebarV2
           isOpen={showInviteSidebar}
           onClose={() => setShowInviteSidebar(false)}
           workspaceId={currentWorkspace.id}

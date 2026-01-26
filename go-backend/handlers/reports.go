@@ -23,7 +23,6 @@ type ReportStats struct {
 	Forms          int `json:"forms"`
 	Rows           int `json:"rows"`
 	Submissions    int `json:"submissions"`
-	ActivitiesHubs int `json:"activities_hubs"`
 	Workflows      int `json:"workflows"`
 	PendingReviews int `json:"pending_reviews"`
 }
@@ -205,13 +204,6 @@ func gatherWorkspaceStats(workspaceID uuid.UUID) ReportStats {
 			Count(&submissionCount)
 		stats.Submissions += int(submissionCount)
 	}
-
-	// Count activities hubs (tables with hub_type = 'activities')
-	var activitiesCount int64
-	database.DB.Model(&models.Table{}).
-		Where("workspace_id = ? AND hub_type = ?", workspaceID, "activities").
-		Count(&activitiesCount)
-	stats.ActivitiesHubs = int(activitiesCount)
 
 	// Count workflows
 	var workflowCount int64

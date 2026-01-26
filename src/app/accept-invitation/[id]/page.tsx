@@ -109,8 +109,8 @@ export default function AcceptInvitationPage() {
 
       toast.success(`Successfully joined ${invitation.organization.name}!`)
       
-      // Redirect to organization or dashboard
-      router.push('/dashboard') // Adjust the redirect path as needed
+      // Redirect to workspace
+      router.push('/workspace')
       
     } catch (error: any) {
       console.error('Failed to accept invitation:', error)
@@ -256,7 +256,7 @@ export default function AcceptInvitationPage() {
           <CardContent className="text-center">
             <Button 
               variant="outline" 
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push('/workspace')}
               className="w-full"
             >
               Go to Dashboard

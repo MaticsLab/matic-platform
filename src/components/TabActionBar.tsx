@@ -130,36 +130,6 @@ export function TabActionBar({ activeTab, workspaceId, tabs, onAddTab, onNavigat
 
   // Determine which actions to show based on the active tab
   const getActionsForTab = (): TabAction[] => {
-    // Activities Hub tab - show Attendance and Enrolled actions
-    if (activeTab?.title?.includes('Activities') || activeTab?.url?.includes('activities-hub')) {
-      return [
-        {
-          icon: ClipboardList,
-          label: 'Attendance',
-          onClick: () => {
-            onAddTab?.({
-              title: 'Attendance',
-              url: `/workspace/${workspaceId}/attendance`,
-              type: 'custom',
-              workspaceId,
-            })
-          }
-        },
-        {
-          icon: Users,
-          label: 'Enrolled',
-          onClick: () => {
-            onAddTab?.({
-              title: 'Enrolled',
-              url: `/workspace/${workspaceId}/enrolled`,
-              type: 'custom',
-              workspaceId,
-            })
-          }
-        }
-      ]
-    }
-
     // No special actions for overview (removed)
 
     // Table tab - show table-specific actions

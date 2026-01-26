@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import * as React from 'react'
 import {
   Building2,
@@ -48,6 +48,9 @@ import { Label } from '@/ui-components/label'
 import { Badge } from '@/ui-components/badge'
 import { Separator } from '@/ui-components/separator'
 import { useActiveOrganization, useListOrganizations, organizationAPI } from '@/lib/better-auth-client'
+import { useOrganizationInvite } from '@/hooks/useOrganizationInvite'
+import { useOrganizationMembers } from '@/hooks/useOrganizationMembers'
+import { useOrganizationCreate } from '@/hooks/useOrganizationCreate'
 import { toast } from 'sonner'
 
 interface OrganizationMenuProps {
@@ -58,40 +61,24 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
   const [showDetails, setShowDetails] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [createForm, setCreateForm] = useState({ name: '', slug: '' })
-  const [creating, setCreating] = useState(false)
+  
   const { data: currentOrg } = useActiveOrganization()
   const { data: organizations, isPending: orgsLoading, refetch: refetchOrgs } = useListOrganizations()
-  const [members, setMembers] = useState<any[]>([])
-  const [invitations, setInvitations] = useState<any[]>([])
-  const [loadingMembers, setLoadingMembers] = useState(false)
-
-  const loadOrganizationDetails = async () => {
-    if (!currentOrg?.id) return
-    
-    setLoadingMembers(true)
-    try {
-      // Load members
-      const membersResponse = await organizationAPI.listMembers({
-        query: { organizationId: currentOrg.id }
-      })
-      if (membersResponse.data?.members) {
-        setMembers(membersResponse.data.members)
-      }
-
-      // Load invitations
-      const invitationsResponse = await organizationAPI.listInvitations({
-        query: { organizationId: currentOrg.id }
-      })
-      if (invitationsResponse.data?.length) {
-        setInvitations(invitationsResponse.data)
-      }
-    } catch (error) {
-      console.error('Failed to load organization details:', error)
-      toast.error('Failed to load organization details')
-    } finally {
-      setLoadingMembers(false)
+  
+  // Use custom hooks for organization management
+  const { inviteMember, loading: inviting } = useOrganizationInvite(currentOrg?.id || '')
+  const { members, invitations, loading: loadingMembers, reload: reloadMembers, stats } = useOrganizationMembers(
+    currentOrg?.id || '',
+    { autoLoad: false }
+  )
+  const { create, loading: creating, generateSlug } = useOrganizationCreate()
+  
+  // Auto-load members when details view is shown
+  useEffect(() => {
+    if (showDetails && currentOrg?.id) {
+      reloadMembers()
     }
-  }
+  }, [showDetails, currentOrg?.id, reloadMembers])
 
   const getRoleIcon = (role: string | string[]) => {
     const roleStr = Array.isArray(role) ? role[0] : role
@@ -107,52 +94,57 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
 
   const getRoleBadge = (role: string | string[]) => {
     const roleStr = Array.isArray(role) ? role[0] : role
-    const colors = {
-      owner: 'bg-yellow-100 text-yellow-800',
-      admin: 'bg-blue-100 text-blue-800',
-      member: 'bg-gray-100 text-gray-800',
+    const roleConfig = {
+      owner: { 
+        bg: 'bg-gradient-to-r from-yellow-500 to-amber-600', 
+        text: 'text-white',
+        icon: <Crown className="h-3 w-3" />
+      },
+      admin: { 
+        bg: 'bg-gradient-to-r from-blue-500 to-indigo-600', 
+        text: 'text-white',
+        icon: <Shield className="h-3 w-3" />
+      },
+      member: { 
+        bg: 'bg-gray-100 border border-gray-200', 
+        text: 'text-gray-700',
+        icon: <UserIcon className="h-3 w-3" />
+      },
     }
+    
+    const config = roleConfig[roleStr?.toLowerCase() as keyof typeof roleConfig] || roleConfig.member
+    
     return (
-      <Badge className={`text-xs ${colors[roleStr?.toLowerCase() as keyof typeof colors] || colors.member}`}>
-        {roleStr}
+      <Badge className={`text-xs flex items-center gap-1 ${config.bg} ${config.text} border-0`}>
+        {config.icon}
+        <span className="capitalize">{roleStr}</span>
       </Badge>
     )
   }
 
+  const [showInviteDialog, setShowInviteDialog] = useState(false)
+  const [inviteForm, setInviteForm] = useState<{ email: string; role: 'member' | 'admin' | 'owner' }>({ 
+    email: '', 
+    role: 'member' 
+  })
+
   const handleInviteUser = async () => {
     if (!currentOrg?.id) return
-    // This would typically open an invite dialog
-    toast.info('Invite dialog would open here')
+    
+    const result = await inviteMember(inviteForm.email, inviteForm.role)
+    if (result.success) {
+      setShowInviteDialog(false)
+      setInviteForm({ email: '', role: 'member' })
+      reloadMembers() // Reload to show new invitation
+    }
   }
 
   const handleCreateOrganization = async () => {
-    if (!createForm.name.trim()) {
-      toast.error('Organization name is required')
-      return
-    }
-    
-    try {
-      setCreating(true)
-      const result = await organizationAPI.create({
-        name: createForm.name.trim(),
-        slug: createForm.slug.trim() || createForm.name.toLowerCase().replace(/\s+/g, '-'),
-      })
-      
-      if (result.error) {
-        toast.error(result.error.message || 'Failed to create organization')
-        return
-      }
-      
-      toast.success(`Organization "${createForm.name}" created successfully!`)
+    const org = await create(createForm.name, createForm.slug)
+    if (org) {
       setShowCreateDialog(false)
       setCreateForm({ name: '', slug: '' })
       refetchOrgs()
-      
-    } catch (error: any) {
-      console.error('Failed to create organization:', error)
-      toast.error(error?.message || 'Failed to create organization')
-    } finally {
-      setCreating(false)
     }
   }
 
@@ -273,7 +265,6 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={loadOrganizationDetails}
                 className="h-6 w-6 p-0"
               >
                 <ChevronRight className="h-3 w-3" />
@@ -294,22 +285,48 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
                 {/* Organization Info */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Organization Details</CardTitle>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Building2 className="h-4 w-4" />
+                      Organization Details
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-500">Name:</span>
-                      <span className="text-sm font-medium">{currentOrg.name}</span>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 bg-blue-50 rounded-lg">
+                        <div className="text-xs text-blue-600 font-medium mb-1">Total Members</div>
+                        <div className="text-2xl font-bold text-blue-700">{stats.totalMembers}</div>
+                      </div>
+                      <div className="p-3 bg-amber-50 rounded-lg">
+                        <div className="text-xs text-amber-600 font-medium mb-1">Pending</div>
+                        <div className="text-2xl font-bold text-amber-700">{stats.pendingInvitations}</div>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-500">Slug:</span>
-                      <span className="text-sm font-mono">{currentOrg.slug}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-500">Created:</span>
-                      <span className="text-sm">
-                        {new Date(currentOrg.createdAt).toLocaleDateString()}
-                      </span>
+                    <Separator />
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center py-1">
+                        <span className="text-sm text-gray-600">Organization Name</span>
+                        <span className="text-sm font-semibold">{currentOrg.name}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-1">
+                        <span className="text-sm text-gray-600">Slug</span>
+                        <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">{currentOrg.slug}</code>
+                      </div>
+                      <div className="flex justify-between items-center py-1">
+                        <span className="text-sm text-gray-600">Organization ID</span>
+                        <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono truncate max-w-[200px]" title={currentOrg.id}>
+                          {currentOrg.id.substring(0, 12)}...
+                        </code>
+                      </div>
+                      <div className="flex justify-between items-center py-1">
+                        <span className="text-sm text-gray-600">Created</span>
+                        <span className="text-sm">
+                          {new Date(currentOrg.createdAt).toLocaleDateString('en-US', {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </span>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -320,12 +337,68 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base flex items-center gap-2">
                         <Users className="h-4 w-4" />
-                        Members ({members.length})
+                        Members ({stats.totalMembers})
                       </CardTitle>
-                      <Button size="sm" onClick={handleInviteUser}>
-                        <UserPlus className="h-4 w-4 mr-2" />
-                        Invite
-                      </Button>
+                      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+                        <DialogTrigger asChild>
+                          <Button size="sm">
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            Invite
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Invite Member</DialogTitle>
+                            <DialogDescription>
+                              Send an invitation to join {currentOrg.name}
+                            </DialogDescription>
+                          </DialogHeader>
+                          
+                          <div className="space-y-4">
+                            <div>
+                              <Label htmlFor="invite-email">Email Address</Label>
+                              <Input
+                                id="invite-email"
+                                type="email"
+                                placeholder="colleague@example.com"
+                                value={inviteForm.email}
+                                onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !inviting) {
+                                    handleInviteUser()
+                                  }
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="invite-role">Role</Label>
+                              <select
+                                id="invite-role"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                value={inviteForm.role}
+                                onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value as 'member' | 'admin' | 'owner' })}
+                              >
+                                <option value="member">Member</option>
+                                <option value="admin">Admin</option>
+                              </select>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {inviteForm.role === 'admin' 
+                                  ? 'Admins can manage members and organization settings'
+                                  : 'Members can access organization workspaces'}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex justify-end gap-2 mt-6">
+                            <Button variant="outline" onClick={() => setShowInviteDialog(false)}>
+                              Cancel
+                            </Button>
+                            <Button onClick={handleInviteUser} disabled={inviting}>
+                              {inviting ? 'Sending...' : 'Send Invitation'}
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -333,23 +406,45 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
                       <div className="text-center py-4">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
                       </div>
+                    ) : members.length === 0 ? (
+                      <div className="text-center py-6 text-gray-500">
+                        <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No members yet</p>
+                      </div>
                     ) : (
                       <div className="space-y-3">
                         {members.map((member) => (
-                          <div key={member.id} className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-8 w-8">
+                          <div key={member.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <Avatar className="h-9 w-9 border-2 border-gray-100">
                                 <AvatarImage src={member.user?.image} />
-                                <AvatarFallback>
-                                  {member.user?.name?.charAt(0) || member.user?.email?.charAt(0) || 'U'}
+                                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xs font-medium">
+                                  {member.user?.name?.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 
+                                   member.user?.email?.substring(0, 2).toUpperCase() || 'U'}
                                 </AvatarFallback>
                               </Avatar>
-                              <div>
-                                <div className="text-sm font-medium">
-                                  {member.user?.name || member.user?.email}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium truncate">
+                                    {member.user?.name || 'Unknown User'}
+                                  </span>
+                                  {member.user?.email_verified && (
+                                    <Badge variant="outline" className="text-xs px-1.5 py-0 border-green-200 text-green-700">
+                                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                      </svg>
+                                    </Badge>
+                                  )}
                                 </div>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-xs text-gray-500 truncate">
                                   {member.user?.email}
+                                </div>
+                                <div className="text-xs text-gray-400 mt-0.5">
+                                  Joined {new Date(member.createdAt).toLocaleDateString('en-US', { 
+                                    month: 'short', 
+                                    day: 'numeric',
+                                    year: new Date(member.createdAt).getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+                                  })}
                                 </div>
                               </div>
                             </div>
@@ -357,7 +452,7 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
                               {getRoleBadge(member.role)}
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm">
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                                     <MoreHorizontal className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
@@ -381,30 +476,75 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base flex items-center gap-2">
-                        <Mail className="h-4 w-4" />
+                        <Mail className="h-4 w-4 text-blue-600" />
                         Pending Invitations ({invitations.length})
                       </CardTitle>
+                      <CardDescription className="text-xs">
+                        These users have been invited but haven't accepted yet
+                      </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
                         {invitations.map((invitation) => (
-                          <div key={invitation.id} className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                                <Mail className="h-4 w-4 text-gray-500" />
+                          <div key={invitation.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors border border-gray-100">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="w-9 h-9 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                <Mail className="h-4 w-4 text-blue-600" />
                               </div>
-                              <div>
-                                <div className="text-sm font-medium">{invitation.email}</div>
-                                <div className="text-xs text-gray-500">
-                                  Invited by {invitation.inviter?.user?.name || invitation.inviter?.user?.email}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium truncate">{invitation.email}</div>
+                                <div className="text-xs text-gray-500 flex items-center gap-1">
+                                  <span>Invited by</span>
+                                  <span className="font-medium">
+                                    {invitation.inviter?.user?.name || invitation.inviter?.user?.email || 'Unknown'}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-400 mt-0.5">
+                                  {new Date(invitation.createdAt).toLocaleDateString('en-US', { 
+                                    month: 'short', 
+                                    day: 'numeric',
+                                    hour: 'numeric',
+                                    minute: '2-digit'
+                                  })}
+                                  {invitation.expiresAt && (
+                                    <span className="ml-2">
+                                      • Expires {new Date(invitation.expiresAt).toLocaleDateString('en-US', { 
+                                        month: 'short', 
+                                        day: 'numeric'
+                                      })}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-shrink-0">
                               {getRoleBadge(invitation.role)}
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="outline" className="text-xs border-amber-200 text-amber-700 bg-amber-50">
                                 Pending
                               </Badge>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem 
+                                    onClick={async () => {
+                                      try {
+                                        await organizationAPI.cancelInvitation({ invitationId: invitation.id })
+                                        toast.success('Invitation cancelled')
+                                        reloadMembers()
+                                      } catch (error) {
+                                        toast.error('Failed to cancel invitation')
+                                      }
+                                    }}
+                                    className="text-red-600"
+                                  >
+                                    Cancel Invitation
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </div>
                         ))}
@@ -422,11 +562,11 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
       <div className="p-3">
         <div className="grid grid-cols-2 gap-2 text-center">
           <div className="p-2 bg-blue-50 rounded-md">
-            <div className="text-sm font-semibold text-blue-700">{members.length}</div>
+            <div className="text-sm font-semibold text-blue-700">{stats.totalMembers}</div>
             <div className="text-xs text-blue-600">Members</div>
           </div>
           <div className="p-2 bg-purple-50 rounded-md">
-            <div className="text-sm font-semibold text-purple-700">{invitations.length}</div>
+            <div className="text-sm font-semibold text-purple-700">{stats.pendingInvitations}</div>
             <div className="text-xs text-purple-600">Pending</div>
           </div>
         </div>
@@ -440,7 +580,7 @@ export function OrganizationMenu({ onClose }: OrganizationMenuProps) {
           variant="ghost" 
           size="sm" 
           className="w-full justify-start h-8"
-          onClick={handleInviteUser}
+          onClick={() => setShowInviteDialog(true)}
         >
           <UserPlus className="h-3 w-3 mr-2" />
           Invite Members

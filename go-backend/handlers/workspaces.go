@@ -1,6 +1,10 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"regexp"
@@ -11,6 +15,7 @@ import (
 	"github.com/Jsanchez767/matic-platform/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // Workspace Handlers
@@ -39,12 +44,68 @@ func ListWorkspaces(c *gin.Context) {
 		query = query.Where("workspaces.is_archived = ?", false)
 	}
 
-	if err := query.Preload("Members").Order("workspaces.created_at DESC").Find(&workspaces).Error; err != nil {
+	// PERFORMANCE OPTIMIZATION: Preload Members with BAUser in single query
+	// This fixes N+1 query issue - previously queried ba_users for each member separately
+	if err := query.
+		Preload("Members", func(db *gorm.DB) *gorm.DB {
+			return db.Preload("BAUser").Where("status = ?", "active")
+		}).
+		Order("workspaces.created_at DESC").
+		Find(&workspaces).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, workspaces)
+}
+
+// GetWorkspacesInit returns all data needed for workspace page initialization
+// Optimized endpoint that combines workspaces, organizations, and active workspace data
+// in a single response to eliminate waterfall requests
+// GET /api/v1/workspaces/init
+func GetWorkspacesInit(c *gin.Context) {
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	type WorkspacesInitResponse struct {
+		Workspaces        []models.Workspace `json:"workspaces"`
+		ActiveWorkspaceID *uuid.UUID         `json:"active_workspace_id"`
+		ActiveWorkspace   *models.Workspace  `json:"active_workspace"`
+		OrganizationID    *uuid.UUID         `json:"organization_id"`
+	}
+
+	var response WorkspacesInitResponse
+
+	// Get all user's workspaces with members (optimized with Preload)
+	var workspaces []models.Workspace
+	if err := database.DB.
+		Joins("JOIN workspace_members ON workspace_members.workspace_id = workspaces.id").
+		Where("(workspace_members.user_id::text = ? OR workspace_members.ba_user_id = ?) AND workspace_members.status = ? AND workspaces.is_archived = ?", userID, userID, "active", false).
+		Preload("Members", func(db *gorm.DB) *gorm.DB {
+			return db.Preload("BAUser").Where("status = ?", "active")
+		}).
+		Order("workspaces.created_at DESC").
+		Find(&workspaces).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch workspaces"})
+		return
+	}
+
+	response.Workspaces = workspaces
+
+	// Get active workspace ID (most recently accessed or first workspace)
+	if len(workspaces) > 0 {
+		// Try to get from user's last accessed workspace (could be stored in user metadata)
+		// For now, default to first workspace
+		response.ActiveWorkspaceID = &workspaces[0].ID
+		response.ActiveWorkspace = &workspaces[0]
+		response.OrganizationID = &workspaces[0].OrganizationID
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func GetWorkspace(c *gin.Context) {
@@ -613,4 +674,116 @@ func RemoveWorkspaceMember(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Member removed successfully"})
+}
+
+// GetWorkspaceMembersWithAuth returns workspace members with Better Auth user data
+func GetWorkspaceMembersWithAuth(c *gin.Context) {
+	workspaceID := c.Param("id")
+	if workspaceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id is required"})
+		return
+	}
+
+	wsID, err := uuid.Parse(workspaceID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace ID"})
+		return
+	}
+
+	// Check if user has access to this workspace
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	// Verify user is a member of this workspace
+	var userMember models.WorkspaceMember
+	if err := database.DB.Where("workspace_id = ? AND (user_id::text = ? OR ba_user_id = ?) AND status = ?", wsID, userID, userID, "active").First(&userMember).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have access to this workspace"})
+		return
+	}
+
+	type MemberWithAuth struct {
+		ID                string  `json:"id"`
+		WorkspaceID       string  `json:"workspace_id"`
+		BAUserID          *string `json:"ba_user_id"`
+		Role              string  `json:"role"`
+		CreatedAt         string  `json:"created_at"`
+		UpdatedAt         string  `json:"updated_at"`
+		UserName          *string `json:"user_name"`
+		UserEmail         string  `json:"user_email"`
+		UserImage         *string `json:"user_image"`
+		UserEmailVerified bool    `json:"user_email_verified"`
+		UserCreatedAt     string  `json:"user_created_at"`
+	}
+
+	var members []MemberWithAuth
+	err = database.DB.Raw(`
+		SELECT 
+			wm.id,
+			wm.workspace_id,
+			wm.ba_user_id,
+			wm.role,
+			ba.created_at::text as created_at,
+			ba.updated_at::text as updated_at,
+			ba.name as user_name,
+			ba.email as user_email,
+			ba.image as user_image,
+			ba.email_verified as user_email_verified,
+			ba.created_at::text as user_created_at
+		FROM workspace_members wm
+		LEFT JOIN ba_users ba ON wm.ba_user_id = ba.id
+		WHERE wm.workspace_id = ? AND wm.status = 'active'
+		ORDER BY ba.created_at ASC
+	`, wsID).Scan(&members).Error
+
+	if err != nil {
+		log.Printf("GetWorkspaceMembersWithAuth: Database error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch members"})
+		return
+	}
+
+	c.JSON(http.StatusOK, members)
+}
+
+// GetWorkspaceInvitations is a wrapper that calls ListInvitations
+// with the workspace ID from the URL parameter instead of query parameter
+func GetWorkspaceInvitations(c *gin.Context) {
+	workspaceID := c.Param("id")
+	if workspaceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id is required"})
+		return
+	}
+
+	// Set the workspace_id as a query parameter and call the existing handler
+	c.Request.URL.RawQuery = fmt.Sprintf("workspace_id=%s&%s", workspaceID, c.Request.URL.RawQuery)
+	ListInvitations(c)
+}
+
+// CreateWorkspaceInvitation is a wrapper that adds the workspace ID from the URL
+// to the request body before calling the existing CreateInvitation handler
+func CreateWorkspaceInvitation(c *gin.Context) {
+	workspaceID := c.Param("id")
+	if workspaceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id is required"})
+		return
+	}
+
+	// Read the request body
+	var body map[string]interface{}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Add workspace_id to the body
+	body["workspace_id"] = workspaceID
+
+	// Re-bind the modified body back to the context
+	jsonData, _ := json.Marshal(body)
+	c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(jsonData))
+
+	// Call the existing handler
+	CreateInvitation(c)
 }

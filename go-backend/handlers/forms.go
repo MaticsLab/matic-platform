@@ -22,12 +22,15 @@ import (
 // GetForm returns a single form by ID
 func GetForm(c *gin.Context) {
 	id := c.Param("id")
+
+	// Optimized: Load table with view in single query using Preload
 	var table models.Table
-	if err := database.DB.First(&table, "id = ?", id).Error; err != nil {
+	if err := database.DB.Preload("Views", "type = ?", "form").First(&table, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
 		return
 	}
 
+	// Load fields in one query with explicit ordering
 	var fields []models.Field
 	database.DB.Where("table_id = ?", table.ID).Order("position ASC").Find(&fields)
 	for i := range fields {
@@ -40,10 +43,11 @@ func GetForm(c *gin.Context) {
 		}
 	}
 
-	var view models.View
+	// Extract view data from preloaded relationship
 	isPublished := false
 	var viewID *uuid.UUID
-	if err := database.DB.Where("table_id = ? AND type = ?", table.ID, "form").First(&view).Error; err == nil {
+	if len(table.Views) > 0 {
+		view := table.Views[0]
 		viewID = &view.ID
 		var config map[string]interface{}
 		json.Unmarshal(view.Config, &config)
@@ -276,20 +280,20 @@ func ListForms(c *gin.Context) {
 
 // FormListItemDTO - Lightweight form data for hub list view
 type FormListItemDTO struct {
-	ID                 uuid.UUID `json:"id"`
+	ID                 uuid.UUID  `json:"id"`
 	ViewID             *uuid.UUID `json:"view_id,omitempty"`
-	WorkspaceID        uuid.UUID `json:"workspace_id"`
-	Name               string    `json:"name"`
-	Slug               string    `json:"slug"`
-	CustomSlug         *string   `json:"custom_slug,omitempty"`
-	Description        string    `json:"description"`
-	IsPublished        bool      `json:"is_published"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
-	PreviewTitle       *string   `json:"preview_title,omitempty"`
-	PreviewDescription *string   `json:"preview_description,omitempty"`
-	PreviewImageURL    *string   `json:"preview_image_url,omitempty"`
-	SubmissionCount    int       `json:"submission_count,omitempty"` // Optional: count of submissions
+	WorkspaceID        uuid.UUID  `json:"workspace_id"`
+	Name               string     `json:"name"`
+	Slug               string     `json:"slug"`
+	CustomSlug         *string    `json:"custom_slug,omitempty"`
+	Description        string     `json:"description"`
+	IsPublished        bool       `json:"is_published"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+	PreviewTitle       *string    `json:"preview_title,omitempty"`
+	PreviewDescription *string    `json:"preview_description,omitempty"`
+	PreviewImageURL    *string    `json:"preview_image_url,omitempty"`
+	SubmissionCount    int        `json:"submission_count,omitempty"` // Optional: count of submissions
 }
 
 // ListFormsOptimized - Fast endpoint for Applications Hub
@@ -341,11 +345,11 @@ func ListFormsOptimized(c *gin.Context) {
 
 	// Batch fetch views and submission counts in parallel
 	type viewResult struct {
-		TableID    uuid.UUID
-		ViewID     *uuid.UUID
+		TableID     uuid.UUID
+		ViewID      *uuid.UUID
 		IsPublished bool
 	}
-	
+
 	type countResult struct {
 		TableID uuid.UUID
 		Count   int
@@ -1220,27 +1224,27 @@ func ListFormSubmissions(c *gin.Context) {
 	type SubmissionResponse struct {
 		ID                uuid.UUID              `json:"id"`
 		TableID           uuid.UUID              `json:"table_id"`
-		FormID             string                 `json:"form_id"` // Alias for table_id for frontend compatibility
-		Data               map[string]interface{} `json:"data"`
-		Metadata           map[string]interface{} `json:"metadata"`
-		IsArchived         bool                   `json:"is_archived"`
-		Position           int64                  `json:"position"`
-		StageGroupID       *uuid.UUID             `json:"stage_group_id,omitempty"`
-		Tags               []interface{}           `json:"tags"`
-		CreatedBy          *uuid.UUID             `json:"created_by,omitempty"`
-		UpdatedBy          *uuid.UUID             `json:"updated_by,omitempty"`
-		BACreatedBy        *string                `json:"ba_created_by,omitempty"`
-		BAUpdatedBy        *string                `json:"ba_updated_by,omitempty"`
-		CreatedAt          time.Time              `json:"created_at"`
-		UpdatedAt          time.Time              `json:"updated_at"`
-		SubmittedAt        time.Time              `json:"submitted_at"` // Alias for created_at for frontend compatibility
-		ApplicantFullName  string                 `json:"applicant_full_name,omitempty"`
+		FormID            string                 `json:"form_id"` // Alias for table_id for frontend compatibility
+		Data              map[string]interface{} `json:"data"`
+		Metadata          map[string]interface{} `json:"metadata"`
+		IsArchived        bool                   `json:"is_archived"`
+		Position          int64                  `json:"position"`
+		StageGroupID      *uuid.UUID             `json:"stage_group_id,omitempty"`
+		Tags              []interface{}          `json:"tags"`
+		CreatedBy         *uuid.UUID             `json:"created_by,omitempty"`
+		UpdatedBy         *uuid.UUID             `json:"updated_by,omitempty"`
+		BACreatedBy       *string                `json:"ba_created_by,omitempty"`
+		BAUpdatedBy       *string                `json:"ba_updated_by,omitempty"`
+		CreatedAt         time.Time              `json:"created_at"`
+		UpdatedAt         time.Time              `json:"updated_at"`
+		SubmittedAt       time.Time              `json:"submitted_at"` // Alias for created_at for frontend compatibility
+		ApplicantFullName string                 `json:"applicant_full_name,omitempty"`
 		// Status can be derived from metadata if needed
-		Status             string                 `json:"status,omitempty"`
+		Status string `json:"status,omitempty"`
 	}
 
 	result := make([]SubmissionResponse, len(rows))
-	
+
 	// Process rows - extract email and lookup full_name efficiently
 	for i, row := range rows {
 		// Parse Data JSONB field once (it's already JSON, just need to unmarshal)
@@ -1252,7 +1256,7 @@ func ListFormSubmissions(c *gin.Context) {
 		} else {
 			rowData = make(map[string]interface{})
 		}
-		
+
 		// Parse Metadata JSONB field once
 		var metadata map[string]interface{}
 		if len(row.Metadata) > 0 {
@@ -1262,13 +1266,13 @@ func ListFormSubmissions(c *gin.Context) {
 		} else {
 			metadata = make(map[string]interface{})
 		}
-		
+
 		// Parse Tags JSONB field
 		var tags []interface{}
 		if len(row.Tags) > 0 {
 			json.Unmarshal(row.Tags, &tags)
 		}
-		
+
 		// Extract email efficiently - try multiple locations
 		var email string
 		if e, ok := rowData["_applicant_email"].(string); ok && e != "" {
@@ -1280,7 +1284,7 @@ func ListFormSubmissions(c *gin.Context) {
 				email = e
 			}
 		}
-		
+
 		// Look up full_name from portal applicants
 		applicantFullName := ""
 		if email != "" {
@@ -1288,13 +1292,13 @@ func ListFormSubmissions(c *gin.Context) {
 				applicantFullName = fullName
 			}
 		}
-		
+
 		// Extract status from metadata if available
 		status := ""
 		if s, ok := metadata["status"].(string); ok && s != "" {
 			status = s
 		}
-		
+
 		result[i] = SubmissionResponse{
 			ID:                row.ID,
 			TableID:           row.TableID,
@@ -2217,6 +2221,53 @@ func GetFormSubmission(c *gin.Context) {
 		return
 	}
 
+	parsedFormID, err := uuid.Parse(formID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid form ID"})
+		return
+	}
+
+	// PRIORITY 1: Check portal_applicants table first (most reliable source)
+	// Build list of all possible form_ids (table_id + all view_ids for this table)
+	// This matches the same lookup logic used in SubmitForm
+	var allViews []models.View
+	database.DB.Where("table_id = ? AND type = ?", formID, "form").Find(&allViews)
+	formIDs := []uuid.UUID{parsedFormID} // Include table_id itself
+	for _, v := range allViews {
+		formIDs = append(formIDs, v.ID)
+	}
+
+	// Query portal_applicants using ANY to check all possible form_ids
+	var applicant models.PortalApplicant
+	if err := database.DB.Raw(`
+		SELECT * FROM portal_applicants 
+		WHERE form_id = ANY($1) AND email = $2
+		LIMIT 1
+	`, pq.Array(formIDs), email).Scan(&applicant).Error; err == nil && applicant.ID != uuid.Nil {
+		// Found in portal_applicants - return this data
+		var submissionData map[string]interface{}
+		json.Unmarshal(applicant.SubmissionData, &submissionData)
+
+		// If applicant has a row_id, also fetch metadata from table_rows
+		var metadata map[string]interface{}
+		if applicant.RowID != nil {
+			var row models.Row
+			if err := database.DB.First(&row, "id = ?", *applicant.RowID).Error; err == nil {
+				json.Unmarshal(row.Metadata, &metadata)
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"id":         applicant.RowID, // May be nil if not yet submitted to table_rows
+			"data":       submissionData,
+			"metadata":   metadata,
+			"created_at": applicant.CreatedAt,
+			"updated_at": applicant.UpdatedAt,
+		})
+		return
+	}
+
+	// PRIORITY 2: Fallback to checking table_rows if not in portal_applicants
 	var row models.Row
 
 	// Try multiple locations where email might be stored:

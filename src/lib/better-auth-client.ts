@@ -74,6 +74,15 @@ export const organizationAPI = {
 export const changePassword = authClient.changePassword;
 export const resetPassword = authClient.resetPassword;
 
+// User profile management - exposed directly from authClient
+// Use this instead of type assertions: (authClient as any).updateUser
+export const updateUser = authClient.updateUser;
+
+// Multi-session management
+export const listSessions = authClient.listSessions;
+export const revokeSession = authClient.revokeSession;
+export const revokeOtherSessions = authClient.revokeOtherSessions;
+
 // Type exports
 export type Session = typeof authClient.$Infer.Session;
 export type User = typeof authClient.$Infer.Session.user;

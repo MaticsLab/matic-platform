@@ -5,7 +5,7 @@ import { X, Send, Mail, Loader2, ChevronDown, Clock, Eye, Save, FileSignature } 
 import { toast } from 'sonner';
 import { emailClient, EmailTemplate, EmailDraft, CreateEmailDraftRequest, EmailSignature } from '@/lib/api/email-client';
 import { useEmailConnection } from '@/hooks/useEmailConnection';
-import { useSession } from '@/components/auth/provider';
+import { useSession } from '@/lib/better-auth-client';
 import { Button } from '@/ui-components/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui-components/dialog';
 import { EmailNovelEditor } from './EmailNovelEditor';

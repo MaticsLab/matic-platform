@@ -124,7 +124,8 @@ type WorkspaceMember struct {
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
 	// Relations
-	Workspace Workspace `gorm:"foreignKey:WorkspaceID" json:"workspace,omitempty"`
+	Workspace Workspace       `gorm:"foreignKey:WorkspaceID" json:"workspace,omitempty"`
+	BAUser    *BetterAuthUser `gorm:"foreignKey:BAUserID;references:ID" json:"ba_user,omitempty"` // Better Auth user relationship
 
 	// Virtual fields populated from joins
 	Email        string `gorm:"-" json:"email,omitempty"`         // From auth.users
