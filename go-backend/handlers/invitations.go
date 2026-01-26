@@ -494,57 +494,250 @@ func sendInvitationEmail(email, token, workspaceName string) error {
 	subject := fmt.Sprintf("You're invited to join %s on Matic", workspaceName)
 
 	// HTML email template
-	htmlBody := fmt.Sprintf(`
-	<!DOCTYPE html>
-	<html>
-	<head>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-		<title>Workspace Invitation</title>
-		<style>
-			body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px 0; background-color: #f8fafc; }
-			.container { max-width: 560px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
-			.header { background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 32px; text-align: center; }
-			.header h1 { color: white; margin: 0; font-size: 24px; font-weight: 600; }
-			.content { padding: 32px; }
-			.workspace-name { color: #1f2937; font-size: 18px; font-weight: 600; margin-bottom: 16px; }
-			.message { color: #4b5563; line-height: 1.6; margin-bottom: 24px; }
-			.button { display: inline-block; background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500; margin: 16px 0; }
-			.button:hover { background: #5a67d8; }
-			.footer { background: #f9fafb; padding: 24px 32px; color: #6b7280; font-size: 14px; text-align: center; }
-			.footer a { color: #667eea; text-decoration: none; }
-		</style>
-	</head>
-	<body>
-		<div class="container">
-			<div class="header">
-				<h1>🎉 You're Invited!</h1>
-			</div>
-			<div class="content">
-				<div class="workspace-name">Join \"%s\" on Matic</div>
-				<div class="message">
-					You've been invited to collaborate in the <strong>%s</strong> workspace. 
-					Matic helps teams collect, organize, and review data with powerful forms and workflows.
-				</div>
-				<div class="message">
-					Click the button below to accept your invitation and set up your account:
-				</div>
-				<div style=\"text-align: center;\">
-					<a href=\"%s\" class=\"button\">Accept Invitation & Set Up Account</a>
-				</div>
-				<div class=\"message\" style=\"margin-top: 24px; font-size: 14px; color: #6b7280;\">
-					If the button doesn't work, you can also copy and paste this link into your browser:
-					<br><a href=\"%s\" style=\"color: #667eea; word-break: break-all;\">%s</a>
-				</div>
-			</div>
-			<div class=\"footer\">
-				<div>This invitation will expire in 7 days.</div>
-				<div style=\"margin-top: 8px;\">Powered by <a href=\"https://maticsapp.com\">Matic</a></div>
-			</div>
-		</div>
-	</body>
-	</html>
-	`, workspaceName, workspaceName, inviteURL, inviteURL, inviteURL)
+	htmlBody := fmt.Sprintf(`<!doctype html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Matic workspace invitation</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 24px 0;
+      background-color: #f3f4f6;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        Roboto, Arial, sans-serif;
+    "
+  >
+    <!-- Outer wrapper -->
+    <table
+      role="presentation"
+      cellspacing="0"
+      cellpadding="0"
+      border="0"
+      width="100%%"
+    >
+      <tr>
+        <td align="center">
+          <!-- Card -->
+          <table
+            role="presentation"
+            cellspacing="0"
+            cellpadding="0"
+            border="0"
+            width="100%%"
+            style="
+              max-width: 560px;
+              background-color: #ffffff;
+              border-radius: 12px;
+              border: 1px solid #e5e7eb;
+            "
+          >
+            <!-- Header -->
+            <tr>
+              <td
+                style="
+                  padding: 20px 24px 12px 24px;
+                  border-bottom: 1px solid #f3f4f6;
+                "
+              >
+                <table
+                  role="presentation"
+                  cellspacing="0"
+                  cellpadding="0"
+                  border="0"
+                  width="100%%"
+                >
+                  <tr>
+                    <td align="left">
+                      <div
+                        style="
+                          font-size: 13px;
+                          letter-spacing: 0.08em;
+                          text-transform: uppercase;
+                          color: #9ca3af;
+                          font-weight: 500;
+                        "
+                      >
+                        Matic
+                      </div>
+                      <div
+                        style="
+                          margin-top: 4px;
+                          font-size: 20px;
+                          line-height: 1.4;
+                          color: #111827;
+                          font-weight: 600;
+                        "
+                      >
+                        Workspace invitation
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Body -->
+            <tr>
+              <td style="padding: 24px 24px 8px 24px;">
+                <div
+                  style="
+                    font-size: 15px;
+                    line-height: 1.6;
+                    color: #111827;
+                    margin-bottom: 12px;
+                  "
+                >
+                  You've been invited to join the
+                  <span style="font-weight: 600;">%s</span> workspace on
+                  Matic.
+                </div>
+                <div
+                  style="
+                    font-size: 14px;
+                    line-height: 1.6;
+                    color: #4b5563;
+                    margin-bottom: 24px;
+                  "
+                >
+                  Matic helps teams collect, organize, and review data using
+                  structured forms and review workflows, so your whole team
+                  can work from the same source of truth.
+                </div>
+
+                <!-- Primary CTA -->
+                <table
+                  role="presentation"
+                  cellspacing="0"
+                  cellpadding="0"
+                  border="0"
+                  width="100%%"
+                  style="margin: 0 0 20px 0;"
+                >
+                  <tr>
+                    <td align="center">
+                      <a
+                        href="%s"
+                        style="
+                          display: inline-block;
+                          padding: 12px 20px;
+                          border-radius: 999px;
+                          background-color: #111827;
+                          color: #ffffff;
+                          font-size: 14px;
+                          font-weight: 500;
+                          text-decoration: none;
+                          text-align: center;
+                        "
+                      >
+                        Accept invitation
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Fallback link -->
+                <div
+                  style="
+                    font-size: 12px;
+                    line-height: 1.6;
+                    color: #6b7280;
+                    margin-bottom: 4px;
+                  "
+                >
+                  If the button does not work, copy and paste this link into
+                  your browser:
+                </div>
+                <div
+                  style="
+                    font-size: 12px;
+                    line-height: 1.6;
+                    color: #111827;
+                    word-break: break-all;
+                  "
+                >
+                  <a
+                    href="%s"
+                    style="color: #111827; text-decoration: underline;"
+                  >
+                    %s
+                  </a>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Meta -->
+            <tr>
+              <td
+                style="
+                  padding: 16px 24px 20px 24px;
+                  border-top: 1px solid #f3f4f6;
+                "
+              >
+                <div
+                  style="
+                    font-size: 12px;
+                    line-height: 1.5;
+                    color: #6b7280;
+                    margin-bottom: 4px;
+                  "
+                >
+                  This invitation will expire in 7 days.
+                </div>
+                <div
+                  style="
+                    font-size: 12px;
+                    line-height: 1.5;
+                    color: #9ca3af;
+                  "
+                >
+                  You're receiving this email because someone added you to a
+                  workspace in Matic.
+                </div>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Footer -->
+          <table
+            role="presentation"
+            cellspacing="0"
+            cellpadding="0"
+            border="0"
+            width="100%%"
+            style="max-width: 560px; margin-top: 12px;"
+          >
+            <tr>
+              <td
+                align="center"
+                style="
+                  font-size: 11px;
+                  line-height: 1.6;
+                  color: #9ca3af;
+                "
+              >
+                Powered by
+                <a
+                  href="https://maticsapp.com"
+                  style="
+                    color: #6b7280;
+                    text-decoration: underline;
+                  "
+                  >Matic</a
+                >
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`, workspaceName, inviteURL, inviteURL, inviteURL)
 
 	// Plain text fallback
 	textBody := fmt.Sprintf(`You're invited to join \"%s\" on Matic!
@@ -561,7 +754,7 @@ Powered by Matic - https://maticsapp.com`, workspaceName, workspaceName, inviteU
 	// Send directly via Resend API using global key
 	resendURL := "https://api.resend.com/emails"
 	payload := map[string]interface{}{
-		"from":    "invitations@maticsapp.com",
+		"from":    "MaticsAPP <invitations@notifications.maticsapp.com>",
 		"to":      []string{email},
 		"subject": subject,
 		"text":    textBody,

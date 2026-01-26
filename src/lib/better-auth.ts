@@ -62,9 +62,11 @@ function getBaseURL() {
   return "http://localhost:3000";
 }
 
-// Create auth instance - during build time, use a minimal config
-// At runtime, the full config with database is used
-export const auth = betterAuth({
+// Singleton instance to prevent multiple Better Auth imports
+let authInstance: ReturnType<typeof betterAuth> | null = null;
+
+// Auth configuration object
+const authConfig = {
   baseURL: getBaseURL(),
   basePath: "/api/auth",
   secret: process.env.BETTER_AUTH_SECRET || "build-time-secret-placeholder",
@@ -84,7 +86,7 @@ export const auth = betterAuth({
         return;
       }
       await resend.emails.send({
-        from: process.env.EMAIL_FROM || "Matics <noreply@notifications.maticsapp.com>",
+        from: process.env.EMAIL_FROM || "Matics <invitations@notifications.maticsapp.com>",
         to: user.email,
         subject: "Reset your password - Matics",
         html: `
@@ -145,10 +147,100 @@ export const auth = betterAuth({
   plugins: [
     // Organization plugin for multi-tenant support
     organization({
-      // Allow users to create organizations
+      // Basic settings
       allowUserToCreateOrganization: true,
-      // Default role for new members
       creatorRole: "owner",
+      
+      // Limits and constraints
+      membershipLimit: 100, // Limit members per organization
+      organizationLimit: 5, // Limit organizations per user
+      invitationLimit: 50, // Limit pending invitations
+      
+      // Invitation configuration
+      invitationExpiresIn: 48 * 60 * 60, // 48 hours in seconds
+      requireEmailVerificationOnInvitation: false,
+      cancelPendingInvitationsOnReInvite: true,
+      
+      // Email invitation handler
+      async sendInvitationEmail(data) {
+        if (!resend) {
+          console.error("[Better Auth] Resend not configured - RESEND_API_KEY missing");
+          return;
+        }
+        
+        const inviteLink = `${getBaseURL()}/accept-invitation/${data.id}`;
+        
+        await resend.emails.send({
+          from: process.env.EMAIL_FROM || "Matics <invitations@notifications.maticsapp.com>",
+          to: data.email,
+          subject: `You've been invited to join ${data.organization.name}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <h2 style="color: #1e40af;">Join ${data.organization.name}</h2>
+              <p>Hi there,</p>
+              <p><strong>${data.inviter.user.name || data.inviter.user.email}</strong> has invited you to join <strong>${data.organization.name}</strong> on Matics.</p>
+              <div style="margin: 30px 0; text-align: center;">
+                <a href="${inviteLink}" style="background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 500; font-size: 16px;">
+                  Accept Invitation
+                </a>
+              </div>
+              <p style="color: #6b7280; font-size: 14px; line-height: 1.6;">
+                This invitation will expire in 48 hours. If you don't want to join this organization, you can safely ignore this email.
+              </p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
+              <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+                © ${new Date().getFullYear()} Matics. All rights reserved.
+              </p>
+            </div>
+          `,
+        });
+      },
+      
+      // Organization lifecycle hooks
+      organizationHooks: {
+        beforeCreateOrganization: async ({ organization, user }) => {
+          // Custom validation logic
+          console.log(`Creating organization: ${organization.name} for user: ${user.email}`);
+          
+          // Apply naming conventions
+          return {
+            data: {
+              ...organization,
+              slug: organization.slug?.toLowerCase().replace(/\s+/g, '-'),
+            },
+          };
+        },
+        
+        afterCreateOrganization: async ({ organization, member, user }) => {
+          // Post-creation setup
+          console.log(`Organization ${organization.name} created successfully`);
+          
+          // TODO: Create default workspace if needed
+          // await createDefaultWorkspace(organization.id);
+        },
+        
+        // Member lifecycle hooks
+        beforeAddMember: async ({ member, user, organization }) => {
+          console.log(`Adding ${user.email} to ${organization.name}`);
+          return { data: { ...member } };
+        },
+        
+        afterAddMember: async ({ member, user, organization }) => {
+          // Send welcome email, setup user resources
+          console.log(`${user.email} successfully added to ${organization.name}`);
+        },
+        
+        // Invitation lifecycle hooks
+        afterCreateInvitation: async ({ invitation, inviter, organization }) => {
+          // Track invitation metrics
+          console.log(`Invitation sent to ${invitation.email} for ${organization.name}`);
+        },
+        
+        afterAcceptInvitation: async ({ invitation, member, user, organization }) => {
+          // Setup new member resources
+          console.log(`${user.email} accepted invitation to ${organization.name}`);
+        },
+      },
     }),
     
     // Multi-session support (user can be logged in on multiple devices)
@@ -271,7 +363,7 @@ export const auth = betterAuth({
           : "";
         
         await resend.emails.send({
-          from: process.env.EMAIL_FROM || `${portalName} <noreply@notifications.maticsapp.com>`,
+          from: process.env.EMAIL_FROM || `${portalName} <invitations@notifications.maticsapp.com>`,
           to: email,
           subject: subject,
           html: `
@@ -297,7 +389,7 @@ export const auth = betterAuth({
           `,
         });
       },
-      expiresIn: 300, // 5 minutes
+      expiresIn: 600, // 10 minutes (improved from 5 minutes based on audit)
       disableSignUp: false, // Allow sign up via magic link
     }),
   ],
@@ -397,7 +489,19 @@ export const auth = betterAuth({
       },
     },
   },
-});
+};
+
+// Create singleton instance
+function createAuthInstance() {
+  if (!authInstance) {
+    authInstance = betterAuth(authConfig);
+  }
+  return authInstance;
+}
+
+// Export the auth instance
+export const auth = createAuthInstance();
+
 // Export types
 export type Auth = typeof auth;
 export type Session = typeof auth.$Infer.Session;

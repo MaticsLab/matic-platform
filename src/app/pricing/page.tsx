@@ -47,10 +47,10 @@ function Navigation() {
               </Link>
             ) : (
               <>
-                <Link href="/login">
+                <Link href="/signup-v2?mode=login">
                   <Button variant="ghost">Sign In</Button>
                 </Link>
-                <Link href="/signup">
+                <Link href="/signup-v2">
                   <Button>Get Started Free</Button>
                 </Link>
               </>
@@ -82,10 +82,10 @@ function Navigation() {
                 </Link>
               ) : (
                 <>
-                  <Link href="/login" className="block">
+                  <Link href="/signup-v2?mode=login" className="block">
                     <Button variant="outline" className="w-full">Sign In</Button>
                   </Link>
-                  <Link href="/signup" className="block">
+                  <Link href="/signup-v2" className="block">
                     <Button className="w-full">Get Started Free</Button>
                   </Link>
                 </>
@@ -257,7 +257,7 @@ export default function PricingPage() {
                   <span className="text-5xl font-bold text-gray-900">$0</span>
                   <span className="text-gray-500 text-sm ml-1">USD</span>
                 </div>
-                <Link href="/signup">
+                <Link href="/signup-v2">
                   <Button className="w-full bg-black hover:bg-gray-800 text-white font-semibold py-3 text-lg">
                     Get started
                   </Button>
@@ -538,7 +538,7 @@ export default function PricingPage() {
               </Link>{' '}
               for details.
             </p>
-            <Link href="/signup">
+            <Link href="/signup-v2">
               <Button className="bg-amber-500 hover:bg-amber-600 text-black px-8 py-3 text-lg font-semibold">
                 Get started — it's free
               </Button>

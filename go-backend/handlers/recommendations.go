@@ -734,7 +734,7 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 	if senderName == "" {
 		senderName = "Matic"
 	}
-	fromEmail := fmt.Sprintf("%s <noreply@notifications.maticsapp.com>", senderName)
+	fromEmail := fmt.Sprintf("%s <invitations@notifications.maticsapp.com>", senderName)
 
 	// Check for reply-to email in settings
 	var replyTo string
@@ -1088,7 +1088,7 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 	if senderName == "" {
 		senderName = "Matic"
 	}
-	fromEmail := fmt.Sprintf("%s <noreply@notifications.maticsapp.com>", senderName)
+	fromEmail := fmt.Sprintf("%s <invitations@notifications.maticsapp.com>", senderName)
 
 	// Check for reply-to email in settings
 	var replyTo string

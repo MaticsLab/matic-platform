@@ -4,7 +4,7 @@
  * Handles all activities hub and tab operations through Go Gin backend
  */
 
-import { getSessionToken } from '@/lib/supabase';
+import { goFetch } from './go-client';
 import type {
   ActivitiesHub,
   ActivitiesHubWithTabs,
@@ -15,42 +15,6 @@ import type {
   UpdateActivityTabInput,
   ReorderTabsInput,
 } from '@/types/activities-hubs';
-
-const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'https://backend.maticslab.com/api/v1';
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-async function getAuthHeaders() {
-  const token = await getSessionToken();
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
-async function fetchWithAuth(url: string, options: RequestInit = {}) {
-  const headers = await getAuthHeaders();
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...headers,
-      ...options.headers,
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-    throw new Error(error.detail || error.message || error.error || `HTTP ${response.status}`);
-  }
-
-  if (response.status === 204) {
-    return null;
-  }
-
-  return response.json();
-}
 
 // ============================================================================
 // Activities Hub Operations
@@ -76,7 +40,7 @@ export async function listActivitiesHubs(
     params.append('include_hidden', 'true');
   }
 
-  return fetchWithAuth(`${API_BASE}/activities-hubs?${params}`);
+  return goFetch<ActivitiesHub[]>(`/activities-hubs?${params}`);
 }
 
 /**
@@ -86,7 +50,7 @@ export async function getActivitiesHub(
   workspaceId: string,
   hubId: string
 ): Promise<ActivitiesHubWithTabs> {
-  return fetchWithAuth(`${API_BASE}/activities-hubs/${hubId}`);
+  return goFetch<ActivitiesHubWithTabs>(`/activities-hubs/${hubId}`);
 }
 
 /**
@@ -97,7 +61,7 @@ export async function getActivitiesHubBySlug(
   slug: string
 ): Promise<ActivitiesHubWithTabs> {
   const params = new URLSearchParams({ workspace_id: workspaceId });
-  return fetchWithAuth(`${API_BASE}/activities-hubs/by-slug/${slug}?${params}`);
+  return goFetch<ActivitiesHubWithTabs>(`/activities-hubs/by-slug/${slug}?${params}`);
 }
 
 /**
@@ -106,7 +70,7 @@ export async function getActivitiesHubBySlug(
 export async function createActivitiesHub(
   data: CreateActivityInput
 ): Promise<ActivitiesHubWithTabs> {
-  return fetchWithAuth(`${API_BASE}/activities-hubs`, {
+  return goFetch<ActivitiesHubWithTabs>('/activities-hubs', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -119,7 +83,7 @@ export async function updateActivitiesHub(
   hubId: string,
   data: UpdateActivityInput
 ): Promise<ActivitiesHubWithTabs> {
-  return fetchWithAuth(`${API_BASE}/activities-hubs/${hubId}`, {
+  return goFetch<ActivitiesHubWithTabs>(`/activities-hubs/${hubId}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
@@ -131,7 +95,7 @@ export async function updateActivitiesHub(
 export async function deleteActivitiesHub(
   hubId: string
 ): Promise<void> {
-  return fetchWithAuth(`${API_BASE}/activities-hubs/${hubId}`, {
+  return goFetch<void>(`/activities-hubs/${hubId}`, {
     method: 'DELETE',
   });
 }
@@ -144,7 +108,7 @@ export async function toggleHubVisibility(
   hubId: string,
   isHidden: boolean
 ): Promise<{ id: string; is_hidden: boolean; message: string }> {
-  return fetchWithAuth(`${API_BASE}/activities-hubs/${hubId}/visibility`, {
+  return goFetch<{ id: string; is_hidden: boolean; message: string }>(`/activities-hubs/${hubId}/visibility`, {
     method: 'PATCH',
     body: JSON.stringify({ is_hidden: isHidden }),
   });
@@ -170,9 +134,9 @@ export async function listActivitiesHubTabs(
   }
 
   const queryString = params.toString();
-  const url = `${API_BASE}/activities-hubs/${hubId}/tabs${queryString ? `?${queryString}` : ''}`;
+  const url = `/activities-hubs/${hubId}/tabs${queryString ? `?${queryString}` : ''}`;
   
-  return fetchWithAuth(url);
+  return goFetch<ActivitiesHubTab[]>(url);
 }
 
 /**
@@ -182,7 +146,7 @@ export async function createActivitiesHubTab(
   hubId: string,
   data: CreateActivityTabInput
 ): Promise<ActivitiesHubTab> {
-  return fetchWithAuth(`${API_BASE}/activities-hubs/${hubId}/tabs`, {
+  return goFetch<ActivitiesHubTab>(`/activities-hubs/${hubId}/tabs`, {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -196,7 +160,7 @@ export async function updateActivitiesHubTab(
   tabId: string,
   data: UpdateActivityTabInput
 ): Promise<ActivitiesHubTab> {
-  return fetchWithAuth(`${API_BASE}/activities-hubs/${hubId}/tabs/${tabId}`, {
+  return goFetch<ActivitiesHubTab>(`/activities-hubs/${hubId}/tabs/${tabId}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
@@ -209,7 +173,7 @@ export async function deleteActivitiesHubTab(
   hubId: string,
   tabId: string
 ): Promise<void> {
-  return fetchWithAuth(`${API_BASE}/activities-hubs/${hubId}/tabs/${tabId}`, {
+  return goFetch<void>(`/activities-hubs/${hubId}/tabs/${tabId}`, {
     method: 'DELETE',
   });
 }
@@ -221,7 +185,7 @@ export async function reorderActivitiesHubTabs(
   hubId: string,
   data: ReorderTabsInput
 ): Promise<ActivitiesHubTab[]> {
-  return fetchWithAuth(`${API_BASE}/activities-hubs/${hubId}/tabs/reorder`, {
+  return goFetch<ActivitiesHubTab[]>(`/activities-hubs/${hubId}/tabs/reorder`, {
     method: 'POST',
     body: JSON.stringify(data),
   });

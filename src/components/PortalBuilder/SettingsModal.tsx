@@ -288,7 +288,7 @@ export function SettingsModal({ open, onOpenChange, config, onUpdate }: Settings
                           <span className="text-gray-900 font-medium">
                             {config.settings.emailSettings?.senderName || config.settings.name || 'Your Portal Name'}
                           </span>
-                          <span className="text-gray-500"> &lt;noreply@notifications.maticsapp.com&gt;</span>
+                          <span className="text-gray-500"> &lt;invitations@notifications.maticsapp.com&gt;</span>
                         </div>
                         {config.settings.emailSettings?.replyToEmail && (
                           <div className="text-gray-600 mt-1">

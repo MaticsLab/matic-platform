@@ -99,7 +99,7 @@ export default function DebugPage() {
               <p><strong>Created:</strong> {new Date(user.created_at).toLocaleString()}</p>
             </div>
           ) : (
-            <p className="text-red-600">You need to log in to see data. Go to <a href="/login" className="underline">/login</a></p>
+            <p className="text-red-600">You need to log in to see data. Go to <a href="/signup-v2?mode=login" className="underline">/signup-v2</a></p>
           )}
           {errors.auth && (
             <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded">

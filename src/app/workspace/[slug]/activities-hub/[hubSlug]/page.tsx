@@ -47,7 +47,7 @@ export default function Page() {
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2 text-gray-900">Workspace Not Found</h1>
           <p className="text-gray-600 mb-4">{error || 'Not Found'}</p>
-          <a href="/login" className="text-blue-600 hover:underline">
+          <a href="/signup-v2?mode=login" className="text-blue-600 hover:underline">
             Back to Login
           </a>
         </div>

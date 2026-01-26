@@ -62,7 +62,7 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
     try {
       await hybridSignOut()
       clearLastWorkspace()
-      window.location.href = '/login'
+      window.location.href = '/signup-v2?mode=login'
     } catch (error) {
       console.error('Error signing out:', error)
     }

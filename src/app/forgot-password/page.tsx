@@ -63,7 +63,7 @@ export default function ForgotPasswordPage() {
                 Try another email
               </button>
               <Link
-                href="/login"
+                href="/signup-v2?mode=login"
                 className="block w-full py-2.5 px-4 text-blue-600 hover:text-blue-700 font-medium transition"
               >
                 Back to sign in
@@ -80,7 +80,7 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-md">
         {/* Back to login */}
         <Link
-          href="/login"
+          href="/signup-v2?mode=login"
           className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-8 transition"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -142,7 +142,7 @@ export default function ForgotPasswordPage() {
         {/* Footer */}
         <p className="text-center text-xs text-gray-500 mt-6">
           Remember your password?{' '}
-          <Link href="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+          <Link href="/signup-v2?mode=login" className="text-blue-600 hover:text-blue-700 font-medium">
             Sign in
           </Link>
         </p>
