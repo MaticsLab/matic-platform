@@ -6,6 +6,7 @@ import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { useApplicantProfile } from '@/hooks/useApplicantProfile'
+import { portalAuthClient } from '@/lib/api/portal-auth-client'
 import { toast } from 'sonner'
 
 interface AccountSettingsModalProps {
