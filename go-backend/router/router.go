@@ -68,11 +68,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			"status":      "running",
 			"description": "matics",
 			"endpoints": gin.H{
-				"health":          "/health",
-				"api_v1":          "/api/v1",
-				"workspaces":      "/api/v1/workspaces",
-				"tables":          "/api/v1/tables",
-				"forms":           "/api/v1/forms",
+				"health":     "/health",
+				"api_v1":     "/api/v1",
+				"workspaces": "/api/v1/workspaces",
+				"tables":     "/api/v1/tables",
+				"forms":      "/api/v1/forms",
 			},
 			"documentation": gin.H{
 				"html":   "/",
@@ -147,7 +147,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 						"update": "PATCH /api/v1/workspaces/:id",
 						"delete": "DELETE /api/v1/workspaces/:id",
 					},
-					
+
 					"tables": gin.H{
 						"list":          "GET /api/v1/tables",
 						"create":        "POST /api/v1/tables",
@@ -756,6 +756,38 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				admin.DELETE("/users", handlers.DeleteUser)
 			}
 
+			// ============================================================
+			// ROLES & PERMISSIONS
+			// ============================================================
+			roles := protected.Group("/roles")
+			{
+				roles.GET("", handlers.ListRoles)
+				roles.POST("", handlers.CreateRole)
+				roles.GET("/:id", handlers.GetRole)
+				roles.PATCH("/:id", handlers.UpdateRole)
+				roles.DELETE("/:id", handlers.DeleteRole)
+			}
+
+			permissions := protected.Group("/permissions")
+			{
+				permissions.GET("", handlers.ListPermissions)
+			}
+
+			userRoles := protected.Group("/user-roles")
+			{
+				userRoles.GET("", handlers.ListUserRoles)
+				userRoles.POST("", handlers.AssignUserRole)
+				userRoles.DELETE("/:id", handlers.RemoveUserRole)
+			}
+
+			portalUsers := protected.Group("/portal-users")
+			{
+				portalUsers.GET("", handlers.ListPortalUsers)
+				portalUsers.POST("", handlers.CreatePortalUser)
+				portalUsers.GET("/:id", handlers.GetPortalUser)
+				portalUsers.PATCH("/:id", handlers.UpdatePortalUser)
+			}
+
 			// AI Services
 			ai := protected.Group("/ai")
 			{
@@ -790,6 +822,43 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				automationWorkflows.GET("/:id/executions/:executionId/logs", handlers.GetAutomationWorkflowExecutionLogs)
 			}
 		}
+	}
+
+	// ============================================================
+	// API V2 ROUTES - New Unified Form Schema
+	// ============================================================
+	apiV2 := r.Group("/api/v2")
+	apiV2.Use(middleware.AuthMiddleware()) // Require auth for all v2 routes
+	{
+		// Forms (admin)
+		apiV2.GET("/forms", handlers.ListFormsV2)
+		apiV2.POST("/forms", handlers.CreateFormV2)
+		apiV2.GET("/forms/:id", handlers.GetFormV2)
+		apiV2.PATCH("/forms/:id", handlers.UpdateFormV2)
+		apiV2.DELETE("/forms/:id", handlers.DeleteFormV2)
+		apiV2.POST("/forms/:id/publish", handlers.PublishFormV2)
+
+		// Form Fields
+		apiV2.GET("/forms/:id/fields", handlers.ListFormFieldsV2)
+		apiV2.POST("/forms/:id/fields", handlers.CreateFormFieldV2)
+		apiV2.PATCH("/fields/:id", handlers.UpdateFormFieldV2)
+		apiV2.DELETE("/fields/:id", handlers.DeleteFormFieldV2)
+
+		// Form Submissions (admin view)
+		apiV2.GET("/forms/:id/submissions", handlers.ListFormSubmissionsV2)
+
+		// User Submissions
+		apiV2.GET("/submissions/me", handlers.GetMySubmissionsV2)
+		apiV2.POST("/forms/:id/submissions/start", handlers.StartSubmissionV2)
+		apiV2.GET("/submissions/:id", handlers.GetSubmissionV2)
+		apiV2.PUT("/submissions/:id/responses", handlers.SaveResponsesV2)
+		apiV2.POST("/submissions/:id/submit", handlers.SubmitSubmissionV2)
+	}
+
+	// Public V2 routes (no auth required for form viewing)
+	apiV2Public := r.Group("/api/v2")
+	{
+		apiV2Public.GET("/forms/by-slug/:workspace_slug/:form_slug", handlers.GetFormBySlugV2)
 	}
 
 	return r

@@ -4,6 +4,9 @@ const path = require('path')
 const nextConfig = {
   reactStrictMode: true,
   
+  // Enable standalone output for Docker
+  output: 'standalone',
+  
   // Compression
   compress: true,
   
