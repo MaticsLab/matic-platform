@@ -1433,49 +1433,74 @@ export function ApplicationDetail({
                 <h1 className="text-lg font-semibold text-gray-900 leading-tight">
                   {application.name || UNKNOWN}
                 </h1>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Badge 
-                      variant="secondary"
-                      className="cursor-pointer hover:bg-green-100 bg-green-50 text-green-700 border-green-200 gap-1.5 px-2.5 py-1 shrink-0"
-                    >
-                      <Play className="h-3 w-3" />
-                      {application.stageName || application.status || 'Submitted'}
-                      <ChevronDown className="h-3 w-3 opacity-70" />
-                    </Badge>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-56 p-2" align="end">
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-gray-500 px-2 pb-1">Change Status</p>
-                      {stages.map((stage) => {
-                        const isCurrentStage = stage.id === application.stageId || stage.name === application.stageName;
-                        return (
-                          <button
-                            key={stage.id}
-                            onClick={() => {
-                              if (!isCurrentStage) {
-                                onStatusChange?.(application.id, stage.name as ApplicationStatus);
-                              }
-                            }}
-                            className={cn(
-                              "w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors",
-                              isCurrentStage 
-                                ? "bg-green-100 text-green-700 font-medium" 
-                                : "hover:bg-gray-100 text-gray-700"
-                            )}
-                          >
-                            <div 
-                              className="w-2 h-2 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: stage.color || '#6B7280' }}
-                            />
-                            <span className="flex-1 truncate">{stage.name}</span>
-                            {isCurrentStage && <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Stage Dropdown */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Badge 
+                        variant="secondary"
+                        className="cursor-pointer hover:bg-green-100 bg-green-50 text-green-700 border-green-200 gap-1.5 px-2.5 py-1"
+                      >
+                        <Play className="h-3 w-3" />
+                        {application.stageName || application.status || 'Submitted'}
+                        <ChevronDown className="h-3 w-3 opacity-70" />
+                      </Badge>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-56 p-2" align="end">
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-gray-500 px-2 pb-1">Change Status</p>
+                        {stages.map((stage) => {
+                          const isCurrentStage = stage.id === application.stageId || stage.name === application.stageName;
+                          return (
+                            <button
+                              key={stage.id}
+                              onClick={() => {
+                                if (!isCurrentStage) {
+                                  onStatusChange?.(application.id, stage.name as ApplicationStatus);
+                                }
+                              }}
+                              className={cn(
+                                "w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors",
+                                isCurrentStage 
+                                  ? "bg-green-100 text-green-700 font-medium" 
+                                  : "hover:bg-gray-100 text-gray-700"
+                              )}
+                            >
+                              <div 
+                                className="w-2 h-2 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: stage.color || '#6B7280' }}
+                              />
+                              <span className="flex-1 truncate">{stage.name}</span>
+                              {isCurrentStage && <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Workflow Button */}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          onClick={() => {
+                            // TODO: Implement workflow assignment
+                            toast.info('Workflow assignment coming soon');
+                          }}
+                        >
+                          <Settings className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Assign workflow</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </div>
 
             {/* Quick Info - Compact horizontal layout */}

@@ -17,7 +17,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui-components/dropdown-menu'
-import type { Participant, CreateParticipantInput, UpdateParticipantInput } from '@/types/participants'
 
 interface TabContentRouterProps {
   tab?: TabData | null
