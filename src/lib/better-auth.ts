@@ -161,11 +161,15 @@ const authConfig = {
 
   // Trusted origins for CORS
   trustedOrigins: [
+    // Primary domains - both with and without www
+    "https://maticsapp.com",
+    "https://www.maticsapp.com",
     APP_DOMAIN,
-    "http://localhost:3000", // Default Next.js dev server
+    // Local development
+    "http://localhost:3000",
     "http://localhost:3001",
     "http://localhost:3002",
-    "https://www.maticsapp.com",
+    // Dynamic origins from environment
     ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
     ...(process.env.NEXT_PUBLIC_SUPABASE_URL ? [process.env.NEXT_PUBLIC_SUPABASE_URL] : []),
     // Vercel preview deployments
