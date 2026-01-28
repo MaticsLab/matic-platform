@@ -3315,7 +3315,7 @@ func MoveSubmissionToStage(c *gin.Context) {
 
 	// Find the submission
 	var row models.Row
-	if err := database.DB.Where("table_id = ? AND id = ?", formID, submissionID).First(&row).Error; err != nil {
+	if err := database.DB.Select(rowSelectColumns).Where("table_id = ? AND id = ?", formID, submissionID).First(&row).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
 	}
@@ -3390,7 +3390,7 @@ func UpdateSubmissionReviewData(c *gin.Context) {
 
 	// Find the submission
 	var row models.Row
-	if err := database.DB.Where("table_id = ? AND id = ?", formID, submissionID).First(&row).Error; err != nil {
+	if err := database.DB.Select(rowSelectColumns).Where("table_id = ? AND id = ?", formID, submissionID).First(&row).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
 	}
@@ -3485,7 +3485,7 @@ func BulkAssignWorkflow(c *gin.Context) {
 	count := 0
 	for _, subID := range input.SubmissionIDs {
 		var row models.Row
-		if err := database.DB.Where("table_id = ? AND id = ?", formID, subID).First(&row).Error; err != nil {
+		if err := database.DB.Select(rowSelectColumns).Where("table_id = ? AND id = ?", formID, subID).First(&row).Error; err != nil {
 			continue
 		}
 
@@ -3524,7 +3524,7 @@ func UpdateSubmissionMetadata(c *gin.Context) {
 
 	// Find the submission
 	var row models.Row
-	if err := database.DB.Where("table_id = ? AND id = ?", formID, submissionID).First(&row).Error; err != nil {
+	if err := database.DB.Select(rowSelectColumns).Where("table_id = ? AND id = ?", formID, submissionID).First(&row).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
 	}
