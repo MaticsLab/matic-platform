@@ -77,7 +77,7 @@ export function usePortalFormRealtime({
           // Default: save to backend API
           const baseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
             ? 'http://localhost:8080/api/v1'
-            : process.env.NEXT_PUBLIC_GO_API_URL || 'https://backend.maticslab.com/api/v1'
+            : process.env.NEXT_PUBLIC_GO_API_URL || 'https://api.maticsapp.com/api/v1'
           
           const response = await fetch(`${baseUrl}/submissions/${submissionId}/autosave`, {
             method: 'POST',

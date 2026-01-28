@@ -23,7 +23,7 @@ const maticEmailPlugin: IntegrationPlugin = {
       id: "apiUrl",
       label: "Matic API URL",
       type: "url",
-      placeholder: "https://backend.maticslab.com",
+      placeholder: "https://api.maticsapp.com",
       configKey: "apiUrl",
       envVar: "MATIC_API_URL",
       helpText: "The URL of your Matic backend API",

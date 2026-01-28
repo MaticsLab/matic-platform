@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import type { DataTable } from '@/types/data-tables'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
 
-const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'https://backend.maticslab.com/api/v1'
+const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'https://api.maticsapp.com/api/v1'
 
 interface TablesListPageProps {
   workspaceId: string

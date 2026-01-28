@@ -26,7 +26,7 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: GO_BACKEND_URL
-        value: "https://backend.maticslab.com"
+        value: "https://api.maticsapp.com"
       - key: FRONTEND_URL
         value: "https://www.maticsapp.com"
       - key: GOOGLE_CLIENT_ID

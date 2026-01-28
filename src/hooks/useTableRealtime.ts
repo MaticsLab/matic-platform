@@ -32,7 +32,7 @@ export function useTableRealtime(
 
     /* WebSocket code disabled - uncomment when Go backend supports WebSocket
     // Convert HTTP API URL to WebSocket URL
-    const apiUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'https://backend.maticslab.com/api/v1'
+    const apiUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'https://api.maticsapp.com/api/v1'
     // For local development, construct WebSocket URL properly
     let wsUrl: string
     if (apiUrl.includes('localhost')) {

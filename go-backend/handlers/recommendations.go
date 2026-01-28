@@ -44,9 +44,9 @@ func rewriteLocalhostURLs(response []byte) ([]byte, error) {
 		if url, ok := uploadedDoc["url"].(string); ok {
 			// Rewrite localhost URLs
 			if strings.Contains(url, "localhost:8080") || strings.Contains(url, "localhost:8000") {
-				url = strings.ReplaceAll(url, "http://localhost:8080", "https://backend.maticslab.com")
-				url = strings.ReplaceAll(url, "http://localhost:8000", "https://backend.maticslab.com")
-				url = strings.ReplaceAll(url, "https://localhost:8080", "https://backend.maticslab.com")
+				url = strings.ReplaceAll(url, "http://localhost:8080", "https://api.maticsapp.com")
+				url = strings.ReplaceAll(url, "http://localhost:8000", "https://api.maticsapp.com")
+				url = strings.ReplaceAll(url, "https://localhost:8080", "https://api.maticsapp.com")
 				uploadedDoc["url"] = url
 				responseData["uploaded_document"] = uploadedDoc
 			}
@@ -874,7 +874,7 @@ func SubmitRecommendation(c *gin.Context) {
 				if host != "" {
 					baseURL = fmt.Sprintf("%s://%s", scheme, host)
 				} else {
-					baseURL = "https://backend.maticslab.com" // Production default
+					baseURL = "https://api.maticsapp.com" // Production default
 				}
 			}
 			documentURL := fmt.Sprintf("%s/uploads/recommendations/%s/%s", baseURL, request.ID.String(), filename)

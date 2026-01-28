@@ -42,9 +42,9 @@ func ListPortalDocuments(c *gin.Context) {
 		url := doc.URL
 		// Rewrite old localhost URLs to production URL
 		if strings.Contains(url, "localhost:8080") || strings.Contains(url, "localhost:8000") {
-			url = strings.ReplaceAll(url, "http://localhost:8080", "https://backend.maticslab.com")
-			url = strings.ReplaceAll(url, "http://localhost:8000", "https://backend.maticslab.com")
-			url = strings.ReplaceAll(url, "https://localhost:8080", "https://backend.maticslab.com")
+			url = strings.ReplaceAll(url, "http://localhost:8080", "https://api.maticsapp.com")
+			url = strings.ReplaceAll(url, "http://localhost:8000", "https://api.maticsapp.com")
+			url = strings.ReplaceAll(url, "https://localhost:8080", "https://api.maticsapp.com")
 		}
 		response[i] = gin.H{
 			"id":         doc.ID,
@@ -135,7 +135,7 @@ func UploadPortalDocument(c *gin.Context) {
 		if host != "" {
 			baseURL = fmt.Sprintf("%s://%s", scheme, host)
 		} else {
-			baseURL = "https://backend.maticslab.com" // Production default
+			baseURL = "https://api.maticsapp.com" // Production default
 		}
 	}
 	fileURL := fmt.Sprintf("%s/uploads/portal/%s/%s", baseURL, rowID.String(), filename)

@@ -18,14 +18,14 @@ const getApiUrl = () => {
       return process.env.NEXT_PUBLIC_GO_API_URL
     }
     // Not on localhost and no env var, use production
-    return 'https://backend.maticslab.com/api/v1'
+    return 'https://api.maticsapp.com/api/v1'
   }
   // Server-side rendering - check env var
   if (process.env.NEXT_PUBLIC_GO_API_URL) {
     return process.env.NEXT_PUBLIC_GO_API_URL
   }
   // Server-side fallback
-  return 'https://backend.maticslab.com/api/v1'
+  return 'https://api.maticsapp.com/api/v1'
 }
 
 export interface PortalSignupData {

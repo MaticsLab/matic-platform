@@ -4,12 +4,11 @@
  * 
  * BETTER AUTH INTEGRATION:
  * Better Auth uses HTTP-only cookies for session tokens.
- * No need to manually extract or pass tokens - they're sent automatically with credentials: 'include'
- * The Go backend's AuthMiddleware extracts tokens from cookies (cookie-first, then Authorization header)
+ * Backend is at api.maticsapp.com (same parent domain as frontend)
+ * so cookies with domain .maticsapp.com are sent automatically.
  */
 
 // Use local backend in development, production URL otherwise
-// Check if we're in browser and on localhost, or if NEXT_PUBLIC_GO_API_URL is not set
 const getApiUrl = () => {
   if (process.env.NEXT_PUBLIC_GO_API_URL) {
     return process.env.NEXT_PUBLIC_GO_API_URL
@@ -21,7 +20,7 @@ const getApiUrl = () => {
     }
   }
   // Server-side or production
-  return 'https://backend.maticslab.com/api/v1'
+  return 'https://api.maticsapp.com/api/v1'
 }
 
 const GO_API_URL = getApiUrl()
@@ -57,14 +56,11 @@ export async function goFetch<T>(
     url += `?${searchParams.toString()}`
   }
 
-  // Better Auth uses HTTP-only cookies for session management
-  // No need to manually extract tokens - browser automatically sends cookies
-  // The Go backend reads session tokens from cookies via middleware
-  
-  // Make request with credentials: 'include' to send cookies
+  // Make request with credentials: 'include' to send Better Auth session cookies
+  // Cookies with domain .maticsapp.com are sent to api.maticsapp.com automatically
   const response = await fetch(url, {
     ...fetchOptions,
-    credentials: 'include', // Send Better Auth session cookies
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...fetchOptions.headers,

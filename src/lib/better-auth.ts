@@ -370,7 +370,7 @@ const authConfig = {
           
           // Fetch form configuration if we found formId
           if (formId) {
-            const baseUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'https://backend.maticslab.com/api/v1';
+            const baseUrl = process.env.NEXT_PUBLIC_GO_API_URL || 'https://api.maticsapp.com/api/v1';
             const formResponse = await fetch(`${baseUrl}/forms/${formId}`, {
               headers: {
                 'Content-Type': 'application/json',
