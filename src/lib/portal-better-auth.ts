@@ -123,6 +123,25 @@ const portalAuthConfig = {
     },
   },
 
+  // Trusted origins for CORS - CRITICAL for portal subdomain access
+  trustedOrigins: [
+    // Primary domains
+    "https://maticsapp.com",
+    "https://www.maticsapp.com",
+    // Local development
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    // Dynamic origins from environment
+    ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
+    // Vercel preview deployments
+    ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+    // Allow any *.vercel.app subdomains for preview deployments
+    "https://*.vercel.app",
+    // CRITICAL: Allow any *.maticsapp.com subdomains (custom portal subdomains like bpnc.maticsapp.com)
+    "https://*.maticsapp.com",
+  ],
+
   // Magic link plugin for passwordless login
   plugins: [
     magicLink({
@@ -226,6 +245,7 @@ const portalAuthConfig = {
           secure: process.env.NODE_ENV === "production",
           sameSite: process.env.NODE_ENV === "production" ? ("none" as const) : ("lax" as const),
           domain: process.env.NODE_ENV === "production" ? ".maticsapp.com" : undefined,
+          path: "/",
         },
       },
     },
@@ -233,11 +253,13 @@ const portalAuthConfig = {
       enabled: true,
       domain: ".maticsapp.com",
     },
+    // Cookie attributes for security - MUST match sessionToken for cross-subdomain
     defaultCookieAttributes: {
-      sameSite: "lax" as const,
+      sameSite: process.env.NODE_ENV === "production" ? ("none" as const) : ("lax" as const),
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       path: "/",
+      domain: process.env.NODE_ENV === "production" ? ".maticsapp.com" : undefined,
     },
   },
 
