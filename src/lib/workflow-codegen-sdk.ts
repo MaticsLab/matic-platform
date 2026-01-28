@@ -240,7 +240,7 @@ export function generateWorkflowSDKCode(
   function buildEmailParams(config: Record<string, unknown>): string[] {
     imports.add("import { Resend } from 'resend';");
     return [
-      `fromEmail: process.env.RESEND_FROM_EMAIL || 'noreply@example.com'`,
+      `fromEmail: process.env.RESEND_FROM_EMAIL || 'hello@example.com'`,
       `emailTo: \`${convertTemplateToJS((config.emailTo as string) || "user@example.com")}\``,
       `emailSubject: \`${convertTemplateToJS((config.emailSubject as string) || "Notification")}\``,
       `emailBody: \`${convertTemplateToJS((config.emailBody as string) || "No content")}\``,

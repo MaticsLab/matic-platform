@@ -27,7 +27,7 @@ const resendPlugin: IntegrationPlugin = {
       id: "fromEmail",
       label: "Default Sender",
       type: "text",
-      placeholder: "Your Name <noreply@yourdomain.com>",
+      placeholder: "Your Name <hello@yourdomain.com>",
       configKey: "fromEmail",
       envVar: "RESEND_FROM_EMAIL",
       helpText: "The name and email that will appear as the sender",
@@ -55,7 +55,7 @@ const resendPlugin: IntegrationPlugin = {
           key: "emailFrom",
           label: "From (Sender)",
           type: "template-input",
-          placeholder: "Your Name <noreply@example.com>",
+          placeholder: "Your Name <hello@example.com>",
           example: "Support <support@example.com>",
         },
         {
