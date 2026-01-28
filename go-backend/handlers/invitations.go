@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
@@ -151,7 +152,7 @@ func CreateInvitation(c *gin.Context) {
 	}
 
 	// Send invitation email
-	if err := sendInvitationEmail(req.Email, token, workspace.Name); err != nil {
+	if err := sendInvitationEmail(req.Email, token, &workspace); err != nil {
 		log.Printf("CreateInvitation: Failed to send email (invitation created anyway): %v", err)
 		// Don't fail the request if email fails - invitation is still created
 	}
@@ -417,7 +418,7 @@ func ResendInvitation(c *gin.Context) {
 	}
 
 	// Send new invitation email
-	if err := sendInvitationEmail(pendingMember.InvitedEmail, newToken, pendingMember.Workspace.Name); err != nil {
+	if err := sendInvitationEmail(pendingMember.InvitedEmail, newToken, &pendingMember.Workspace); err != nil {
 		log.Printf("ResendInvitation: Failed to send email: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send invitation email"})
 		return
@@ -453,7 +454,8 @@ func DeclineInvitation(c *gin.Context) {
 }
 
 // sendInvitationEmail sends an invitation email via Resend
-func sendInvitationEmail(email, token, workspaceName string) error {
+func sendInvitationEmail(email, token string, workspace *models.Workspace) error {
+	workspaceName := workspace.Name
 	// Build the invite URL with our custom token
 	siteURL := os.Getenv("SITE_URL")
 	if siteURL == "" {
@@ -740,9 +742,46 @@ Powered by Matic - https://maticsapp.com`, workspaceName, workspaceName, inviteU
 
 	// Send directly via Resend API using global key
 	resendURL := "https://api.resend.com/emails"
+
+	// Get sender name from portal settings or workspace name
+	senderName := workspaceName
+
+	// Try to extract portal name from workspace settings
+	var settings map[string]interface{}
+	if err := json.Unmarshal(workspace.Settings, &settings); err == nil {
+		if portalName, ok := settings["name"].(string); ok && portalName != "" {
+			senderName = portalName
+		}
+	}
+
+	// Get email address from environment or use default
+	emailAddress := "hello@notifications.maticsapp.com"
+	if envEmail := os.Getenv("EMAIL_FROM"); envEmail != "" {
+		// Extract email from "Name <email@domain.com>" format
+		if strings.Contains(envEmail, "<") && strings.Contains(envEmail, ">") {
+			startIdx := strings.Index(envEmail, "<") + 1
+			endIdx := strings.Index(envEmail, ">")
+			emailAddress = envEmail[startIdx:endIdx]
+		} else {
+			// If no brackets, assume it's just the email
+			emailAddress = strings.TrimSpace(envEmail)
+		}
+	}
+
+	// Format as "Portal Name <email@domain.com>"
+	emailFrom := fmt.Sprintf("%s <%s>", senderName, emailAddress)
+
+	// Get reply-to email from portal settings or use default
+	replyToEmail := "support@maticsapp.com"
+	if emailSettings, ok := settings["emailSettings"].(map[string]interface{}); ok {
+		if replyTo, ok := emailSettings["replyToEmail"].(string); ok && replyTo != "" {
+			replyToEmail = replyTo
+		}
+	}
+
 	payload := map[string]interface{}{
-		"from":     "Matics <hello@notifications.maticsapp.com>",
-		"reply_to": "support@maticsapp.com",
+		"from":     emailFrom,
+		"reply_to": replyToEmail,
 		"to":       []string{email},
 		"subject":  subject,
 		"text":     textBody,
