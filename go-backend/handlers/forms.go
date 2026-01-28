@@ -1178,7 +1178,8 @@ func ListFormSubmissions(c *gin.Context) {
 
 	var rows []models.Row
 	// OPTIMIZATION: Select only needed columns to reduce data transfer
-	query := database.DB.Select("id, table_id, data, metadata, is_archived, position, stage_group_id, tags, created_by, updated_by, ba_created_by, ba_updated_by, created_at, updated_at").
+	// Note: table_rows has ba_created_by/ba_updated_by, NOT created_by/updated_by
+	query := database.DB.Select("id, table_id, data, metadata, is_archived, position, stage_group_id, tags, ba_created_by, ba_updated_by, created_at, updated_at").
 		Where("table_id = ?", tableID).
 		Order("created_at DESC")
 
