@@ -738,7 +738,7 @@ To accept your invitation and set up your account, visit:
 
 This invitation will expire in 7 days.
 
-Powered by Matic - https://maticsapp.com`, workspaceName, workspaceName, inviteURL)
+Powered by MaticsApp - https://maticsapp.com`, workspaceName, workspaceName, inviteURL)
 
 	// Send directly via Resend API using global key
 	resendURL := "https://api.resend.com/emails"
