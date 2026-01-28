@@ -536,6 +536,8 @@ const authConfig = {
   },
 
   // Advanced configuration for production cookie handling
+  // CRITICAL: For cross-subdomain requests (www.maticsapp.com → api.maticsapp.com),
+  // cookies MUST use sameSite: "none" with secure: true
   advanced: {
     cookies: {
       sessionToken: {
@@ -544,6 +546,7 @@ const authConfig = {
           secure: process.env.NODE_ENV === "production",
           sameSite: process.env.NODE_ENV === "production" ? ("none" as const) : ("lax" as const),
           domain: process.env.NODE_ENV === "production" ? ".maticsapp.com" : undefined,
+          path: "/",
         },
       },
     },
@@ -552,12 +555,13 @@ const authConfig = {
       enabled: true,
       domain: ".maticsapp.com",
     },
-    // Cookie attributes for security
+    // Cookie attributes for security - MUST match sessionToken for cross-subdomain
     defaultCookieAttributes: {
-      sameSite: "lax" as const, // Balance security and usability
+      sameSite: process.env.NODE_ENV === "production" ? ("none" as const) : ("lax" as const),
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       path: "/",
+      domain: process.env.NODE_ENV === "production" ? ".maticsapp.com" : undefined,
     },
   },
 

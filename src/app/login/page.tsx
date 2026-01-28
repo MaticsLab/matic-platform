@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 
 /**
@@ -9,14 +9,22 @@ import { Loader2 } from 'lucide-react'
  * Better Auth redirects here after successful auth
  * We redirect staff to their last workspace, applicants to portal
  */
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectPath = searchParams.get('redirect')
 
   useEffect(() => {
     // Check if we have a session cookie
     const hasSession = document.cookie.includes('better-auth.session_token=')
     
     if (hasSession) {
+      // If we have a redirect path, use it
+      if (redirectPath) {
+        router.replace(redirectPath)
+        return
+      }
+      
       // Try to get session data from cookie (Better Auth stores it client-side)
       const sessionDataMatch = document.cookie.match(/better-auth\.session_data=([^;]+)/)
       
@@ -54,10 +62,13 @@ export default function LoginPage() {
       // Default: if we have a session but couldn't parse it, go home
       router.replace('/')
     } else {
-      // No session - go to auth page
-      router.replace('/auth?mode=login')
+      // No session - go to auth page, pass redirect param if present
+      const authUrl = redirectPath 
+        ? `/auth?mode=login&redirect=${encodeURIComponent(redirectPath)}`
+        : '/auth?mode=login'
+      router.replace(authUrl)
     }
-  }, [router])
+  }, [router, redirectPath])
 
   return (
     <div className="min-h-screen flex items-center justify-center">
@@ -66,5 +77,20 @@ export default function LoginPage() {
         <p className="text-gray-600">Redirecting...</p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }
