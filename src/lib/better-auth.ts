@@ -13,20 +13,59 @@ interface UserForReset {
   name?: string;
 }
 
-// Check if we're in a build environment (no DATABASE_URL)
-const isBuildTime = !process.env.DATABASE_URL;
+// Singleton pool instance - created lazily at runtime
+let _pool: Pool | null = null;
 
-// Create connection pool only if DATABASE_URL is available
-// For Vercel serverless, we need specific pool settings
-const pool = isBuildTime
-  ? null
-  : new Pool({
+/**
+ * Get or create the database pool.
+ * This is called lazily at runtime, not at build time.
+ */
+function getPool(): Pool | null {
+  // Return existing pool if already created
+  if (_pool) {
+    return _pool;
+  }
+  
+  // Check if DATABASE_URL is available (runtime check)
+  if (!process.env.DATABASE_URL) {
+    console.error('[Better Auth] DATABASE_URL is not set. Authentication will not work.');
+    return null;
+  }
+  
+  try {
+    console.log('[Better Auth] Creating database pool...');
+    _pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false }, // Required for Supabase
       max: 1, // Limit connections for serverless
       idleTimeoutMillis: 20000,
       connectionTimeoutMillis: 10000,
     });
+    
+    _pool.on('error', (error) => {
+      console.error('[Better Auth] Pool error:', error);
+      // Reset pool on error so it can be recreated
+      _pool = null;
+    });
+    
+    _pool.on('connect', () => {
+      console.log('[Better Auth] Database pool connected successfully');
+    });
+    
+    return _pool;
+  } catch (error) {
+    console.error('[Better Auth] Failed to create database pool:', error);
+    return null;
+  }
+}
+
+// Validate critical environment variables at runtime
+if (typeof window === 'undefined' && process.env.NODE_ENV !== 'test') {
+  // Server-side runtime check
+  if (!process.env.BETTER_AUTH_SECRET) {
+    console.error('[Better Auth] CRITICAL: BETTER_AUTH_SECRET is not set. Authentication will fail.');
+  }
+}
 
 // Initialize Resend for email sending
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -71,14 +110,15 @@ function getBaseURL() {
   return "http://localhost:3000";
 }
 
-// Auth configuration object
+// Auth configuration object (base config - database added at runtime)
 const authConfig = {
   baseURL: getBaseURL(),
   basePath: "/api/auth",
-  secret: process.env.BETTER_AUTH_SECRET || "build-time-secret-placeholder",
+  // Secret will be set at runtime in createAuth()
+  secret: 'placeholder-replaced-at-runtime',
   
-  // Use PostgreSQL adapter - pass Pool directly (not wrapped in object)
-  database: pool || undefined,
+  // Database will be set at runtime in createAuth()
+  // This is intentionally undefined here - it's set when getAuth() is called
 
   // Email configuration with Resend
   emailAndPassword: {
@@ -286,9 +326,10 @@ const authConfig = {
           
           // Method 2: Query Better Auth verification table to get callback URL
           // Better Auth stores the callback URL in the verification record
-          if (!formId && pool && token) {
+          const dbPool = getPool();
+          if (!formId && dbPool && token) {
             try {
-              const result = await pool.query(
+              const result = await dbPool.query(
                 'SELECT identifier FROM ba_verifications WHERE token = $1 ORDER BY created_at DESC LIMIT 1',
                 [token]
               );
@@ -525,9 +566,58 @@ const authConfig = {
   },
 };
 
-// Create singleton instance - must be created at module load time for Next.js
-console.log('[Better Auth] Creating auth instance at module load');
-export const auth = betterAuth(authConfig);
+// Lazy singleton instance - created on first access, not at module load time
+// This is critical for Vercel where env vars aren't available during build
+let _auth: ReturnType<typeof betterAuth> | null = null;
+
+function createAuth() {
+  console.log('[Better Auth] Creating auth instance...');
+  
+  // Get pool at runtime (when DATABASE_URL is available)
+  const pool = getPool();
+  
+  if (!pool) {
+    console.error('[Better Auth] Cannot create auth instance: database pool is not available');
+    console.error('[Better Auth] Make sure DATABASE_URL environment variable is set');
+  }
+  
+  // Create config with runtime values
+  const runtimeConfig = {
+    ...authConfig,
+    database: pool || undefined,
+    secret: process.env.BETTER_AUTH_SECRET || 'build-time-secret-placeholder',
+  };
+  
+  console.log('[Better Auth] Auth config:', {
+    baseURL: runtimeConfig.baseURL,
+    basePath: runtimeConfig.basePath,
+    hasDatabase: !!runtimeConfig.database,
+    hasSecret: !!process.env.BETTER_AUTH_SECRET,
+  });
+  
+  return betterAuth(runtimeConfig);
+}
+
+/**
+ * Get the Better Auth instance.
+ * Lazily creates the instance on first access to ensure
+ * environment variables are available (runtime vs build time).
+ */
+export function getAuth() {
+  if (!_auth) {
+    _auth = createAuth();
+  }
+  return _auth;
+}
+
+// For backwards compatibility, export auth as a getter
+// This ensures lazy initialization
+export const auth = new Proxy({} as ReturnType<typeof betterAuth>, {
+  get(_, prop) {
+    const instance = getAuth();
+    return (instance as any)[prop];
+  },
+});
 
 // Export types
 export type Auth = ReturnType<typeof betterAuth>;
