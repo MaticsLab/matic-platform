@@ -4,6 +4,9 @@
   "functions": {
     "app/**/*.tsx": {
       "maxDuration": 30
+    },
+    "app/api/**/*.ts": {
+      "maxDuration": 30
     }
   },
   "outputDirectory": ".next",
