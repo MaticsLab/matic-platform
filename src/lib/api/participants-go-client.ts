@@ -4,7 +4,6 @@
  */
 
 import { goClient } from './go-client'
-import type { Participant, CreateParticipantInput, UpdateParticipantInput } from '@/types/participants'
 import type { TableRow } from '@/types/data-tables'
 
 export interface TableLink {
