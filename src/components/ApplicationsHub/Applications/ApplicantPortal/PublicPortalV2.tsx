@@ -17,7 +17,7 @@ import { Field, PortalConfig, Section } from '@/types/portal'
 import { cn } from '@/lib/utils'
 import { applyTranslationsToConfig, applyTranslationsToField, normalizeTranslations } from '@/lib/portal-translations'
 import { portalAuthClient } from '@/lib/api/portal-auth-client'
-import { authClient } from '@/lib/better-auth-client'
+import { portalBetterAuthClient } from '@/lib/portal-better-auth-client'
 import { toast } from 'sonner'
 import { TranslationProvider } from '@/lib/i18n/TranslationProvider'
 import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector'
@@ -510,8 +510,8 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
             const formIdParam = urlParams.get('formId')
             
             if (verified === 'true' && formIdParam === formData.id) {
-              // Verify magic link was successful
-              const session = await authClient.getSession()
+              // Verify magic link was successful (using portal-specific auth client)
+              const session = await portalBetterAuthClient.getSession()
               if (session?.data?.session) {
                 setEmail(email)
                 // Sync with portal_applicant
@@ -572,8 +572,8 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
                 }
               }
             } else {
-              // Check for existing Better Auth session
-              const session = await authClient.getSession()
+              // Check for existing Better Auth session (portal-specific)
+              const session = await portalBetterAuthClient.getSession()
               if (session?.data?.session) {
                 // Use the email variable for lookup
                 try {
@@ -653,7 +653,8 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     setIsMagicLinkLoading(true)
     try {
       // Magic link works for both signup and login - Better Auth handles it automatically
-      const result = await (authClient.signIn as any).magicLink({
+      // Using portal-specific auth client to avoid conflicts with main app sessions
+      const result = await (portalBetterAuthClient.signIn as any).magicLink({
         email: emailAddress,
         callbackURL: `${window.location.origin}/apply/${slug}?verified=true&formId=${form.id}`,
       })
@@ -673,7 +674,6 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
 
   // Handle authentication with Better Auth
   const handleAuth = async (e: React.FormEvent) => {
-      let betterAuthUserId: string | undefined;
     e.preventDefault()
     if (!form?.id) {
       toast.error('Form not loaded')
@@ -691,187 +691,19 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       })
 
       if (isLogin) {
-        // Try Better Auth first
-        let betterAuthUser = null
-        let betterAuthResult = await authClient.signIn.email({
+        // Use Better Auth only for authentication (cookie-based)
+        const betterAuthResult = await portalBetterAuthClient.signIn.email({
           email,
           password,
         })
 
-        // If Better Auth fails, try legacy portal login and migrate
         if (betterAuthResult.error || !betterAuthResult.data?.user) {
-          console.log('[PublicPortalV2] Better Auth login failed, trying legacy portal login...')
-          
-          // Try legacy portal login
-          const baseUrl = getApiUrl()
-          try {
-            const legacyLoginResponse = await fetch(`${baseUrl}/portal/login`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                form_id: formIdToUse,
-                email,
-                password,
-              }),
-            })
-
-            if (legacyLoginResponse.ok) {
-              const legacyApplicant = await legacyLoginResponse.json()
-              console.log('[PublicPortalV2] Legacy login successful, migrating to Better Auth...')
-              
-              // Create Better Auth account for this user
-              // Try to sign up with Better Auth (this will create account or return error if exists)
-              const signUpResult = await authClient.signUp.email({
-                email,
-                password,
-                name: legacyApplicant.name || email.split('@')[0],
-              })
-
-              if (signUpResult.data?.user) {
-                // Successfully created Better Auth account
-                betterAuthUser = signUpResult.data.user
-                betterAuthUserId = signUpResult.data.user.id
-              } else if (signUpResult.error) {
-                // User might already exist in Better Auth - try to sign in
-                console.log('[PublicPortalV2] Better Auth signup failed, trying sign-in:', signUpResult.error.message)
-                const signInResult = await authClient.signIn.email({
-                  email,
-                  password,
-                })
-                
-                if (signInResult.data?.user) {
-                  betterAuthUser = signInResult.data.user
-                  betterAuthUserId = signInResult.data.user.id
-                } else {
-                  // Better Auth sign-in also failed - password might be different
-                  console.warn('[PublicPortalV2] Better Auth sign-in failed, user may have different password')
-                  // Continue with legacy auth below
-                }
-              }
-
-              // If we successfully created/got Better Auth user, sync them
-              if (betterAuthUser || betterAuthUserId) {
-                const syncResponse = await fetch(`${baseUrl}/portal/sync-better-auth-applicant`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  credentials: 'include',
-                  body: JSON.stringify({
-                    form_id: formIdToUse,
-                    email,
-                    better_auth_user_id: betterAuthUserId || betterAuthUser?.id,
-                    name: legacyApplicant.name,
-                    first_name: legacyApplicant.name?.split(' ')[0] || '',
-                    last_name: legacyApplicant.name?.split(' ').slice(1).join(' ') || '',
-                  }),
-                })
-
-                if (syncResponse.ok) {
-                  // Now try to sign in with Better Auth
-                  betterAuthResult = await authClient.signIn.email({
-                    email,
-                    password,
-                  })
-
-                  if (betterAuthResult.data?.user) {
-                    betterAuthUser = betterAuthResult.data.user
-                  } else {
-                    // Fall back to legacy auth if Better Auth sign-in still fails
-                    console.log('[PublicPortalV2] Better Auth sign-in still failed, using legacy auth')
-                    // Use legacy applicant data
-                    setApplicantId(legacyApplicant.id)
-                    setApplicantName(legacyApplicant.name || '')
-                    setEmail(email)
-                    setIsAuthenticated(true)
-
-                    if (legacyApplicant.row_id) {
-                      setApplicationRowId(legacyApplicant.row_id)
-                    }
-                    if (legacyApplicant.status) {
-                      setApplicationStatus(legacyApplicant.status)
-                    }
-
-                    if (legacyApplicant.submission_data && Object.keys(legacyApplicant.submission_data).length > 0) {
-                      setInitialData(legacyApplicant.submission_data)
-                      setSubmissionData(legacyApplicant.submission_data)
-                      setHasExistingSubmission(true)
-                      setCurrentView('dashboard')
-                    }
-
-                    // Save to localStorage
-                    try {
-                      const authData = {
-                        email,
-                        formId: form.id,
-                        applicantId: legacyApplicant.id,
-                        applicantName: legacyApplicant.name || '',
-                        timestamp: Date.now()
-                      }
-                      localStorage.setItem(`portal-auth-${form.id}`, JSON.stringify(authData))
-                    } catch (err) {
-                      console.warn('Failed to save auth to localStorage:', err)
-                    }
-
-                    toast.success('Logged in successfully')
-                    setIsLoading(false)
-                    return
-                  }
-                }
-              } else {
-                // Couldn't create Better Auth account, use legacy auth
-                console.log('[PublicPortalV2] Could not create Better Auth account, using legacy auth')
-                setApplicantId(legacyApplicant.id)
-                setApplicantName(legacyApplicant.name || '')
-                setEmail(email)
-                setIsAuthenticated(true)
-
-                if (legacyApplicant.row_id) {
-                  setApplicationRowId(legacyApplicant.row_id)
-                }
-                if (legacyApplicant.status) {
-                  setApplicationStatus(legacyApplicant.status)
-                }
-
-                if (legacyApplicant.submission_data && Object.keys(legacyApplicant.submission_data).length > 0) {
-                  setInitialData(legacyApplicant.submission_data)
-                  setSubmissionData(legacyApplicant.submission_data)
-                  setHasExistingSubmission(true)
-                  setCurrentView('dashboard')
-                }
-
-                // Save to localStorage
-                try {
-                  const authData = {
-                    email,
-                    formId: form.id,
-                    applicantId: legacyApplicant.id,
-                    applicantName: legacyApplicant.name || '',
-                    timestamp: Date.now()
-                  }
-                  localStorage.setItem(`portal-auth-${form.id}`, JSON.stringify(authData))
-                } catch (err) {
-                  console.warn('Failed to save auth to localStorage:', err)
-                }
-
-                toast.success('Logged in successfully')
-                setIsLoading(false)
-                return
-              }
-            } else {
-              // Legacy login also failed
-              const errorData = await legacyLoginResponse.json().catch(() => ({}))
-              throw new Error(errorData.error || 'Invalid email or password')
-            }
-          } catch (legacyError: any) {
-            console.error('[PublicPortalV2] Legacy login error:', legacyError)
-            throw new Error(legacyError.message || 'Invalid email or password')
-          }
-        } else {
-          betterAuthUser = betterAuthResult.data.user
+          console.error('[PublicPortalV2] Better Auth login failed:', betterAuthResult.error)
+          throw new Error(betterAuthResult.error?.message || 'Invalid email or password')
         }
 
-        if (!betterAuthUser) {
-          throw new Error('Invalid email or password')
-        }
+        const betterAuthUser = betterAuthResult.data.user
+        console.log('[PublicPortalV2] Better Auth login successful:', { userId: betterAuthUser.id, email: betterAuthUser.email })
         
         // After Better Auth login, sync with portal_applicants
         // This ensures form-specific data is available
@@ -971,7 +803,8 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         const fullName = signupData.full_name || signupData.name || ''
         const displayName = fullName.trim() || email
 
-        const result = await authClient.signUp.email({
+        // Using portal-specific auth client to avoid conflicts with main app sessions
+        const result = await portalBetterAuthClient.signUp.email({
           email,
           password,
           name: displayName,

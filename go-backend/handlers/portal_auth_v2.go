@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
@@ -11,7 +14,35 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/scrypt"
 )
+
+// verifyScryptPassword verifies a password against Better Auth's scrypt hash format
+// Better Auth stores passwords as: base64(salt):base64(hash)
+func verifyScryptPassword(storedPassword, inputPassword string) bool {
+	parts := strings.Split(storedPassword, ":")
+	if len(parts) != 2 {
+		return false
+	}
+
+	salt, err := base64.StdEncoding.DecodeString(parts[0])
+	if err != nil {
+		return false
+	}
+
+	storedHash, err := base64.StdEncoding.DecodeString(parts[1])
+	if err != nil {
+		return false
+	}
+
+	// Better Auth uses N=16384, r=8, p=1, keyLen=64
+	derivedKey, err := scrypt.Key([]byte(inputPassword), salt, 16384, 8, 1, 64)
+	if err != nil {
+		return false
+	}
+
+	return subtle.ConstantTimeCompare(derivedKey, storedHash) == 1
+}
 
 // ==================== REQUEST TYPES ====================
 
@@ -196,8 +227,19 @@ func PortalLoginV2(c *gin.Context) {
 		return
 	}
 
-	// Verify password
-	if err := bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(req.Password)); err != nil {
+	// Verify password - try scrypt first (Better Auth format), then bcrypt (legacy)
+	passwordValid := false
+	if strings.Contains(account.Password, ":") {
+		// Better Auth scrypt format: base64(salt):base64(hash)
+		passwordValid = verifyScryptPassword(account.Password, req.Password)
+	} else {
+		// Legacy bcrypt format
+		if err := bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(req.Password)); err == nil {
+			passwordValid = true
+		}
+	}
+
+	if !passwordValid {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
@@ -399,6 +441,143 @@ func PortalAuthMiddlewareV2() gin.HandlerFunc {
 		c.Set("user_id", session.UserID)
 		c.Next()
 	}
+}
+
+// ==================== SYNC ENDPOINT ====================
+
+// PortalSyncBetterAuthApplicantRequest for syncing Better Auth users with form submissions
+type PortalSyncBetterAuthApplicantRequest struct {
+	FormID           string `json:"form_id" binding:"required"`
+	Email            string `json:"email" binding:"required,email"`
+	BetterAuthUserID string `json:"better_auth_user_id" binding:"required"`
+	Name             string `json:"name"`
+	FirstName        string `json:"first_name"`
+	LastName         string `json:"last_name"`
+}
+
+// PortalSyncBetterAuthApplicant syncs a Better Auth user with form submissions
+// This checks for existing submissions and returns the user's form status
+// It uses the NEW v2 form_submissions system, not the legacy portal_applicants
+// POST /api/v1/portal/sync-better-auth-applicant
+func PortalSyncBetterAuthApplicant(c *gin.Context) {
+	var req PortalSyncBetterAuthApplicantRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Parse form ID - this can be a data_table ID or a forms (v2) ID
+	formUUID, err := uuid.Parse(req.FormID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid form_id"})
+		return
+	}
+
+	// First, check if this is a v2 Form (new system)
+	var v2Form models.Form
+	err = database.DB.Where("id = ?", formUUID).First(&v2Form).Error
+
+	if err == nil {
+		// It's a v2 Form! Use the new form_submissions system
+		fmt.Printf("📋 Syncing Better Auth user %s with v2 form %s\n", req.BetterAuthUserID, req.FormID)
+
+		// Check for existing submission by this user
+		var submission models.FormSubmission
+		err = database.DB.Where("form_id = ? AND user_id = ?", formUUID, req.BetterAuthUserID).First(&submission).Error
+
+		if err == nil {
+			// Submission exists - return it
+			fmt.Printf("✅ Found existing v2 submission for user %s on form %s\n", req.BetterAuthUserID, req.FormID)
+			c.JSON(http.StatusOK, gin.H{
+				"id":                    submission.ID,
+				"email":                 req.Email,
+				"name":                  req.Name,
+				"form_id":               submission.FormID,
+				"submission_id":         submission.ID,
+				"status":                submission.Status,
+				"completion_percentage": submission.CompletionPercentage,
+				"synced":                true,
+				"v2":                    true,
+			})
+			return
+		}
+
+		// No submission yet - return that user is synced but hasn't started
+		c.JSON(http.StatusOK, gin.H{
+			"id":                    req.BetterAuthUserID,
+			"email":                 req.Email,
+			"name":                  req.Name,
+			"form_id":               formUUID,
+			"submission_id":         nil,
+			"status":                "not_started",
+			"completion_percentage": 0,
+			"synced":                true,
+			"v2":                    true,
+		})
+		return
+	}
+
+	// Not a v2 Form - check if it's a legacy data_table
+	var table models.Table
+	if err := database.DB.First(&table, "id = ?", formUUID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
+		return
+	}
+
+	// It's a legacy table-based form
+	// Check for existing row by email in the table
+	fmt.Printf("📋 Syncing Better Auth user %s with legacy form (table) %s\n", req.BetterAuthUserID, req.FormID)
+
+	var row models.Row
+	// Look for email in multiple possible locations
+	err = database.DB.Where("table_id = ?", formUUID).
+		Where("data->>'_applicant_email' = ? OR data->>'email' = ? OR data->>'Email' = ? OR data->'personal'->>'personalEmail' = ?",
+			req.Email, req.Email, req.Email, req.Email).
+		First(&row).Error
+
+	if err == nil {
+		// Found existing row/submission
+		status := "in_progress"
+		var metadata map[string]interface{}
+		if row.Metadata != nil {
+			json.Unmarshal(row.Metadata, &metadata)
+			if s, ok := metadata["status"].(string); ok {
+				status = s
+			}
+		}
+
+		// Parse row data for submission_data
+		var submissionData map[string]interface{}
+		if row.Data != nil {
+			json.Unmarshal(row.Data, &submissionData)
+		}
+
+		fmt.Printf("✅ Found existing legacy submission (row) for %s on form %s\n", req.Email, req.FormID)
+		c.JSON(http.StatusOK, gin.H{
+			"id":              req.BetterAuthUserID,
+			"email":           req.Email,
+			"name":            req.Name,
+			"form_id":         formUUID,
+			"row_id":          row.ID,
+			"status":          status,
+			"submission_data": submissionData,
+			"synced":          true,
+			"v2":              false,
+		})
+		return
+	}
+
+	// No existing submission
+	c.JSON(http.StatusOK, gin.H{
+		"id":      req.BetterAuthUserID,
+		"email":   req.Email,
+		"name":    req.Name,
+		"form_id": formUUID,
+		"row_id":  nil,
+		"status":  "not_started",
+		"synced":  true,
+		"v2":      false,
+	})
 }
 
 // ==================== HELPERS ====================

@@ -80,12 +80,12 @@ type BatchOperation struct {
 	ErrorMessage string `json:"error_message,omitempty"`
 
 	// Rollback support
-	CanRollback  bool       `gorm:"default:true" json:"can_rollback"`
-	RolledBackAt *time.Time `json:"rolled_back_at,omitempty"`
-	RolledBackBy *uuid.UUID `gorm:"type:uuid" json:"rolled_back_by,omitempty"`
+	CanRollback    bool       `gorm:"default:true" json:"can_rollback"`
+	RolledBackAt   *time.Time `json:"rolled_back_at,omitempty"`
+	BARolledBackBy *string    `gorm:"type:text;index" json:"ba_rolled_back_by,omitempty"` // Better Auth user ID (TEXT)
 
 	// Authorship
-	CreatedBy   uuid.UUID  `gorm:"type:uuid;not null" json:"created_by"`
+	BACreatedBy *string    `gorm:"type:text;index" json:"ba_created_by,omitempty"` // Better Auth user ID (TEXT)
 	CreatedAt   time.Time  `gorm:"autoCreateTime" json:"created_at"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
@@ -120,8 +120,8 @@ type RowVersion struct {
 	BatchOperationID *uuid.UUID `gorm:"type:uuid;index" json:"batch_operation_id,omitempty"`
 
 	// Authorship
-	ChangedBy *uuid.UUID `gorm:"type:uuid" json:"changed_by,omitempty"`
-	ChangedAt time.Time  `gorm:"autoCreateTime" json:"changed_at"`
+	BAChangedBy *string   `gorm:"type:text;index" json:"ba_changed_by,omitempty"` // Better Auth user ID (TEXT)
+	ChangedAt   time.Time `gorm:"autoCreateTime" json:"changed_at"`
 
 	// AI context
 	AIAssisted     bool       `gorm:"default:false" json:"ai_assisted"`
@@ -131,7 +131,7 @@ type RowVersion struct {
 	// Archive/Delete support
 	IsArchived    bool       `gorm:"default:false" json:"is_archived"`
 	ArchivedAt    *time.Time `json:"archived_at,omitempty"`
-	ArchivedBy    *uuid.UUID `gorm:"type:uuid" json:"archived_by,omitempty"`
+	BAArchivedBy  *string    `gorm:"type:text;index" json:"ba_archived_by,omitempty"` // Better Auth user ID (TEXT)
 	ArchiveReason string     `json:"archive_reason,omitempty"`
 
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
@@ -197,8 +197,8 @@ type ChangeApproval struct {
 	ChangeReason   string         `json:"change_reason,omitempty"`
 
 	// Approval context
-	RequiresApprovalFrom string     `json:"requires_approval_from"` // table_owner, workspace_admin, specific_user, any_reviewer
-	SpecificApproverID   *uuid.UUID `gorm:"type:uuid" json:"specific_approver_id,omitempty"`
+	RequiresApprovalFrom string  `json:"requires_approval_from"`                                   // table_owner, workspace_admin, specific_user, any_reviewer
+	BASpecificApproverID *string `gorm:"type:text;index" json:"ba_specific_approver_id,omitempty"` // Better Auth user ID (TEXT)
 
 	// Stage reference (if from workflow)
 	StageID *uuid.UUID `gorm:"type:uuid" json:"stage_id,omitempty"`
@@ -207,14 +207,13 @@ type ChangeApproval struct {
 	Status string `gorm:"default:'pending'" json:"status"` // pending, approved, rejected, expired, cancelled
 
 	// Requester
-	RequestedBy uuid.UUID `gorm:"type:uuid;not null" json:"requested_by"`
-	RequestedAt time.Time `gorm:"autoCreateTime" json:"requested_at"`
+	BARequestedBy *string   `gorm:"type:text;index" json:"ba_requested_by,omitempty"` // Better Auth user ID (TEXT)
+	RequestedAt   time.Time `gorm:"autoCreateTime" json:"requested_at"`
 
 	// Approver
-	ReviewedBy  *uuid.UUID `gorm:"type:uuid" json:"reviewed_by,omitempty"` // Legacy Supabase UUID
-	BAReviewedBy *string   `gorm:"type:text;index" json:"ba_reviewed_by,omitempty"` // Better Auth user ID (TEXT)
-	ReviewedAt  *time.Time `json:"reviewed_at,omitempty"`
-	ReviewNotes string     `json:"review_notes,omitempty"`
+	BAReviewedBy *string    `gorm:"type:text;index" json:"ba_reviewed_by,omitempty"` // Better Auth user ID (TEXT)
+	ReviewedAt   *time.Time `json:"reviewed_at,omitempty"`
+	ReviewNotes  string     `json:"review_notes,omitempty"`
 
 	// Expiration
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
@@ -261,10 +260,9 @@ type AIFieldSuggestion struct {
 	Status string `gorm:"default:'pending'" json:"status"` // pending, accepted, rejected, dismissed, auto_applied
 
 	// Review
-	ReviewedBy  *uuid.UUID `gorm:"type:uuid" json:"reviewed_by,omitempty"` // Legacy Supabase UUID
-	BAReviewedBy *string   `gorm:"type:text;index" json:"ba_reviewed_by,omitempty"` // Better Auth user ID (TEXT)
-	ReviewedAt  *time.Time `json:"reviewed_at,omitempty"`
-	ReviewNotes string     `json:"review_notes,omitempty"`
+	BAReviewedBy *string    `gorm:"type:text;index" json:"ba_reviewed_by,omitempty"` // Better Auth user ID (TEXT)
+	ReviewedAt   *time.Time `json:"reviewed_at,omitempty"`
+	ReviewNotes  string     `json:"review_notes,omitempty"`
 
 	// If applied
 	AppliedVersionID *uuid.UUID `gorm:"type:uuid" json:"applied_version_id,omitempty"`
@@ -358,18 +356,16 @@ type ChangeRequest struct {
 	ChangeSummary string `json:"change_summary,omitempty"`
 
 	// Requester
-	RequestedBy uuid.UUID `gorm:"type:uuid;not null" json:"requested_by"` // Legacy Supabase UUID
-	BARequestedBy *string `gorm:"type:text;index" json:"ba_requested_by,omitempty"` // Better Auth user ID (TEXT)
-	RequestedAt time.Time `gorm:"default:now()" json:"requested_at"`
+	BARequestedBy *string   `gorm:"type:text;index" json:"ba_requested_by,omitempty"` // Better Auth user ID (TEXT)
+	RequestedAt   time.Time `gorm:"default:now()" json:"requested_at"`
 
 	// Approval workflow
 	Status string `gorm:"default:'pending'" json:"status"` // pending, approved, rejected, cancelled, expired
 
 	// Reviewer
-	ReviewedBy  *uuid.UUID `gorm:"type:uuid" json:"reviewed_by,omitempty"` // Legacy Supabase UUID
-	BAReviewedBy *string   `gorm:"type:text;index" json:"ba_reviewed_by,omitempty"` // Better Auth user ID (TEXT)
-	ReviewedAt  *time.Time `json:"reviewed_at,omitempty"`
-	ReviewNotes string     `json:"review_notes,omitempty"`
+	BAReviewedBy *string    `gorm:"type:text;index" json:"ba_reviewed_by,omitempty"` // Better Auth user ID (TEXT)
+	ReviewedAt   *time.Time `json:"reviewed_at,omitempty"`
+	ReviewNotes  string     `json:"review_notes,omitempty"`
 
 	// If approved, which version was created
 	AppliedVersionID *uuid.UUID `gorm:"type:uuid" json:"applied_version_id,omitempty"`

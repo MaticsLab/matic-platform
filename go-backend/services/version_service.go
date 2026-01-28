@@ -33,7 +33,7 @@ type CreateVersionInput struct {
 	Metadata         map[string]interface{}
 	ChangeType       string
 	ChangeReason     string
-	ChangedBy        *uuid.UUID
+	BAChangedBy      *string // Better Auth user ID (TEXT)
 	BatchOperationID *uuid.UUID
 	AIAssisted       bool
 	AIConfidence     *float64
@@ -97,7 +97,7 @@ func (s *VersionService) CreateVersion(input CreateVersionInput) (*CreateVersion
 		ChangeReason:     input.ChangeReason,
 		ChangeSummary:    changeSummary,
 		BatchOperationID: input.BatchOperationID,
-		ChangedBy:        input.ChangedBy,
+		BAChangedBy:      input.BAChangedBy,
 		AIAssisted:       input.AIAssisted,
 		AIConfidence:     input.AIConfidence,
 		AISuggestionID:   input.AISuggestionID,
@@ -178,7 +178,7 @@ func (s *VersionService) CreateVersionTx(tx *gorm.DB, input CreateVersionInput) 
 		ChangeReason:     input.ChangeReason,
 		ChangeSummary:    changeSummary,
 		BatchOperationID: input.BatchOperationID,
-		ChangedBy:        input.ChangedBy,
+		BAChangedBy:      input.BAChangedBy,
 		AIAssisted:       input.AIAssisted,
 		AIConfidence:     input.AIConfidence,
 		AISuggestionID:   input.AISuggestionID,
@@ -415,7 +415,7 @@ type RowHistoryEntry struct {
 	ChangeType    string                 `json:"change_type"`
 	ChangeReason  string                 `json:"change_reason,omitempty"`
 	ChangeSummary string                 `json:"change_summary,omitempty"`
-	ChangedBy     *uuid.UUID             `json:"changed_by,omitempty"`
+	BAChangedBy   *string                `json:"ba_changed_by,omitempty"`
 	ChangedAt     time.Time              `json:"changed_at"`
 	AIAssisted    bool                   `json:"ai_assisted"`
 	IsArchived    bool                   `json:"is_archived"`
@@ -489,7 +489,7 @@ func (s *VersionService) GetRowHistory(input GetRowHistoryInput) ([]RowHistoryEn
 			ChangeType:    v.ChangeType,
 			ChangeReason:  v.ChangeReason,
 			ChangeSummary: v.ChangeSummary,
-			ChangedBy:     v.ChangedBy,
+			BAChangedBy:   v.BAChangedBy,
 			ChangedAt:     v.ChangedAt,
 			AIAssisted:    v.AIAssisted,
 			IsArchived:    v.IsArchived,
@@ -505,7 +505,7 @@ func (s *VersionService) GetRowHistory(input GetRowHistoryInput) ([]RowHistoryEn
 // ============================================================
 
 // RestoreVersion restores a row to a previous version
-func (s *VersionService) RestoreVersion(rowID uuid.UUID, versionNumber int, reason string, restoredBy *uuid.UUID) (*CreateVersionResult, error) {
+func (s *VersionService) RestoreVersion(rowID uuid.UUID, versionNumber int, reason string, baRestoredBy *string) (*CreateVersionResult, error) {
 	// Get the version to restore
 	var targetVersion models.RowVersion
 	if err := database.DB.Where("row_id = ? AND version_number = ?", rowID, versionNumber).First(&targetVersion).Error; err != nil {
@@ -534,7 +534,7 @@ func (s *VersionService) RestoreVersion(rowID uuid.UUID, versionNumber int, reas
 		Metadata:     metadata,
 		ChangeType:   models.ChangeTypeRestore,
 		ChangeReason: fmt.Sprintf("Restored to version %d: %s", versionNumber, reason),
-		ChangedBy:    restoredBy,
+		BAChangedBy:  baRestoredBy,
 	})
 }
 
@@ -543,13 +543,13 @@ func (s *VersionService) RestoreVersion(rowID uuid.UUID, versionNumber int, reas
 // ============================================================
 
 // ArchiveVersion archives a version (30-day retention)
-func (s *VersionService) ArchiveVersion(versionID uuid.UUID, archivedBy uuid.UUID) error {
+func (s *VersionService) ArchiveVersion(versionID uuid.UUID, baArchivedBy string) error {
 	expiresAt := time.Now().Add(30 * 24 * time.Hour)
 
 	return database.DB.Model(&models.RowVersion{}).Where("id = ?", versionID).Updates(map[string]interface{}{
 		"is_archived":        true,
 		"archived_at":        time.Now(),
-		"archived_by":        archivedBy,
+		"ba_archived_by":     baArchivedBy,
 		"archive_expires_at": expiresAt,
 	}).Error
 }

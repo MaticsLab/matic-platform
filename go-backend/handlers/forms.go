@@ -477,16 +477,11 @@ func CreateForm(c *gin.Context) {
 		Description: input.Description,
 		Settings:    mapToJSON(input.Settings),
 		Icon:        "form",
-		CreatedBy:   uuid.Nil,
 	}
 
 	// Set Better Auth user ID for table creation
 	if userID, exists := middleware.GetUserID(c); exists {
-		legacyUserID := getLegacyUserID(userID)
 		baUserID := userID
-		if legacyUserID != nil {
-			table.CreatedBy = *legacyUserID
-		}
 		table.BACreatedBy = &baUserID // Better Auth user ID (TEXT)
 	}
 
@@ -504,7 +499,6 @@ func CreateForm(c *gin.Context) {
 		Name:        "Form View",
 		Type:        "form",
 		Config:      mapToJSON(viewConfig),
-		CreatedBy:   table.CreatedBy,
 		BACreatedBy: table.BACreatedBy, // Better Auth user ID (TEXT)
 	}
 
@@ -865,11 +859,11 @@ found:
 			"is_published": false,
 		}
 		view = models.View{
-			TableID:   table.ID,
-			Name:      "Form View",
-			Type:      "form",
-			Config:    mapToJSON(viewConfig),
-			CreatedBy: table.CreatedBy,
+			TableID:     table.ID,
+			Name:        "Form View",
+			Type:        "form",
+			Config:      mapToJSON(viewConfig),
+			BACreatedBy: table.BACreatedBy,
 		}
 		if err := database.DB.Create(&view).Error; err == nil {
 			viewID = &view.ID
@@ -1231,8 +1225,6 @@ func ListFormSubmissions(c *gin.Context) {
 		Position          int64                  `json:"position"`
 		StageGroupID      *uuid.UUID             `json:"stage_group_id,omitempty"`
 		Tags              []interface{}          `json:"tags"`
-		CreatedBy         *uuid.UUID             `json:"created_by,omitempty"`
-		UpdatedBy         *uuid.UUID             `json:"updated_by,omitempty"`
 		BACreatedBy       *string                `json:"ba_created_by,omitempty"`
 		BAUpdatedBy       *string                `json:"ba_updated_by,omitempty"`
 		CreatedAt         time.Time              `json:"created_at"`
@@ -1309,8 +1301,6 @@ func ListFormSubmissions(c *gin.Context) {
 			Position:          row.Position,
 			StageGroupID:      row.StageGroupID,
 			Tags:              tags,
-			CreatedBy:         row.CreatedBy,
-			UpdatedBy:         row.UpdatedBy,
 			BACreatedBy:       row.BACreatedBy,
 			BAUpdatedBy:       row.BAUpdatedBy,
 			CreatedAt:         row.CreatedAt,
@@ -1521,14 +1511,26 @@ func SubmitForm(c *gin.Context) {
 
 		fmt.Printf("📝 SubmitForm: Looking for existing submission with email=%s, formID=%s\n", email, formID)
 
-		// Use a transaction with advisory lock to prevent race conditions
+		// Use a transaction-level advisory lock to prevent race conditions
 		// This ensures only one submission can be processed at a time for a given email+form
 		lockKey := fmt.Sprintf("%s:%s", formID, email)
 		lockID := int64(hashString(lockKey))
 
-		// Acquire advisory lock (will wait if another transaction has it)
-		database.DB.Exec("SELECT pg_advisory_lock($1)", lockID)
-		defer database.DB.Exec("SELECT pg_advisory_unlock($1)", lockID)
+		// Try to acquire advisory lock with a retry mechanism (non-blocking to avoid deadlocks)
+		var lockAcquired bool
+		for i := 0; i < 10; i++ { // Try up to 10 times with short waits
+			var result bool
+			database.DB.Raw("SELECT pg_try_advisory_lock($1)", lockID).Scan(&result)
+			if result {
+				lockAcquired = true
+				defer database.DB.Exec("SELECT pg_advisory_unlock($1)", lockID)
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if !lockAcquired {
+			fmt.Printf("⚠️ SubmitForm: Could not acquire lock for %s, proceeding without lock\n", lockKey)
+		}
 
 		var found bool
 		for _, query := range queries {
@@ -1654,8 +1656,35 @@ func SubmitForm(c *gin.Context) {
 				if result.Error != nil {
 					fmt.Printf("⚠️ SubmitForm: failed to update portal_applicants for email=%s: %v\n", email, result.Error)
 					c.Error(result.Error)
-				} else if result.RowsAffected == 0 {
-					fmt.Printf("⚠️ SubmitForm: no portal_applicant found for email=%s with form_ids=%v\n", email, formIDs)
+				} else if result.RowsAffected == 0 && len(allViews) > 0 {
+					// No portal_applicants record exists - create one using the form VIEW ID (not table ID)
+					// portal_applicants.form_id has FK to table_views.id
+					formViewID := allViews[0].ID
+					fmt.Printf("📝 SubmitForm: creating portal_applicants record for email=%s formViewID=%s (update path)\n", email, formViewID)
+
+					// Try to find ba_user_id for this email
+					var baUserID *string
+					var baUser struct {
+						ID string
+					}
+					if err := database.DB.Raw("SELECT id FROM ba_users WHERE email = ? LIMIT 1", email).Scan(&baUser).Error; err == nil && baUser.ID != "" {
+						baUserID = &baUser.ID
+					}
+
+					createResult := tx.Exec(`
+						INSERT INTO portal_applicants (id, form_id, email, full_name, row_id, submission_data, ba_user_id, created_at, updated_at)
+						VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, NOW(), NOW())
+						ON CONFLICT (form_id, email) DO UPDATE SET 
+							row_id = EXCLUDED.row_id, 
+							submission_data = EXCLUDED.submission_data,
+							ba_user_id = COALESCE(EXCLUDED.ba_user_id, portal_applicants.ba_user_id),
+							updated_at = NOW()
+					`, formViewID, email, email, existingRow.ID, mapToJSON(data), baUserID)
+					if createResult.Error != nil {
+						fmt.Printf("⚠️ SubmitForm: failed to create portal_applicants for email=%s: %v\n", email, createResult.Error)
+					} else {
+						fmt.Printf("✅ SubmitForm: created portal_applicants for email=%s\n", email)
+					}
 				} else {
 					fmt.Printf("✅ SubmitForm: updated portal_applicants for email=%s\n", email)
 				}
@@ -1744,14 +1773,10 @@ func SubmitForm(c *gin.Context) {
 		Metadata: mapToJSON(initialMetadata),
 	}
 	// Add user ID if authenticated (optional for forms)
-	var userID *uuid.UUID
 	var userIDStr string
 	if s, exists := middleware.GetUserID(c); exists {
-		if parsedUserID, err := uuid.Parse(s); err == nil {
-			row.CreatedBy = &parsedUserID
-			userID = &parsedUserID
-			userIDStr = s
-		}
+		row.BACreatedBy = &s
+		userIDStr = s
 	}
 	if err := tx.Create(&row).Error; err != nil {
 		fmt.Printf("❌ SubmitForm: failed to create row for %s: %v\n", formID, err)
@@ -1775,13 +1800,17 @@ func SubmitForm(c *gin.Context) {
 
 	// Create initial version for version history (synchronous, in transaction)
 	versionService := services.NewVersionService()
+	var baChangedBy *string
+	if userIDStr != "" {
+		baChangedBy = &userIDStr
+	}
 	if _, err := versionService.CreateVersionTx(tx, services.CreateVersionInput{
 		RowID:        row.ID,
 		TableID:      parsedFormID,
 		Data:         data,
 		ChangeType:   models.ChangeTypeCreate,
 		ChangeReason: "Initial submission from portal",
-		ChangedBy:    userID,
+		BAChangedBy:  baChangedBy,
 	}); err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create version"})
@@ -1807,8 +1836,35 @@ func SubmitForm(c *gin.Context) {
 		if result.Error != nil {
 			fmt.Printf("⚠️ SubmitForm: failed to update portal_applicants for email=%s: %v\n", email, result.Error)
 			c.Error(result.Error)
-		} else if result.RowsAffected == 0 {
-			fmt.Printf("⚠️ SubmitForm: no portal_applicant found for email=%s with form_ids=%v\n", email, formIDs)
+		} else if result.RowsAffected == 0 && len(allViews) > 0 {
+			// No portal_applicants record exists - create one using the form VIEW ID (not table ID)
+			// portal_applicants.form_id has FK to table_views.id
+			formViewID := allViews[0].ID
+			fmt.Printf("📝 SubmitForm: creating portal_applicants record for email=%s formViewID=%s\n", email, formViewID)
+
+			// Try to find ba_user_id for this email
+			var baUserID *string
+			var baUser struct {
+				ID string
+			}
+			if err := database.DB.Raw("SELECT id FROM ba_users WHERE email = ? LIMIT 1", email).Scan(&baUser).Error; err == nil && baUser.ID != "" {
+				baUserID = &baUser.ID
+			}
+
+			createResult := tx.Exec(`
+				INSERT INTO portal_applicants (id, form_id, email, full_name, row_id, submission_data, ba_user_id, created_at, updated_at)
+				VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, NOW(), NOW())
+				ON CONFLICT (form_id, email) DO UPDATE SET 
+					row_id = EXCLUDED.row_id, 
+					submission_data = EXCLUDED.submission_data,
+					ba_user_id = COALESCE(EXCLUDED.ba_user_id, portal_applicants.ba_user_id),
+					updated_at = NOW()
+			`, formViewID, email, email, row.ID, mapToJSON(data), baUserID)
+			if createResult.Error != nil {
+				fmt.Printf("⚠️ SubmitForm: failed to create portal_applicants for email=%s: %v\n", email, createResult.Error)
+			} else {
+				fmt.Printf("✅ SubmitForm: created portal_applicants for email=%s\n", email)
+			}
 		} else {
 			fmt.Printf("✅ SubmitForm: updated portal_applicants row_id for email=%s\n", email)
 		}

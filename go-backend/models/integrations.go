@@ -23,7 +23,7 @@ type WorkspaceIntegration struct {
 	LastSyncAt      *time.Time     `json:"last_sync_at,omitempty"`
 	CreatedAt       time.Time      `gorm:"default:now()" json:"created_at"`
 	UpdatedAt       time.Time      `gorm:"default:now()" json:"updated_at"`
-	CreatedBy       *uuid.UUID     `gorm:"type:uuid" json:"created_by,omitempty"`
+	CreatedBy       *string        `gorm:"type:text" json:"created_by,omitempty"` // Better Auth user ID (TEXT)
 
 	// Associations
 	Workspace               Workspace                `gorm:"foreignKey:WorkspaceID" json:"-"`

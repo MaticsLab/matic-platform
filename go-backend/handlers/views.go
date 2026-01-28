@@ -155,8 +155,7 @@ func CreateView(c *gin.Context) {
 		return
 	}
 
-	legacyUserID := getLegacyUserID(userID) // Legacy UUID (if available)
-	baUserID := userID                      // Better Auth user ID (TEXT)
+	baUserID := userID // Better Auth user ID (TEXT)
 
 	// Validate view type
 	validTypes := []string{
@@ -197,7 +196,6 @@ func CreateView(c *gin.Context) {
 		Sorts:       datatypes.JSON(sortsJSON),
 		IsShared:    input.IsShared,
 		IsLocked:    input.IsLocked,
-		CreatedBy:   func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
 		BACreatedBy: &baUserID, // Better Auth user ID (TEXT)
 	}
 
@@ -424,8 +422,7 @@ func CreatePortalView(c *gin.Context) {
 		return
 	}
 
-	legacyUserID := getLegacyUserID(userID) // Legacy UUID (if available)
-	baUserID := userID                      // Better Auth user ID (TEXT)
+	baUserID := userID // Better Auth user ID (TEXT)
 
 	// Create default portal configuration
 	defaultConfig := map[string]interface{}{
@@ -461,7 +458,6 @@ func CreatePortalView(c *gin.Context) {
 		Grouping:    datatypes.JSON([]byte("{}")),
 		IsShared:    true,
 		IsLocked:    false,
-		CreatedBy:   func() uuid.UUID { if legacyUserID != nil { return *legacyUserID } else { return uuid.Nil } }(),
 		BACreatedBy: &baUserID, // Better Auth user ID (TEXT)
 	}
 
@@ -483,16 +479,10 @@ func DuplicateView(c *gin.Context) {
 		return
 	}
 
-	// Get user ID
-	userID, exists := middleware.GetUserID(c)
+	// Get user ID (Better Auth - TEXT format)
+	baUserID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	userUUID, err := uuid.Parse(userID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
@@ -509,7 +499,7 @@ func DuplicateView(c *gin.Context) {
 		Grouping:    originalView.Grouping,
 		IsShared:    false, // Copies start as not shared
 		IsLocked:    false, // Copies start as not locked
-		CreatedBy:   userUUID,
+		BACreatedBy: &baUserID,
 	}
 
 	if err := database.DB.Create(&newView).Error; err != nil {

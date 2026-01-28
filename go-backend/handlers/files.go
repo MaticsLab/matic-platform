@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/Jsanchez767/matic-platform/database"
+	"github.com/Jsanchez767/matic-platform/middleware"
 	"github.com/Jsanchez767/matic-platform/models"
 
 	"github.com/gin-gonic/gin"
@@ -207,10 +208,8 @@ func CreateFile(c *gin.Context) {
 	}
 
 	// Get uploaded_by from auth context if available
-	if userID, exists := c.Get("user_id"); exists {
-		if uid, ok := userID.(uuid.UUID); ok {
-			file.UploadedBy = &uid
-		}
+	if userIDStr, exists := middleware.GetUserID(c); exists {
+		file.BAUploadedBy = &userIDStr
 	}
 
 	if err := database.DB.Create(&file).Error; err != nil {
@@ -277,10 +276,8 @@ func CreateRowFile(c *gin.Context) {
 	}
 
 	// Get uploaded_by from auth context if available
-	if userID, exists := c.Get("user_id"); exists {
-		if uid, ok := userID.(uuid.UUID); ok {
-			file.UploadedBy = &uid
-		}
+	if userIDStr, exists := middleware.GetUserID(c); exists {
+		file.BAUploadedBy = &userIDStr
 	}
 
 	if err := database.DB.Create(&file).Error; err != nil {
@@ -453,10 +450,8 @@ func CreateFileVersion(c *gin.Context) {
 	}
 
 	// Get uploaded_by from auth context if available
-	if userID, exists := c.Get("user_id"); exists {
-		if uid, ok := userID.(uuid.UUID); ok {
-			newFile.UploadedBy = &uid
-		}
+	if userIDStr, exists := middleware.GetUserID(c); exists {
+		newFile.BAUploadedBy = &userIDStr
 	}
 
 	if err := tx.Create(&newFile).Error; err != nil {

@@ -137,7 +137,6 @@ func CreateInvitation(c *gin.Context) {
 		Role:            role,
 		Status:          "pending",
 		InvitedEmail:    req.Email,
-		InvitedBy:       nil,          // Don't set for Better Auth users to avoid FK constraint
 		BAInvitedBy:     &baInviterID, // Better Auth user ID (TEXT)
 		InviteToken:     token,
 		InviteExpiresAt: &expiresAt,
@@ -195,19 +194,13 @@ func ListInvitations(c *gin.Context) {
 	// Convert to response format
 	var invitations []InvitationResponse
 	for _, pm := range pendingMembers {
-		var invitedByStr *string
-		if pm.InvitedBy != nil {
-			s := pm.InvitedBy.String()
-			invitedByStr = &s
-		}
-
 		invitations = append(invitations, InvitationResponse{
 			ID:          pm.ID.String(),
 			WorkspaceID: pm.WorkspaceID.String(),
 			Email:       pm.InvitedEmail,
 			Role:        pm.Role,
 			Status:      pm.Status,
-			InvitedByID: invitedByStr,
+			InvitedByID: pm.BAInvitedBy,
 			ExpiresAt:   pm.InviteExpiresAt,
 			InvitedAt:   pm.InvitedAt,
 		})
@@ -236,19 +229,13 @@ func GetInvitationByToken(c *gin.Context) {
 		return
 	}
 
-	var invitedByStr *string
-	if pendingMember.InvitedBy != nil {
-		s := pendingMember.InvitedBy.String()
-		invitedByStr = &s
-	}
-
 	response := InvitationResponse{
 		ID:          pendingMember.ID.String(),
 		WorkspaceID: pendingMember.WorkspaceID.String(),
 		Email:       pendingMember.InvitedEmail,
 		Role:        pendingMember.Role,
 		Status:      pendingMember.Status,
-		InvitedByID: invitedByStr,
+		InvitedByID: pendingMember.BAInvitedBy,
 		ExpiresAt:   pendingMember.InviteExpiresAt,
 		InvitedAt:   pendingMember.InvitedAt,
 	}
@@ -754,11 +741,12 @@ Powered by Matic - https://maticsapp.com`, workspaceName, workspaceName, inviteU
 	// Send directly via Resend API using global key
 	resendURL := "https://api.resend.com/emails"
 	payload := map[string]interface{}{
-		"from":    "MaticsAPP <invitations@notifications.maticsapp.com>",
-		"to":      []string{email},
-		"subject": subject,
-		"text":    textBody,
-		"html":    htmlBody,
+		"from":     "Matics <hello@notifications.maticsapp.com>",
+		"reply_to": "support@maticsapp.com",
+		"to":       []string{email},
+		"subject":  subject,
+		"text":     textBody,
+		"html":     htmlBody,
 	}
 
 	payloadBytes, err := json.Marshal(payload)

@@ -224,14 +224,7 @@ func CreateWorkspace(c *gin.Context) {
 		Color:          color,
 		Icon:           icon,
 		Settings:       mapToJSON(input.Settings),
-		CreatedBy: func() uuid.UUID {
-			if legacyUserID != nil {
-				return *legacyUserID
-			} else {
-				return uuid.Nil
-			}
-		}(),
-		BACreatedBy: &baUserID, // Better Auth user ID (TEXT)
+		BACreatedBy:    &baUserID, // Better Auth user ID (TEXT)
 	}
 
 	// Begin transaction to create workspace and add creator as member
@@ -735,6 +728,7 @@ func GetWorkspaceMembersWithAuth(c *gin.Context) {
 		FROM workspace_members wm
 		LEFT JOIN ba_users ba ON wm.ba_user_id = ba.id
 		WHERE wm.workspace_id = ? AND wm.status = 'active'
+			AND (ba.user_type IS NULL OR ba.user_type != 'applicant')
 		ORDER BY ba.created_at ASC
 	`, wsID).Scan(&members).Error
 

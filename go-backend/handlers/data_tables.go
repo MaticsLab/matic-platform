@@ -179,12 +179,6 @@ func CreateDataTable(c *gin.Context) {
 		}
 	}
 
-	// Try to get legacy UUID for backward compatibility, but prioritize Better Auth
-	var legacyUserID *uuid.UUID
-	if parsedUUID, err := uuid.Parse(userID); err == nil {
-		legacyUserID = &parsedUUID
-	}
-
 	table := models.Table{
 		WorkspaceID: input.WorkspaceID,
 		Name:        input.Name,
@@ -194,13 +188,6 @@ func CreateDataTable(c *gin.Context) {
 		Color:       "#10B981", // Default green color
 		Settings:    mapToJSON(input.Settings),
 		RowCount:    0,
-		CreatedBy: func() uuid.UUID {
-			if legacyUserID != nil {
-				return *legacyUserID
-			} else {
-				return uuid.Nil
-			}
-		}(),
 		BACreatedBy: &userID, // Better Auth user ID (TEXT)
 	}
 
@@ -324,6 +311,38 @@ func ListTableRows(c *gin.Context) {
 	})
 }
 
+// GetTableRow retrieves a single row by ID
+// GET /api/v1/tables/:id/rows/:row_id
+func GetTableRow(c *gin.Context) {
+	tableID := c.Param("id")
+	rowID := c.Param("row_id")
+
+	// Parse IDs
+	parsedTableID, err := uuid.Parse(tableID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid table ID"})
+		return
+	}
+	parsedRowID, err := uuid.Parse(rowID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid row ID"})
+		return
+	}
+
+	// Find the row
+	var row models.Row
+	if err := database.DB.Where("id = ? AND table_id = ?", parsedRowID, parsedTableID).First(&row).Error; err != nil {
+		if err.Error() == "record not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Row not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, row)
+}
+
 type CreateTableRowInput struct {
 	Data     map[string]interface{} `json:"data" binding:"required"`
 	Position int64                  `json:"position"`
@@ -359,15 +378,12 @@ func CreateTableRow(c *gin.Context) {
 		return
 	}
 
-	// Get legacy UUID for backward compatibility
-	legacyUserID := getLegacyUserID(userID)
 	baUserID := userID // Better Auth user ID (TEXT)
 
 	row := models.Row{
 		TableID:     parsedTableID,
 		Data:        mapToJSON(input.Data),
 		Position:    input.Position,
-		CreatedBy:   legacyUserID,
 		BACreatedBy: &baUserID, // Better Auth user ID (TEXT)
 	}
 
@@ -385,7 +401,7 @@ func CreateTableRow(c *gin.Context) {
 			Data:         input.Data,
 			ChangeType:   models.ChangeTypeCreate,
 			ChangeReason: "Row created",
-			ChangedBy:    legacyUserID,
+			BAChangedBy:  &baUserID,
 		})
 	}()
 
@@ -422,7 +438,7 @@ func UpdateTableRow(c *gin.Context) {
 
 	// Get user ID for version tracking (Better Auth TEXT ID)
 	userIDStr, _ := middleware.GetUserID(c)
-	legacyUserID := getLegacyUserID(userIDStr) // For backward compatibility with version history
+	baUserID := userIDStr // Better Auth user ID (TEXT)
 
 	// Parse IDs
 	parsedTableID, err := uuid.Parse(tableID)
@@ -493,7 +509,7 @@ func UpdateTableRow(c *gin.Context) {
 			Data:         mergedData,
 			ChangeType:   models.ChangeTypeUpdate,
 			ChangeReason: changeReason,
-			ChangedBy:    legacyUserID,
+			BAChangedBy:  &baUserID,
 		})
 		if versionErr != nil {
 			tx.Rollback()

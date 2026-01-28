@@ -66,8 +66,6 @@ func main() {
 		userID := "unknown"
 		if r.BACreatedBy != nil && *r.BACreatedBy != "" {
 			userID = *r.BACreatedBy
-		} else if r.CreatedBy != nil {
-			userID = r.CreatedBy.String()
 		}
 		var appSub models.ApplicationSubmission
 		err := database.DB.Where("form_id = ? AND user_id = ?", formID, userID).First(&appSub).Error

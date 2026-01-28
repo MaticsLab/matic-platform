@@ -85,7 +85,6 @@ type Workspace struct {
 	Icon             string            `gorm:"default:'folder'" json:"icon"`
 	Settings         datatypes.JSON    `gorm:"type:jsonb;default:'{}'" json:"settings"`
 	IsArchived       bool              `gorm:"default:false" json:"is_archived"`
-	CreatedBy        uuid.UUID         `gorm:"type:uuid;not null" json:"created_by"`           // Legacy Supabase UUID
 	BACreatedBy      *string           `gorm:"type:text;index" json:"ba_created_by,omitempty"` // Better Auth user ID (TEXT)
 	LogoURL          string            `json:"logo_url,omitempty"`
 	AIDescription    string            `gorm:"column:ai_description" json:"ai_description,omitempty"`
@@ -113,7 +112,6 @@ type WorkspaceMember struct {
 	// Invitation fields
 	Status          string     `gorm:"type:varchar(20);default:'active'" json:"status"` // pending, active, declined, expired
 	InvitedEmail    string     `gorm:"index" json:"invited_email,omitempty"`            // Email for pending invites
-	InvitedBy       *uuid.UUID `gorm:"type:uuid" json:"invited_by,omitempty"`           // Legacy Supabase UUID
 	BAInvitedBy     *string    `gorm:"type:text;index" json:"ba_invited_by,omitempty"`  // Better Auth user ID (TEXT)
 	InviteToken     string     `gorm:"uniqueIndex" json:"invite_token,omitempty"`
 	InviteExpiresAt *time.Time `json:"invite_expires_at,omitempty"`
@@ -195,7 +193,6 @@ type Table struct {
 	HistorySettings  datatypes.JSON `gorm:"type:jsonb" json:"history_settings,omitempty"`               // Version history config
 	ApprovalSettings datatypes.JSON `gorm:"type:jsonb" json:"approval_settings,omitempty"`              // Change approval config
 	AISettings       datatypes.JSON `gorm:"column:ai_settings;type:jsonb" json:"ai_settings,omitempty"` // AI suggestion settings
-	CreatedBy        uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`                       // Legacy Supabase UUID
 	BACreatedBy      *string        `gorm:"type:text;index" json:"ba_created_by,omitempty"`             // Better Auth user ID (TEXT)
 
 	// Share preview metadata (for forms/portals)
@@ -265,8 +262,6 @@ type Row struct {
 	Position     int64          `gorm:"default:0" json:"position"` // bigint in database
 	StageGroupID *uuid.UUID     `gorm:"type:uuid" json:"stage_group_id,omitempty"`
 	Tags         datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"tags"`
-	CreatedBy    *uuid.UUID     `gorm:"type:uuid" json:"created_by,omitempty"`          // Legacy Supabase UUID
-	UpdatedBy    *uuid.UUID     `gorm:"type:uuid" json:"updated_by,omitempty"`          // Legacy Supabase UUID
 	BACreatedBy  *string        `gorm:"type:text;index" json:"ba_created_by,omitempty"` // Better Auth user ID (TEXT)
 	BAUpdatedBy  *string        `gorm:"type:text;index" json:"ba_updated_by,omitempty"` // Better Auth user ID (TEXT)
 
@@ -304,7 +299,6 @@ type View struct {
 	Config      datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"config"` // For portal: sections, translations, theme
 	IsShared    bool           `gorm:"default:false" json:"is_shared"`
 	IsLocked    bool           `gorm:"default:false" json:"is_locked"`
-	CreatedBy   uuid.UUID      `gorm:"type:uuid;not null" json:"created_by"`           // Legacy Supabase UUID
 	BACreatedBy *string        `gorm:"type:text;index" json:"ba_created_by,omitempty"` // Better Auth user ID (TEXT)
 }
 
@@ -389,7 +383,7 @@ type TableFile struct {
 	Version          int            `gorm:"default:1" json:"version"`
 	ParentFileID     *uuid.UUID     `gorm:"type:uuid" json:"parent_file_id,omitempty"`
 	IsCurrent        bool           `gorm:"default:true" json:"is_current"`
-	UploadedBy       *uuid.UUID     `gorm:"type:uuid" json:"uploaded_by,omitempty"`
+	BAUploadedBy     *string        `gorm:"type:text;index" json:"ba_uploaded_by,omitempty"` // Better Auth user ID (TEXT)
 	CreatedAt        time.Time      `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt        time.Time      `gorm:"column:updated_at" json:"updated_at"`
 	DeletedAt        *time.Time     `gorm:"column:deleted_at" json:"deleted_at,omitempty"`

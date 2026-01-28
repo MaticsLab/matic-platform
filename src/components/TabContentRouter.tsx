@@ -7,6 +7,7 @@ import { TablesListPage } from './Tables/TablesListPage'
 import { TableGridView } from './Tables/TableGridView'
 import { FormsListPage as FormsListComponent } from './Forms/FormsListPage'
 import { ApplicationsHub } from './ApplicationsHub/ApplicationsHub'
+import { ApplicantCRMPage } from './CRM/ApplicantCRMPage'
 import { useState, useEffect } from 'react'
 import { getWorkspaceStats } from '@/lib/api/reports-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
@@ -84,9 +85,9 @@ export function TabContentRouter({ tab: propTab, workspaceId }: TabContentRouter
         return <TablesListPage workspaceId={workspaceId} />
       }
 
-      // Handle CRM - redirect to tables for now (CRM is people/contacts management built on tables)
+      // Handle CRM - Applicant management
       if (tab.url?.includes('/crm')) {
-        return <TablesListPage workspaceId={workspaceId} />
+        return <ApplicantCRMPage workspaceId={workspaceId} />
       }
       
       return (

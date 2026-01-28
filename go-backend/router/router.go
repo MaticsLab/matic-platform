@@ -198,6 +198,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.GET("/portal/v2/me", handlers.PortalAuthMiddlewareV2(), handlers.PortalGetMeV2)
 		api.GET("/portal/v2/submissions", handlers.PortalAuthMiddlewareV2(), handlers.GetApplicantSubmissions)
 
+		// Legacy Portal Login (alias for v2 - backwards compatibility)
+		api.POST("/portal/login", handlers.PortalLoginV2)
+
 		// Application Submissions Routes (Better Auth protected)
 		submissions := api.Group("/submissions")
 		submissions.Use(handlers.PortalAuthMiddlewareV2())
@@ -222,7 +225,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			// TODO: Implement these handlers
 			// portalDashboard.PUT("/profile/:applicant_id", handlers.PortalUpdateProfile)
 			// portalDashboard.PUT("/profile/:applicant_id/password", handlers.PortalChangePassword)
-			// portalDashboard.POST("/sync-better-auth-applicant", handlers.PortalSyncBetterAuthApplicant)
+			portalDashboard.POST("/sync-better-auth-applicant", handlers.PortalSyncBetterAuthApplicant)
 			portalDashboard.GET("/applications/:id", handlers.GetApplicantDashboard)
 			portalDashboard.GET("/applications/:id/activities", handlers.ListPortalActivities)
 			portalDashboard.POST("/applications/:id/activities", handlers.CreatePortalActivity)
@@ -349,6 +352,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 				// Table rows
 				tables.GET("/:id/rows", handlers.ListTableRows)
+				tables.GET("/:id/rows/:row_id", handlers.GetTableRow)
 				tables.POST("/:id/rows", handlers.CreateTableRow)
 				tables.PATCH("/:id/rows/:row_id", handlers.UpdateTableRow)
 				tables.DELETE("/:id/rows/:row_id", handlers.DeleteTableRow)
@@ -606,6 +610,15 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				rubrics.DELETE("/:id", handlers.DeleteRubric)
 			}
 
+			// CRM - Applicant Management
+			crm := protected.Group("/crm")
+			{
+				crm.GET("/applicants", handlers.GetApplicantsCRM)
+				crm.GET("/applicants/:id", handlers.GetApplicantDetail)
+				crm.PATCH("/applicants/:id", handlers.UpdateApplicant)
+				crm.POST("/import-users", handlers.ImportBAUsersToWorkspace)
+			}
+
 			// Stage Reviewer Configs
 			stageConfigs := protected.Group("/stage-reviewer-configs")
 			{
@@ -757,36 +770,36 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			}
 
 			// ============================================================
-			// ROLES & PERMISSIONS
+			// ROLES & PERMISSIONS (TODO: Implement handlers)
 			// ============================================================
-			roles := protected.Group("/roles")
-			{
-				roles.GET("", handlers.ListRoles)
-				roles.POST("", handlers.CreateRole)
-				roles.GET("/:id", handlers.GetRole)
-				roles.PATCH("/:id", handlers.UpdateRole)
-				roles.DELETE("/:id", handlers.DeleteRole)
-			}
+			// roles := protected.Group("/roles")
+			// {
+			// 	roles.GET("", handlers.ListRoles)
+			// 	roles.POST("", handlers.CreateRole)
+			// 	roles.GET("/:id", handlers.GetRole)
+			// 	roles.PATCH("/:id", handlers.UpdateRole)
+			// 	roles.DELETE("/:id", handlers.DeleteRole)
+			// }
 
-			permissions := protected.Group("/permissions")
-			{
-				permissions.GET("", handlers.ListPermissions)
-			}
+			// permissions := protected.Group("/permissions")
+			// {
+			// 	permissions.GET("", handlers.ListPermissions)
+			// }
 
-			userRoles := protected.Group("/user-roles")
-			{
-				userRoles.GET("", handlers.ListUserRoles)
-				userRoles.POST("", handlers.AssignUserRole)
-				userRoles.DELETE("/:id", handlers.RemoveUserRole)
-			}
+			// userRoles := protected.Group("/user-roles")
+			// {
+			// 	userRoles.GET("", handlers.ListUserRoles)
+			// 	userRoles.POST("", handlers.AssignUserRole)
+			// 	userRoles.DELETE("/:id", handlers.RemoveUserRole)
+			// }
 
-			portalUsers := protected.Group("/portal-users")
-			{
-				portalUsers.GET("", handlers.ListPortalUsers)
-				portalUsers.POST("", handlers.CreatePortalUser)
-				portalUsers.GET("/:id", handlers.GetPortalUser)
-				portalUsers.PATCH("/:id", handlers.UpdatePortalUser)
-			}
+			// portalUsers := protected.Group("/portal-users")
+			// {
+			// 	portalUsers.GET("", handlers.ListPortalUsers)
+			// 	portalUsers.POST("", handlers.CreatePortalUser)
+			// 	portalUsers.GET("/:id", handlers.GetPortalUser)
+			// 	portalUsers.PATCH("/:id", handlers.UpdatePortalUser)
+			// }
 
 			// AI Services
 			ai := protected.Group("/ai")
@@ -828,7 +841,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	// API V2 ROUTES - New Unified Form Schema
 	// ============================================================
 	apiV2 := r.Group("/api/v2")
-	apiV2.Use(middleware.AuthMiddleware()) // Require auth for all v2 routes
+	apiV2.Use(middleware.AuthMiddleware(cfg)) // Require auth for all v2 routes
 	{
 		// Forms (admin)
 		apiV2.GET("/forms", handlers.ListFormsV2)

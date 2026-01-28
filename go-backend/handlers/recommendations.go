@@ -734,10 +734,10 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 	if senderName == "" {
 		senderName = "Matic"
 	}
-	fromEmail := fmt.Sprintf("%s <invitations@notifications.maticsapp.com>", senderName)
+	fromEmail := fmt.Sprintf("%s <hello@notifications.maticsapp.com>", senderName)
 
-	// Check for reply-to email in settings
-	var replyTo string
+	// Check for reply-to email in settings - default to support@maticsapp.com
+	replyTo := "support@maticsapp.com"
 	if err := json.Unmarshal(form.Settings, &formSettings); err == nil {
 		if emailSettings, ok := formSettings["emailSettings"].(map[string]interface{}); ok {
 			if replyToEmail, ok := emailSettings["replyToEmail"].(string); ok && replyToEmail != "" {
@@ -1088,10 +1088,10 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 	if senderName == "" {
 		senderName = "Matic"
 	}
-	fromEmail := fmt.Sprintf("%s <invitations@notifications.maticsapp.com>", senderName)
+	fromEmail := fmt.Sprintf("%s <hello@notifications.maticsapp.com>", senderName)
 
-	// Check for reply-to email in settings
-	var replyTo string
+	// Check for reply-to email in settings - default to support@maticsapp.com
+	replyTo := "support@maticsapp.com"
 	if err := json.Unmarshal(form.Settings, &formSettings); err == nil {
 		if emailSettings, ok := formSettings["emailSettings"].(map[string]interface{}); ok {
 			if replyToEmail, ok := emailSettings["replyToEmail"].(string); ok && replyToEmail != "" {

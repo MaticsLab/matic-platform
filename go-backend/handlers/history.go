@@ -190,10 +190,9 @@ func RestoreVersion(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	userID, _ := uuid.Parse(userIDStr)
 
 	// Restore version
-	result, err := VersionService.RestoreVersion(rowUUID, versionNumber, input.Reason, &userID)
+	result, err := VersionService.RestoreVersion(rowUUID, versionNumber, input.Reason, &userIDStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -222,9 +221,8 @@ func ArchiveVersion(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	userID, _ := uuid.Parse(userIDStr)
 
-	if err := VersionService.ArchiveVersion(versionID, userID); err != nil {
+	if err := VersionService.ArchiveVersion(versionID, userIDStr); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -428,18 +426,17 @@ func ReviewApproval(c *gin.Context) {
 		return
 	}
 
-	// Get user ID
-	userIDStr, exists := middleware.GetUserID(c)
+	// Get user ID (Better Auth - TEXT format)
+	baUserID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	userID, _ := uuid.Parse(userIDStr)
 
 	// Update approval status
 	now := time.Now()
 	approval.Status = input.Action + "d" // approved or rejected
-	approval.ReviewedBy = &userID
+	approval.BAReviewedBy = &baUserID
 	approval.ReviewedAt = &now
 	approval.ReviewNotes = input.Notes
 
@@ -457,7 +454,7 @@ func ReviewApproval(c *gin.Context) {
 			Data:         pendingData,
 			ChangeType:   models.ChangeTypeApproval,
 			ChangeReason: "Approved: " + input.Notes,
-			ChangedBy:    &userID,
+			BAChangedBy:  &baUserID,
 		})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -556,16 +553,15 @@ func ApplySuggestion(c *gin.Context) {
 		return
 	}
 
-	// Get user ID
-	userIDStr, exists := middleware.GetUserID(c)
+	// Get user ID (Better Auth - TEXT format)
+	baUserID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	userID, _ := uuid.Parse(userIDStr)
 
 	now := time.Now()
-	suggestion.ReviewedBy = &userID
+	suggestion.BAReviewedBy = &baUserID
 	suggestion.ReviewedAt = &now
 	suggestion.ReviewNotes = input.Notes
 
@@ -606,7 +602,7 @@ func ApplySuggestion(c *gin.Context) {
 			Data:           data,
 			ChangeType:     models.ChangeTypeAIEdit,
 			ChangeReason:   "AI suggestion: " + suggestion.SuggestionType,
-			ChangedBy:      &userID,
+			BAChangedBy:    &baUserID,
 			AIAssisted:     true,
 			AIConfidence:   &suggestion.Confidence,
 			AISuggestionID: &suggestion.ID,
@@ -740,9 +736,9 @@ func AnalyzeRowForSuggestions(c *gin.Context) {
 
 // UserSummary represents a brief user info for activity feeds
 type UserSummary struct {
-	ID    uuid.UUID `json:"id"`
-	Name  string    `json:"name"`
-	Email string    `json:"email,omitempty"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email,omitempty"`
 }
 
 // GetWorkspaceActivity returns activity feed for a workspace
@@ -783,25 +779,25 @@ func GetWorkspaceActivity(c *gin.Context) {
 		nextCursor = versions[len(versions)-1].ChangedAt.Format(time.RFC3339)
 	}
 
-	// Get user info for all changed_by users
-	userIDs := make([]uuid.UUID, 0)
+	// Get user info for all ba_changed_by users
+	userIDs := make([]string, 0)
 	for _, v := range versions {
-		if v.ChangedBy != nil {
-			userIDs = append(userIDs, *v.ChangedBy)
+		if v.BAChangedBy != nil {
+			userIDs = append(userIDs, *v.BAChangedBy)
 		}
 	}
 
-	// Fetch user summaries (from profiles table if exists, or mock)
-	userMap := make(map[uuid.UUID]UserSummary)
+	// Fetch user summaries from Better Auth user table
+	userMap := make(map[string]UserSummary)
 	if len(userIDs) > 0 {
 		var profiles []struct {
-			ID    uuid.UUID
+			ID    string
 			Name  string
 			Email string
 		}
 		database.DB.Raw(`
-			SELECT id, COALESCE(raw_user_meta_data->>'full_name', email) as name, email
-			FROM auth.users WHERE id IN ?
+			SELECT id, COALESCE(name, email) as name, email
+			FROM "user" WHERE id IN ?
 		`, userIDs).Scan(&profiles)
 
 		for _, p := range profiles {
@@ -809,6 +805,37 @@ func GetWorkspaceActivity(c *gin.Context) {
 				ID:    p.ID,
 				Name:  p.Name,
 				Email: p.Email,
+			}
+		}
+
+		// Also check portal_applicants for users not found in ba_users
+		missingIDs := make([]string, 0)
+		for _, id := range userIDs {
+			if _, found := userMap[id]; !found {
+				missingIDs = append(missingIDs, id)
+			}
+		}
+		if len(missingIDs) > 0 {
+			var applicants []struct {
+				BAUserID string `gorm:"column:ba_user_id"`
+				FullName string `gorm:"column:full_name"`
+				Email    string
+			}
+			database.DB.Raw(`
+				SELECT ba_user_id, full_name, email
+				FROM portal_applicants WHERE ba_user_id IN ?
+			`, missingIDs).Scan(&applicants)
+
+			for _, a := range applicants {
+				name := a.FullName
+				if name == "" {
+					name = a.Email
+				}
+				userMap[a.BAUserID] = UserSummary{
+					ID:    a.BAUserID,
+					Name:  name,
+					Email: a.Email,
+				}
 			}
 		}
 	}
@@ -850,11 +877,11 @@ func GetWorkspaceActivity(c *gin.Context) {
 
 		// Get user summary
 		var changedBy interface{}
-		if v.ChangedBy != nil {
-			if user, ok := userMap[*v.ChangedBy]; ok {
+		if v.BAChangedBy != nil {
+			if user, ok := userMap[*v.BAChangedBy]; ok {
 				changedBy = user
 			} else {
-				changedBy = UserSummary{ID: *v.ChangedBy, Name: "Unknown User"}
+				changedBy = UserSummary{ID: *v.BAChangedBy, Name: "Unknown User"}
 			}
 		}
 

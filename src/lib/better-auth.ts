@@ -90,7 +90,8 @@ const authConfig = {
         return;
       }
       await resend.emails.send({
-        from: process.env.EMAIL_FROM || "Matics <invitations@notifications.maticsapp.com>",
+        from: process.env.EMAIL_FROM || "Matics <hello@notifications.maticsapp.com>",
+        replyTo: "support@maticsapp.com",
         to: user.email,
         subject: "Reset your password - Matics",
         html: `
@@ -170,7 +171,8 @@ const authConfig = {
         const inviteLink = `${getBaseURL()}/accept-invitation/${data.id}`;
         
         await resend.emails.send({
-          from: process.env.EMAIL_FROM || "MaticsApp <invitations@notifications.maticsapp.com>",
+          from: process.env.EMAIL_FROM || "Matics <hello@notifications.maticsapp.com>",
+          replyTo: "support@maticsapp.com",
           to: data.email,
           subject: `You've been invited to join ${data.organization.name}`,
           html: `
@@ -362,7 +364,8 @@ const authConfig = {
           : "";
         
         await resend.emails.send({
-          from: process.env.EMAIL_FROM || `${portalName} <invitations@notifications.maticsapp.com>`,
+          from: process.env.EMAIL_FROM || `${portalName} <hello@notifications.maticsapp.com>`,
+          replyTo: "support@maticsapp.com",
           to: email,
           subject: subject,
           html: `
