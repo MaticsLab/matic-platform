@@ -1,8 +1,10 @@
 import { betterAuth } from "better-auth";
-import { APP_DOMAIN } from '@/constants/app-domain';
 import { organization, multiSession, magicLink } from "better-auth/plugins";
 import { Pool } from "pg";
 import { Resend } from "resend";
+
+// Import APP_DOMAIN synchronously at module level
+const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_URL || 'https://maticsapp.com';
 
 // Type definitions for Better Auth callbacks
 interface UserForReset {
@@ -119,7 +121,7 @@ const authConfig = {
 
   // Trusted origins for CORS
   trustedOrigins: [
-    (await import('@/constants/app-domain')).APP_DOMAIN,
+    APP_DOMAIN,
     "http://localhost:3000", // Default Next.js dev server
     "http://localhost:3001",
     "http://localhost:3002",
