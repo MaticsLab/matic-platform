@@ -13,6 +13,10 @@ import (
 
 // Table Links Handlers - for managing relationships between tables
 
+// rowSelectColumnsForLinks defines the columns to select for Row queries in table_links
+// IMPORTANT: table_rows has ba_created_by/ba_updated_by (TEXT), NOT created_by/updated_by (UUID)
+const rowSelectColumnsForLinks = "id, table_id, data, metadata, is_archived, position, stage_group_id, tags, ba_created_by, ba_updated_by, created_at, updated_at"
+
 // ListTableLinks - Get all links for a table
 func ListTableLinks(c *gin.Context) {
 	tableID := c.Query("table_id")
@@ -221,7 +225,7 @@ func GetLinkedRows(c *gin.Context) {
 	// Fetch the actual row data
 	var rows []models.Row
 	if len(linkedRowIDs) > 0 {
-		if err := database.DB.Where("id IN ?", linkedRowIDs).Find(&rows).Error; err != nil {
+		if err := database.DB.Select(rowSelectColumnsForLinks).Where("id IN ?", linkedRowIDs).Find(&rows).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -287,11 +291,11 @@ func CreateTableRowLink(c *gin.Context) {
 
 	// Verify rows exist
 	var sourceRow, targetRow models.Row
-	if err := database.DB.First(&sourceRow, "id = ?", input.SourceRowID).Error; err != nil {
+	if err := database.DB.Select(rowSelectColumnsForLinks).First(&sourceRow, "id = ?", input.SourceRowID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Source row not found"})
 		return
 	}
-	if err := database.DB.First(&targetRow, "id = ?", input.TargetRowID).Error; err != nil {
+	if err := database.DB.Select(rowSelectColumnsForLinks).First(&targetRow, "id = ?", input.TargetRowID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Target row not found"})
 		return
 	}

@@ -12,6 +12,10 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// rowSelectColumnsEmbed defines the columns to select for Row queries
+// IMPORTANT: table_rows has ba_created_by/ba_updated_by (TEXT), NOT created_by/updated_by (UUID)
+const rowSelectColumnsEmbed = "id, table_id, data, metadata, is_archived, position, stage_group_id, tags, ba_created_by, ba_updated_by, created_at, updated_at"
+
 // EmbeddingService handles embedding generation and indexing
 type EmbeddingService struct {
 	Cohere     *CohereClient
@@ -98,7 +102,7 @@ func (s *EmbeddingService) processQueueItem(q models.EmbeddingQueue, now time.Ti
 	if q.EntityType == "row" && searchItem.TableID != nil {
 		// Get the row data
 		var row models.Row
-		if err := database.DB.Where("id = ?", q.EntityID).First(&row).Error; err == nil {
+		if err := database.DB.Select(rowSelectColumnsEmbed).Where("id = ?", q.EntityID).First(&row).Error; err == nil {
 			var data map[string]interface{}
 			json.Unmarshal(row.Data, &data)
 

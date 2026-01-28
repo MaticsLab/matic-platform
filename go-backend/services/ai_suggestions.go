@@ -13,6 +13,10 @@ import (
 	"gorm.io/datatypes"
 )
 
+// rowSelectColumns defines the columns to select for Row queries
+// IMPORTANT: table_rows has ba_created_by/ba_updated_by (TEXT), NOT created_by/updated_by (UUID)
+const rowSelectColumns = "id, table_id, data, metadata, is_archived, position, stage_group_id, tags, ba_created_by, ba_updated_by, created_at, updated_at"
+
 // AISuggestionService analyzes table data and generates AI suggestions
 type AISuggestionService struct{}
 
@@ -96,7 +100,7 @@ func (s *AISuggestionService) AnalyzeTable(input AnalyzeTableInput) (*AnalyzeTab
 
 	// Get sample rows
 	var rows []models.Row
-	if err := database.DB.Where("table_id = ?", input.TableID).Limit(maxRows).Find(&rows).Error; err != nil {
+	if err := database.DB.Select(rowSelectColumns).Where("table_id = ?", input.TableID).Limit(maxRows).Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("failed to load rows: %w", err)
 	}
 
@@ -362,7 +366,7 @@ func (s *AISuggestionService) AnalyzeRow(input AnalyzeRowInput) ([]models.AIFiel
 
 	// Get the row
 	var row models.Row
-	if err := database.DB.First(&row, input.RowID).Error; err != nil {
+	if err := database.DB.Select(rowSelectColumns).First(&row, input.RowID).Error; err != nil {
 		return nil, fmt.Errorf("row not found: %w", err)
 	}
 
@@ -374,7 +378,7 @@ func (s *AISuggestionService) AnalyzeRow(input AnalyzeRowInput) ([]models.AIFiel
 
 	// Get sample of other rows for comparison
 	var otherRows []models.Row
-	database.DB.Where("table_id = ? AND id != ?", input.TableID, input.RowID).Limit(100).Find(&otherRows)
+	database.DB.Select(rowSelectColumns).Where("table_id = ? AND id != ?", input.TableID, input.RowID).Limit(100).Find(&otherRows)
 
 	var rowData map[string]interface{}
 	json.Unmarshal(row.Data, &rowData)

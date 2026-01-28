@@ -13,6 +13,12 @@ import {
 import { cn, getApplicantDisplayName } from '@/lib/utils';
 import { NOT_PROVIDED, UNKNOWN, NO_NAME_PROVIDED } from '@/constants/fallbacks';
 import { toast } from 'sonner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/ui-components/card';
+import { Badge } from '@/ui-components/badge';
+import { Separator } from '@/ui-components/separator';
+import { ScrollArea } from '@/ui-components/scroll-area';
+import { Button } from '@/ui-components/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui-components/tooltip';
 import { emailClient, SendEmailRequest, EmailAttachment, EmailSignature } from '@/lib/api/email-client';
 import { workflowsClient, StageAction, WorkflowAction } from '@/lib/api/workflows-client';
 import { dashboardClient } from '@/lib/api/dashboard-client';
@@ -1338,27 +1344,35 @@ export function ApplicationDetail({
   const mainContent = (
     <div className={cn(
       "bg-white flex flex-col h-full relative",
-      viewMode === 'modal' && "max-w-5xl mx-auto my-8 rounded-lg shadow-xl border border-gray-200",
+      viewMode === 'modal' && "max-w-5xl mx-auto my-8 rounded-xl shadow-2xl border border-gray-200",
       viewMode === 'fullscreen' && "fixed inset-0 z-50 w-full h-full"
     )}>
-      {/* Header - All modes */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0 bg-white">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onClose}
-            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-            title="Close"
-          >
-            <X className="w-4 h-4 text-gray-500" />
-          </button>
-          <div className="h-4 w-px bg-gray-300" />
+      {/* Header - Compact design */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 flex-shrink-0 bg-gray-50/50">
+        <div className="flex items-center gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={onClose}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Close</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Separator orientation="vertical" className="h-4" />
           <Popover>
             <PopoverTrigger asChild>
-              <button className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors">
-                <Maximize2 className="w-4 h-4 text-gray-500" />
+              <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs">
+                <Maximize2 className="h-3.5 w-3.5" />
                 <span className="capitalize">{viewMode === 'fullscreen' ? 'Full screen' : viewMode}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-              </button>
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
             </PopoverTrigger>
             <PopoverContent className="w-48 p-2" align="start">
               <div className="space-y-1">
@@ -1412,27 +1426,23 @@ export function ApplicationDetail({
         {((viewMode !== 'fullscreen' && !showActivityPanel && !showRecommendersPanel && !showDocumentsPanel) || viewMode === 'fullscreen') && (
           <div className="flex overflow-hidden transition-all duration-300 flex-1">
             {/* Main Content */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="p-6">
-              {/* Name */}
-              <h1 className="text-2xl font-bold text-gray-900 mb-4">
-                {application.name || UNKNOWN}
-              </h1>
-
-            {/* Key Fields */}
-            <div className="space-y-3 mb-6">
-              {/* Status */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Status</span>
+            <ScrollArea className="flex-1">
+              <div className="p-4">
+              {/* Name & Status Header */}
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <h1 className="text-lg font-semibold text-gray-900 leading-tight">
+                  {application.name || UNKNOWN}
+                </h1>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button 
-                      className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-200 transition-colors"
+                    <Badge 
+                      variant="secondary"
+                      className="cursor-pointer hover:bg-green-100 bg-green-50 text-green-700 border-green-200 gap-1.5 px-2.5 py-1 shrink-0"
                     >
-                      <Play className="w-3.5 h-3.5" />
-                      {application.stageName?.toUpperCase() || application.status?.toUpperCase() || 'SUBMITTED'}
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    </button>
+                      <Play className="h-3 w-3" />
+                      {application.stageName || application.status || 'Submitted'}
+                      <ChevronDown className="h-3 w-3 opacity-70" />
+                    </Badge>
                   </PopoverTrigger>
                   <PopoverContent className="w-56 p-2" align="end">
                     <div className="space-y-1">
@@ -1468,100 +1478,107 @@ export function ApplicationDetail({
                 </Popover>
               </div>
 
-              {/* Assignees - Only show if data exists */}
-              {application.assignedTo && application.assignedTo.length > 0 && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Assignees</span>
-                  <span className="text-sm text-gray-900">{application.assignedTo.join(', ')}</span>
-                </div>
-              )}
-
-              {/* Dates - Only show if submittedDate exists */}
+            {/* Quick Info - Compact horizontal layout */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground mb-4">
+              {/* Date */}
               {application.submittedDate && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Dates</span>
-                  <div className="flex items-center gap-2 text-sm text-gray-900">
-                    <Clock className="w-4 h-4" />
-                    <span>{new Date(application.submittedDate).toLocaleDateString()}</span>
-                  </div>
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  <span>{new Date(application.submittedDate).toLocaleDateString()}</span>
+                </div>
+              )}
+              
+              {/* Assignees */}
+              {application.assignedTo && application.assignedTo.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <Users className="h-3 w-3" />
+                  <span>{application.assignedTo.length} assigned</span>
                 </div>
               )}
 
-              {/* Priority - Only show if data exists */}
+              {/* Priority */}
               {application.priority && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Priority</span>
-                  <span className={cn(
-                    "text-sm font-medium capitalize",
-                    application.priority === 'high' && 'text-red-600',
-                    application.priority === 'medium' && 'text-yellow-600',
-                    application.priority === 'low' && 'text-gray-600'
-                  )}>
-                    {application.priority}
-                  </span>
-                </div>
+                <Badge 
+                  variant="outline" 
+                  className={cn(
+                    "text-[10px] px-1.5 py-0 h-5",
+                    application.priority === 'high' && 'border-red-200 text-red-600 bg-red-50',
+                    application.priority === 'medium' && 'border-yellow-200 text-yellow-600 bg-yellow-50',
+                    application.priority === 'low' && 'border-gray-200 text-gray-600 bg-gray-50'
+                  )}
+                >
+                  {application.priority}
+                </Badge>
               )}
 
-              {/* Tags - Only show if data exists */}
+              {/* Tags */}
               {application.tags && application.tags.length > 0 && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Tags</span>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {application.tags.map((tag, idx) => (
-                      <span key={idx} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
+                <div className="flex items-center gap-1">
+                  {application.tags.slice(0, 2).map((tag, idx) => (
+                    <Badge key={idx} variant="secondary" className="text-[10px] px-1.5 py-0 h-5 bg-gray-100">
+                      {tag}
+                    </Badge>
+                  ))}
+                  {application.tags.length > 2 && (
+                    <span className="text-muted-foreground">+{application.tags.length - 2}</span>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Description Section - Only show if comments exist */}
+            {/* Description Section - Compact */}
             {application.comments && (
-              <div className="mb-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className="w-4 h-4 text-purple-600" />
-                  <span className="text-sm font-medium text-gray-700">Description</span>
-                </div>
-                <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 min-h-[100px]">
-                  <p className="text-sm text-gray-900">{application.comments}</p>
-                </div>
-              </div>
+              <Card className="mb-4 shadow-none border-gray-100">
+                <CardHeader className="p-3 pb-2">
+                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3" />
+                    Notes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 pt-0">
+                  <p className="text-sm text-foreground leading-relaxed">{application.comments}</p>
+                </CardContent>
+              </Card>
             )}
 
-            {/* Reviewers Section */}
+            {/* Reviewers Section - Compact */}
             {Array.isArray(application.assignedTo) && application.assignedTo.length > 0 && reviewersMap && (
-              <div className="border-t pt-4 mb-6">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium text-gray-700">Reviewers</span>
-                </div>
-                <div className="space-y-2">
-                  {application.assignedTo
-                    .map((reviewerId: string) => ({ reviewer: reviewersMap[reviewerId], reviewerId }))
-                    .filter(({ reviewer }) => Boolean(reviewer))
-                    .map(({ reviewer, reviewerId }, idx) => (
-                      <div key={reviewerId} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                          <User className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-gray-900">{reviewer.name || 'Reviewer'}</div>
+              <Card className="mb-4 shadow-none border-gray-100">
+                <CardHeader className="p-3 pb-2">
+                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Users className="h-3 w-3" />
+                    Reviewers ({application.assignedTo.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 pt-0">
+                  <div className="space-y-1.5">
+                    {application.assignedTo
+                      .map((reviewerId: string) => ({ reviewer: reviewersMap[reviewerId], reviewerId }))
+                      .filter(({ reviewer }) => Boolean(reviewer))
+                      .map(({ reviewer, reviewerId }, idx) => (
+                        <div key={reviewerId} className="flex items-center gap-2 py-1">
+                          <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                            <User className="h-3 w-3 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium truncate">{reviewer.name || 'Reviewer'}</div>
+                          </div>
                           {reviewer.email && (
-                            <div className="text-xs text-gray-500">{reviewer.email}</div>
+                            <span className="text-xs text-muted-foreground truncate">{reviewer.email}</span>
                           )}
                         </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
+                      ))}
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
-            {/* Custom Fields Section - Show all fields */}
+            {/* Custom Fields Section - Compact cards */}
             {fields && fields.length > 0 && (
-              <div className="border-t pt-4 mb-6">
-                <div className="flex items-center mb-3">
-                  <span className="text-sm font-medium text-gray-700">Application Data</span>
+              <div className="mb-4">
+                <div className="flex items-center gap-1.5 mb-3">
+                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Application Data</span>
                 </div>
                       {/* Sticky Bottom Action Bar */}
                       <div className="sticky bottom-0 left-0 right-0 z-20 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between shadow-sm">
@@ -1758,38 +1775,40 @@ export function ApplicationDetail({
                       if (!hasData) return null;
                       
                       return (
-                        <div key={sectionIdx} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <Card key={sectionIdx} className="shadow-none border-gray-100 mb-3 last:mb-0">
                           {/* Section Header */}
                           {fieldSections.length > 1 && (
-                            <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                              <span className="text-base font-bold text-gray-800">{section.name}</span>
-                            </div>
+                            <CardHeader className="p-3 pb-0">
+                              <CardTitle className="text-sm font-medium text-foreground">{section.name}</CardTitle>
+                            </CardHeader>
                           )}
                           
                           {/* Section Fields */}
-                          <div className="divide-y divide-gray-100">
-                            {section.fields.map((field) => {
-                              const value = application.raw_data?.[field.id] || 
-                                           application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
-                                           application.raw_data?.[field.label];
-                              if (value === null || value === undefined || value === '') return null;
+                          <CardContent className={cn("p-3", fieldSections.length > 1 && "pt-2")}>
+                            <div className="space-y-3">
+                              {section.fields.map((field) => {
+                                const value = application.raw_data?.[field.id] || 
+                                             application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
+                                             application.raw_data?.[field.label];
+                                if (value === null || value === undefined || value === '') return null;
 
-                              // Use field.label directly, fallback to formatFieldLabel if not available
-                              const displayLabel = field.label || formatFieldLabel(field.id, fieldMap);
+                                // Use field.label directly, fallback to formatFieldLabel if not available
+                                const displayLabel = field.label || formatFieldLabel(field.id, fieldMap);
 
-                              return (
-                                <div key={field.id} className="px-6 py-5">
-                                  <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">
-                                    {displayLabel}
-                                  </p>
-                                  <div className="text-gray-800 text-[15px] leading-relaxed">
-                                    {renderFieldValue(value, 0, field.id, fieldMap)}
+                                return (
+                                  <div key={field.id} className="space-y-1">
+                                    <p className="text-xs font-medium text-muted-foreground">
+                                      {displayLabel}
+                                    </p>
+                                    <div className="text-sm text-foreground leading-relaxed">
+                                      {renderFieldValue(value, 0, field.id, fieldMap)}
+                                    </div>
                                   </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
+                                );
+                              })}
+                            </div>
+                          </CardContent>
+                        </Card>
                       );
                     });
                   })()}
@@ -1797,20 +1816,24 @@ export function ApplicationDetail({
               </div>
             )}
 
-            {/* Actions Section */}
+            {/* Actions Section - Compact */}
             {(customStatuses.length > 0 || stageActions.length > 0 || workflowActions.length > 0) && (
-              <div className="border-t pt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium text-gray-700">Actions</span>
-                </div>
-                <div className="space-y-2">
-                  {/* Custom Statuses (Workflow Triggers) */}
-                  {customStatuses.map((status) => {
-                    const isCustomStatus = true;
-                    return (
-                      <button
+              <Card className="shadow-none border-gray-100">
+                <CardHeader className="p-3 pb-2">
+                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Play className="h-3 w-3" />
+                    Quick Actions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 pt-0">
+                  <div className="flex flex-wrap gap-2">
+                    {/* Custom Statuses (Workflow Triggers) */}
+                    {customStatuses.map((status) => (
+                      <Button
                         key={status.id}
-                        className="w-full flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1.5"
                         onClick={async () => {
                           if (!formId) {
                             toast.error('Form ID is required');
@@ -1836,75 +1859,67 @@ export function ApplicationDetail({
                           }
                         }}
                       >
-                        <div className="flex items-center gap-3">
-                          <span 
-                            className={cn(
-                              "w-3 h-3 rounded-full",
-                              status.color === 'green' ? 'bg-green-500' :
-                              status.color === 'red' ? 'bg-red-500' :
-                              status.color === 'yellow' ? 'bg-yellow-500' :
-                              status.color === 'purple' ? 'bg-purple-500' :
-                              status.color === 'gray' ? 'bg-gray-500' :
-                              'bg-blue-500'
-                            )}
-                          ></span>
-                          <div>
-                            <div className="font-medium text-gray-900">{status.name}</div>
-                            {status.description && (
-                              <div className="text-xs text-gray-500 mt-0.5">{status.description}</div>
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+                        <span 
+                          className={cn(
+                            "w-2 h-2 rounded-full",
+                            status.color === 'green' ? 'bg-green-500' :
+                            status.color === 'red' ? 'bg-red-500' :
+                            status.color === 'yellow' ? 'bg-yellow-500' :
+                            status.color === 'purple' ? 'bg-purple-500' :
+                            status.color === 'gray' ? 'bg-gray-500' :
+                            'bg-blue-500'
+                          )}
+                        />
+                        {status.name}
+                      </Button>
+                    ))}
                   
-                  {/* Stage Actions and Workflow Actions */}
-                  {[...stageActions, ...workflowActions].map((action) => {
-                    const icon = actionIcons[action.icon || 'arrow-right'] || <ArrowRight className="w-4 h-4" />;
-                    const isStageAction = stageActions.some(a => a.id === action.id);
-                    return (
-                      <button
-                        key={action.id}
-                        onClick={async () => {
-                          if (!formId) {
-                            toast.error('Form ID is required');
-                            return;
-                          }
-                          try {
-                            await workflowsClient.executeAction({
-                              form_id: formId,
-                              submission_id: application.id,
-                              action_type: isStageAction ? 'stage_action' : 'workflow_action',
-                              action_id: action.id,
-                            });
-                            toast.success(`Action "${action.name}" executed successfully`);
-                            if (action.target_stage_id) {
-                              const targetStage = stages.find(s => s.id === action.target_stage_id);
-                              if (targetStage) {
-                                onStatusChange?.(application.id, targetStage.name as ApplicationStatus);
-                              }
+                    {/* Stage Actions and Workflow Actions */}
+                    {[...stageActions, ...workflowActions].map((action) => {
+                      const icon = actionIcons[action.icon || 'arrow-right'] || <ArrowRight className="w-3 h-3" />;
+                      const isStageAction = stageActions.some(a => a.id === action.id);
+                      return (
+                        <Button
+                          key={action.id}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1.5"
+                          onClick={async () => {
+                            if (!formId) {
+                              toast.error('Form ID is required');
+                              return;
                             }
-                          } catch (error) {
-                            console.error('Failed to execute action:', error);
-                            toast.error('Failed to execute action');
-                          }
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
-                      >
-                        {icon}
-                        <span className="flex-1">{action.name}</span>
-                        {action.target_stage_id && (
-                          <ChevronRight className="w-4 h-4 text-gray-400" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                            try {
+                              await workflowsClient.executeAction({
+                                form_id: formId,
+                                submission_id: application.id,
+                                action_type: isStageAction ? 'stage_action' : 'workflow_action',
+                                action_id: action.id,
+                              });
+                              toast.success(`Action "${action.name}" executed successfully`);
+                              if (action.target_stage_id) {
+                                const targetStage = stages.find(s => s.id === action.target_stage_id);
+                                if (targetStage) {
+                                  onStatusChange?.(application.id, targetStage.name as ApplicationStatus);
+                                }
+                              }
+                            } catch (error) {
+                              console.error('Failed to execute action:', error);
+                              toast.error('Failed to execute action');
+                            }
+                          }}
+                        >
+                          {icon}
+                          {action.name}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
             )}
               </div>
-            </div>
+            </ScrollArea>
           </div>
         )}
 
@@ -2090,17 +2105,22 @@ export function ApplicationDetail({
 
         {/* Recommenders Panel - Replaces details when active (sidebar mode), or shows to the right (fullscreen mode) */}
         {showRecommendersPanel && viewMode !== 'fullscreen' && (
-          <div className="flex-1 flex flex-col overflow-hidden border-l border-gray-200">
-            <div className="px-4 py-2 border-b border-t border-l bg-white flex items-center justify-between flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-900">Recommenders</h2>
-              <button 
+          <div className="flex-1 flex flex-col overflow-hidden border-l border-gray-100">
+            <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                <UserPlus className="h-3.5 w-3.5" />
+                Recommenders
+              </h2>
+              <Button 
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
                 onClick={() => setShowRecommendersPanel(false)}
-                className="p-1.5 hover:bg-gray-100 rounded transition-colors"
               >
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
+                <X className="h-3.5 w-3.5" />
+              </Button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
+            <ScrollArea className="flex-1 p-3">
               {loadingRecommendations ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
@@ -2241,23 +2261,28 @@ export function ApplicationDetail({
                   )})}
                 </div>
               )}
-            </div>
+            </ScrollArea>
           </div>
         )}
 
         {/* Documents Panel - Replaces details when active (sidebar mode), or shows to the right (fullscreen mode) */}
         {showDocumentsPanel && viewMode !== 'fullscreen' && (
-          <div className="flex-1 flex flex-col overflow-hidden border-l border-gray-200">
-            <div className="px-4 py-2 border-b border-t border-l bg-white flex items-center justify-between flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-900">Documents</h2>
-              <button 
+          <div className="flex-1 flex flex-col overflow-hidden border-l border-gray-100">
+            <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5" />
+                Documents
+              </h2>
+              <Button 
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
                 onClick={() => setShowDocumentsPanel(false)}
-                className="p-1.5 hover:bg-gray-100 rounded transition-colors"
               >
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
+                <X className="h-3.5 w-3.5" />
+              </Button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
+            <ScrollArea className="flex-1 p-3">
               {isLoadingFiles ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
@@ -2372,83 +2397,71 @@ export function ApplicationDetail({
                   })}
                 </div>
               )}
-            </div>
+            </ScrollArea>
           </div>
         )}
 
         {/* Activity Panel - Replaces details in sidebar (left), or shows on right in modal/fullscreen */}
         {showActivityPanel && viewMode !== 'fullscreen' ? (
-          <div className="flex-1 flex flex-col overflow-hidden border-l border-gray-200">
+          <div className="flex-1 flex flex-col overflow-hidden border-l border-gray-100">
             {/* Activity Header */}
-            <div className="px-4 py-2 border-b border-t border-l bg-white flex items-center justify-between flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-900">Activity</h2>
-              <button 
+            <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                <MessageSquare className="h-3.5 w-3.5" />
+                Activity
+              </h2>
+              <Button 
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
                 onClick={() => setShowActivityPanel(false)}
-                className="p-1.5 hover:bg-gray-100 rounded transition-colors"
               >
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
+                <X className="h-3.5 w-3.5" />
+              </Button>
             </div>
 
           {/* Activity Feed */}
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="space-y-4">
+          <ScrollArea className="flex-1 p-3">
+            <div className="space-y-2">
               {activities.map((activity) => (
-                <div key={activity.id} className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-blue-600" />
+                <div key={activity.id} className="flex items-start gap-2 py-1.5">
+                  <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <User className="h-3 w-3 text-primary" />
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-gray-900">{activity.user}</span>
-                      <span className="text-xs text-gray-500">{activity.time}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-medium text-foreground">{activity.user}</span>
+                      <span className="text-[10px] text-muted-foreground">{activity.time}</span>
                     </div>
-                    <p className="text-sm text-gray-700 mb-2">{activity.message}</p>
-                    <div className="flex items-center gap-2">
-                      <button className="p-1 hover:bg-gray-100 rounded transition-colors">
-                        <CheckCircle2 className="w-4 h-4 text-gray-400" />
-                      </button>
-                      <button className="p-1 hover:bg-gray-100 rounded transition-colors">
-                        <MessageSquare className="w-4 h-4 text-gray-400" />
-                      </button>
-                      <button className="p-1 hover:bg-gray-100 rounded transition-colors">
-                        <ArrowRight className="w-4 h-4 text-gray-400" />
-                      </button>
-                      <button className="p-1 hover:bg-gray-100 rounded transition-colors">
-                        <Mail className="w-4 h-4 text-gray-400" />
-                      </button>
-                      <button className="p-1 hover:bg-gray-100 rounded transition-colors ml-auto">
-                        <MoreVertical className="w-4 h-4 text-gray-400" />
-                      </button>
-                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{activity.message}</p>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </ScrollArea>
 
-          {/* Email Composer - Fixed at Bottom */}
-          <div className="border-t bg-white flex-shrink-0 p-3">
-            <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+          {/* Email Composer - Fixed at Bottom - Compact */}
+          <div className="border-t border-gray-100 bg-gray-50/50 flex-shrink-0 p-2">
+            <div className="bg-white rounded-lg border border-gray-100 p-2 space-y-1.5">
               {/* From field */}
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600 w-12">From</span>
+                <span className="text-xs text-muted-foreground w-10">From</span>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button className="flex-1 flex items-center gap-2 text-sm text-gray-900 hover:bg-gray-100 rounded-lg px-2 py-1.5 transition-colors bg-white border border-gray-200">
+                    <button className="flex-1 flex items-center gap-1.5 text-xs text-foreground hover:bg-gray-50 rounded px-2 py-1 transition-colors border border-gray-100">
                       {(() => {
                         const email = selectedFromEmail || gmailConnection?.email;
-                        if (!email) return <span>Select sender...</span>;
+                        if (!email) return <span className="text-muted-foreground">Select sender...</span>;
                         const account = emailAccounts.find(a => a.email === email);
                         const name = account?.display_name || email.split('@')[0];
                         return (
                           <>
-                            <span>{name}</span>
-                            <span className="text-gray-500">&lt;{email}&gt;</span>
+                            <span className="font-medium">{name}</span>
+                            <span className="text-muted-foreground truncate">&lt;{email}&gt;</span>
                           </>
                         );
                       })()}
-                      <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-auto" />
+                      <ChevronDown className="w-3 h-3 text-muted-foreground ml-auto shrink-0" />
                     </button>
                   </PopoverTrigger>
                   <PopoverContent className="w-64 p-0 bg-white border border-gray-200 shadow-lg" align="start">
@@ -2487,7 +2500,7 @@ export function ApplicationDetail({
 
               {/* To field */}
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600 w-12">To</span>
+                <span className="text-xs text-muted-foreground w-10">To</span>
                 <input
                   type="text"
                   value={emailTo}

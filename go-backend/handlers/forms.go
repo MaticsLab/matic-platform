@@ -19,6 +19,11 @@ import (
 	"github.com/lib/pq"
 )
 
+// rowSelectColumns defines the columns to select for Row queries
+// IMPORTANT: table_rows has ba_created_by/ba_updated_by (TEXT), NOT created_by/updated_by (UUID)
+// Always use explicit Select() to avoid "column created_by does not exist" errors
+const rowSelectColumns = "id, table_id, data, metadata, is_archived, position, stage_group_id, tags, ba_created_by, ba_updated_by, created_at, updated_at"
+
 // GetForm returns a single form by ID
 func GetForm(c *gin.Context) {
 	id := c.Param("id")
@@ -961,7 +966,7 @@ func GetFormWithSubmissionsAndWorkflow(c *gin.Context) {
 	// Submissions
 	go func() {
 		defer wg.Done()
-		submissionsErr = database.DB.Where("table_id = ?", formID).Order("created_at DESC").Find(&submissions).Error
+		submissionsErr = database.DB.Select(rowSelectColumns).Where("table_id = ?", formID).Order("created_at DESC").Find(&submissions).Error
 	}()
 
 	// Workflows
@@ -1179,7 +1184,7 @@ func ListFormSubmissions(c *gin.Context) {
 	var rows []models.Row
 	// OPTIMIZATION: Select only needed columns to reduce data transfer
 	// Note: table_rows has ba_created_by/ba_updated_by, NOT created_by/updated_by
-	query := database.DB.Select("id, table_id, data, metadata, is_archived, position, stage_group_id, tags, ba_created_by, ba_updated_by, created_at, updated_at").
+	query := database.DB.Select(rowSelectColumns).
 		Where("table_id = ?", tableID).
 		Order("created_at DESC")
 
@@ -1337,7 +1342,7 @@ func DeleteFormSubmission(c *gin.Context) {
 
 	// First try to find the row directly by ID (in case table_id doesn't match)
 	var row models.Row
-	if err := database.DB.Where("id = ?", submissionID).First(&row).Error; err != nil {
+	if err := database.DB.Select(rowSelectColumns).Where("id = ?", submissionID).First(&row).Error; err != nil {
 		fmt.Printf("❌ DeleteFormSubmission: Row not found by ID %s: %v\n", submissionID, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
@@ -1535,7 +1540,7 @@ func SubmitForm(c *gin.Context) {
 
 		var found bool
 		for _, query := range queries {
-			if err := database.DB.Where(query, formID, email).First(&existingRow).Error; err == nil {
+			if err := database.DB.Select(rowSelectColumns).Where(query, formID, email).First(&existingRow).Error; err == nil {
 				fmt.Printf("📝 SubmitForm: Found existing row using query: %s\n", query)
 				found = true
 				break
@@ -2309,7 +2314,7 @@ func GetFormSubmission(c *gin.Context) {
 		var metadata map[string]interface{}
 		if applicant.RowID != nil {
 			var row models.Row
-			if err := database.DB.First(&row, "id = ?", *applicant.RowID).Error; err == nil {
+			if err := database.DB.Select(rowSelectColumns).First(&row, "id = ?", *applicant.RowID).Error; err == nil {
 				json.Unmarshal(row.Metadata, &metadata)
 			}
 		}
@@ -2348,7 +2353,7 @@ func GetFormSubmission(c *gin.Context) {
 
 	var found bool
 	for _, query := range queries {
-		if err := database.DB.Where(query, formID, email).First(&row).Error; err == nil {
+		if err := database.DB.Select(rowSelectColumns).Where(query, formID, email).First(&row).Error; err == nil {
 			found = true
 			break
 		}
@@ -2459,7 +2464,7 @@ func GetExternalReviewData(c *gin.Context) {
 	if reviewerID != "" && !canViewAll {
 		// Check if metadata->'assigned_reviewers' contains reviewerID
 		// Postgres JSONB operator: @>
-		query := database.DB.Where("table_id = ?", table.ID).
+		query := database.DB.Select(rowSelectColumns).Where("table_id = ?", table.ID).
 			Where("metadata->'assigned_reviewers' @> ?", fmt.Sprintf(`["%s"]`, reviewerID))
 
 		if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
@@ -2472,7 +2477,7 @@ func GetExternalReviewData(c *gin.Context) {
 		if len(rows) == 0 {
 			noAssignments = true
 			// Get all submissions for the form
-			query = database.DB.Where("table_id = ?", table.ID)
+			query = database.DB.Select(rowSelectColumns).Where("table_id = ?", table.ID)
 			if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -2480,7 +2485,7 @@ func GetExternalReviewData(c *gin.Context) {
 		}
 	} else {
 		// No reviewer ID or canViewAll is true - get all submissions
-		query := database.DB.Where("table_id = ?", table.ID)
+		query := database.DB.Select(rowSelectColumns).Where("table_id = ?", table.ID)
 		if err := query.Order("created_at DESC").Find(&rows).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -2635,7 +2640,7 @@ func AssignReviewerApplications(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "No submissions selected"})
 			return
 		}
-		if err := database.DB.Where("table_id = ? AND id IN ?", formID, input.SubmissionIDs).Find(&rowsToAssign).Error; err != nil {
+		if err := database.DB.Select(rowSelectColumns).Where("table_id = ? AND id IN ?", formID, input.SubmissionIDs).Find(&rowsToAssign).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -2646,7 +2651,7 @@ func AssignReviewerApplications(c *gin.Context) {
 		}
 		// Find rows that are NOT already assigned to this reviewer
 		// If only_unassigned is true, also exclude rows assigned to ANY reviewer
-		query := database.DB.Where("table_id = ?", formID)
+		query := database.DB.Select(rowSelectColumns).Where("table_id = ?", formID)
 
 		if input.OnlyUnassigned {
 			// Only truly unassigned applications (no assigned_reviewers or empty array)
@@ -3056,7 +3061,7 @@ func SubmitExternalReview(c *gin.Context) {
 
 	// Get submission
 	var row models.Row
-	if err := database.DB.First(&row, "id = ? AND table_id = ?", submissionID, table.ID).Error; err != nil {
+	if err := database.DB.Select(rowSelectColumns).First(&row, "id = ? AND table_id = ?", submissionID, table.ID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
 	}
@@ -3250,7 +3255,7 @@ func AssignSubmissionWorkflow(c *gin.Context) {
 
 	// Find the submission (row)
 	var row models.Row
-	if err := database.DB.Where("table_id = ? AND id = ?", formID, submissionID).First(&row).Error; err != nil {
+	if err := database.DB.Select(rowSelectColumns).Where("table_id = ? AND id = ?", formID, submissionID).First(&row).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
 	}

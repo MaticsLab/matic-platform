@@ -273,6 +273,13 @@ func (Row) TableName() string {
 	return "table_rows"
 }
 
+// RowSelectColumns returns the columns to select for Row queries
+// IMPORTANT: table_rows has ba_created_by/ba_updated_by (TEXT), NOT created_by/updated_by (UUID)
+// Use this with database.DB.Select(models.RowSelectColumns()) to avoid "column created_by does not exist" errors
+func RowSelectColumns() string {
+	return "id, table_id, data, metadata, is_archived, position, stage_group_id, tags, ba_created_by, ba_updated_by, created_at, updated_at"
+}
+
 // ViewType constants for table_views.type
 const (
 	ViewTypeGrid     = "grid"
