@@ -151,7 +151,7 @@ const authConfig = {
       // Send email with Resend best practices
       await resend.emails.send({
         from: process.env.EMAIL_FROM || "Matics <hello@notifications.maticsapp.com>",
-        reply_to: "support@maticsapp.com", // Resend uses reply_to (snake_case)
+        replyTo: "support@notifications.maticsapp.com",
         to: user.email,
         subject,
         html,
@@ -408,7 +408,7 @@ const authConfig = {
         // Send email with Resend best practices
         await resend.emails.send({
           from: process.env.EMAIL_FROM || `${portalName} <hello@notifications.maticsapp.com>`,
-          reply_to: "support@maticsapp.com", // Resend uses reply_to (snake_case)
+          replyTo: "support@maticsapp.com",
           to: email,
           subject,
           html,
