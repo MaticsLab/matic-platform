@@ -28,6 +28,7 @@ export default function InvitePage() {
   const [isDeclining, setIsDeclining] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [autoAccepting, setAutoAccepting] = useState(false)
 
   // Check authentication status
   useEffect(() => {
@@ -42,6 +43,31 @@ export default function InvitePage() {
     }
     checkAuth()
   }, [])
+
+  // Auto-accept invitation if user just authenticated
+  useEffect(() => {
+    const autoAcceptInvitation = async () => {
+      // Check if we should auto-accept (user just came back from auth)
+      const shouldAutoAccept = sessionStorage.getItem(`auto-accept-${token}`)
+      
+      if (isAuthenticated && shouldAutoAccept && invitation && !autoAccepting) {
+        sessionStorage.removeItem(`auto-accept-${token}`)
+        setAutoAccepting(true)
+        
+        try {
+          const result = await invitationsClient.accept(token)
+          toast.success(`Welcome to ${result.workspace.name}!`)
+          router.push(`/workspace/${result.workspace.slug}`)
+        } catch (err: any) {
+          console.error('Failed to auto-accept invitation:', err)
+          toast.error(err.message || 'Failed to accept invitation')
+          setAutoAccepting(false)
+        }
+      }
+    }
+    
+    autoAcceptInvitation()
+  }, [isAuthenticated, invitation, token, router, autoAccepting])
 
   // Load invitation details
   const loadInvitation = useCallback(async () => {
@@ -109,21 +135,28 @@ export default function InvitePage() {
   }
 
   const handleLoginRedirect = () => {
+    // Set flag to auto-accept after auth
+    sessionStorage.setItem(`auto-accept-${token}`, 'true')
     const returnUrl = `/invite/${token}`
-    router.push(`/login?redirect=${encodeURIComponent(returnUrl)}`)
+    router.push(`/auth?mode=login&redirect=${encodeURIComponent(returnUrl)}`)
   }
 
   const handleSignupRedirect = () => {
+    // Set flag to auto-accept after auth
+    sessionStorage.setItem(`auto-accept-${token}`, 'true')
     const returnUrl = `/invite/${token}`
-    router.push(`/signup?redirect=${encodeURIComponent(returnUrl)}&email=${encodeURIComponent(invitation?.invitation.email || '')}`)
+    const email = invitation?.invitation.email || ''
+    router.push(`/auth?mode=signup&redirect=${encodeURIComponent(returnUrl)}&email=${encodeURIComponent(email)}`)
   }
 
-  if (isLoading) {
+  if (isLoading || autoAccepting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          <p className="text-gray-500">Loading invitation...</p>
+          <p className="text-gray-500">
+            {autoAccepting ? 'Accepting invitation...' : 'Loading invitation...'}
+          </p>
         </div>
       </div>
     )

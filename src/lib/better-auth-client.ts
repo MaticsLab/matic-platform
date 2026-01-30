@@ -1,13 +1,13 @@
 
-import { APP_DOMAIN } from '@/constants/app-domain';
 import { createAuthClient } from "better-auth/react";
 import { organizationClient, multiSessionClient, magicLinkClient } from "better-auth/client/plugins";
 
 // Create the Better Auth client for frontend use
+// Always use window.location.origin in the browser for maximum compatibility
 export const authClient = createAuthClient({
   baseURL: typeof window !== "undefined" 
     ? window.location.origin 
-    : APP_DOMAIN,
+    : process.env.NEXT_PUBLIC_APP_URL || 'https://www.maticsapp.com',
   plugins: [
     organizationClient({
       // Enable advanced features if needed in the future

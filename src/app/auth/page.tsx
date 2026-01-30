@@ -63,21 +63,31 @@ function AuthPageContent() {
 
   useEffect(() => {
     const mode = searchParams.get('mode')
+    const emailParam = searchParams.get('email')
     setIsLogin(mode === 'login')
+    if (emailParam) {
+      setEmail(emailParam)
+    }
   }, [searchParams])
 
   const handleModeToggle = (loginMode: boolean) => {
     setIsLogin(loginMode)
     const newMode = loginMode ? 'login' : 'signup'
-    router.push(`/auth?mode=${newMode}`)
+    const redirect = searchParams.get('redirect')
+    const emailParam = searchParams.get('email')
+    const params = new URLSearchParams({ mode: newMode })
+    if (redirect) params.set('redirect', redirect)
+    if (emailParam) params.set('email', emailParam)
+    router.push(`/auth?${params.toString()}`)
   }
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
     try {
+      const redirect = searchParams.get('redirect') || '/'
       await signIn.social({
         provider: 'google',
-        callbackURL: '/'
+        callbackURL: redirect
       })
     } catch (error) {
       toast.error('Failed to sign in with Google')
@@ -92,6 +102,8 @@ function AuthPageContent() {
 
     setIsLoading(true)
     try {
+      const redirect = searchParams.get('redirect') || '/'
+      
       if (isLogin) {
         if (!password) {
           toast.error('Password is required')
@@ -101,20 +113,33 @@ function AuthPageContent() {
         await signIn.email({
           email,
           password,
-          callbackURL: '/'
+          callbackURL: redirect
         })
         toast.success('Welcome back!')
+        // Manually redirect after successful login
+        router.push(redirect)
       } else {
+        // For signup, require password
+        if (!password || password.length < 6) {
+          toast.error('Password must be at least 6 characters')
+          setIsLoading(false)
+          return
+        }
+        
         await signUp.email({
           email,
           name: name || email.split('@')[0], // Use email username as fallback
-          password: password || 'temp-password',
-          callbackURL: '/'
+          password: password,
+          callbackURL: redirect
         })
-        toast.success('Check your email to continue')
+        toast.success('Account created successfully!')
+        // Manually redirect after successful signup
+        router.push(redirect)
       }
-    } catch (error) {
-      toast.error(isLogin ? 'Failed to sign in' : 'Failed to sign up')
+    } catch (error: any) {
+      console.error('Auth error:', error)
+      const errorMessage = error?.message || (isLogin ? 'Failed to sign in' : 'Failed to sign up')
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -252,26 +277,25 @@ function AuthPageContent() {
                     />
                   </div>
 
-                  {isLogin && (
-                    <div>
-                      <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                        Password
-                      </label>
-                      <Input
-                        id="password"
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Enter your password"
-                        className="w-full h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                        required
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                      Password
+                    </label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={isLogin ? "Enter your password" : "Create a password (min 6 characters)"}
+                      className="w-full h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                      required
+                      minLength={6}
+                    />
+                  </div>
 
                   <Button
                     type="submit"
-                    disabled={isLoading || !email || (isLogin && !password)}
+                    disabled={isLoading || !email || !password}
                     className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold"
                   >
                     {isLoading ? (
