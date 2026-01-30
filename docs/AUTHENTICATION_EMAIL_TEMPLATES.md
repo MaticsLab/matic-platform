@@ -67,9 +67,8 @@ Returns:
 **Location**: `src/lib/auth-email-helper.ts`
 
 Utilities for calling the email API:
-- `generateAuthEmail()` - Calls Go backend for template generation
+- `generateAuthEmail()` - Calls Go backend for template generation (throws error if backend unavailable)
 - `extractDeviceInfo()` - Extracts IP, user agent from request
-- `generateFallbackEmail()` - Simple fallback if backend unavailable
 
 ## Integration with Better Auth
 
@@ -345,10 +344,10 @@ Track authentication patterns:
 **Issue**: Default branding instead of workspace branding
 **Solution**: Verify formId is in callback URL and form settings are configured
 
-### Fallback Email Used
+### Email Generation Failed
 
-**Issue**: Simple email instead of professional template
-**Solution**: Check Go backend is running and accessible at NEXT_PUBLIC_GO_API_URL
+**Issue**: Email generation throws error
+**Solution**: Ensure Go backend is running and accessible at NEXT_PUBLIC_GO_API_URL. Check backend logs for compilation errors.
 
 ## Best Practices
 

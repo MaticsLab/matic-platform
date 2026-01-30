@@ -1812,11 +1812,10 @@ export function ApplicationDetail({
                           <CardContent className={cn("p-3", fieldSections.length > 1 && "pt-2")}>
                             <div className="space-y-3">
                               {fieldsWithData.map((field) => {
-                               section.fields.map((field) => {
                                 const value = application.raw_data?.[field.id] || 
                                              application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
                                              application.raw_data?.[field.label];
-                                if (value === null || value === undefined || value === '') return null
+                                if (value === null || value === undefined || value === '') return null;
                                 // Use field.label directly, fallback to formatFieldLabel if not available
                                 const displayLabel = field.label || formatFieldLabel(field.id, fieldMap);
 

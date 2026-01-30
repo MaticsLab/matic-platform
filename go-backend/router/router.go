@@ -452,18 +452,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				documents.POST("/redact/base64", handlers.GetRedactedDocumentBase64)
 			}
 
-			// Admin Data Cleanup Endpoints
-			adminCleanup := protected.Group("/admin/cleanup")
-			{
-				adminCleanup.POST("/remove-student-information", handlers.RemoveStudentInformationField)
-				adminCleanup.POST("/remove-empty-fields", handlers.CleanupEmptyFields)
-			}
-
-			// NOTE: Field Type Registry is now public (moved to public routes above)
-
-			// Workspace Activity Feed
-			protected.GET("/workspaces/:id/activity", handlers.GetWorkspaceActivity)
-
 			// Table Links - for managing table relationships
 			tableLinks := protected.Group("/table-links")
 			{

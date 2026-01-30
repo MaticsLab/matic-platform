@@ -29,7 +29,7 @@ function isValidEmail(email: string): boolean {
 - 2 retry attempts for failed requests
 - Exponential backoff (1s, 2s)
 - Skip retries for validation errors
-- Fallback to simple template after all retries
+- Throws descriptive error after all retries fail
 
 **Location**: `src/lib/auth-email-helper.ts`
 
@@ -57,7 +57,7 @@ for (let attempt = 0; attempt <= maxRetries; attempt++) {
 **Implementation**:
 - 5-second timeout on API calls
 - AbortController for proper request cancellation
-- Graceful degradation to fallback template
+- Clear error messages when timeouts occur
 
 **Location**: `src/lib/auth-email-helper.ts`
 
@@ -163,14 +163,15 @@ reply_to: "support@maticsapp.com"
 **Implementation**:
 - Try-catch blocks around all email operations
 - Detailed error logging with attempt numbers
-- Graceful fallbacks for failures
-- User-friendly error messages
+- Descriptive error messages indicating Go backend requirements
+- Clear instructions for troubleshooting
 
 **Location**: `src/lib/auth-email-helper.ts`
 
 ```typescript
 console.error(`[Auth Email] Attempt ${attempt + 1} failed:`, error.message);
-console.warn('[Auth Email] All retries failed, using fallback template');
+console.error('[Auth Email] All retries exhausted. Go backend must be running.');
+throw new Error('Failed to generate email after retries...');
 ```
 
 ## 📊 Email Analytics with Tags
