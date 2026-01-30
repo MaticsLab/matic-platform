@@ -138,7 +138,6 @@ func ListAuthUsers(c *gin.Context) {
 			Email      string  `json:"email"`
 			Name       string  `json:"name"`
 			FullName   *string `json:"full_name,omitempty"`
-			AvatarURL  *string `json:"avatar_url,omitempty"`
 			UserType   string  `json:"user_type"`
 			CreatedAt  string  `json:"created_at"`
 			UpdatedAt  string  `json:"updated_at"`

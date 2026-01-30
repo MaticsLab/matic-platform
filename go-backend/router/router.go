@@ -245,6 +245,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.GET("/email/track/:tracking_id", handlers.TrackEmailOpen)
 		api.GET("/email/oauth/callback", handlers.HandleGmailCallback)
 
+		// Auth Email Generation (public - used by better-auth for professional email templates)
+		api.POST("/auth/generate-email", handlers.GenerateAuthEmail)
+		api.GET("/auth/preview-email", handlers.PreviewAuthEmail) // Preview emails in browser
+
 		// Google Drive OAuth Callback (must be public for OAuth flow)
 		api.GET("/integrations/google-drive/callback", handlers.GoogleDriveCallback)
 
@@ -446,6 +450,13 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				documents.POST("/analyze-pii/batch", handlers.BatchAnalyzeDocumentsPII)
 				documents.POST("/redact", handlers.GetRedactedDocument)
 				documents.POST("/redact/base64", handlers.GetRedactedDocumentBase64)
+			}
+
+			// Admin Data Cleanup Endpoints
+			adminCleanup := protected.Group("/admin/cleanup")
+			{
+				adminCleanup.POST("/remove-student-information", handlers.RemoveStudentInformationField)
+				adminCleanup.POST("/remove-empty-fields", handlers.CleanupEmptyFields)
 			}
 
 			// NOTE: Field Type Registry is now public (moved to public routes above)

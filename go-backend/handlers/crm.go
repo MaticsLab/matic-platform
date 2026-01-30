@@ -15,18 +15,18 @@ import (
 
 // ApplicantCRM represents an applicant with their form submissions
 type ApplicantCRM struct {
-	ID           string               `json:"id"`
-	Email        string               `json:"email"`
-	Name         *string              `json:"name"`
-	UserType     string               `json:"user_type"`
-	CreatedAt    string               `json:"created_at"`
-	LastLoginAt  *string              `json:"last_login_at,omitempty"`
-	Applications []ApplicationSummary `json:"applications"`
-	TotalForms   int                  `json:"total_forms"`
+	ID           string        `json:"id"`
+	Email        string        `json:"email"`
+	Name         *string       `json:"name"`
+	UserType     string        `json:"user_type"`
+	CreatedAt    string        `json:"created_at"`
+	LastLoginAt  *string       `json:"last_login_at,omitempty"`
+	Applications []application `json:"applications"`
+	TotalForms   int           `json:"total_forms"`
 }
 
-// ApplicationSummary represents a form application by an applicant
-type ApplicationSummary struct {
+// FormSummary represents a form application by an applicant
+type application struct {
 	FormID        string  `json:"form_id"`
 	FormName      string  `json:"form_name"`
 	FormSlug      *string `json:"form_slug,omitempty"`

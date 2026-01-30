@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { organization, multiSession, magicLink } from "better-auth/plugins";
 import { Pool } from "pg";
 import { Resend } from "resend";
+import { generateAuthEmail, extractDeviceInfo } from "./auth-email-helper";
 
 // Import APP_DOMAIN synchronously at module level
 const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_URL || 'https://maticsapp.com';
@@ -125,36 +126,47 @@ const authConfig = {
     enabled: true,
     requireEmailVerification: false,
     autoSignIn: true,
-    // Password reset configuration
-    sendResetPassword: async ({ user, url }: { user: UserForReset; url: string }) => {
+    // Password reset configuration with professional template
+    sendResetPassword: async ({ user, url, request }: { user: UserForReset; url: string; request?: Request }) => {
       if (!resend) {
         console.error("[Better Auth] Resend not configured - RESEND_API_KEY missing");
         return;
       }
+      
+      // Extract device information from request
+      const deviceInfo = extractDeviceInfo(request);
+      
+      // Generate professional email template
+      const { html, plainText, subject } = await generateAuthEmail({
+        type: 'password-reset',
+        email: user.email,
+        userName: user.name,
+        actionUrl: url,
+        expiryMinutes: 60,
+        companyName: 'Matic Platform',
+        brandColor: '#2563eb',
+        ...deviceInfo,
+      });
+      
+      // Send email with Resend best practices
       await resend.emails.send({
         from: process.env.EMAIL_FROM || "Matics <hello@notifications.maticsapp.com>",
-        replyTo: "support@maticsapp.com",
+        reply_to: "support@maticsapp.com", // Resend uses reply_to (snake_case)
         to: user.email,
-        subject: "Reset your password - Matics",
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #1e40af;">Reset Your Password</h2>
-            <p>Hi ${user.name || "there"},</p>
-            <p>We received a request to reset your password. Click the button below to create a new password:</p>
-            <div style="margin: 30px 0;">
-              <a href="${url}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">
-                Reset Password
-              </a>
-            </div>
-            <p style="color: #6b7280; font-size: 14px;">
-              If you didn't request this, you can safely ignore this email. This link will expire in 1 hour.
-            </p>
-            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
-            <p style="color: #9ca3af; font-size: 12px;">
-              © ${new Date().getFullYear()} MaticsApp. All rights reserved.
-            </p>
-          </div>
-        `,
+        subject,
+        html,
+        text: plainText,
+        // Resend best practice: Add tags for tracking and analytics
+        tags: [
+          { name: 'category', value: 'auth' },
+          { name: 'type', value: 'password-reset' },
+          { name: 'environment', value: process.env.NODE_ENV || 'development' },
+        ],
+        // Resend best practice: Add headers for better deliverability and tracking
+        headers: {
+          'X-Entity-Ref-ID': `pwd-reset-${user.id}`,
+          'X-Priority': '1', // High priority for auth emails
+        },
       });
     },
   },
@@ -303,10 +315,14 @@ const authConfig = {
           return;
         }
         
+        // Extract device information from request
+        const deviceInfo = extractDeviceInfo(ctx?.request);
+        
         // Extract form ID from callback URL if present
-        let portalName = "Matics";
+        let portalName = "Matic Platform";
         let portalLogo = "";
         let subdomain = "";
+        let brandColor = "#2563eb";
         
         try {
           // Try multiple methods to get the callback URL with formId
@@ -328,27 +344,7 @@ const authConfig = {
             }
           }
           
-          // Method 2: Query Better Auth verification table to get callback URL
-          // Better Auth stores the callback URL in the verification record
-          const dbPool = getPool();
-          if (!formId && dbPool && token) {
-            try {
-              const result = await dbPool.query(
-                'SELECT identifier FROM ba_verifications WHERE token = $1 ORDER BY created_at DESC LIMIT 1',
-                [token]
-              );
-              
-              if (result.rows.length > 0) {
-                const identifier = result.rows[0].identifier;
-                // The identifier might contain the callback URL or we can check the verification metadata
-                // Actually, Better Auth stores callback URL differently - let's check the request
-              }
-            } catch (dbError) {
-              console.error("[Better Auth] Database query error:", dbError);
-            }
-          }
-          
-          // Method 3: Parse from verification URL (if Better Auth includes it)
+          // Method 2: Parse from verification URL (if Better Auth includes it)
           if (!formId && url) {
             try {
               const urlObj = new URL(url);
@@ -381,11 +377,10 @@ const authConfig = {
               const formData = await formResponse.json();
               const settings = formData.settings || {};
               
-              // Get portal name from form settings
-              portalName = settings.name || formData.name || "Matics";
-              
-              // Get portal logo
+              // Get portal branding
+              portalName = settings.name || formData.name || "Matic Platform";
               portalLogo = settings.logoUrl || "";
+              brandColor = settings.primaryColor || "#2563eb";
               
               // Get subdomain if available
               if (formData.workspace_subdomain) {
@@ -398,44 +393,38 @@ const authConfig = {
           // Continue with default values
         }
         
-        // Build subject with portal name
-        const subject = subdomain 
-          ? `${portalName} portal: Your portal access link`
-          : `${portalName}: Your portal access link`;
+        // Generate professional email template
+        const { html, plainText, subject } = await generateAuthEmail({
+          type: 'magic-link',
+          email,
+          actionUrl: url,
+          expiryMinutes: 10,
+          companyName: portalName,
+          companyLogo: portalLogo,
+          brandColor,
+          ...deviceInfo,
+        });
         
-        // Build email HTML with logo
-        const logoHtml = portalLogo 
-          ? `<div style="text-align: center; margin-bottom: 30px;">
-               <img src="${portalLogo}" alt="${portalName}" style="max-width: 200px; max-height: 80px; height: auto; object-fit: contain;" />
-             </div>`
-          : "";
-        
+        // Send email with Resend best practices
         await resend.emails.send({
           from: process.env.EMAIL_FROM || `${portalName} <hello@notifications.maticsapp.com>`,
-          replyTo: "support@maticsapp.com",
+          reply_to: "support@maticsapp.com", // Resend uses reply_to (snake_case)
           to: email,
-          subject: subject,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              ${logoHtml}
-              <h2 style="color: #1e40af; margin-top: 0;">Hi there,</h2>
-              <p style="font-size: 16px; line-height: 1.6; color: #374151;">
-                Click below to instantly access your portal.
-              </p>
-              <div style="margin: 30px 0; text-align: center;">
-                <a href="${url}" style="background-color: #1e40af; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 500; font-size: 16px;">
-                  Go to your portal
-                </a>
-              </div>
-              <p style="color: #6b7280; font-size: 14px; line-height: 1.6;">
-                For your security, do not forward this email. Any recipient will have full access to your portal and all its content.
-              </p>
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
-              <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
-                © ${new Date().getFullYear()} ${portalName}. All rights reserved.
-              </p>
-            </div>
-          `,
+          subject,
+          html,
+          text: plainText,
+          // Resend best practice: Add tags for tracking and analytics
+          tags: [
+            { name: 'category', value: 'auth' },
+            { name: 'type', value: 'magic-link' },
+            { name: 'portal', value: subdomain || 'main' },
+            { name: 'environment', value: process.env.NODE_ENV || 'development' },
+          ],
+          // Resend best practice: Add headers for better deliverability
+          headers: {
+            'X-Entity-Ref-ID': `magic-link-${email}-${Date.now()}`,
+            'X-Priority': '1', // High priority for auth emails
+          },
         });
       },
       expiresIn: 600, // 10 minutes (improved from 5 minutes based on audit)

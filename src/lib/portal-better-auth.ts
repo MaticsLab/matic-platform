@@ -12,6 +12,7 @@ import { betterAuth } from "better-auth";
 import { magicLink } from "better-auth/plugins";
 import { Pool } from "pg";
 import { Resend } from "resend";
+import { generateAuthEmail, extractDeviceInfo } from "./auth-email-helper";
 
 // Type definitions for Better Auth callbacks
 interface UserForReset {
@@ -91,34 +92,47 @@ const portalAuthConfig = {
     enabled: true,
     requireEmailVerification: false,
     autoSignIn: true,
-    sendResetPassword: async ({ user, url }: { user: UserForReset; url: string }) => {
+    sendResetPassword: async ({ user, url, request }: { user: UserForReset; url: string; request?: Request }) => {
       if (!resend) {
         console.error("[Portal Auth] Resend not configured - RESEND_API_KEY missing");
         return;
       }
+      
+      // Extract device information from request
+      const deviceInfo = extractDeviceInfo(request);
+      
+      // Generate professional email template
+      const { html, plainText, subject } = await generateAuthEmail({
+        type: 'password-reset',
+        email: user.email,
+        userName: user.name,
+        actionUrl: url,
+        expiryMinutes: 60,
+        companyName: 'Matic Portal',
+        brandColor: '#1e40af',
+        ...deviceInfo,
+      });
+      
+      // Send email with Resend best practices
       await resend.emails.send({
         from: process.env.EMAIL_FROM || "Matics <hello@notifications.maticsapp.com>",
-        replyTo: "support@maticsapp.com",
+        reply_to: "support@maticsapp.com", // Resend uses reply_to (snake_case)
         to: user.email,
-        subject: "Reset your password - Matics Portal",
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #1e40af;">Reset Your Password</h2>
-            <p>Hi ${user.name || "there"},</p>
-            <p>You requested to reset your password. Click the link below to set a new password:</p>
-            <p style="margin: 24px 0;">
-              <a href="${url}" style="background-color: #1e40af; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">
-                Reset Password
-              </a>
-            </p>
-            <p style="color: #666; font-size: 14px;">
-              If you didn't request this, you can safely ignore this email.
-            </p>
-            <p style="color: #666; font-size: 14px;">
-              This link will expire in 1 hour.
-            </p>
-          </div>
-        `,
+        subject,
+        html,
+        text: plainText,
+        // Resend best practice: Add tags for tracking and analytics
+        tags: [
+          { name: 'category', value: 'auth' },
+          { name: 'type', value: 'password-reset' },
+          { name: 'portal', value: 'portal' },
+          { name: 'environment', value: process.env.NODE_ENV || 'development' },
+        ],
+        // Resend best practice: Add headers for better deliverability and tracking
+        headers: {
+          'X-Entity-Ref-ID': `portal-pwd-reset-${user.id}`,
+          'X-Priority': '1', // High priority for auth emails
+        },
       });
     },
   },
@@ -145,33 +159,46 @@ const portalAuthConfig = {
   // Magic link plugin for passwordless login
   plugins: [
     magicLink({
-      sendMagicLink: async ({ email, token, url }) => {
+      sendMagicLink: async ({ email, token, url }, ctx: any) => {
         if (!resend) {
           console.error("[Portal Auth] Resend not configured");
           return;
         }
+        
+        // Extract device information from request
+        const deviceInfo = extractDeviceInfo(ctx?.request);
+        
+        // Generate professional email template
+        const { html, plainText, subject } = await generateAuthEmail({
+          type: 'magic-link',
+          email,
+          actionUrl: url,
+          expiryMinutes: 15,
+          companyName: 'Matic Portal',
+          brandColor: '#1e40af',
+          ...deviceInfo,
+        });
+        
+        // Send email with Resend best practices
         await resend.emails.send({
           from: process.env.EMAIL_FROM || "Matics <hello@notifications.maticsapp.com>",
-          replyTo: "support@maticsapp.com",
+          reply_to: "support@maticsapp.com", // Resend uses reply_to (snake_case)
           to: email,
-          subject: "Sign in to Matics Portal",
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #1e40af;">Sign in to Matics Portal</h2>
-              <p>Click the link below to sign in:</p>
-              <p style="margin: 24px 0;">
-                <a href="${url}" style="background-color: #1e40af; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">
-                  Sign In
-                </a>
-              </p>
-              <p style="color: #666; font-size: 14px;">
-                If you didn't request this, you can safely ignore this email.
-              </p>
-              <p style="color: #666; font-size: 14px;">
-                This link will expire in 15 minutes.
-              </p>
-            </div>
-          `,
+          subject,
+          html,
+          text: plainText,
+          // Resend best practice: Add tags for tracking and analytics
+          tags: [
+            { name: 'category', value: 'auth' },
+            { name: 'type', value: 'magic-link' },
+            { name: 'portal', value: 'portal' },
+            { name: 'environment', value: process.env.NODE_ENV || 'development' },
+          ],
+          // Resend best practice: Add headers for better deliverability
+          headers: {
+            'X-Entity-Ref-ID': `portal-magic-link-${email}-${Date.now()}`,
+            'X-Priority': '1', // High priority for auth emails
+          },
         });
       },
     }),

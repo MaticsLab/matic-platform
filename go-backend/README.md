@@ -271,11 +271,6 @@ require (
 
 MIT License - see LICENSE file for details
 
-## 🆘 Support
-
-- **Issues**: https://github.com/Jsanchez767/matic-platform/issues
-- **Email**: support@maticplatform.com
-- **Docs**: https://docs.maticplatform.com
 
 ---
 

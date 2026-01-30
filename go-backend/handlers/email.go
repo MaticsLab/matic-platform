@@ -16,6 +16,7 @@ import (
 	"github.com/Jsanchez767/matic-platform/database"
 	"github.com/Jsanchez767/matic-platform/middleware"
 	"github.com/Jsanchez767/matic-platform/models"
+	"github.com/Jsanchez767/matic-platform/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -496,17 +497,31 @@ func SendEmail(c *gin.Context) {
 		return
 	}
 
-	// Handle HTML content - if IsHTML is true, use Body as HTML
-	initialBodyHTML := req.BodyHTML
-	initialBodyPlain := req.Body
-	if req.IsHTML {
-		initialBodyHTML = req.Body
-		// Create plain text version by stripping tags (basic)
-		initialBodyPlain = stripHTMLTags(req.Body)
-	} else if req.BodyHTML == "" && req.Body != "" {
-		// If no HTML provided but plain text is, convert plain text to HTML
-		// This preserves line breaks and basic formatting
-		initialBodyHTML = convertPlainTextToHTML(req.Body)
+	// Get workspace settings for branding
+	var workspace models.Workspace
+	database.DB.Where("id = ?", workspaceID).First(&workspace)
+
+	// Build professional email HTML using Resend best practices
+	emailBuilder := services.EmailTemplateBuilder{
+		Subject:       req.Subject,
+		PreheaderText: "", // Will be auto-generated from body if empty
+		Body:          req.Body,
+		IsHTML:        req.IsHTML,
+		BrandColor:    workspace.BrandColor,
+		CompanyName:   workspace.Name,
+		CompanyLogo:   workspace.LogoURL,
+		FooterText:    "", // Will use default
+	}
+
+	// Generate production-ready HTML and plain text versions
+	initialBodyHTML := emailBuilder.BuildHTML()
+	initialBodyPlain := emailBuilder.BuildPlainText()
+
+	// If custom HTML was provided, use it (but still wrap it properly)
+	if req.BodyHTML != "" && req.IsHTML {
+		emailBuilder.Body = req.BodyHTML
+		emailBuilder.IsHTML = true
+		initialBodyHTML = emailBuilder.BuildHTML()
 	}
 
 	// Create campaign if sending to multiple recipients
@@ -1165,7 +1180,7 @@ func createMIMEMessageWithOptions(from, to, toName, subject, textBody, htmlBody 
 
 	var sb strings.Builder
 
-	// Headers
+	// Essential Headers for Deliverability
 	if toName != "" {
 		sb.WriteString(fmt.Sprintf("To: %s <%s>\r\n", toName, to))
 	} else {
@@ -1173,6 +1188,14 @@ func createMIMEMessageWithOptions(from, to, toName, subject, textBody, htmlBody 
 	}
 	sb.WriteString(fmt.Sprintf("From: %s\r\n", from))
 	sb.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+
+	// Add Message-ID for better threading and deliverability
+	messageID := fmt.Sprintf("<%s@%s>", uuid.New().String(), extractDomain(from))
+	sb.WriteString(fmt.Sprintf("Message-ID: %s\r\n", messageID))
+
+	// Add Date header (required by RFC 5322)
+	sb.WriteString(fmt.Sprintf("Date: %s\r\n", time.Now().Format(time.RFC1123Z)))
+
 	// Threading headers for replies
 	if opts.InReplyTo != "" {
 		sb.WriteString(fmt.Sprintf("In-Reply-To: %s\r\n", opts.InReplyTo))
@@ -1180,36 +1203,47 @@ func createMIMEMessageWithOptions(from, to, toName, subject, textBody, htmlBody 
 	if opts.References != "" {
 		sb.WriteString(fmt.Sprintf("References: %s\r\n", opts.References))
 	}
+
+	// MIME Version (required)
 	sb.WriteString("MIME-Version: 1.0\r\n")
+
+	// List-Unsubscribe header (best practice for bulk emails)
+	// This helps prevent spam complaints
+	backendURL := os.Getenv("GO_BACKEND_URL")
+	if backendURL != "" {
+		sb.WriteString(fmt.Sprintf("List-Unsubscribe: <%s/api/v1/email/unsubscribe?email=%s>\r\n", backendURL, to))
+	}
 
 	if hasAttachments {
 		// multipart/mixed for attachments
-		sb.WriteString(fmt.Sprintf("Content-Type: multipart/mixed; boundary=%s\r\n", boundary))
+		sb.WriteString(fmt.Sprintf("Content-Type: multipart/mixed; boundary=\"%s\"\r\n", boundary))
 		sb.WriteString("\r\n")
 
 		// Body part (as multipart/alternative)
 		altBoundary := "altboundary_" + uuid.New().String()
 		sb.WriteString(fmt.Sprintf("--%s\r\n", boundary))
-		sb.WriteString(fmt.Sprintf("Content-Type: multipart/alternative; boundary=%s\r\n", altBoundary))
+		sb.WriteString(fmt.Sprintf("Content-Type: multipart/alternative; boundary=\"%s\"\r\n", altBoundary))
 		sb.WriteString("\r\n")
 
-		// Plain text
+		// Plain text (always include for maximum compatibility)
 		sb.WriteString(fmt.Sprintf("--%s\r\n", altBoundary))
 		sb.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+		sb.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 		sb.WriteString("\r\n")
 		sb.WriteString(textBody)
-		sb.WriteString("\r\n")
+		sb.WriteString("\r\n\r\n")
 
 		// HTML part
 		if htmlBody != "" {
 			sb.WriteString(fmt.Sprintf("--%s\r\n", altBoundary))
 			sb.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
+			sb.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 			sb.WriteString("\r\n")
 			sb.WriteString(htmlBody)
-			sb.WriteString("\r\n")
+			sb.WriteString("\r\n\r\n")
 		}
 
-		sb.WriteString(fmt.Sprintf("--%s--\r\n", altBoundary))
+		sb.WriteString(fmt.Sprintf("--%s--\r\n\r\n", altBoundary))
 
 		// Attachments
 		for _, att := range opts.Attachments {
@@ -1224,35 +1258,46 @@ func createMIMEMessageWithOptions(from, to, toName, subject, textBody, htmlBody 
 			sb.WriteString("\r\n")
 			// Attachment data should already be base64 encoded
 			sb.WriteString(att.Data)
-			sb.WriteString("\r\n")
+			sb.WriteString("\r\n\r\n")
 		}
 
 		sb.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
 	} else {
 		// No attachments - use simple multipart/alternative
-		sb.WriteString(fmt.Sprintf("Content-Type: multipart/alternative; boundary=%s\r\n", boundary))
+		sb.WriteString(fmt.Sprintf("Content-Type: multipart/alternative; boundary=\"%s\"\r\n", boundary))
 		sb.WriteString("\r\n")
 
-		// Plain text part
+		// Plain text part (ALWAYS include - many email clients require it)
 		sb.WriteString(fmt.Sprintf("--%s\r\n", boundary))
 		sb.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+		sb.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 		sb.WriteString("\r\n")
 		sb.WriteString(textBody)
-		sb.WriteString("\r\n")
+		sb.WriteString("\r\n\r\n")
 
 		// HTML part
 		if htmlBody != "" {
 			sb.WriteString(fmt.Sprintf("--%s\r\n", boundary))
 			sb.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
+			sb.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 			sb.WriteString("\r\n")
 			sb.WriteString(htmlBody)
-			sb.WriteString("\r\n")
+			sb.WriteString("\r\n\r\n")
 		}
 
 		sb.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
 	}
 
 	return sb.String()
+}
+
+// extractDomain extracts domain from email address
+func extractDomain(email string) string {
+	parts := strings.Split(email, "@")
+	if len(parts) == 2 {
+		return parts[1]
+	}
+	return "mail.local"
 }
 
 // TrackEmailOpen handles the tracking pixel request
