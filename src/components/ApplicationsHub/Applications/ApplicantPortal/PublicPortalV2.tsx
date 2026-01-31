@@ -800,7 +800,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         toast.success('Logged in successfully')
       } else {
         // Sign up using our backend API (ensures atomic user + account creation)
-        const fullName = signupData.full_name || signupData.name || ''
+        const fullName: string = signupData.full_name || signupData.name || ''
         const displayName = fullName.trim() || email
 
         const baseUrl = getApiUrl()
@@ -823,7 +823,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
           throw new Error(error.error || 'Signup failed')
         }
 
-        const signupData = await signupResponse.json()
+        const signupResult = await signupResponse.json()
         
         // After successful signup, log in with Better Auth to get session
         const loginResult = await portalBetterAuthClient.signIn.email({
@@ -838,8 +838,8 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         const betterAuthUser = loginResult.data.user
 
         // Set applicant info from backend response
-        if (signupData.user_id) {
-          setApplicantId(signupData.user_id)
+        if (signupResult.user_id) {
+          setApplicantId(signupResult.user_id)
           setApplicantName(displayName)
         }
 
