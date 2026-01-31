@@ -9,4 +9,20 @@ export const crmClient = {
   // Get detailed info about a specific applicant
   getApplicantDetail: (applicantId: string, workspaceId: string) =>
     goFetch<ApplicantDetailResponse>(`/crm/applicants/${applicantId}?workspace_id=${workspaceId}`),
+
+  // Reset applicant password and get temporary password
+  resetPassword: (applicantId: string, workspaceId: string) =>
+    goFetch<{
+      success: boolean
+      temporary_password: string
+      email: string
+      name: string
+      message: string
+    }>('/crm/applicants/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        applicant_id: applicantId,
+        workspace_id: workspaceId,
+      }),
+    }),
 }

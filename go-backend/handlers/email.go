@@ -507,7 +507,7 @@ func SendEmail(c *gin.Context) {
 		PreheaderText: "", // Will be auto-generated from body if empty
 		Body:          req.Body,
 		IsHTML:        req.IsHTML,
-		BrandColor:    workspace.BrandColor,
+		BrandColor:    workspace.Color, // Use workspace color as brand color
 		CompanyName:   workspace.Name,
 		CompanyLogo:   workspace.LogoURL,
 		FooterText:    "", // Will use default

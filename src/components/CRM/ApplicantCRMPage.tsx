@@ -27,9 +27,20 @@ import {
   AlertCircle,
   RefreshCw,
   Loader2,
+  Key,
+  Copy,
+  Check,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SubmissionSidePanel } from './SubmissionSidePanel'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui-components/dialog'
 
 function getStatusBadge(status: string) {
   switch (status) {
@@ -68,6 +79,18 @@ export function ApplicantCRMPage({ workspaceId, workspaceSlug }: ApplicantCRMPag
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSubmission, setSelectedSubmission] = useState<SelectedSubmission | null>(null)
+  const [resetPasswordDialog, setResetPasswordDialog] = useState<{
+    open: boolean
+    applicant: ApplicantCRM | null
+    loading: boolean
+    tempPassword: string | null
+  }>({
+    open: false,
+    applicant: null,
+    loading: false,
+    tempPassword: null,
+  })
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -101,6 +124,54 @@ export function ApplicantCRMPage({ workspaceId, workspaceSlug }: ApplicantCRMPag
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleResetPassword(applicant: ApplicantCRM) {
+    setResetPasswordDialog({
+      open: true,
+      applicant,
+      loading: true,
+      tempPassword: null,
+    })
+
+    try {
+      const result = await crmClient.resetPassword(applicant.id, workspaceId)
+      setResetPasswordDialog({
+        open: true,
+        applicant,
+        loading: false,
+        tempPassword: result.temporary_password,
+      })
+      toast.success('Password reset successfully')
+    } catch (err: any) {
+      console.error('Failed to reset password:', err)
+      toast.error(err.message || 'Failed to reset password')
+      setResetPasswordDialog({
+        open: false,
+        applicant: null,
+        loading: false,
+        tempPassword: null,
+      })
+    }
+  }
+
+  function handleCopyPassword() {
+    if (resetPasswordDialog.tempPassword) {
+      navigator.clipboard.writeText(resetPasswordDialog.tempPassword)
+      setCopied(true)
+      toast.success('Password copied to clipboard')
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  function closeResetDialog() {
+    setResetPasswordDialog({
+      open: false,
+      applicant: null,
+      loading: false,
+      tempPassword: null,
+    })
+    setCopied(false)
   }
 
   if (loading) {
@@ -182,12 +253,13 @@ export function ApplicantCRMPage({ workspaceId, workspaceSlug }: ApplicantCRMPag
                 <TableHead>Form</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Joined</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredApplicants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                     {searchQuery ? 'No applicants match your search' : 'No applicants yet'}
                   </TableCell>
                 </TableRow>
@@ -249,6 +321,20 @@ export function ApplicantCRMPage({ workspaceId, workspaceSlug }: ApplicantCRMPag
                           {new Date(applicant.created_at).toLocaleDateString()}
                         </div>
                       </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleResetPassword(applicant)
+                          }}
+                          className="h-8"
+                        >
+                          <Key className="w-4 h-4 mr-1" />
+                          Reset Password
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   )
                 })
@@ -271,6 +357,76 @@ export function ApplicantCRMPage({ workspaceId, workspaceSlug }: ApplicantCRMPag
           status={selectedSubmission.status}
         />
       )}
+
+      {/* Reset Password Dialog */}
+      <Dialog open={resetPasswordDialog.open} onOpenChange={(open) => !open && closeResetDialog()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="w-5 h-5 text-blue-600" />
+              Reset Password
+            </DialogTitle>
+            <DialogDescription>
+              {resetPasswordDialog.applicant && (
+                <span>
+                  Generate a temporary password for <strong>{resetPasswordDialog.applicant.name || resetPasswordDialog.applicant.email}</strong>
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {resetPasswordDialog.loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            </div>
+          ) : resetPasswordDialog.tempPassword ? (
+            <div className="space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-sm text-green-800 font-medium mb-2">
+                  ✓ Password reset successfully
+                </p>
+                <p className="text-xs text-green-700">
+                  Share this temporary password with {resetPasswordDialog.applicant?.name || 'the applicant'}:
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-gray-100 rounded-lg p-3 font-mono text-lg font-bold text-center">
+                  {resetPasswordDialog.tempPassword}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyPassword}
+                  className="h-11"
+                >
+                  {copied ? (
+                    <Check className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-800">
+                  <strong>Email:</strong> {resetPasswordDialog.applicant?.email}
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  Send this password to the applicant via email or your preferred communication method.
+                  They should change it after logging in.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button onClick={closeResetDialog}>
+              {resetPasswordDialog.tempPassword ? 'Done' : 'Cancel'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

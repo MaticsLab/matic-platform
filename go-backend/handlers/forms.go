@@ -1643,58 +1643,9 @@ func SubmitForm(c *gin.Context) {
 				return
 			}
 
-			// Update portal_applicants.submission_data if this is a portal submission
-			// Search using multiple possible form_ids (table_id and all view_ids) like login does
-			if email != "" {
-				// Build list of all possible form_ids (table_id + all view_ids for this table)
-				var allViews []models.View
-				database.DB.Where("table_id = ? AND type = ?", formID, "form").Find(&allViews)
-				formIDs := []uuid.UUID{parsedFormID} // Include table_id itself
-				for _, v := range allViews {
-					formIDs = append(formIDs, v.ID)
-				}
-
-				result := tx.Exec(`
-					UPDATE portal_applicants 
-					SET submission_data = $1, row_id = $2, updated_at = NOW()
-					WHERE form_id = ANY($3) AND email = $4
-				`, mapToJSON(data), existingRow.ID, pq.Array(formIDs), email)
-				if result.Error != nil {
-					fmt.Printf("⚠️ SubmitForm: failed to update portal_applicants for email=%s: %v\n", email, result.Error)
-					c.Error(result.Error)
-				} else if result.RowsAffected == 0 && len(allViews) > 0 {
-					// No portal_applicants record exists - create one using the form VIEW ID (not table ID)
-					// portal_applicants.form_id has FK to table_views.id
-					formViewID := allViews[0].ID
-					fmt.Printf("📝 SubmitForm: creating portal_applicants record for email=%s formViewID=%s (update path)\n", email, formViewID)
-
-					// Try to find ba_user_id for this email
-					var baUserID *string
-					var baUser struct {
-						ID string
-					}
-					if err := database.DB.Raw("SELECT id FROM ba_users WHERE email = ? LIMIT 1", email).Scan(&baUser).Error; err == nil && baUser.ID != "" {
-						baUserID = &baUser.ID
-					}
-
-					createResult := tx.Exec(`
-						INSERT INTO portal_applicants (id, form_id, email, full_name, row_id, submission_data, ba_user_id, created_at, updated_at)
-						VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, NOW(), NOW())
-						ON CONFLICT (form_id, email) DO UPDATE SET 
-							row_id = EXCLUDED.row_id, 
-							submission_data = EXCLUDED.submission_data,
-							ba_user_id = COALESCE(EXCLUDED.ba_user_id, portal_applicants.ba_user_id),
-							updated_at = NOW()
-					`, formViewID, email, email, existingRow.ID, mapToJSON(data), baUserID)
-					if createResult.Error != nil {
-						fmt.Printf("⚠️ SubmitForm: failed to create portal_applicants for email=%s: %v\n", email, createResult.Error)
-					} else {
-						fmt.Printf("✅ SubmitForm: created portal_applicants for email=%s\n", email)
-					}
-				} else {
-					fmt.Printf("✅ SubmitForm: updated portal_applicants for email=%s\n", email)
-				}
-			}
+			// REMOVED: portal_applicants write (deprecated table, removed as per architecture audit)
+			// All submission data is now stored ONLY in table_rows (single source of truth)
+			fmt.Printf("✅ SubmitForm: Updated EXISTING submission in table_rows (id=%s) for email=%s\n", existingRow.ID, email)
 
 			if err := tx.Commit().Error; err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
@@ -1790,19 +1741,10 @@ func SubmitForm(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	// --- SYNC TO application_submissions ---
-	// Only create if userIDStr is present
-	if userIDStr != "" {
-		appSub := models.ApplicationSubmission{
-			UserID:  userIDStr,
-			FormID:  parsedFormID,
-			Status:  initialMetadata["status"].(string),
-			Version: 1,
-			Data:    mapToJSON(data),
-		}
-		tx.Create(&appSub)
-	}
-	// --- END SYNC ---
+	// REMOVED: application_submissions write (duplicate data, removed as per architecture audit)
+	// REMOVED: portal_applicants write (deprecated table, data now only in table_rows)
+	// All submission data is now stored ONLY in table_rows (single source of truth)
+	fmt.Printf("✅ SubmitForm: Created NEW submission in table_rows (id=%s) for email=%s\n", row.ID, email)
 
 	// Create initial version for version history (synchronous, in transaction)
 	versionService := services.NewVersionService()
@@ -1821,59 +1763,6 @@ func SubmitForm(c *gin.Context) {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create version"})
 		return
-	}
-
-	// Update portal_applicants.submission_data and row_id if this is a portal submission
-	// Search using multiple possible form_ids (table_id and all view_ids) like login does
-	if email != "" {
-		// Build list of all possible form_ids (table_id + all view_ids for this table)
-		var allViews []models.View
-		database.DB.Where("table_id = ? AND type = ?", formID, "form").Find(&allViews)
-		formIDs := []uuid.UUID{parsedFormID} // Include table_id itself
-		for _, v := range allViews {
-			formIDs = append(formIDs, v.ID)
-		}
-
-		result := tx.Exec(`
-			UPDATE portal_applicants 
-			SET submission_data = $1, row_id = $2, updated_at = NOW()
-			WHERE form_id = ANY($3) AND email = $4
-		`, mapToJSON(data), row.ID, pq.Array(formIDs), email)
-		if result.Error != nil {
-			fmt.Printf("⚠️ SubmitForm: failed to update portal_applicants for email=%s: %v\n", email, result.Error)
-			c.Error(result.Error)
-		} else if result.RowsAffected == 0 && len(allViews) > 0 {
-			// No portal_applicants record exists - create one using the form VIEW ID (not table ID)
-			// portal_applicants.form_id has FK to table_views.id
-			formViewID := allViews[0].ID
-			fmt.Printf("📝 SubmitForm: creating portal_applicants record for email=%s formViewID=%s\n", email, formViewID)
-
-			// Try to find ba_user_id for this email
-			var baUserID *string
-			var baUser struct {
-				ID string
-			}
-			if err := database.DB.Raw("SELECT id FROM ba_users WHERE email = ? LIMIT 1", email).Scan(&baUser).Error; err == nil && baUser.ID != "" {
-				baUserID = &baUser.ID
-			}
-
-			createResult := tx.Exec(`
-				INSERT INTO portal_applicants (id, form_id, email, full_name, row_id, submission_data, ba_user_id, created_at, updated_at)
-				VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, NOW(), NOW())
-				ON CONFLICT (form_id, email) DO UPDATE SET 
-					row_id = EXCLUDED.row_id, 
-					submission_data = EXCLUDED.submission_data,
-					ba_user_id = COALESCE(EXCLUDED.ba_user_id, portal_applicants.ba_user_id),
-					updated_at = NOW()
-			`, formViewID, email, email, row.ID, mapToJSON(data), baUserID)
-			if createResult.Error != nil {
-				fmt.Printf("⚠️ SubmitForm: failed to create portal_applicants for email=%s: %v\n", email, createResult.Error)
-			} else {
-				fmt.Printf("✅ SubmitForm: created portal_applicants for email=%s\n", email)
-			}
-		} else {
-			fmt.Printf("✅ SubmitForm: updated portal_applicants row_id for email=%s\n", email)
-		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -2289,9 +2178,58 @@ func GetFormSubmission(c *gin.Context) {
 		return
 	}
 
-	// PRIORITY 1: Check portal_applicants table first (most reliable source)
-	// Build list of all possible form_ids (table_id + all view_ids for this table)
-	// This matches the same lookup logic used in SubmitForm
+	// PRIORITY 1: Check table_rows (PRIMARY DATA SOURCE)
+	// Try multiple locations where email might be stored:
+	// 1. data->>'_applicant_email' (standard location - preferred)
+	// 2. data->'personal'->>'personalEmail' (legacy static forms)
+	// 3. data->>'email' (dynamic forms - field named email)
+	// 4. data->>'Personal Email' (dynamic forms - field named Personal Email)
+	// 5. data->>'CPS email' (dynamic forms - field named CPS email)
+	// 6. data->>'personalEmail' (dynamic forms - camelCase variant)
+	var row models.Row
+	queries := []string{
+		"table_id = ? AND data->>'_applicant_email' = ?",          // Standard location (check first)
+		"table_id = ? AND data->'personal'->>'personalEmail' = ?", // Legacy location
+		"table_id = ? AND data->>'email' = ?",
+		"table_id = ? AND data->>'Personal Email' = ?",
+		"table_id = ? AND data->>'CPS email' = ?",
+		"table_id = ? AND data->>'personalEmail' = ?",
+		"table_id = ? AND LOWER(data->>'email') = LOWER(?)",
+		"table_id = ? AND LOWER(data->>'Personal Email') = LOWER(?)",
+		"table_id = ? AND LOWER(data->>'CPS email') = LOWER(?)",
+	}
+
+	var found bool
+	for _, query := range queries {
+		if err := database.DB.Select(rowSelectColumns).Where(query, formID, email).First(&row).Error; err == nil {
+			found = true
+			fmt.Printf("✅ GetFormSubmission: Found in table_rows using query: %s\n", query)
+			break
+		}
+	}
+
+	if found {
+		var data map[string]interface{}
+		json.Unmarshal(row.Data, &data)
+
+		var metadata map[string]interface{}
+		json.Unmarshal(row.Metadata, &metadata)
+
+		// Return full row info including ID for activity feed integration
+		c.JSON(http.StatusOK, gin.H{
+			"id":         row.ID,
+			"data":       data,
+			"metadata":   metadata,
+			"created_at": row.CreatedAt,
+			"updated_at": row.UpdatedAt,
+		})
+		return
+	}
+
+	// PRIORITY 2: Fallback to portal_applicants (LEGACY - for migration period only)
+	// This should only happen for old submissions not yet migrated
+	fmt.Printf("⚠️ GetFormSubmission: Not found in table_rows, checking legacy portal_applicants for email=%s\n", email)
+
 	var allViews []models.View
 	database.DB.Where("table_id = ? AND type = ?", formID, "form").Find(&allViews)
 	formIDs := []uuid.UUID{parsedFormID} // Include table_id itself
@@ -2307,6 +2245,7 @@ func GetFormSubmission(c *gin.Context) {
 		LIMIT 1
 	`, pq.Array(formIDs), email).Scan(&applicant).Error; err == nil && applicant.ID != uuid.Nil {
 		// Found in portal_applicants - return this data
+		fmt.Printf("⚠️ GetFormSubmission: Found in LEGACY portal_applicants table for email=%s (migration needed)\n", email)
 		var submissionData map[string]interface{}
 		json.Unmarshal(applicant.SubmissionData, &submissionData)
 
@@ -2329,55 +2268,8 @@ func GetFormSubmission(c *gin.Context) {
 		return
 	}
 
-	// PRIORITY 2: Fallback to checking table_rows if not in portal_applicants
-	var row models.Row
-
-	// Try multiple locations where email might be stored:
-	// 1. data->'personal'->>'personalEmail' (static forms)
-	// 2. data->>'_applicant_email' (dynamic forms - new field)
-	// 3. data->>'email' (dynamic forms - field named email)
-	// 4. data->>'Personal Email' (dynamic forms - field named Personal Email)
-	// 5. data->>'CPS email' (dynamic forms - field named CPS email)
-	// 6. data->>'personalEmail' (dynamic forms - camelCase variant)
-	queries := []string{
-		"table_id = ? AND data->'personal'->>'personalEmail' = ?",
-		"table_id = ? AND data->>'_applicant_email' = ?",
-		"table_id = ? AND data->>'email' = ?",
-		"table_id = ? AND data->>'Personal Email' = ?",
-		"table_id = ? AND data->>'CPS email' = ?",
-		"table_id = ? AND data->>'personalEmail' = ?",
-		"table_id = ? AND LOWER(data->>'email') = LOWER(?)",
-		"table_id = ? AND LOWER(data->>'Personal Email') = LOWER(?)",
-		"table_id = ? AND LOWER(data->>'CPS email') = LOWER(?)",
-	}
-
-	var found bool
-	for _, query := range queries {
-		if err := database.DB.Select(rowSelectColumns).Where(query, formID, email).First(&row).Error; err == nil {
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
-		return
-	}
-
-	var data map[string]interface{}
-	json.Unmarshal(row.Data, &data)
-
-	var metadata map[string]interface{}
-	json.Unmarshal(row.Metadata, &metadata)
-
-	// Return full row info including ID for activity feed integration
-	c.JSON(http.StatusOK, gin.H{
-		"id":         row.ID,
-		"data":       data,
-		"metadata":   metadata,
-		"created_at": row.CreatedAt,
-		"updated_at": row.UpdatedAt,
-	})
+	// Not found in either location
+	c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 }
 
 // External Review Handlers

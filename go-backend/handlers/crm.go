@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // ApplicantCRM represents an applicant with their form submissions
@@ -135,13 +136,13 @@ func GetApplicantsCRM(c *gin.Context) {
 				UserType:     row.UserType,
 				CreatedAt:    row.UserCreatedAt,
 				LastLoginAt:  row.LastLoginAt,
-				Applications: []ApplicationSummary{},
+				Applications: []application{},
 				TotalForms:   0,
 			}
 		}
 
 		applicant := applicantMap[row.UserID]
-		applicant.Applications = append(applicant.Applications, ApplicationSummary{
+		applicant.Applications = append(applicant.Applications, application{
 			FormID:        row.FormID,
 			FormName:      row.FormName,
 			FormSlug:      row.FormSlug,
@@ -515,4 +516,117 @@ func ImportBAUsersToWorkspace(c *gin.Context) {
 		"skipped":       skipped,
 		"already_exist": skipped,
 	})
+}
+
+// ResetApplicantPasswordRequest for resetting an applicant's password
+type ResetApplicantPasswordRequest struct {
+	ApplicantID string `json:"applicant_id" binding:"required"`
+	WorkspaceID string `json:"workspace_id" binding:"required"`
+}
+
+// ResetApplicantPasswordResponse contains the temporary password
+type ResetApplicantPasswordResponse struct {
+	Success           bool   `json:"success"`
+	TemporaryPassword string `json:"temporary_password"`
+	Email             string `json:"email"`
+	Name              string `json:"name"`
+	Message           string `json:"message"`
+}
+
+// ResetApplicantPassword generates a temporary password for an applicant
+// POST /api/v1/crm/applicants/reset-password
+func ResetApplicantPassword(c *gin.Context) {
+	var req ResetApplicantPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check workspace access
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	wsID, err := uuid.Parse(req.WorkspaceID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace ID"})
+		return
+	}
+
+	if _, isMember := checkWorkspaceMembership(wsID, userID); !isMember {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have access to this workspace"})
+		return
+	}
+
+	// Get applicant details
+	var applicant struct {
+		ID    string  `gorm:"column:id"`
+		Email string  `gorm:"column:email"`
+		Name  *string `gorm:"column:name"`
+	}
+
+	if err := database.DB.Raw(`
+		SELECT id, email, name 
+		FROM ba_users 
+		WHERE id = ? AND user_type = 'applicant'
+	`, req.ApplicantID).Scan(&applicant).Error; err != nil || applicant.ID == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Applicant not found"})
+		return
+	}
+
+	// Generate temporary password (8 characters: letters + numbers)
+	tempPassword := generateTemporaryPassword()
+
+	// Hash the temporary password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(tempPassword), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate password"})
+		return
+	}
+
+	// Update password in ba_accounts
+	result := database.DB.Exec(`
+		UPDATE ba_accounts 
+		SET password = $1, updated_at = NOW()
+		WHERE user_id = $2 AND provider_id = 'credential'
+	`, string(hashedPassword), req.ApplicantID)
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
+		return
+	}
+
+	if result.RowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No credential account found for this applicant"})
+		return
+	}
+
+	name := "Unknown"
+	if applicant.Name != nil {
+		name = *applicant.Name
+	}
+
+	c.JSON(http.StatusOK, ResetApplicantPasswordResponse{
+		Success:           true,
+		TemporaryPassword: tempPassword,
+		Email:             applicant.Email,
+		Name:              name,
+		Message:           "Password reset successfully. Share this temporary password with the applicant.",
+	})
+}
+
+// generateTemporaryPassword creates a random 8-character password
+func generateTemporaryPassword() string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	const length = 8
+
+	password := make([]byte, length)
+	for i := range password {
+		password[i] = charset[time.Now().UnixNano()%int64(len(charset))]
+		time.Sleep(time.Nanosecond) // Ensure different seed
+	}
+
+	return string(password)
 }

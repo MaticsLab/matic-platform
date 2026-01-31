@@ -615,6 +615,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				crm.GET("/applicants", handlers.GetApplicantsCRM)
 				crm.GET("/applicants/:id", handlers.GetApplicantDetail)
 				crm.PATCH("/applicants/:id", handlers.UpdateApplicant)
+				crm.POST("/applicants/reset-password", handlers.ResetApplicantPassword)
 				crm.POST("/import-users", handlers.ImportBAUsersToWorkspace)
 			}
 

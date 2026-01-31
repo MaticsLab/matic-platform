@@ -799,66 +799,47 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         setIsAuthenticated(true)
         toast.success('Logged in successfully')
       } else {
-        // Sign up with Better Auth
+        // Sign up using our backend API (ensures atomic user + account creation)
         const fullName = signupData.full_name || signupData.name || ''
         const displayName = fullName.trim() || email
 
-        // Using portal-specific auth client to avoid conflicts with main app sessions
-        const result = await portalBetterAuthClient.signUp.email({
-          email,
-          password,
-          name: displayName,
+        const baseUrl = getApiUrl()
+        const signupResponse = await fetch(`${baseUrl}/portal/v2/signup`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            email,
+            password,
+            full_name: displayName,
+            form_id: formIdToUse
+          })
         })
 
-        if (result.error) {
-          throw new Error(result.error.message || 'Signup failed')
+        if (!signupResponse.ok) {
+          const error = await signupResponse.json()
+          throw new Error(error.error || 'Signup failed')
         }
 
-        if (!result.data?.user) {
-          throw new Error('Signup failed')
+        const signupData = await signupResponse.json()
+        
+        // After successful signup, log in with Better Auth to get session
+        const loginResult = await portalBetterAuthClient.signIn.email({
+          email,
+          password,
+        })
+
+        if (loginResult.error || !loginResult.data?.user) {
+          throw new Error('Signup successful but login failed. Please try logging in.')
         }
 
-        const betterAuthUser = result.data.user
+        const betterAuthUser = loginResult.data.user
 
-        // Parse full name into first and last for backend compatibility
-        const nameParts = displayName.trim().split(/\s+/)
-        const firstName = nameParts[0] || ''
-        const lastName = nameParts.slice(1).join(' ') || ''
-
-        // After Better Auth signup, create portal_applicant record
-        try {
-          const baseUrl = getApiUrl()
-          const syncResponse = await fetch(`${baseUrl}/portal/sync-better-auth-applicant`, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include', // Include cookies for Better Auth session
-            body: JSON.stringify({
-              form_id: formIdToUse,
-              email: betterAuthUser.email,
-              better_auth_user_id: betterAuthUser.id,
-              first_name: firstName,
-              last_name: lastName,
-              name: displayName
-            })
-          })
-
-          if (syncResponse.ok) {
-            const applicant = await syncResponse.json()
-            setApplicantId(applicant.id)
-            setApplicantName(applicant.name || displayName)
-
-            if (applicant.row_id) {
-              setApplicationRowId(applicant.row_id)
-            }
-            if (applicant.status) {
-              setApplicationStatus(applicant.status)
-            }
-          }
-        } catch (syncError) {
-          console.warn('Failed to sync with portal applicant:', syncError)
-          // Still allow signup even if sync fails
+        // Set applicant info from backend response
+        if (signupData.user_id) {
+          setApplicantId(signupData.user_id)
           setApplicantName(displayName)
         }
 
