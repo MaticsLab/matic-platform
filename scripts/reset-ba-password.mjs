@@ -6,6 +6,7 @@
  */
 
 import pg from 'pg';
+import bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import { resolve } from 'path';
 
@@ -23,34 +24,11 @@ if (fs.existsSync(envPath)) {
 
 const { Pool } = pg;
 
-// Better Auth's password hashing config (from their source)
-const hashConfig = {
-  N: 16384,
-  r: 16,
-  p: 1,
-  dkLen: 64,
-};
-
-// Dynamic import for scrypt
+// Better Auth uses bcrypt for password hashing (as of v1.4.9)
 async function hashPassword(password) {
-  const { scrypt } = await import('@noble/hashes/scrypt.js');
-  const { bytesToHex } = await import('@noble/hashes/utils.js');
-  
-  // Generate random salt (16 bytes = 32 hex chars)
-  const saltBytes = new Uint8Array(16);
-  crypto.getRandomValues(saltBytes);
-  const salt = bytesToHex(saltBytes);
-  
-  // Generate key using scrypt (sync version from noble/hashes v2)
-  const key = scrypt(password.normalize('NFKC'), salt, {
-    N: hashConfig.N,
-    p: hashConfig.p,
-    r: hashConfig.r,
-    dkLen: hashConfig.dkLen,
-    maxmem: 128 * hashConfig.N * hashConfig.r * 2,
-  });
-  
-  return `${salt}:${bytesToHex(key)}`;
+  // Use bcrypt with 10 salt rounds (Better Auth default)
+  const hashedPassword = await bcrypt.hash(password, 10);
+  return hashedPassword;
 }
 
 async function main() {
