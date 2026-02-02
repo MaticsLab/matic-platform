@@ -691,10 +691,17 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       })
 
       if (isLogin) {
-        // Use Better Auth only for authentication (cookie-based)
+        // Use Better Auth for authentication (cookie-based session)
+        console.log('[PublicPortalV2] Calling Better Auth sign-in...')
         const betterAuthResult = await portalBetterAuthClient.signIn.email({
           email,
           password,
+        })
+
+        console.log('[PublicPortalV2] Better Auth result:', {
+          hasError: !!betterAuthResult.error,
+          hasData: !!betterAuthResult.data,
+          hasUser: !!betterAuthResult.data?.user,
         })
 
         if (betterAuthResult.error || !betterAuthResult.data?.user) {
@@ -703,112 +710,70 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         }
 
         const betterAuthUser = betterAuthResult.data.user
-        console.log('[PublicPortalV2] Better Auth login successful:', { userId: betterAuthUser.id, email: betterAuthUser.email })
-        
-        // After Better Auth login, sync with portal_applicants
-        // This ensures form-specific data is available
+        console.log('[PublicPortalV2] Better Auth login successful:', {
+          userId: betterAuthUser.id,
+          email: betterAuthUser.email,
+          name: betterAuthUser.name
+        })
+
+        // Set authentication state
+        setIsAuthenticated(true)
+        setApplicantName(betterAuthUser.name || betterAuthUser.email)
+
+        // Fetch applicant-specific data (submission, status) using Better Auth cookie
+        const baseUrl = getApiUrl()
         try {
-          const baseUrl = getApiUrl()
-          // Use existing portal login endpoint which will create applicant if needed
-          // But we'll pass a flag to indicate Better Auth user
-          const syncResponse = await fetch(`${baseUrl}/portal/sync-better-auth-applicant`, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              // Include Better Auth session token if available
-            },
-            credentials: 'include', // Include cookies for Better Auth session
-            body: JSON.stringify({
-              form_id: formIdToUse,
-              email: betterAuthUser.email,
-              better_auth_user_id: betterAuthUser.id,
-              name: betterAuthUser.name || `${betterAuthUser.email}`.split('@')[0],
-              first_name: betterAuthUser.name?.split(' ')[0] || '',
-              last_name: betterAuthUser.name?.split(' ').slice(1).join(' ') || ''
-            })
-          })
+          // Try to get submission data
+          const submissionRes = await fetch(
+            `${baseUrl}/forms/${form.id}/submission?email=${encodeURIComponent(email)}`,
+            { credentials: 'include' }
+          )
 
-          if (syncResponse.ok) {
-            const applicant = await syncResponse.json()
-            setApplicantId(applicant.id)
-            setApplicantName(applicant.name || betterAuthUser.name || '')
+          if (submissionRes.ok) {
+            const rowData = await submissionRes.json()
+            const existingData = rowData.data || rowData
 
-            if (applicant.row_id) {
-              setApplicationRowId(applicant.row_id)
-            }
-            if (applicant.status) {
-              setApplicationStatus(applicant.status)
-            }
-
-            let existingData: any = null
-            if (applicant.submission_data && Object.keys(applicant.submission_data).length > 0) {
-              existingData = applicant.submission_data
-            } else {
+            if (rowData.id) {
+              setApplicationRowId(rowData.id)
+              
+              // Load and merge documents if we have a row ID
               try {
-                const res = await fetch(`${baseUrl}/forms/${form.id}/submission?email=${encodeURIComponent(email)}`)
-                if (res.ok) {
-                  const rowData = await res.json()
-                  existingData = rowData.data || rowData
-                  if (rowData.id && !applicant.row_id) {
-                    setApplicationRowId(rowData.id)
-                  }
-                  if (rowData.metadata?.status && !applicant.status) {
-                    setApplicationStatus(rowData.metadata.status)
-                  }
-                }
-              } catch (err) {
-                console.error("Failed to fetch submission", err)
+                const mergedData = await loadAndMergeDocuments(baseUrl, rowData.id, form, existingData)
+                setInitialData(mergedData)
+                setSubmissionData(mergedData)
+                setHasExistingSubmission(true)
+              } catch (docError) {
+                console.warn('[PublicPortalV2] Failed to load documents:', docError)
+                setInitialData(existingData)
+                setSubmissionData(existingData)
+                setHasExistingSubmission(true)
               }
             }
 
+            if (rowData.metadata?.status) {
+              setApplicationStatus(rowData.metadata.status)
+            }
+
+            // If we have submission data, go to dashboard
             if (existingData && Object.keys(existingData).length > 0) {
-              // If we have a row ID, load and merge documents
-              if (applicationRowId) {
-                try {
-                  existingData = await loadAndMergeDocuments(baseUrl, applicationRowId, form, existingData)
-                } catch (docError) {
-                  console.warn('Failed to load documents:', docError)
-                }
-              }
-              setInitialData(existingData)
-              setSubmissionData(existingData)
-              setHasExistingSubmission(true)
               setCurrentView('dashboard')
             }
           }
-        } catch (syncError) {
-          console.warn('Failed to sync with portal applicant, continuing with Better Auth user:', syncError)
-          // Still allow login even if sync fails
-          setApplicantName(betterAuthUser.name || betterAuthUser.email)
-        }
-
-        // Save authentication state to localStorage
-        try {
-          const authData = {
-            email: betterAuthUser.email,
-            formId: form.id,
-            betterAuthUserId: betterAuthUser.id,
-            applicantName: betterAuthUser.name || '',
-            timestamp: Date.now()
-          }
-          localStorage.setItem(`portal-auth-${form.id}`, JSON.stringify(authData))
         } catch (err) {
-          console.warn('Failed to save auth to localStorage:', err)
+          // Non-critical - user can still access the form
+          console.warn('[PublicPortalV2] Could not fetch submission:', err)
         }
 
-        setIsAuthenticated(true)
         toast.success('Logged in successfully')
       } else {
-        // Sign up using our backend API (ensures atomic user + account creation)
+        // Signup: Create account using backend (creates Better Auth user + account atomically)
         const fullName: string = signupData.full_name || signupData.name || ''
         const displayName = fullName.trim() || email
 
         const baseUrl = getApiUrl()
         const signupResponse = await fetch(`${baseUrl}/portal/v2/signup`, {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
             email,
@@ -824,8 +789,9 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         }
 
         const signupResult = await signupResponse.json()
-        
-        // After successful signup, log in with Better Auth to get session
+        console.log('[PublicPortalV2] Signup successful:', { userId: signupResult.user_id })
+
+        // After signup, log in with Better Auth to get session cookie
         const loginResult = await portalBetterAuthClient.signIn.email({
           email,
           password,
@@ -837,27 +803,10 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
 
         const betterAuthUser = loginResult.data.user
 
-        // Set applicant info from backend response
-        if (signupResult.user_id) {
-          setApplicantId(signupResult.user_id)
-          setApplicantName(displayName)
-        }
-
-        // Save authentication state to localStorage
-        try {
-          const authData = {
-            email: betterAuthUser.email,
-            formId: form.id,
-            betterAuthUserId: betterAuthUser.id,
-            applicantName: displayName,
-            timestamp: Date.now()
-          }
-          localStorage.setItem(`portal-auth-${form.id}`, JSON.stringify(authData))
-        } catch (err) {
-          console.warn('Failed to save auth to localStorage:', err)
-        }
-
+        // Set authentication state
         setIsAuthenticated(true)
+        setApplicantName(displayName || betterAuthUser.name || betterAuthUser.email)
+
         toast.success('Account created successfully')
       }
     } catch (error: any) {
