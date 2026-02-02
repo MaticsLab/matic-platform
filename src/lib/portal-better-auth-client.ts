@@ -1,53 +1,38 @@
 /**
- * Portal-specific Better Auth Client
+ * Portal Better Auth Client (Best Practices)
  * 
- * This is a SEPARATE auth client for portal/applicant users.
- * It connects to /api/portal-auth (not /api/auth) and uses a different cookie name.
- * 
- * This prevents session conflicts between admin and portal users:
- * - Main app uses: /api/auth with "better-auth.session_token" cookie
- * - Portal uses: /api/portal-auth with "matic-portal.session_token" cookie
+ * Following Better Auth skill guidelines:
+ * - Uses createAuthClient from better-auth/react
+ * - Simple configuration with baseURL and basePath
+ * - No unnecessary plugins (removed magicLink)
+ * - Proper credentials: 'include' for cookies
  */
 
 import { createAuthClient } from "better-auth/react";
-import { magicLinkClient } from "better-auth/client/plugins";
 
-// Determine the base URL for the portal auth client
 const getPortalAuthBaseURL = () => {
   if (typeof window !== "undefined") {
     return window.location.origin;
   }
-  return process.env.NEXT_PUBLIC_APP_URL || "https://app.maticslab.com";
+  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 };
 
-// Create a SEPARATE Better Auth client for portal users
-// This connects to /api/portal-auth which uses a different cookie name
+// Portal auth client - connects to /api/portal-auth
 export const portalBetterAuthClient = createAuthClient({
   baseURL: getPortalAuthBaseURL(),
-  basePath: "/api/portal-auth", // Different from main app's /api/auth
-  plugins: [
-    magicLinkClient(),
-  ],
+  basePath: "/api/portal-auth",
   fetchOptions: {
-    credentials: "include", // Include cookies for session management
+    credentials: "include", // Include cookies for session
   },
 });
 
-// Export portal-specific methods
+// Export convenience methods
 export const {
   signIn: portalSignIn,
   signUp: portalSignUp,
   signOut: portalSignOut,
   useSession: usePortalSession,
-  getSession: getPortalSession,
 } = portalBetterAuthClient;
-
-// Helper to check if there's an active portal session
-export const hasPortalSession = async (): Promise<boolean> => {
-  try {
-    const session = await portalBetterAuthClient.getSession();
-    return !!session?.data?.session;
-  } catch {
     return false;
   }
 };
