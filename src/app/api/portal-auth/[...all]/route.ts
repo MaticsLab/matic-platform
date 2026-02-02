@@ -8,15 +8,15 @@
  * Portal auth: /api/portal-auth/* (uses "matic-portal.session_token" cookie)
  */
 
-import { portalAuth } from "@/lib/portal-better-auth";
+import { getPortalAuth } from "@/lib/portal-better-auth";
 import { toNextJsHandler } from "better-auth/next-js";
 import { NextRequest, NextResponse } from "next/server";
 
-const { GET: originalGET, POST: originalPOST } = toNextJsHandler(portalAuth);
-
 export async function GET(request: NextRequest) {
   try {
-    return await originalGET(request);
+    const portalAuth = getPortalAuth();
+    const { GET: handler } = toNextJsHandler(portalAuth);
+    return await handler(request);
   } catch (error) {
     console.error('[Portal Auth] GET error:', error);
     return NextResponse.json({ error: 'Internal server error', details: String(error) }, { status: 500 });
@@ -33,7 +33,9 @@ export async function POST(request: NextRequest) {
       hasPassword: !!body.password 
     });
     
-    const response = await originalPOST(request);
+    const portalAuth = getPortalAuth();
+    const { POST: handler } = toNextJsHandler(portalAuth);
+    const response = await handler(request);
     console.log('[Portal Auth] POST response status:', response.status);
     return response;
   } catch (error) {

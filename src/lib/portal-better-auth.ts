@@ -21,29 +21,49 @@ interface UserForReset {
   name?: string;
 }
 
-// Check if we're in a build environment (no DATABASE_URL)
-const isBuildTime = !process.env.DATABASE_URL;
+// Singleton pool instance - created lazily at runtime
+let _pool: Pool | null = null;
 
-console.log('[Portal Auth Config] Initializing...', { 
-  isBuildTime, 
-  hasDbUrl: !!process.env.DATABASE_URL,
-  hasSecret: !!process.env.BETTER_AUTH_SECRET 
-});
-
-// Create connection pool only if DATABASE_URL is available
-let pool: Pool | null = null;
-if (!isBuildTime) {
+/**
+ * Get or create the database pool.
+ * This is called lazily at runtime, not at build time.
+ */
+function getPool(): Pool | null {
+  // Return existing pool if already created
+  if (_pool) {
+    return _pool;
+  }
+  
+  // Check if DATABASE_URL is available (runtime check)
+  if (!process.env.DATABASE_URL) {
+    console.error('[Portal Auth] DATABASE_URL is not set. Authentication will not work.');
+    return null;
+  }
+  
   try {
-    pool = new Pool({
+    console.log('[Portal Auth] Creating database pool...');
+    _pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      max: 5, // Increase from 1 to 5
+      max: 5,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
     });
-    console.log('[Portal Auth Config] Database pool created');
+    
+    _pool.on('error', (error) => {
+      console.error('[Portal Auth] Pool error:', error);
+      // Reset pool on error so it can be recreated
+      _pool = null;
+    });
+    
+    _pool.on('connect', () => {
+      console.log('[Portal Auth] Database pool connected successfully');
+    });
+    
+    return _pool;
   } catch (error) {
-    console.error('[Portal Auth Config] Failed to create pool:', error);
+    console.error('[Portal Auth] Failed to create database pool:', error);
+    return null;
   }
 }
 
@@ -84,9 +104,10 @@ function getBaseURL() {
 const portalAuthConfig = {
   baseURL: getBaseURL(),
   basePath: "/api/portal-auth", // Different path than main app's /api/auth
-  secret: process.env.BETTER_AUTH_SECRET || "build-time-secret-placeholder",
+  secret: 'placeholder-replaced-at-runtime',
   
-  database: pool || undefined,
+  // Database will be set at runtime in createPortalAuth()
+  // This is intentionally undefined here - it's set when getPortalAuth() is called
 
   emailAndPassword: {
     enabled: true,
@@ -298,11 +319,60 @@ const portalAuthConfig = {
   },
 };
 
-// Create portal auth instance
-console.log('[Portal Auth] Creating portal auth instance at module load');
-export const portalAuth = betterAuth(portalAuthConfig);
+// Lazy singleton instance - created on first access, not at module load time
+// This is critical for Vercel where env vars aren't available during build
+let _auth: ReturnType<typeof betterAuth> | null = null;
+
+function createPortalAuth() {
+  console.log('[Portal Auth] Creating portal auth instance...');
+  
+  // Get pool at runtime (when DATABASE_URL is available)
+  const pool = getPool();
+  
+  if (!pool) {
+    console.error('[Portal Auth] Cannot create auth instance: database pool is not available');
+    console.error('[Portal Auth] Make sure DATABASE_URL environment variable is set');
+  }
+  
+  // Create config with runtime values
+  const runtimeConfig = {
+    ...portalAuthConfig,
+    database: pool || undefined,
+    secret: process.env.BETTER_AUTH_SECRET || 'build-time-secret-placeholder',
+  };
+  
+  console.log('[Portal Auth] Auth config:', {
+    baseURL: runtimeConfig.baseURL,
+    basePath: runtimeConfig.basePath,
+    hasDatabase: !!runtimeConfig.database,
+    hasSecret: !!process.env.BETTER_AUTH_SECRET,
+  });
+  
+  return betterAuth(runtimeConfig);
+}
+
+/**
+ * Get the Portal Auth instance.
+ * Lazily creates the instance on first access to ensure
+ * environment variables are available (runtime vs build time).
+ */
+export function getPortalAuth() {
+  if (!_auth) {
+    _auth = createPortalAuth();
+  }
+  return _auth;
+}
+
+// For backwards compatibility, export portalAuth as a getter
+// This ensures lazy initialization
+export const portalAuth = new Proxy({} as ReturnType<typeof betterAuth>, {
+  get(_, prop) {
+    const instance = getPortalAuth();
+    return (instance as any)[prop];
+  },
+});
 
 // Export types
-export type PortalAuth = typeof portalAuth;
+export type PortalAuth = ReturnType<typeof betterAuth>;
 export type PortalSession = PortalAuth['$Infer']['Session'];
 export type PortalUser = PortalAuth['$Infer']['Session']['user'];
