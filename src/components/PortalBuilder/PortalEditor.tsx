@@ -293,7 +293,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   // Fetch current user for collaboration
   useEffect(() => {
     const fetchUser = async () => {
-      const { authClient } = await import('@/lib/better-auth-client')
+      const { authClient } = await import('@/auth/client/main')
       const session = await authClient.getSession()
       const user = session?.data?.user
       if (user) {

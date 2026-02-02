@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useSession, authClient } from '@/lib/better-auth-client'
+import { useSession, authClient } from '@/auth/client/main'
 import { SESSION_CONSTANTS, shouldRefreshSession, isSessionExpired } from '@/lib/session-constants'
 
 /**

@@ -85,7 +85,6 @@ export const myClient = {
 | Resource | Endpoints |
 |----------|-----------|
 | Workspaces | `/api/v1/workspaces` |
-| Activities Hubs | `/api/v1/activities-hubs` + `/tabs` |
 | Tables | `/api/v1/tables` + `/rows`, `/columns`, `/search` |
 | Table Links | `/api/v1/table-links`, `/api/v1/row-links` |
 | Forms | `/api/v1/forms` + `/submissions`, `/submit` |

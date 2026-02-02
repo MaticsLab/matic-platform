@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useSession, organizationAPI, signIn, signOut } from '@/lib/better-auth-client'
+import { useSession, organizationAPI, signIn, signOut } from '@/auth/client/main'
 import { OrganizationManager } from '@/components/OrganizationManager'
 import { Button } from '@/ui-components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui-components/card'

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { organizationsClient, type Organization } from '@/lib/api/organizations-client'
-import { useSession } from '@/lib/better-auth-client'
+import { useSession } from '@/auth/client/main'
 
 interface OrganizationWithWorkspaces extends Organization {
   workspaces?: Array<{

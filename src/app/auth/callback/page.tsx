@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { authClient } from '@/lib/better-auth-client'
+import { authClient } from '@/auth/client/main'
 import { Loader2 } from 'lucide-react'
 
 function AuthCallbackContent() {

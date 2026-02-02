@@ -7,7 +7,7 @@ import { LinkField } from './LinkField'
 import { AddressField, AddressValue } from './AddressField'
 import { tablesGoClient } from '@/lib/api/tables-go-client'
 import { supabase } from '@/lib/supabase'
-import { useSession } from '@/lib/better-auth-client'
+import { useSession } from '@/auth/client/main'
 import type { TableRow } from '@/types/data-tables'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow as TableRowComponent } from '@/ui-components/table'
 import { FileCell } from './cells/FileCell'
@@ -816,7 +816,7 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
   const handleAddRow = async () => {
     try {
       // Get current user ID from Better Auth
-      const { authClient } = await import('@/lib/better-auth-client')
+      const { authClient } = await import('@/auth/client/main')
       const session = await authClient.getSession()
       const user = session?.data?.user
       
@@ -1034,7 +1034,7 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
       if (!row) return
       
       // Get current user ID from Better Auth
-      const { authClient } = await import('@/lib/better-auth-client')
+      const { authClient } = await import('@/auth/client/main')
       const session = await authClient.getSession()
       const user = session?.data?.user
       

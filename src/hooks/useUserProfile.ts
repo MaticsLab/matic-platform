@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useSession } from '@/lib/better-auth-client'
+import { useSession } from '@/auth/client/main'
 import { toast } from 'sonner'
 
 interface UpdateResult {

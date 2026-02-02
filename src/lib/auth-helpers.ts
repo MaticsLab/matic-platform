@@ -6,7 +6,7 @@
  * to ensure consistent authentication.
  */
 
-import { authClient } from '@/lib/better-auth-client'
+import { authClient } from '@/auth/client/main'
 // Dynamic import for server-side auth to avoid bundling pg in client
 // const { auth } = await import('@/lib/better-auth')
 

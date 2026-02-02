@@ -281,7 +281,7 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
         
         // Check if current user is admin
         const { supabase } = await import('@/lib/supabase')
-        const { authClient } = await import('@/lib/better-auth-client')
+        const { authClient } = await import('@/auth/client/main')
         const session = await authClient.getSession()
         const user = session?.data?.user
         if (user) {

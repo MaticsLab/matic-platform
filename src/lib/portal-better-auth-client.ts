@@ -33,6 +33,13 @@ export const {
   signOut: portalSignOut,
   useSession: usePortalSession,
 } = portalBetterAuthClient;
+
+// Helper to check if user is authenticated
+export const isPortalAuthenticated = async (): Promise<boolean> => {
+  try {
+    const session = await portalBetterAuthClient.getSession();
+    return !!session?.data?.user;
+  } catch {
     return false;
   }
 };

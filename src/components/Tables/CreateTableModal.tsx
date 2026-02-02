@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useSession } from '@/lib/better-auth-client'
+import { useSession } from '@/auth/client/main'
 import { X, Plus, Trash2, Table2, Hash, Type, Mail, Phone, Calendar, CheckSquare, Link as LinkIcon } from 'lucide-react'
 
 interface Column {

@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -11,7 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/scrypt"
 )
 
 // ApplicantCRM represents an applicant with their form submissions
@@ -576,11 +578,11 @@ func ResetApplicantPassword(c *gin.Context) {
 		return
 	}
 
-	// Generate temporary password (8 characters: letters + numbers)
+	// Generate temporary password (12 characters: letters + numbers + special chars)
 	tempPassword := generateTemporaryPassword()
 
-	// Hash the temporary password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(tempPassword), bcrypt.DefaultCost)
+	// Hash the temporary password using scrypt (Better Auth compatible)
+	hashedPassword, err := hashPasswordScrypt(tempPassword)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate password"})
 		return
@@ -591,7 +593,7 @@ func ResetApplicantPassword(c *gin.Context) {
 		UPDATE ba_accounts 
 		SET password = $1, updated_at = NOW()
 		WHERE user_id = $2 AND provider_id = 'credential'
-	`, string(hashedPassword), req.ApplicantID)
+	`, hashedPassword, req.ApplicantID)
 
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
@@ -617,16 +619,65 @@ func ResetApplicantPassword(c *gin.Context) {
 	})
 }
 
-// generateTemporaryPassword creates a random 8-character password
+// generateTemporaryPassword creates a random 12-character password
+// with uppercase, lowercase, numbers, and special characters
 func generateTemporaryPassword() string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	const length = 8
+	const (
+		uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		lowercase = "abcdefghijklmnopqrstuvwxyz"
+		numbers   = "0123456789"
+		special   = "!@#$%^&*"
+		all       = uppercase + lowercase + numbers + special
+		length    = 12
+	)
 
 	password := make([]byte, length)
+
+	// Ensure at least one of each type
+	password[0] = uppercase[randomInt(len(uppercase))]
+	password[1] = lowercase[randomInt(len(lowercase))]
+	password[2] = numbers[randomInt(len(numbers))]
+	password[3] = special[randomInt(len(special))]
+
+	// Fill the rest randomly
+	for i := 4; i < length; i++ {
+		password[i] = all[randomInt(len(all))]
+	}
+
+	// Shuffle the password
 	for i := range password {
-		password[i] = charset[time.Now().UnixNano()%int64(len(charset))]
-		time.Sleep(time.Nanosecond) // Ensure different seed
+		j := randomInt(len(password))
+		password[i], password[j] = password[j], password[i]
 	}
 
 	return string(password)
+}
+
+// randomInt generates a random integer between 0 and max (exclusive)
+func randomInt(max int) int {
+	b := make([]byte, 1)
+	rand.Read(b)
+	return int(b[0]) % max
+}
+
+// hashPasswordScrypt hashes a password using scrypt (Better Auth compatible)
+// Returns hash in format: {salt}:{key} where both are hex-encoded
+func hashPasswordScrypt(password string) (string, error) {
+	// Generate 16-byte random salt
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		return "", err
+	}
+	saltHex := hex.EncodeToString(salt)
+
+	// Use same parameters as Better Auth
+	// N=16384, r=16, p=1, dkLen=64
+	key, err := scrypt.Key([]byte(password), []byte(saltHex), 16384, 16, 1, 64)
+	if err != nil {
+		return "", err
+	}
+	keyHex := hex.EncodeToString(key)
+
+	// Return in Better Auth format: salt:key
+	return saltHex + ":" + keyHex, nil
 }

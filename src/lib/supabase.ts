@@ -23,7 +23,7 @@ export const createClient = () => createBrowserClient(supabaseUrl, supabaseAnonK
 export async function isAuthenticated(): Promise<boolean> {
   if (typeof window !== 'undefined') {
     try {
-      const { authClient } = await import('@/lib/better-auth-client')
+      const { authClient } = await import('@/auth/client/main')
       const session = await authClient.getSession()
       return !!session?.data?.user
     } catch (error) {

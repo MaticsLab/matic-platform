@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { organizationAPI } from '@/lib/better-auth-client'
+import { organizationAPI } from '@/auth/client/main'
 import { toast } from 'sonner'
 
 export interface OrganizationMember {

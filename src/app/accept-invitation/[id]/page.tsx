@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { organizationAPI } from '@/lib/better-auth-client'
+import { organizationAPI } from '@/auth/client/main'
 import { Button } from '@/ui-components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui-components/card'
 import { Loader2, CheckCircle, XCircle, Mail } from 'lucide-react'

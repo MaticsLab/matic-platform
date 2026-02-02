@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Portal Sign In</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 500px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #0070f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0051cc;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Portal Auth Test</h1>
+    
+    <div class="info">
+        <strong>Test Portal Auth</strong><br>
+        This tests the <code>/api/portal-auth</code> endpoint directly.
+        <br><br>
+        <strong>Note:</strong> The "Invalid password hash" error suggests the existing users were migrated from an old system. Try creating a new account to test.
+    </div>
+
+    <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+        <button type="button" onclick="showSignIn()" id="btnSignIn" style="flex: 1; padding: 8px; background: #0070f3;">Sign In</button>
+        <button type="button" onclick="showSignUp()" id="btnSignUp" style="flex: 1; padding: 8px; background: #10b981;">Sign Up</button>
+    </div>
+
+    <form id="signinForm" style="display: block;">
+        <h3>Sign In</h3>
+        <div class="form-group">
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" required 
+                   placeholder="test@example.com">
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required 
+                   placeholder="Enter password">
+        </div>
+        
+        <button type="submit">Sign In</button>
+    </form>
+
+    <form id="signupForm" style="display: none;">
+        <h3>Sign Up</h3>
+        <div class="form-group">
+            <label for="signupEmail">Email:</label>
+            <input type="email" id="signupEmail" name="email" required 
+                   placeholder="newuser@example.com">
+        </div>
+        
+        <div class="form-group">
+            <label for="signupPassword">Password:</label>
+            <input type="password" id="signupPassword" name="password" required 
+                   placeholder="Enter password (min 8 chars)">
+        </div>
+        
+        <div class="form-group">
+            <label for="signupName">Name (optional):</label>
+            <input type="text" id="signupName" name="name" 
+                   placeholder="Your name">
+        </div>
+        
+        <button type="submit">Sign Up</button>
+    </form>
+
+    <div id="result" class="result"></div>
+
+    <script>
+        const signinForm = document.getElementById('signinForm');
+        const signupForm = document.getElementById('signupForm');
+        const resultDiv = document.getElementById('result');
+        const btnSignIn = document.getElementById('btnSignIn');
+        const btnSignUp = document.getElementById('btnSignUp');
+
+        function showSignIn() {
+            signinForm.style.display = 'block';
+            signupForm.style.display = 'none';
+            btnSignIn.style.background = '#0070f3';
+            btnSignUp.style.background = '#666';
+            resultDiv.style.display = 'none';
+        }
+
+        function showSignUp() {
+            signinForm.style.display = 'none';
+            signupForm.style.display = 'block';
+            btnSignIn.style.background = '#666';
+            btnSignUp.style.background = '#10b981';
+            resultDiv.style.display = 'none';
+        }
+
+        signinForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            await attemptAuth('sign-in', email, password);
+        });
+
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('signupEmail').value;
+            const password = document.getElementById('signupPassword').value;
+            const name = document.getElementById('signupName').value;
+
+            await attemptAuth('sign-up', email, password, name);
+        });
+
+        async function attemptAuth(action, email, password, name = null) {
+            resultDiv.style.display = 'none';
+            resultDiv.className = 'result';
+            
+            try {
+                const endpoint = action === 'sign-in' 
+                    ? 'http://localhost:3000/api/portal-auth/sign-in/email'
+                    : 'http://localhost:3000/api/portal-auth/sign-up/email';
+
+                console.log(`Attempting ${action} with:`, email);
+                
+                const body = { email, password };
+                if (name && action === 'sign-up') {
+                    body.name = name;
+                }
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(body),
+                });
+
+                const text = await response.text();
+                console.log('Response text:', text);
+                
+                const data = text ? JSON.parse(text) : null;
+                console.log('Response data:', data);
+
+                if (response.ok && data && data.user) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✓ ${action === 'sign-in' ? 'Sign in' : 'Sign up'} successful!</strong><br>
+                        User: ${data.user.email}<br>
+                        ID: ${data.user.id}
+                    `;
+                    
+                    // Test session
+                    setTimeout(async () => {
+                        const sessionResp = await fetch('http://localhost:3000/api/portal-auth/get-session', {
+                            credentials: 'include'
+                        });
+                        const sessionData = await sessionResp.json();
+                        console.log('Session check:', sessionData);
+                        
+                        if (sessionData.user) {
+                            resultDiv.innerHTML += `<br><br><strong>Session verified!</strong>`;
+                        }
+                    }, 500);
+                    
+                } else {
+                    resultDiv.className = 'result error';
+                    const errorMessage = data?.error?.message || data?.message || 'Unknown error';
+                    resultDiv.innerHTML = `
+                        <strong>✗ ${action === 'sign-in' ? 'Sign in' : 'Sign up'} failed</strong><br>
+                        ${errorMessage}<br>
+                        <small>Status: ${response.status}</small>
+                    `;
+                }
+                
+                resultDiv.style.display = 'block';
+
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <strong>✗ Request failed</strong><br>
+                    ${error.message}
+                `;
+                resultDiv.style.display = 'block';
+            }
+        }
+
+        // Test endpoint on load
+        fetch('http://localhost:3000/api/portal-auth/get-session', {
+            credentials: 'include'
+        })
+        .then(r => r.json())
+        .then(data => {
+            console.log('Initial session check:', data);
+            if (data.user) {
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = `
+                    <strong>Already signed in!</strong><br>
+                    User: ${data.user.email}
+                `;
+                resultDiv.style.display = 'block';
+            }
+        })
+        .catch(console.error);
+    </script>
+</body>
+</html>

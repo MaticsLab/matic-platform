@@ -49,7 +49,7 @@ export function EmailSettingsDialog({ workspaceId, open, onOpenChange, onAccount
   // Get user ID on mount
   useEffect(() => {
     const getUser = async () => {
-      const { authClient } = await import('@/lib/better-auth-client')
+      const { authClient } = await import('@/auth/client/main')
       const session = await authClient.getSession()
       setUserId(session?.data?.user?.id || null)
     }

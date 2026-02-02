@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/ui-components/card";
 import { Input } from "@/ui-components/input";
 import { Label } from "@/ui-components/label";
 import { Button } from "@/ui-components/button";
-import { authClient } from "@/lib/better-auth-client";
+import { authClient } from "@/auth/client/main";
 import { toast } from "sonner";
 import { Eye, EyeOff, Lock, Loader2 } from "lucide-react";
 

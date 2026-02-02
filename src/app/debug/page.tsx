@@ -24,7 +24,7 @@ export default function DebugPage() {
 
     try {
       // Check authentication
-      const { authClient } = await import('@/lib/better-auth-client')
+      const { authClient } = await import('@/auth/client/main')
       const session = await authClient.getSession()
       const currentUser = session?.data?.user
       const authError = session ? null : new Error('Not authenticated')

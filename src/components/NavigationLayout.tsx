@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { clearLastWorkspace } from '@/lib/utils'
 import { useWorkspaceDiscovery } from '@/hooks/useWorkspaceDiscovery'
 import { useOrganizationDiscovery } from '@/hooks/useOrganizationDiscovery'
-import { useSession, signOut as betterAuthSignOut } from '@/lib/better-auth-client'
+import { useSession, signOut as betterAuthSignOut } from '@/auth/client/main'
 import { AppSidebar } from './AppSidebar'  // Explicit capitalized import
 import { TabNavigation } from './TabNavigation'
 import { WorkspaceSettingsSidebar } from './WorkspaceSettingsSidebar'

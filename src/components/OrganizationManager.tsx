@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from '@/lib/better-auth-client'
-import { organizationAPI, useListOrganizations, useActiveOrganization } from '@/lib/better-auth-client'
+import { useSession } from '@/auth/client/main'
+import { organizationAPI, useListOrganizations, useActiveOrganization } from '@/auth/client/main'
 import { useOrganizationInvite } from '@/hooks/useOrganizationInvite'
 import { useOrganizationMembers } from '@/hooks/useOrganizationMembers'
 import { useOrganizationCreate } from '@/hooks/useOrganizationCreate'

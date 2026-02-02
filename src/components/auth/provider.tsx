@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { useSession as useBetterAuthSession, signOut as betterAuthSignOut } from "@/lib/better-auth-client";
+import { useSession as useBetterAuthSession, signOut as betterAuthSignOut } from "@/auth/client/main";
 import { useSessionRefresh } from "@/hooks/useSessionRefresh";
 
 interface AuthContextValue {

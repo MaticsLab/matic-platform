@@ -5,7 +5,7 @@
  * and ensure consistent authentication handling.
  */
 
-import { auth } from '@/lib/better-auth'
+import { auth } from '@/auth/server/main'
 import { NextRequest, NextResponse } from 'next/server'
 
 export type AuthContext = {

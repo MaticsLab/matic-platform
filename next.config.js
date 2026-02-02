@@ -40,6 +40,13 @@ const nextConfig = {
       '@/types': path.resolve(__dirname, 'src/types'),
       '@/hooks': path.resolve(__dirname, 'src/hooks'),
       '@/styles': path.resolve(__dirname, 'src/styles'),
+      '@/auth': path.resolve(__dirname, 'auth'),
+    }
+    
+    // Add watch options to ignore auth directory for file watching
+    config.watchOptions = {
+      ...config.watchOptions,
+      ignored: ['**/node_modules', '**/.git', '**/auth/**/*.md'],
     }
 
     if (!isServer) {

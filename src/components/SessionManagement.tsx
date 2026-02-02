@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession, authClient } from '@/lib/better-auth-client'
+import { useSession, authClient } from '@/auth/client/main'
 import { Button } from '@/ui-components/button'
 import {
   Card,

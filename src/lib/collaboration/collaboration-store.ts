@@ -110,7 +110,7 @@ export const useCollaborationStore = create<CollaborationStore>()(
       }
 
       // Fetch current user
-      const { authClient } = await import('@/lib/better-auth-client')
+      const { authClient } = await import('@/auth/client/main')
       const session = await authClient.getSession()
       const user = session?.data?.user
       if (!user) {

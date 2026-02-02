@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "@/lib/better-auth-client";
+import { signIn } from "@/auth/client/main";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/ui-components/dialog";
 import { Button } from "@/ui-components/button";
 

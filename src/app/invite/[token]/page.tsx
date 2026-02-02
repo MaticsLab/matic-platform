@@ -33,7 +33,7 @@ export default function InvitePage() {
   // Check authentication status
   useEffect(() => {
     const checkAuth = async () => {
-      const { authClient } = await import('@/lib/better-auth-client')
+      const { authClient } = await import('@/auth/client/main')
       const session = await authClient.getSession()
       
       if (session?.data?.user) {

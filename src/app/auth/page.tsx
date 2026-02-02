@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
-import { signIn, signUp } from '@/lib/better-auth-client'
+import { signIn, signUp } from '@/auth/client/main'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 

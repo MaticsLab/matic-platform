@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/ui-components/button'
-import { useSession } from '@/lib/better-auth-client'
+import { useSession } from '@/auth/client/main'
 import {
   Check,
   ArrowRight,

@@ -8,7 +8,7 @@
  */
 
 import { NextRequest } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { auth } from "@/auth/server/main";
 import { toNextJsHandler } from "better-auth/next-js";
 
 // Use Better Auth's built-in handler

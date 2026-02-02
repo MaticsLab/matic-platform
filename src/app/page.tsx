@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useSession } from '@/lib/better-auth-client'
+import { useSession } from '@/auth/client/main'
 import { useWorkspaceResolution } from '@/hooks/useWorkspaceResolution'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'

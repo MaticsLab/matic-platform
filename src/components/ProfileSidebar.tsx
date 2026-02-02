@@ -25,7 +25,7 @@ import {
   Bell,
   Key
 } from 'lucide-react'
-import { authClient } from '@/lib/better-auth-client'
+import { authClient } from '@/auth/client/main'
 import { supabase } from '@/lib/supabase' // Keep for storage only
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'

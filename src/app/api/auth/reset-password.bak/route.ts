@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/better-auth";
+import { auth } from "@/auth/server/main";
 import { headers } from "next/headers";
 
 

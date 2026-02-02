@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { useRouter } from 'next/navigation'
-import { useSession } from '@/lib/better-auth-client'
+import { useSession } from '@/auth/client/main'
 import type { Workspace as APIWorkspace } from '@/types/workspaces'
 
 interface Workspace {

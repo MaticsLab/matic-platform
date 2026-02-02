@@ -1,7 +1,7 @@
 // Auth client using Better Auth
 "use client";
 
-import { useSession, signOut, signIn, getSession } from "@/lib/better-auth-client";
+import { useSession, signOut, signIn, getSession } from "@/auth/client/main";
 
 // Re-export Better Auth hooks and functions
 export { useSession, signOut };

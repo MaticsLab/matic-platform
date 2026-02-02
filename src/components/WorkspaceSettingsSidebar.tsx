@@ -264,7 +264,7 @@ export function WorkspaceSettingsSidebar({ isOpen, onClose, workspace, onUpdate 
   // Fetch current user and users list when Users section is active
   useEffect(() => {
     const fetchCurrentUser = async () => {
-      const { authClient } = await import('@/lib/better-auth-client')
+      const { authClient } = await import('@/auth/client/main')
       const session = await authClient.getSession()
       if (session?.data?.user?.id) {
         setCurrentUserId(session.data.user.id)

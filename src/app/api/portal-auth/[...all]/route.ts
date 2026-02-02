@@ -7,7 +7,7 @@
  * - Minimal error handling (Better Auth handles internally)
  */
 
-import { getPortalAuth } from "@/lib/portal-better-auth";
+import { getPortalAuth } from "@/auth/server/portal";
 import { toNextJsHandler } from "better-auth/next-js";
 
 export const { GET, POST } = toNextJsHandler(getPortalAuth());

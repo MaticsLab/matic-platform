@@ -13,7 +13,7 @@ import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { Lock, Eye, EyeOff, Loader2 } from 'lucide-react'
-import { authClient } from '@/lib/better-auth-client'
+import { authClient } from '@/auth/client/main'
 import { toast } from 'sonner'
 
 interface UpdatePasswordDialogProps {
