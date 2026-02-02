@@ -14,12 +14,26 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('[Portal Auth GET] Starting request:', request.url);
     const portalAuth = getPortalAuth();
+    console.log('[Portal Auth GET] Got auth instance');
     const { GET: handler } = toNextJsHandler(portalAuth);
-    return await handler(request);
+    console.log('[Portal Auth GET] Got handler, executing...');
+    const response = await handler(request);
+    console.log('[Portal Auth GET] Response:', response.status);
+    return response;
   } catch (error) {
-    console.error('[Portal Auth] GET error:', error);
-    return NextResponse.json({ error: 'Internal server error', details: String(error) }, { status: 500 });
+    console.error('[Portal Auth GET] Error:', error);
+    console.error('[Portal Auth GET] Error stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error('[Portal Auth GET] Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      name: error instanceof Error ? error.name : 'Unknown',
+    });
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      message: error instanceof Error ? error.message : String(error),
+      path: request.nextUrl.pathname,
+    }, { status: 500 });
   }
 }
 
