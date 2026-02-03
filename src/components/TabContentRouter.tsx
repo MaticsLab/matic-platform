@@ -305,9 +305,9 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
           
           // Map backend activity format to frontend display format
           const mappedActivities = activities.map((a: any) => ({
-            user_name: 'User', // We only have UUID (a.changed_by) for now
-            action: a.summary || a.type.replace('_', ' '),
-            entity_name: 'Item', // We only have UUID (a.entity_id) for now
+            user_name: a.changed_by?.name || a.changed_by?.email || 'Unknown User',
+            action: a.summary || a.type?.replace('_', ' ') || 'performed action',
+            entity_name: a.entity_title || `Item ${a.entity_id?.substring(0, 8) || 'Unknown'}`,
             entity_type: a.entity_type || 'row',
             created_at: a.timestamp,
             hub: 'Data Hub' // Default to Data Hub as these are row changes
