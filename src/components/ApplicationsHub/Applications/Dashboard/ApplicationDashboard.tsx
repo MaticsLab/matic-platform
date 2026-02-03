@@ -95,10 +95,10 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
         
         // Transform submissions to application data
         const apps: ApplicationData[] = (data || []).map(sub => {
-          const metadata = sub.metadata || {}
+          const metadata = (sub as any).metadata || {}
           return {
             id: sub.id,
-            name: sub.data?.['Full Name'] || sub.data?.studentName || 'Unknown',
+            name: (sub as any).data?.['Full Name'] || (sub as any).data?.studentName || 'Unknown',
             stageId: metadata.current_stage_id || null,
             status: sub.status,
             score: metadata.total_score || null,
@@ -107,17 +107,17 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
             reviewCount: metadata.review_count || 0,
             assignedReviewers: metadata.assigned_reviewers || [],
             tags: metadata.tags || [],
-            submittedAt: sub.submitted_at,
-            raw_data: sub.data
+            submittedAt: sub.submitted_at || '',
+            raw_data: (sub as any).data
           }
         })
         setApplications(apps)
         
-        // Fetch workflow stages
+        // Fetch workflow stages (using stub client)
         try {
-          const workflows = await workflowsClient.listWorkflows(form.workspace_id || workspaceId, formId)
+          const workflows = await workflowsClient.listWorkflows()
           if (workflows && workflows.length > 0) {
-            const stagesData = await workflowsClient.listStages(form.workspace_id || workspaceId, workflows[0].id)
+            const stagesData = await workflowsClient.listStages()
             setStages(stagesData.map((s: any) => ({
               id: s.id,
               name: s.name,

@@ -70,18 +70,18 @@ export function ReviewWorkspaceV2({
   const mapSubmissionToApplication = useCallback((sub: FormSubmission, revMap: ReviewersMap): Application => {
     // OPTIMIZATION: Cache parsed data/metadata to avoid re-parsing
     // Most submissions already have parsed objects, only parse if string
-    const data = typeof sub.data === 'string' 
+    const data = typeof (sub as any).data === 'string' 
       ? (() => {
-          try { return JSON.parse(sub.data) } 
+          try { return JSON.parse((sub as any).data) } 
           catch { return {} }
         })()
-      : (sub.data || {});
-    const metadata = typeof sub.metadata === 'string'
+      : ((sub as any).data || {});
+    const metadata = typeof (sub as any).metadata === 'string'
       ? (() => {
-          try { return JSON.parse(sub.metadata) }
+          try { return JSON.parse((sub as any).metadata) }
           catch { return {} }
         })()
-      : (sub.metadata || {});
+      : ((sub as any).metadata || {});
     
     // Use the full_name from portal_applicants table (from portal signup)
     // This is the primary source of truth for applicant names

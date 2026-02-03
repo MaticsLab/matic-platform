@@ -137,5 +137,6 @@ export interface PipelineActivityPanelProps {
 
 export interface HeaderProps {
   formName: string;
+  onBack?: () => void;
   activeView?: 'review' | 'analytics' | 'team' | 'portal' | 'share';
   onViewChange?: (view: 'review' | 'analytics' | 'team' | 'portal' | 'share') => void;
