@@ -6,7 +6,7 @@ import { FileText, Calendar, Users, Search, Plus, BarChart3, Folder, Clock, Layo
 import { TablesListPage } from './Tables/TablesListPage'
 import { TableGridView } from './Tables/TableGridView'
 import { FormsListPage as FormsListComponent } from './Forms/FormsListPage'
-import { Portals } from './portals/portals'
+import { ApplicationsHub } from './ApplicationsHub/ApplicationsHub'
 import { ApplicantCRMPage } from './CRM/ApplicantCRMPage'
 import { useState, useEffect } from 'react'
 import { getWorkspaceStats } from '@/lib/api/reports-client'

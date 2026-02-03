@@ -337,14 +337,14 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
               <CheckCircle className="w-3.5 h-3.5 text-green-500" />
               Active
             </span>
-            <span className="font-semibold text-green-600">{(Array.isArray(forms) ? forms : []).filter(f => f.is_public).length}</span>
+            <span className="font-semibold text-green-600">{(Array.isArray(forms) ? forms : []).filter(f => (f as any).is_public).length}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-600 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-gray-400" />
               Draft
             </span>
-            <span className="font-semibold text-gray-600">{(Array.isArray(forms) ? forms : []).filter(f => !f.is_public).length}</span>
+            <span className="font-semibold text-gray-600">{(Array.isArray(forms) ? forms : []).filter(f => !(f as any).is_public).length}</span>
           </div>
         </div>
 
@@ -455,9 +455,9 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
 
                       <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                         <div className="flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full ${form.is_public ? 'bg-green-500' : 'bg-gray-300'}`} />
+                          <span className={`w-2 h-2 rounded-full ${(form as any).is_public ? 'bg-green-500' : 'bg-gray-300'}`} />
                           <span className="text-xs font-medium text-gray-600">
-                            {form.is_public ? 'Active' : 'Draft'}
+                            {(form as any).is_public ? 'Active' : 'Draft'}
                           </span>
                         </div>
                         <span className="text-xs font-medium text-blue-600 flex items-center gap-1 opacity-0 group-hover:opacity-100">
