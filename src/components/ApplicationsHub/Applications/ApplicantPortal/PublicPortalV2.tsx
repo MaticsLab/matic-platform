@@ -253,9 +253,6 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     )
 
     const langResource = normalizedTranslations[activeLanguage]
-    const translatedFields = (form.fields || []).map((field) => 
-      applyTranslationsToField(field, langResource)
-    )
 
     return {
       ...form,
@@ -267,8 +264,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         description: translatedConfig.settings.description || form.settings.description,
         sections: translatedConfig.sections,
         signupFields: translatedConfig.settings.signupFields || form.settings.signupFields
-      },
-      fields: translatedFields
+      }
     }
   }, [form, activeLanguage, defaultLanguage])
 
@@ -928,11 +924,11 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       const baseUrl = getApiUrl()
       
       // Use new portal v2 submission endpoint if we have a submission ID
-      if (submissionId) {
-        console.log('[PublicPortalV2] Updating submission via new endpoint:', submissionId)
+      if (applicationRowId) {
+        console.log('[PublicPortalV2] Updating submission via new endpoint:', applicationRowId)
         
         // Better Auth session is handled via cookies automatically
-        const response = await fetch(`${baseUrl}/portal/v2/submissions/${submissionId}`, {
+        const response = await fetch(`${baseUrl}/portal/v2/submissions/${applicationRowId}`, {
           method: 'PUT',
           headers: { 
             'Content-Type': 'application/json'
@@ -941,7 +937,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
           body: JSON.stringify({ 
             data: cleanedFormData,
             status: isDraft ? 'draft' : 'submitted',
-            completion_percentage: Math.round(Object.keys(cleanedFormData).length / Math.max(form?.fields?.length || 1, 1) * 100)
+            completion_percentage: 0 // Will be calculated on backend
           })
         })
         
@@ -952,6 +948,11 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         
         const savedSubmission = await response.json()
         console.log('[PublicPortalV2] Submission saved to form_responses')
+        
+        // Update applicationRowId if we got an ID back
+        if (savedSubmission.id) {
+          setApplicationRowId(savedSubmission.id)
+        }
       } else {
         // No submission ID - try to get or create one first
         console.log('[PublicPortalV2] No submission ID, getting/creating one')
@@ -979,7 +980,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
           body: JSON.stringify({ 
             data: cleanedFormData,
             status: isDraft ? 'draft' : 'submitted',
-            completion_percentage: Math.round(Object.keys(cleanedFormData).length / Math.max(form?.fields?.length || 1, 1) * 100)
+            completion_percentage: 0 // Will be calculated on backend
           })
         })
         
@@ -994,16 +995,16 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       setSubmissionData(cleanedFormData)
       
       if (options?.saveAndExit) {
-        // Verify save succeeded - must have a row ID
-        if (!savedRow.id) {
-          console.error('[PublicPortalV2] Save returned but no row ID - save may have failed')
+        // Verify save succeeded - must have an application row ID
+        if (!applicationRowId) {
+          console.error('[PublicPortalV2] Save returned but no submission ID - save may have failed')
           toast.error('Failed to save application. Please try again.')
           // Don't navigate away if save didn't return an ID
-          throw new Error('Save failed: No row ID returned')
+          throw new Error('Save failed: No submission ID returned')
         }
         
         // Save succeeded - show success and navigate
-        console.log('[PublicPortalV2] Save and exit successful:', savedRow.id)
+        console.log('[PublicPortalV2] Save and exit successful:', applicationRowId)
         toast.success('Application saved successfully!')
         setCurrentView('dashboard')
         // Don't clear currentFormData - keep it for when user returns
@@ -1165,15 +1166,13 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       }
     }
 
-    const flatFields = translatedForm.fields || []
     const rawSections = (translatedForm.settings as any)?.sections || []
     const fieldsBySection: Record<string, any[]> = {}
     
-    flatFields.forEach((field: any) => {
-      const sid = field.section_id || (field.config && field.config.section_id)
-      if (sid) {
-        if (!fieldsBySection[sid]) fieldsBySection[sid] = []
-        fieldsBySection[sid].push(field)
+    // Fields are embedded within sections now
+    rawSections.forEach((section: any) => {
+      if (section.fields) {
+        fieldsBySection[section.id] = section.fields
       }
     })
 
@@ -1210,22 +1209,12 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         }
       })
 
-    const assignedFieldIds = new Set(flatFields.filter((f: any) => f.section_id || (f.config && f.config.section_id)).map((f: any) => f.id))
-    const unassignedFields = flatFields
-      .filter((f: any) => !f.section_id && !(f.config && f.config.section_id))
-      .map(transformFieldForPortal)
+    // Flatten all fields from all sections for checking unassigned fields
+    const allSectionFields = rawSections.flatMap((s: any) => s.fields || [])
     
-    if (unassignedFields.length > 0) {
-      if (sections.length === 0) {
-        sections = [{ id: 'default', title: 'Form', sectionType: 'form', fields: unassignedFields }]
-      } else {
-        sections[0] = { ...sections[0], fields: [...(sections[0].fields || []), ...unassignedFields] }
-      }
-    }
-
     // Ensure we have at least one section
     if (sections.length === 0) {
-      sections = [{ id: 'default', title: translatedForm?.name || 'Form', sectionType: 'form', fields: flatFields.map(transformFieldForPortal) }]
+      sections = [{ id: 'default', title: translatedForm?.name || 'Form', sectionType: 'form', fields: [] }]
     }
 
     // Add review section at the end (if not already present)

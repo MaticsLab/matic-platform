@@ -60,7 +60,7 @@ export function SignInTab({
       if (data.password && data.password.length > 0) {
         // Password login
         await authClient.signIn.email(
-          { ...data, callbackURL: "/" },
+          { email: data.email, password: data.password, callbackURL: "/" },
           {
             onError: error => {
               if (error.error.code === "EMAIL_NOT_VERIFIED") {

@@ -39,22 +39,24 @@ export function ForgotPassword({
   async function handleForgotPassword(data: ForgotPasswordForm) {
     setIsSubmitting(true)
     try {
-      await authClient.resetPassword(
-        {
+      // Call Better Auth forget-password endpoint directly
+      const response = await fetch('/api/auth/forget-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           email: data.email,
           redirectTo: "/auth/reset-password",
-        },
-        {
-          onError: error => {
-            toast.error(
-              error.error.message || "Failed to send password reset email"
-            )
-          },
-          onSuccess: () => {
-            toast.success("Password reset email sent! Check your inbox.")
-          },
-        }
-      )
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to send password reset email')
+      }
+
+      toast.success("Password reset email sent! Check your inbox.")
+      form.reset()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to send password reset email")
     } finally {
       setIsSubmitting(false)
     }

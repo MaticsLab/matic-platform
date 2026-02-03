@@ -121,7 +121,10 @@ export function CommunicationsCenter({ workspaceId, formId, workflowId }: Commun
       if (!formId) return
       try {
         const form = await goClient.get<Form>(`/forms/${formId}`)
-        setFields(form.fields || [])
+        // Fields are now embedded in sections within form.settings
+        const sections = (form.settings as any)?.sections || []
+        const allFields = sections.flatMap((s: any) => s.fields || [])
+        setFields(allFields)
         
         const subs = await goClient.get<FormSubmission[]>(`/forms/${formId}/submissions`)
         setSubmissions(subs || [])
@@ -134,15 +137,16 @@ export function CommunicationsCenter({ workspaceId, formId, workflowId }: Commun
         emailFields.push({ value: '', label: 'Auto-detect email field' })
         
         // Check submission data for email fields (use actual data keys)
+        // Note: Backend returns submissions with data property for backward compatibility
         if (subs && subs.length > 0) {
-          const sampleData = subs[0].data || {}
+          const sampleData = (subs[0] as any).data || {}
           Object.keys(sampleData).forEach(key => {
             const value = String(sampleData[key] || '')
             const keyLower = key.toLowerCase()
             // Include if it contains @ or the key name suggests it's an email
             if ((value.includes('@') || keyLower.includes('email')) && !addedKeys.has(key)) {
               // Find matching form field for a nicer label
-              const matchingField = form.fields?.find(f => 
+              const matchingField = allFields?.find((f: any) => 
                 f.id === key || 
                 f.label?.toLowerCase().replace(/\s+/g, '_') === keyLower ||
                 f.label?.toLowerCase().replace(/\s+/g, '') === keyLower.replace(/_/g, '')
@@ -158,7 +162,7 @@ export function CommunicationsCenter({ workspaceId, formId, workflowId }: Commun
 
         // Build recipient list from submissions using selected email field
         const recipientList: Recipient[] = (subs || []).map(sub => {
-          const data = sub.data || {}
+          const data = (sub as any).data || {}
           const nameField = Object.keys(data).find(k => 
             k.toLowerCase().includes('name') || 
             k.toLowerCase() === 'full name' ||
@@ -171,7 +175,7 @@ export function CommunicationsCenter({ workspaceId, formId, workflowId }: Commun
           return {
             id: sub.id,
             name: nameField ? String(data[nameField]) : 'Unknown',
-            email: emailFieldKey ? String(data[emailFieldKey]) : sub.email || 'No email',
+            email: emailFieldKey ? String(data[emailFieldKey]) : (sub as any).email || 'No email',
             stage_id: (sub as any).stage_id,
             stage_name: (sub as any).stage_name,
             group_id: (sub as any).group_id,
@@ -192,14 +196,13 @@ export function CommunicationsCenter({ workspaceId, formId, workflowId }: Commun
       if (!workspaceId) return
       setIsLoadingWorkflow(true)
       try {
-        // Fetch stages
-        const stagesData = await workflowsClient.listStages(workspaceId, workflowId || undefined)
+        // Fetch stages (using stub client - workflow features not fully implemented)
+        const stagesData = await workflowsClient.listStages()
         setStages(stagesData || [])
 
-        // Fetch groups (application groups)
+        // Fetch groups (application groups) - workflow features not fully implemented
         if (workflowId) {
-          const groupsData = await workflowsClient.listGroups(workflowId)
-          setGroups(groupsData || [])
+          setGroups([]) // Stub - no listGroups method available
         }
       } catch (error) {
         console.error('Failed to fetch workflow data:', error)

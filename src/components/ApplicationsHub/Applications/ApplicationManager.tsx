@@ -240,8 +240,7 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
             formId={formId} 
             onBack={() => window.history.back()}
             onViewChange={(view) => {
-              if (view === 'workflows') setActiveTab('workflows')
-              else if (view === 'analytics') setActiveTab('analytics')
+              if (view === 'analytics') setActiveTab('analytics')
               else if (view === 'team') setShowReviewersPanel(true)
             }}
           />
