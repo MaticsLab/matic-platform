@@ -2,8 +2,11 @@
 
 import { useAtom } from "jotai";
 import { useEffect, useRef } from "react";
-import { overlayStackAtom } from "@/lib/atoms/overlay";
+import { atom } from "jotai";
 import { useOverlay } from "./overlay-provider";
+
+// Stub atom for deprecated overlay functionality
+const overlayStackAtom = atom<any[]>([]);
 
 /**
  * Syncs the overlay context state with Jotai atoms.

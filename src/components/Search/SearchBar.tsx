@@ -70,6 +70,7 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
   const navigateTo = useCallback((url: string, title: string, type: 'table' | 'form' | 'custom' = 'custom') => {
     if (tabManager && workspaceId) {
       tabManager.addTab({
+        id: `${type}-${workspaceId}-${Date.now()}`,
         title,
         url,
         type,

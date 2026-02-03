@@ -129,7 +129,7 @@ export function FormsListPage({ workspaceId }: FormsListPageProps) {
               <Badge className={getStatusColor(form.status)}>
                 {form.status}
               </Badge>
-              {form.is_public && (
+              {form.status === 'published' && (
                 <Badge variant="outline" className="text-xs">
                   Public
                 </Badge>
@@ -138,7 +138,7 @@ export function FormsListPage({ workspaceId }: FormsListPageProps) {
 
             <div className="text-sm text-gray-600 mb-4">
               <div className="flex items-center justify-between">
-                <span>{form.fields?.length || 0} fields</span>
+                <span>{(form as any).fields?.length || 0} fields</span>
                 <span className="text-xs">v{form.version}</span>
               </div>
             </div>

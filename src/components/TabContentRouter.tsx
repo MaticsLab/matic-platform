@@ -6,7 +6,7 @@ import { FileText, Calendar, Users, Search, Plus, BarChart3, Folder, Clock, Layo
 import { TablesListPage } from './Tables/TablesListPage'
 import { TableGridView } from './Tables/TableGridView'
 import { FormsListPage as FormsListComponent } from './Forms/FormsListPage'
-import { ApplicationsHub } from './ApplicationsHub/ApplicationsHub'
+import { Portals } from './portals/portals'
 import { ApplicantCRMPage } from './CRM/ApplicantCRMPage'
 import { useState, useEffect } from 'react'
 import { getWorkspaceStats } from '@/lib/api/reports-client'
@@ -331,6 +331,7 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
     switch (hub) {
       case 'applications':
         tabManager.addTab({
+          id: `applications-${workspaceId}-${Date.now()}`,
           title: 'Portals',
           type: 'custom',
           url: `/workspace/${workspaceId}/applications`,
@@ -340,6 +341,7 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
         break
       case 'data':
         tabManager.addTab({
+          id: `data-${workspaceId}-${Date.now()}`,
           title: 'Database',
           type: 'table',
           url: `/workspace/${workspaceId}/tables`,
@@ -349,6 +351,7 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
         break
       case 'people':
         tabManager.addTab({
+          id: `people-${workspaceId}-${Date.now()}`,
           title: 'People',
           type: 'custom',
           url: `/workspace/${workspaceId}/people`,

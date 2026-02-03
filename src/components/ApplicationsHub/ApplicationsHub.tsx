@@ -308,8 +308,8 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
       form.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (form.description || '').toLowerCase().includes(searchQuery.toLowerCase())
     const matchesFilter = filterStatus === 'all' || 
-      (filterStatus === 'active' && form.is_public) ||
-      (filterStatus === 'draft' && !form.is_public)
+      (filterStatus === 'active' && form.status === 'published') ||
+      (filterStatus === 'draft' && form.status === 'draft')
     return matchesSearch && matchesFilter
   })
 

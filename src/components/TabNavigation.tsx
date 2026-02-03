@@ -221,6 +221,7 @@ function TabQuickActions({ tabManager, workspaceId }: {
 
   const handleQuickAction = (action: typeof quickActions[0]) => {
     tabManager?.addTab({
+      id: `${action.label.toLowerCase().replace(/\s+/g, '-')}-${workspaceId}-${Date.now()}`,
       title: action.label,
       type: action.type,
       url: action.url,

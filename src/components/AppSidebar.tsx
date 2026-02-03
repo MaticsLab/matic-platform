@@ -109,6 +109,7 @@ export function AppSidebar({
     }
     
     tabManager.addTab({
+      id: `${workspace.slug}-${slug}`,
       title: tabTitles[slug] || slug.charAt(0).toUpperCase() + slug.slice(1),
       type: 'custom',
       url: `/workspace/${workspace.slug}`,

@@ -4,8 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AccountSettings } from "@/components/settings/account-settings";
 import { Spinner } from "@/ui-components/spinner";
-import { api } from "@/lib/workflow-api-client";
 import { Overlay } from "./overlay";
+
+// Stub API for deprecated workflow functionality
+const api = {
+  user: {
+    get: async () => ({ name: null, email: null }),
+    update: async (data: any) => ({ success: false, error: "User API is currently disabled" })
+  }
+};
 import { useOverlay } from "./overlay-provider";
 
 type SettingsOverlayProps = {

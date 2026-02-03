@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { 
   Home, Activity, Inbox, BarChart3, Users, Settings, 
   GraduationCap, ChevronRight, PanelLeftClose, PanelLeftOpen, Workflow,
-  Building2, Building, ChevronDown, ContactRound
+  Building2, Building, ChevronDown, ContactRound, Globe
 } from 'lucide-react'
 import { useTabContext } from './WorkspaceTabProvider'
 import { cn } from '@/lib/utils'
@@ -77,6 +77,7 @@ export function Sidebar({
     if (true) {
       // Add or focus tab for the hub
       tabManager.addTab({
+        id: `${item.id}-${workspaceId}-${Date.now()}`,
         title: item.label,
         type: item.type,
         url: item.url,

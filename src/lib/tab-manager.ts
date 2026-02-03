@@ -303,6 +303,7 @@ export class TabManager {
    */
   navigateToUrl(url: string, title: string, type: TabData['type'] = 'custom', metadata?: Record<string, any>) {
     return this.addTab({
+      id: `${this.workspaceId}-${type}-${url.replace(/[^a-zA-Z0-9]/g, '-')}`,
       title,
       url,
       type,
@@ -331,6 +332,7 @@ export class TabManager {
    */
   openPortal(portalId: string, portalName: string) {
     return this.addTab({
+      id: `${this.workspaceId}-portal-${portalId}`,
       title: portalName,
       url: `/workspace/${this.workspaceId}?formId=${portalId}`,
       type: 'custom',

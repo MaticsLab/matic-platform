@@ -435,13 +435,13 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
     
     const setupSubscriptions = async () => {
       const { supabase } = await import('@/lib/supabase')
-      const { tableLinksGoClient } = await import('@/lib/api/participants-go-client')
+      const { goClient } = await import('@/lib/api/go-client')
       
       // For each link column, set up a subscription
       for (const column of linkColumns) {
         try {
           // Find the table_link for this column
-          let tableLinks = await tableLinksGoClient.getTableLinks(tableId)
+          let tableLinks = await goClient.get<any[]>('/table-links', { table_id: tableId })
           let tableLink = tableLinks.find((l: any) => 
             l.source_table_id === tableId && 
             l.target_table_id === column.linked_table_id &&
@@ -449,7 +449,7 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
           )
           
           if (!tableLink && column.linked_table_id) {
-            tableLinks = await tableLinksGoClient.getTableLinks(column.linked_table_id)
+            tableLinks = await goClient.get<any[]>('/table-links', { table_id: column.linked_table_id })
             tableLink = tableLinks.find((l: any) => 
               (l.source_table_id === tableId && l.target_table_id === column.linked_table_id) ||
               (l.source_table_id === column.linked_table_id && l.target_table_id === tableId)
@@ -642,10 +642,10 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
             if (col.column_type === 'link' && col.linked_table_id) {
               try {
                 // Find the table_link by matching source and target tables (check both directions)
-                const { tableLinksGoClient, rowLinksGoClient } = await import('@/lib/api/participants-go-client')
+                const { goClient } = await import('@/lib/api/go-client')
                 
                 // First try: current table as source, linked table as target
-                let tableLinks = await tableLinksGoClient.getTableLinks(tableId)
+                let tableLinks = await goClient.get<any[]>('/table-links', { table_id: tableId })
                 let tableLink = tableLinks.find((l: any) => 
                   l.source_table_id === tableId && 
                   l.target_table_id === col.linked_table_id
@@ -653,7 +653,7 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
                 
                 // Second try: linked table as source, current table as target (reverse direction)
                 if (!tableLink) {
-                  tableLinks = await tableLinksGoClient.getTableLinks(col.linked_table_id)
+                  tableLinks = await goClient.get<any[]>('/table-links', { table_id: col.linked_table_id })
                   tableLink = tableLinks.find((l: any) => 
                     l.source_table_id === col.linked_table_id && 
                     l.target_table_id === tableId
@@ -675,7 +675,7 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
                   
                   if (isSource) {
                     // Current table is source - get linked rows where this row is the source
-                    const linkedRows = await rowLinksGoClient.getLinkedRows(row.id, tableLink.id)
+                    const linkedRows = await goClient.get<any[]>(`/row-links/${row.id}/table/${tableLink.id}`)
                     console.log(`📊 Got ${linkedRows.length} linked rows from API for row ${row.id} with link ${tableLink.id}`)
                     
                     // Extract the linked record IDs (target rows)
@@ -694,7 +694,7 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
                     // Current table is target - need to find rows where this row is the target
                     // The GetLinkedRows API should return rows where this row is either source or target
                     // When we're the target, we need to find which source rows link to us
-                    const linkedRows = await rowLinksGoClient.getLinkedRows(row.id, tableLink.id)
+                    const linkedRows = await goClient.get<any[]>(`/row-links/${row.id}/table/${tableLink.id}`)
                     console.log(`📊 Got ${linkedRows.length} linked rows from API for row ${row.id} (target direction)`)
                     
                     // Filter to only get source rows (rows from the linked table that link to this row)
@@ -866,17 +866,17 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
     const linkedRecordIds: string[] = Array.isArray(newLinkedIds) ? newLinkedIds : []
 
     // Find or create the table_link
-    const { tableLinksGoClient, rowLinksGoClient } = await import('@/lib/api/participants-go-client')
+    const { goClient } = await import('@/lib/api/go-client')
     
     // Try both directions
-    let tableLinks = await tableLinksGoClient.getTableLinks(tableId)
+    let tableLinks = await goClient.get<any[]>('/table-links', { table_id: tableId })
     let tableLink = tableLinks.find((l: any) =>
       l.source_table_id === tableId &&
       l.target_table_id === column.linked_table_id
     )
 
     if (!tableLink) {
-      tableLinks = await tableLinksGoClient.getTableLinks(column.linked_table_id)
+      tableLinks = await goClient.get<any[]>('/table-links', { table_id: column.linked_table_id })
       tableLink = tableLinks.find((l: any) =>
         l.source_table_id === column.linked_table_id &&
         l.target_table_id === tableId
@@ -885,16 +885,14 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
 
     // Create link if it doesn't exist
     if (!tableLink && column.id) {
-      tableLink = await tableLinksGoClient.createTableLink(
-        tableId,
-        column.id,
-        column.linked_table_id,
-        'many_to_many',
-        {
-          label: column.label || columnName,
-          reverseLabel: 'Linked Records'
-        }
-      )
+      tableLink = await goClient.post<any>('/table-links', {
+        source_table_id: tableId,
+        source_column_id: column.id,
+        target_table_id: column.linked_table_id,
+        relationship_type: 'many_to_many',
+        label: column.label || columnName,
+        reverse_label: 'Linked Records'
+      })
     }
 
     if (!tableLink?.id) {
@@ -908,25 +906,22 @@ export function TableGridView({ tableId, workspaceId, onTableNameChange }: Table
     // Create new links
     for (const targetId of addedIds) {
       if (isSource) {
-        await rowLinksGoClient.createRowLink(rowId, targetId, tableLink.id, {})
+        await goClient.post('/row-links', { source_row_id: rowId, target_row_id: targetId, table_link_id: tableLink.id })
       } else {
-        await rowLinksGoClient.createRowLink(targetId, rowId, tableLink.id, {})
+        await goClient.post('/row-links', { source_row_id: targetId, target_row_id: rowId, table_link_id: tableLink.id })
       }
     }
 
     // Delete removed links
     for (const removedId of removedIds) {
-      const linkedRows = await rowLinksGoClient.getLinkedRows(
-        isSource ? rowId : removedId,
-        tableLink.id
-      )
+      const linkedRows = await goClient.get<any[]>(`/row-links/${isSource ? rowId : removedId}/table/${tableLink.id}`)
       const rowLink = linkedRows.find((lr: any) =>
         isSource
           ? lr.row.id === removedId
           : lr.row.id === rowId
       )
       if (rowLink?.row_link_id) {
-        await rowLinksGoClient.deleteRowLink(rowLink.row_link_id)
+        await goClient.delete(`/row-links/${rowLink.row_link_id}`)
       }
     }
 

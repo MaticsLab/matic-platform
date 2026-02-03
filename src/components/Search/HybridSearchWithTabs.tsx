@@ -160,6 +160,7 @@ export function HybridSearchWithTabs({ workspaceId, tabManager, className }: Hyb
   const handleSelectResult = (result: any) => {
     if (tabManager) {
       tabManager.addTab({
+        id: `${result.type}-${result.workspaceId}-${Date.now()}`,
         title: result.title,
         type: result.type as any,
         url: result.url,
@@ -183,6 +184,7 @@ export function HybridSearchWithTabs({ workspaceId, tabManager, className }: Hyb
       case 'new-form':
         if (tabManager) {
           tabManager.addTab({
+            id: `new-form-${workspaceId}-${Date.now()}`,
             title: 'New Form',
             type: 'form',
             url: `/w/${workspaceId}/forms/new`,
@@ -193,6 +195,7 @@ export function HybridSearchWithTabs({ workspaceId, tabManager, className }: Hyb
       case 'new-document':
         if (tabManager) {
           tabManager.addTab({
+            id: `new-document-${workspaceId}-${Date.now()}`,
             title: 'New Document',
             type: 'custom',
             url: `/w/${workspaceId}/documents/new`,
@@ -203,6 +206,7 @@ export function HybridSearchWithTabs({ workspaceId, tabManager, className }: Hyb
       case 'calendar':
         if (tabManager) {
           tabManager.addTab({
+            id: `calendar-${workspaceId}-${Date.now()}`,
             title: 'Calendar',
             type: 'calendar',
             url: `/w/${workspaceId}/calendar`,
@@ -213,6 +217,7 @@ export function HybridSearchWithTabs({ workspaceId, tabManager, className }: Hyb
       case 'team':
         if (tabManager) {
           tabManager.addTab({
+            id: `team-${workspaceId}-${Date.now()}`,
             title: 'Team',
             type: 'custom',
             url: `/w/${workspaceId}/team`,
@@ -238,6 +243,7 @@ export function HybridSearchWithTabs({ workspaceId, tabManager, className }: Hyb
       const routeInfo = routes[route as keyof typeof routes]
       if (routeInfo) {
         tabManager.addTab({
+          id: `${route}-${workspaceId}-${Date.now()}`,
           title: routeInfo.title,
           type: routeInfo.type,
           url: routeInfo.url,
@@ -262,6 +268,7 @@ export function HybridSearchWithTabs({ workspaceId, tabManager, className }: Hyb
       const item = items[itemId as keyof typeof items]
       if (item) {
         tabManager.addTab({
+          id: `${itemId}-${workspaceId}-${Date.now()}`,
           title: item.title,
           type: item.type,
           url: item.url,

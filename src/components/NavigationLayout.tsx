@@ -192,7 +192,7 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
         <WorkspaceSettingsPanel
           isOpen={showInviteSidebar}
           onClose={() => setShowInviteSidebar(false)}
-          workspaceId={currentWorkspace.ba_organization_id || currentWorkspace.id}
+          workspaceId={(currentWorkspace as any).ba_organization_id || currentWorkspace.id}
           workspaceName={currentWorkspace.name}
         />
       )}

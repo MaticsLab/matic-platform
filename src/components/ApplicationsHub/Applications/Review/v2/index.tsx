@@ -85,7 +85,7 @@ export function ReviewWorkspaceV2({
     
     // Use the full_name from portal_applicants table (from portal signup)
     // This is the primary source of truth for applicant names
-    const fullName = sub.applicant_full_name || UNKNOWN;
+    const fullName = (sub as any).applicant_full_name || UNKNOWN;
     const nameParts = fullName.trim().split(/\s+/);
     const fName = nameParts[0] || UNKNOWN;
     const lName = nameParts.slice(1).join(' ') || '';
@@ -134,7 +134,7 @@ export function ReviewWorkspaceV2({
     else if (score) priority = 'low';
     
     // Calculate relative time for last activity
-    const submittedDate = new Date(sub.submitted_at);
+    const submittedDate = sub.submitted_at ? new Date(sub.submitted_at) : new Date(sub.created_at);
     const now = new Date();
     const diffHours = Math.floor((now.getTime() - submittedDate.getTime()) / (1000 * 60 * 60));
     let lastActivity = 'Just now';
@@ -151,7 +151,7 @@ export function ReviewWorkspaceV2({
       dateOfBirth: data.date_of_birth || data.dob || data['Date of Birth'],
       gender: data.gender || data.Gender,
       status,
-      submittedDate: sub.submitted_at,
+      submittedDate: sub.submitted_at || sub.created_at,
       reviewedCount: reviewCount,
       totalReviewers: requiredReviews,
       avatar: (fName?.[0] || '?').toUpperCase(),
@@ -242,7 +242,7 @@ export function ReviewWorkspaceV2({
       // Build reviewers map from submission metadata (in background, don't block)
       const processedReviewerIds = new Set<string>();
       (submissions || []).slice(0, 10).forEach((sub: FormSubmission) => {
-        const metadata = typeof sub.metadata === 'string' ? JSON.parse(sub.metadata) : (sub.metadata || {});
+        const metadata = typeof (sub as any).metadata === 'string' ? JSON.parse((sub as any).metadata) : ((sub as any).metadata || {});
         
         const reviewerInfo = metadata.reviewer_info || {};
         Object.entries(reviewerInfo).forEach(([reviewerId, info]: [string, any]) => {
@@ -369,10 +369,15 @@ export function ReviewWorkspaceV2({
     const newApp = mapSubmissionToApplication({
       id: app.id,
       form_id: formId || '',
+      user_id: '', // Default empty string
       data,
       metadata,
       status: metadata.status || 'pending',
+      completion_percentage: 100, // Default to 100 for submitted apps
+      started_at: app.created_at || new Date().toISOString(),
+      last_saved_at: app.created_at || new Date().toISOString(),
       submitted_at: app.submitted_at || new Date().toISOString(),
+      form_version: 1, // Default version
       created_at: app.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString()
     } as FormSubmission, reviewersMap);
@@ -388,10 +393,15 @@ export function ReviewWorkspaceV2({
     const updatedApp = mapSubmissionToApplication({
       id: app.id,
       form_id: formId || '',
+      user_id: '', // Default empty string
       data,
       metadata,
       status: metadata.status || 'pending',
+      completion_percentage: 100, // Default to 100 for submitted apps
+      started_at: app.created_at || new Date().toISOString(),
+      last_saved_at: app.created_at || new Date().toISOString(),
       submitted_at: app.submitted_at || new Date().toISOString(),
+      form_version: 1, // Default version
       created_at: app.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString()
     } as FormSubmission, reviewersMap);
@@ -523,7 +533,7 @@ export function ReviewWorkspaceV2({
         app.dateOfBirth || '',
         app.gender || '',
         app.status || '',
-        app.stageName || '',
+        '', // Stage name - not currently available in Application type
         app.submittedDate || '',
         app.score?.toString() || '',
         app.maxScore?.toString() || '',
@@ -703,7 +713,7 @@ export function ReviewWorkspaceV2({
                 toast.error('Failed to delete application');
               }
             }}
-            fields={form?.fields || []}
+            fields={(form as any)?.fields || []}
           />
         )}
         
@@ -715,7 +725,7 @@ export function ReviewWorkspaceV2({
               onClose={() => setShowPipelineActivity(false)}
               workspaceId={workspaceId || undefined}
               formId={formId || undefined}
-              fields={form?.fields?.map(f => ({ id: f.id, name: f.name, label: f.label })) || []}
+              fields={(form as any)?.fields?.map((f: any) => ({ id: f.id, name: f.name, label: f.label })) || []}
               onSendEmail={(to, subject, body, options) => {
                 // Email already sent by PipelineActivityPanel - just log activity
                 setActivities(prev => [{

@@ -53,6 +53,9 @@ export function ReviewPanel({
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
   const [expandedRecommendations, setExpandedRecommendations] = useState<Set<string>>(new Set());
   
+  // TODO: Rubrics should be fetched from the workflow/form configuration
+  const rubrics: any[] = []; // Placeholder - empty for now
+  
   // Fetch recommendations for this submission
   useEffect(() => {
     const fetchRecommendations = async () => {
@@ -131,10 +134,10 @@ export function ReviewPanel({
   
   // Group fields by section if available
   const fieldSections = useMemo(() => {
-    if (!Array.isArray(form?.fields)) return [];
+    if (!Array.isArray((form as any)?.fields)) return [];
     const sections: { name: string; fields: any[] }[] = [];
     let currentSection = { name: 'General', fields: [] as any[] };
-    (form.fields as any[]).forEach(field => {
+    ((form as any).fields as any[]).forEach(field => {
       if (field.type === 'section') {
         if (Array.isArray(currentSection.fields) && currentSection.fields.length > 0) {
           sections.push(currentSection);
@@ -148,12 +151,12 @@ export function ReviewPanel({
       sections.push(currentSection);
     }
     return sections;
-  }, [form?.fields]);
+  }, [(form as any)?.fields]);
   
   // Get rubric categories
   const rubricCategories = useMemo(() => {
     if (!activeRubric?.categories) return [];
-    return activeRubric.categories.map((c) => ({
+    return activeRubric.categories.map((c: any) => ({
       id: c.id || c.name,
       name: c.name,
       description: c.description,
@@ -490,7 +493,7 @@ export function ReviewPanel({
                   Scoring Criteria
                 </h3>
                 
-                {rubricCategories.map((category) => (
+                {rubricCategories.map((category: any) => (
                   <div key={category.id} className="space-y-2 p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>

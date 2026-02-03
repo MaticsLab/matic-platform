@@ -1,11 +1,16 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { 
-  getCachedReviewWorkspace, 
-  setCachedReviewWorkspace,
-  ReviewWorkspaceCache 
-} from '@/lib/cache/review-workspace-cache'
+
+// Stub functions for deprecated cache functionality
+type ReviewWorkspaceCache = {
+  form: any;
+  submissions: any[];
+};
+
+const getCachedReviewWorkspace = (formId: string, workspaceId: string): ReviewWorkspaceCache | null => null;
+const setCachedReviewWorkspace = (formId: string, workspaceId: string, data: ReviewWorkspaceCache) => {};
+
 import { 
   fetchReviewWorkspaceDataDirect,
   fetchSubmissionsDirect,
@@ -59,7 +64,7 @@ export function useOptimisticReviewData({
     if (!formId || !enabled) return
     
     console.time('📦 Cache load')
-    const cached = getCachedReviewWorkspace(formId)
+    const cached = getCachedReviewWorkspace(formId, workspaceId)
     console.timeEnd('📦 Cache load')
     
     if (cached && cached.form) {
@@ -100,23 +105,26 @@ export function useOptimisticReviewData({
       // Phase 3: Complete data from Go backend (for complex joins)
       console.log('🔄 Phase 3: Fetching complete data from Go backend')
       
-      const fullData = await formsClient.getFull(formId)
+      const [form, submissions] = await Promise.all([
+        formsClient.get(formId),
+        formsClient.getSubmissions(formId)
+      ])
       
       if (!mountedRef.current) return
       
       // Merge complete data
       setState(prev => ({
         ...prev,
-        form: fullData.form,
-        submissions: fullData.submissions,
+        form: form,
+        submissions: submissions as DirectSubmission[],
         isFromCache: false,
         isFetching: false,
       }))
       
       // Cache for next time
       setCachedReviewWorkspace(formId, workspaceId, {
-        form: fullData.form,
-        submissions: fullData.submissions || [],
+        form: form,
+        submissions: (submissions as DirectSubmission[]) || [],
       })
       
     } catch (error) {

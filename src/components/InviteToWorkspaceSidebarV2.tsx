@@ -208,7 +208,7 @@ export function InviteToWorkspaceSidebarV2({
       await organizationAPI.inviteMember({
         organizationId: workspaceId,
         email,
-        role
+        role: role === 'editor' || role === 'viewer' ? 'member' : role
       })
       
       toast.success(`Invitation sent to ${email}`)
@@ -228,7 +228,7 @@ export function InviteToWorkspaceSidebarV2({
     try {
       await organizationAPI.removeMember({
         organizationId: workspaceId,
-        memberIdOrUserId: memberId
+        memberIdOrEmail: memberId
       })
       
       toast.success(`Removed ${memberName}`)
@@ -243,8 +243,8 @@ export function InviteToWorkspaceSidebarV2({
     try {
       await organizationAPI.updateMemberRole({
         organizationId: workspaceId,
-        memberIdOrUserId: memberId,
-        role: newRole
+        memberId: memberId,
+        role: newRole === 'editor' || newRole === 'viewer' ? 'member' : newRole
       })
       
       toast.success('Role updated')
@@ -276,7 +276,10 @@ export function InviteToWorkspaceSidebarV2({
       await organizationAPI.inviteMember({
         organizationId: workspaceId,
         email,
-        role: invitations.find(i => i.id === invitationId)?.role || 'viewer'
+        role: (() => {
+          const inviteRole = invitations.find(i => i.id === invitationId)?.role || 'viewer';
+          return inviteRole === 'editor' || inviteRole === 'viewer' ? 'member' : inviteRole;
+        })()
       })
       
       toast.success(`Invitation resent to ${email}`)

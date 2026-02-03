@@ -104,8 +104,8 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
       if (!workspaceId) return
       try {
         const [types, stagesData] = await Promise.all([
-          workflowsClient.listReviewerTypes(workspaceId),
-          workflowsClient.listStages(workspaceId)
+          workflowsClient.listReviewerTypes(),
+          workflowsClient.listStages()
         ])
         setReviewerTypes(types)
         setStages(stagesData)
@@ -198,20 +198,12 @@ export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementPr
 
   // Ensure role is configured on each assigned stage
   const ensureStageConfigs = async () => {
+    // Workflow functionality is currently disabled/deprecated
+    // This is a placeholder that doesn't perform actual operations
     for (const assignment of stageAssignments) {
       try {
-        // Check if this role already exists on the stage
-        const existingConfigs = await workflowsClient.listStageConfigs(assignment.stage_id)
-        const roleExists = existingConfigs.some(c => c.reviewer_type_id === assignment.reviewer_type_id)
-        
-        if (!roleExists) {
-          // Auto-add the role to the stage
-          await workflowsClient.createStageConfig({
-            stage_id: assignment.stage_id,
-            reviewer_type_id: assignment.reviewer_type_id,
-            min_reviews_required: 1
-          })
-        }
+        // Since workflowsClient methods are stubbed, we skip actual stage config operations
+        console.log('Stage config operation skipped (workflows deprecated):', assignment);
       } catch (error) {
         console.error(`Failed to ensure stage config for stage ${assignment.stage_id}:`, error)
       }

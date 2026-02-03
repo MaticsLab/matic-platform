@@ -88,6 +88,8 @@ export default function LoginFormBlock({
   
   const handleSocialLogin = (provider: string) => {
     if (mode === 'preview' || mode === 'edit') return;
+    onAction?.('social-login', { provider });
+  };
 
   const handlePasswordResetRequest = async () => {
     if (!email) {
@@ -123,31 +125,13 @@ export default function LoginFormBlock({
   return (
     <>
       <Dialog open={showResetModal} onOpenChange={setShowResetModal}>
-        <DialogContent>!== undefined ? (
-                  forgotPasswordLink ? (
-                    <a 
-                      href={forgotPasswordLink}
-                      className="text-sm text-blue-600 hover:underline"
-                    >
-                      Forgot password?
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleForgotPasswordClick}
-                      className="text-sm text-blue-600 hover:underline"
-                    >
-                      Forgot password?
-                    </button>
-                  )
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleForgotPasswordClick}
-                    className="text-sm text-blue-600 hover:underline"
-                  >
-                    Forgot password?
-                  </buttoneckCircle2 className="h-5 w-5" />
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              {resetRequestStatus === 'success' ? (
+                <div className="flex items-center gap-2 text-green-600 mt-4">
+                  <CheckCircle2 className="h-5 w-5" />
                   <span>Request submitted successfully! An administrator will reset your password shortly.</span>
                 </div>
               ) : resetRequestStatus === 'error' ? (
@@ -204,9 +188,7 @@ export default function LoginFormBlock({
         </DialogContent>
       </Dialog>
 
-  
-  return (
-    <Card className={cn('w-full max-w-md mx-auto', className)}>
+      <Card className={cn('w-full max-w-md mx-auto', className)}>
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">{title}</CardTitle>
         {description && <CardDescription>{description}</CardDescription>}
@@ -365,5 +347,6 @@ export default function LoginFormBlock({
         )}
       </CardContent>
     </Card>
+    </>
   );
 }

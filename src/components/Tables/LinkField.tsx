@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Search, X, Plus, Link2, Loader2 } from 'lucide-react'
 import { tablesGoClient } from '@/lib/api/tables-go-client'
-import { tableLinksGoClient, rowLinksGoClient } from '@/lib/api/participants-go-client'
+import { goClient } from '@/lib/api/go-client'
 import { toast } from 'sonner'
 
 interface LinkedRecord {
@@ -94,7 +94,7 @@ export function LinkField({
   const loadTableLink = async () => {
     try {
       // Try current table as source
-      let links = await tableLinksGoClient.getTableLinks(tableId)
+      let links = await goClient.get<any[]>('/table-links', { table_id: tableId })
       let link = links.find((l: any) =>
         l.source_table_id === tableId &&
         l.target_table_id === linkedTableId
@@ -107,7 +107,7 @@ export function LinkField({
       }
 
       // Try current table as target (reverse direction)
-      links = await tableLinksGoClient.getTableLinks(linkedTableId)
+      links = await goClient.get<any[]>('/table-links', { table_id: linkedTableId })
       link = links.find((l: any) =>
         l.source_table_id === linkedTableId &&
         l.target_table_id === tableId
@@ -122,16 +122,14 @@ export function LinkField({
       // Create link if it doesn't exist
       if (columnId) {
         try {
-          link = await tableLinksGoClient.createTableLink(
-            tableId,
-            columnId,
-            linkedTableId,
-            'many_to_many',
-            {
-              label: columnName,
-              reverseLabel: 'Linked Records'
-            }
-          )
+          link = await goClient.post<any>('/table-links', {
+            source_table_id: tableId,
+            source_column_id: columnId,
+            target_table_id: linkedTableId,
+            relationship_type: 'many_to_many',
+            label: columnName,
+            reverse_label: 'Linked Records'
+          })
           setTableLink(link)
           setLinkDirection('source')
         } catch (err) {
@@ -149,7 +147,7 @@ export function LinkField({
 
     try {
       setLoading(true)
-      const linkedRows = await rowLinksGoClient.getLinkedRows(rowId, tableLink.id)
+      const linkedRows = await goClient.get<any[]>(`/row-links/${rowId}/table/${tableLink.id}`)
 
       // Filter to get only the linked records (not the current row)
       const linkedIds = linkedRows

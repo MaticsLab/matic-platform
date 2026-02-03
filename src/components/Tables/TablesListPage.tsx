@@ -155,6 +155,7 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
       // Open the new table
       if (newTable?.id) {
         tabManager?.addTab({
+          id: `table-${newTable.id}-${Date.now()}`,
           title: newTable.name,
           type: 'table',
           url: `/w/${workspaceId}/tables/${newTable.id}`,
@@ -192,6 +193,7 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
       // Open the new table in a tab
       if (newTable?.id) {
       tabManager?.addTab({
+        id: `table-${newTable.id}-${Date.now()}`,
         title: newTable.name,
         type: 'table',
         url: `/w/${workspaceId}/tables/${newTable.id}`,
@@ -208,6 +210,7 @@ export function TablesListPage({ workspaceId }: TablesListPageProps) {
   const handleOpenTable = (table: DataTable) => {
     if (table?.id) {
     tabManager?.addTab({
+      id: `table-${table.id}-${Date.now()}`,
       title: table.name,
       type: 'table',
       url: `/w/${workspaceId}/tables/${table.id}`,

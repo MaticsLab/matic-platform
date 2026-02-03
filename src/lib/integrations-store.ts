@@ -1,5 +1,13 @@
 import { atom } from "jotai";
-import type { Integration } from "@/lib/workflow-api-client";
+
+// Stub type definition (workflow functionality deprecated)
+type Integration = {
+  id: string;
+  name: string;
+  type: string;
+  status: "enabled" | "disabled";
+  config?: Record<string, any>;
+};
 
 // Store for all user integrations
 export const integrationsAtom = atom<Integration[]>([]);

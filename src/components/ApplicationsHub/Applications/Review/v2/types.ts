@@ -140,3 +140,4 @@ export interface HeaderProps {
   onBack?: () => void;
   activeView?: 'review' | 'analytics' | 'team' | 'portal' | 'share';
   onViewChange?: (view: 'review' | 'analytics' | 'team' | 'portal' | 'share') => void;
+}

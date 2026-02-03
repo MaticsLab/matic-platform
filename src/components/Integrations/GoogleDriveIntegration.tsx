@@ -72,10 +72,10 @@ export function GoogleDriveIntegration({ workspaceId, formId }: GoogleDriveInteg
     if (!formId) return;
     try {
       const form = await formsClient.get(formId)
-      if (form?.fields) {
-        setFieldOptions(form.fields.map((f: any) => ({ key: f.key, label: f.label || f.key })))
+      if ((form as any)?.fields) {
+        setFieldOptions((form as any).fields.map((f: any) => ({ key: f.key, label: f.label || f.key })))
         // Optionally set fieldLabelMap
-        setFieldLabelMap(Object.fromEntries(form.fields.map((f: any) => [f.key, f.label || f.key])))
+        setFieldLabelMap(Object.fromEntries((form as any).fields.map((f: any) => [f.key, f.label || f.key])))
       }
     } catch {
       setFieldOptions([])

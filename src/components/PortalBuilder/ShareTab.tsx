@@ -61,10 +61,10 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
           promises.push(
             formsClient.get(formId).then((formData) => {
               setForm(formData)
-              setCustomSlug(formData.custom_slug || '')
-              setPreviewTitle(formData.preview_title || formData.name)
-              setPreviewDescription(formData.preview_description || formData.description || '')
-              setPreviewImageUrl(formData.preview_image_url || '')
+              setCustomSlug((formData as any).custom_slug || formData.slug || '')
+              setPreviewTitle((formData as any).preview_title || formData.name)
+              setPreviewDescription((formData as any).preview_description || formData.description || '')
+              setPreviewImageUrl((formData as any).preview_image_url || '')
             })
           )
         }
@@ -92,10 +92,10 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     try {
       const formData = await formsClient.get(formId)
       setForm(formData)
-      setCustomSlug(formData.custom_slug || '')
-      setPreviewTitle(formData.preview_title || formData.name)
-      setPreviewDescription(formData.preview_description || formData.description || '')
-      setPreviewImageUrl(formData.preview_image_url || '')
+      setCustomSlug((formData as any).custom_slug || formData.slug || '')
+      setPreviewTitle((formData as any).preview_title || formData.name)
+      setPreviewDescription((formData as any).preview_description || formData.description || '')
+      setPreviewImageUrl((formData as any).preview_image_url || '')
     } catch (err) {
       console.error('Failed to load form:', err)
     } finally {
@@ -162,7 +162,7 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
       const slugValue = customSlug.trim().toLowerCase() || null
       const updatedForm = await formsClient.updateCustomSlug(formId, slugValue)
       setForm(updatedForm)
-      setCustomSlug(updatedForm.custom_slug || '')
+      setCustomSlug((updatedForm as any).custom_slug || updatedForm.slug || '')
       toast.success(slugValue ? 'Custom URL saved!' : 'Custom URL removed')
       setModalStep(null) // Close modal on success
     } catch (err: any) {
@@ -205,19 +205,19 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
 
   // Pretty URL: {subdomain}.maticapp.com/{custom_slug} or dev URL with custom_slug
   const getPrettyUrl = () => {
-    if (!workspace?.custom_subdomain || !form?.custom_slug) return ''
+    if (!workspace?.custom_subdomain || !(form as any)?.custom_slug) return ''
     // In dev/preview, use /apply/[custom_slug] route
     if (isDev) {
-      return `${devBaseUrl}/apply/${form.custom_slug}`
+      return `${devBaseUrl}/apply/${(form as any).custom_slug}`
     }
-    return `https://${workspace.custom_subdomain}.${APP_DOMAIN}/${form.custom_slug}`
+    return `https://${workspace.custom_subdomain}.${APP_DOMAIN}/${(form as any).custom_slug}`
   }
 
   // Check if pretty URL is available
-  const hasPrettyUrl = !!workspace?.custom_subdomain && !!form?.custom_slug
+  const hasPrettyUrl = !!workspace?.custom_subdomain && !!(form as any)?.custom_slug
   
   // Check if subdomain is set but slug is missing (incomplete setup)
-  const hasIncompleteSetup = !!workspace?.custom_subdomain && !form?.custom_slug
+  const hasIncompleteSetup = !!workspace?.custom_subdomain && !(form as any)?.custom_slug
 
   const isValidSlug = (slug: string): boolean => {
     if (!slug) return true // Empty is valid (means remove custom slug)
@@ -254,7 +254,7 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     setError(null)
     // Reset to current values
     setSubdomain(workspace?.custom_subdomain || '')
-    setCustomSlug(form?.custom_slug || '')
+    setCustomSlug((form as any)?.custom_slug || '')
   }
 
   const handleSavePreview = async () => {
@@ -347,7 +347,7 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     if (!form) return ''
 
     // Use preview_title from theme settings (share preview) or fall back to form name
-    const formName = form.preview_title || form.name || 'Application Form'
+    const formName = (form as any).preview_title || form.name || 'Application Form'
     const formDescription = form.description || ''
     // Get logo from settings - logoUrl is stored at the top level of settings
     const logoUrl = (form.settings as any)?.logoUrl || ''
@@ -355,7 +355,7 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     // Get sections metadata from settings
     const sections = (form.settings as any)?.sections || []
     // Get all fields from the form (flat array)
-    const allFields = form.fields || []
+    const allFields = (form as any).fields || []
     
     console.log('PDF Debug - Total fields:', allFields.length)
     console.log('PDF Debug - All fields:', allFields.map((f: any) => ({
@@ -978,9 +978,9 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
                     size="sm"
                     onClick={() => {
                       setIsEditingPreview(false)
-                      setPreviewTitle(form?.preview_title || form?.name || '')
-                      setPreviewDescription(form?.preview_description || form?.description || '')
-                      setPreviewImageUrl(form?.preview_image_url || '')
+                      setPreviewTitle((form as any)?.preview_title || form?.name || '')
+                      setPreviewDescription((form as any)?.preview_description || form?.description || '')
+                      setPreviewImageUrl((form as any)?.preview_image_url || '')
                     }}
                   >
                     Cancel
@@ -1350,7 +1350,7 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
                     <Button
                       className="flex-1"
                       onClick={handleSaveCustomSlug}
-                      disabled={isSaving || !customSlug || !isValidSlug(customSlug) || customSlug === form?.custom_slug}
+                      disabled={isSaving || !customSlug || !isValidSlug(customSlug) || customSlug === (form as any)?.custom_slug}
                     >
                       {isSaving ? (
                         <Loader2 className="w-4 h-4 animate-spin mr-2" />
