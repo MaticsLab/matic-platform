@@ -39,7 +39,7 @@ export function ForgotPassword({
   async function handleForgotPassword(data: ForgotPasswordForm) {
     setIsSubmitting(true)
     try {
-      await authClient.forgetPassword(
+      await authClient.resetPassword(
         {
           email: data.email,
           redirectTo: "/auth/reset-password",
