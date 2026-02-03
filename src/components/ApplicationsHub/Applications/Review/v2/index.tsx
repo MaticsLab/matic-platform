@@ -5,14 +5,12 @@ import { UNKNOWN } from '@/constants/fallbacks';
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { goClient } from '@/lib/api/go-client';
-import { workflowsClient, ReviewWorkflow, ApplicationStage, Rubric } from '@/lib/api/workflows-client';
 import { Form, FormSubmission } from '@/types/forms';
 import { useApplicationsRealtime, RealtimeApplication } from '@/hooks/useApplicationsRealtime';
 import { useWorkspaceDiscovery } from '@/hooks/useWorkspaceDiscovery';
 import { 
   Application, 
   ApplicationStatus, 
-  Stage, 
   Reviewer, 
   ReviewersMap,
   ActivityItem 
@@ -30,7 +28,7 @@ interface ReviewWorkspaceV2Props {
   workspaceId: string;
   formId: string | null;
   onBack?: () => void;
-  onViewChange?: (view: 'review' | 'workflows' | 'analytics' | 'team' | 'portal' | 'share') => void;
+  onViewChange?: (view: 'review' | 'analytics' | 'team' | 'portal' | 'share') => void;
 }
 
 export function ReviewWorkspaceV2({ 
@@ -45,9 +43,6 @@ export function ReviewWorkspaceV2({
   // Core state
   const [isLoading, setIsLoading] = useState(true);
   const [form, setForm] = useState<Form | null>(null);
-  const [workflows, setWorkflows] = useState<ReviewWorkflow[]>([]);
-  const [selectedWorkflow, setSelectedWorkflow] = useState<ReviewWorkflow | null>(null);
-  const [stages, setStages] = useState<Stage[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [reviewersMap, setReviewersMap] = useState<ReviewersMap>({});
   const [activities, setActivities] = useState<ActivityItem[]>([]);
@@ -57,11 +52,10 @@ export function ReviewWorkspaceV2({
   const hasLoadedRef = useRef(false);
   
   // UI state
-  const [activeView, setActiveView] = useState<'review' | 'workflows' | 'analytics' | 'team' | 'portal' | 'share'>('review');
+  const [activeView, setActiveView] = useState<'review' | 'analytics' | 'team' | 'portal' | 'share'>('review');
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [showPipelineActivity, setShowPipelineActivity] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(false);
-  const [rubrics, setRubrics] = useState<Rubric[]>([]);
   const [filterStatus, setFilterStatus] = useState<ApplicationStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [committee, setCommittee] = useState('reading committee');
@@ -73,7 +67,7 @@ export function ReviewWorkspaceV2({
   const currentOffsetRef = useRef(100); // Start at 100 since we load 100 initially
 
   // Transform submission to Application format
-  const mapSubmissionToApplication = useCallback((sub: FormSubmission, stagesData: Stage[], revMap: ReviewersMap): Application => {
+  const mapSubmissionToApplication = useCallback((sub: FormSubmission, revMap: ReviewersMap): Application => {
     // OPTIMIZATION: Cache parsed data/metadata to avoid re-parsing
     // Most submissions already have parsed objects, only parse if string
     const data = typeof sub.data === 'string' 
@@ -113,9 +107,8 @@ export function ReviewWorkspaceV2({
       }
     }
     
-    // Get stage info
-    const stageId = metadata.current_stage_id || (stagesData.length > 0 ? stagesData[0].id : '');
-    const stage = stagesData.find(s => s.id === stageId);
+    // Get status from metadata
+    const status = metadata.status || 'Submitted';
     
     // Get review history and count
     const reviewHistory = Array.isArray(metadata.review_history) ? metadata.review_history : [];
@@ -157,7 +150,7 @@ export function ReviewWorkspaceV2({
       email,
       dateOfBirth: data.date_of_birth || data.dob || data['Date of Birth'],
       gender: data.gender || data.Gender,
-      status: metadata.status || stage?.name || 'Submitted',
+      status,
       submittedDate: sub.submitted_at,
       reviewedCount: reviewCount,
       totalReviewers: requiredReviews,
@@ -169,28 +162,23 @@ export function ReviewWorkspaceV2({
       assignedReviewerIds,
       tags: metadata.tags || [],
       lastActivity,
-      stageId,
-      stageName: stage?.name || metadata.status || 'Submitted',
       raw_data: data,
       scores: metadata.scores || {},
       comments: metadata.comments || '',
       flagged: metadata.flagged || false,
-      workflowId: selectedWorkflow?.id,
       reviewHistory: reviewHistory.map((rh: any) => ({
         id: rh.id,
         reviewer_id: rh.reviewer_id || '',
         reviewer_name: rh.reviewer_name || revMap[rh.reviewer_id]?.name || 'Reviewer',
         reviewer_type_id: rh.reviewer_type_id,
-        stage_id: rh.stage_id,
         scores: rh.scores || {},
         total_score: rh.total_score || 0,
         notes: rh.notes,
         comments: rh.comments,
         reviewed_at: rh.submitted_at || rh.reviewed_at
       })),
-      stageHistory: metadata.stage_history || [],
     };
-  }, [form, selectedWorkflow]);
+  }, [form]);
 
   // Load data - optimized with progressive loading
   const loadData = useCallback(async () => {
@@ -204,10 +192,8 @@ export function ReviewWorkspaceV2({
       // Then fetch other data in parallel without blocking
       const submissionsPromise = goClient.get<FormSubmission[]>(`/forms/${formId}/submissions?limit=25&offset=0`);
       
-      // Fetch form, workflows, and rubrics in parallel (but don't wait for them)
+      // Fetch form in parallel
       const formPromise = goClient.get<Form>(`/forms/${formId}`);
-      const workflowsPromise = workflowsClient.listWorkflows(workspaceId, formId || undefined);
-      const rubricsPromise = workflowsClient.listRubrics(workspaceId).catch(() => []);
       
       // Wait for submissions first (critical path)
       const submissions = await submissionsPromise;
@@ -222,13 +208,12 @@ export function ReviewWorkspaceV2({
       
       // Process and show submissions immediately (even without full metadata)
       if (submissions.length > 0) {
-        // Use minimal stages data for initial render
-        const minimalStages: Stage[] = [];
+        // Use minimal reviewers map for initial render
         const minimalRevMap: ReviewersMap = {};
         
         // Process submissions with minimal data
         const processSubmissions = () => {
-          const apps = submissions.map(sub => mapSubmissionToApplication(sub, minimalStages, minimalRevMap));
+          const apps = submissions.map(sub => mapSubmissionToApplication(sub, minimalRevMap));
           setApplications(apps);
         };
         
@@ -241,16 +226,9 @@ export function ReviewWorkspaceV2({
         setApplications([]);
       }
       
-      // Now fetch and process the rest of the data in the background
-      const [loadedForm, workflowsData, rubricsData] = await Promise.all([
-        formPromise,
-        workflowsPromise,
-        rubricsPromise
-      ]);
-      
+      // Now fetch form data in the background
+      const loadedForm = await formPromise;
       setForm(loadedForm);
-      setWorkflows(workflowsData);
-      setRubrics(rubricsData || []);
       
       // Build reviewers map from form settings
       const formReviewers = (loadedForm.settings as any)?.reviewers || [];
@@ -260,22 +238,6 @@ export function ReviewWorkspaceV2({
           revMap[r.id] = { name: r.name || UNKNOWN, email: r.email, role: r.role };
         }
       });
-      
-      // Fetch stages if workflows exist
-      let stagesData: Stage[] = [];
-      if (workflowsData.length > 0) {
-        const wf = workflowsData[0];
-        setSelectedWorkflow(wf);
-        
-        const stagesList = await workflowsClient.listStages(workspaceId, wf.id);
-        stagesData = stagesList.map((s: ApplicationStage) => ({
-          id: s.id,
-          name: s.name,
-          color: s.color,
-          order: s.order_index
-        }));
-        setStages(stagesData);
-      }
       
       // Build reviewers map from submission metadata (in background, don't block)
       const processedReviewerIds = new Set<string>();
@@ -320,10 +282,10 @@ export function ReviewWorkspaceV2({
       
       setReviewersMap(revMap);
       
-      // Re-process submissions with complete data (stages and reviewers) in background
+      // Re-process submissions with complete data (reviewers) in background
       if (submissions.length > 0) {
         const processWithCompleteData = () => {
-          const apps = submissions.map(sub => mapSubmissionToApplication(sub, stagesData, revMap));
+          const apps = submissions.map(sub => mapSubmissionToApplication(sub, revMap));
           setApplications(apps);
         };
         
@@ -366,12 +328,11 @@ export function ReviewWorkspaceV2({
         return;
       }
       
-      // Get current stages and reviewers map
-      const stagesData = stages;
+      // Get current reviewers map
       const revMap = reviewersMap;
       
       // Map new submissions to application format
-      const newApps = submissions.map(sub => mapSubmissionToApplication(sub, stagesData, revMap));
+      const newApps = submissions.map(sub => mapSubmissionToApplication(sub, revMap));
       
       // Append to existing applications
       setApplications(prev => [...prev, ...newApps]);
@@ -385,7 +346,7 @@ export function ReviewWorkspaceV2({
     } finally {
       setIsLoadingMore(false);
     }
-  }, [formId, stages, reviewersMap, mapSubmissionToApplication, isLoadingMore, hasMore]);
+  }, [formId, reviewersMap, mapSubmissionToApplication, isLoadingMore, hasMore]);
 
   // Initial load - only run once when formId changes
   useEffect(() => {
@@ -414,11 +375,11 @@ export function ReviewWorkspaceV2({
       submitted_at: app.submitted_at || new Date().toISOString(),
       created_at: app.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString()
-    } as FormSubmission, stages, reviewersMap);
+    } as FormSubmission, reviewersMap);
     
     setApplications(prev => [newApp, ...prev]);
     toast.success(`New application from ${newApp.name || `${newApp.firstName} ${newApp.lastName}`.trim()}`);
-  }, [formId, stages, reviewersMap, mapSubmissionToApplication]);
+  }, [formId, reviewersMap, mapSubmissionToApplication]);
 
   const handleRealtimeUpdate = useCallback((app: RealtimeApplication) => {
     const data = typeof app.data === 'string' ? JSON.parse(app.data) : (app.data || {});
@@ -433,7 +394,7 @@ export function ReviewWorkspaceV2({
       submitted_at: app.submitted_at || new Date().toISOString(),
       created_at: app.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString()
-    } as FormSubmission, stages, reviewersMap);
+    } as FormSubmission, reviewersMap);
     
     setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
     
@@ -441,7 +402,7 @@ export function ReviewWorkspaceV2({
     if (selectedApp?.id === app.id) {
       setSelectedApp(updatedApp);
     }
-  }, [formId, stages, reviewersMap, selectedApp, mapSubmissionToApplication]);
+  }, [formId, reviewersMap, selectedApp, mapSubmissionToApplication]);
 
   const handleRealtimeDelete = useCallback((id: string) => {
     setApplications(prev => prev.filter(a => a.id !== id));
@@ -465,10 +426,7 @@ export function ReviewWorkspaceV2({
     
     // Filter by status
     if (filterStatus !== 'all') {
-      result = result.filter(app => 
-        app.status === filterStatus || 
-        app.stageName === filterStatus
-      );
+      result = result.filter(app => app.status === filterStatus);
     }
     
     // Filter by search
@@ -630,30 +588,24 @@ export function ReviewWorkspaceV2({
   // Handle status change
   const handleStatusChange = useCallback(async (appId: string, newStatus: ApplicationStatus) => {
     try {
-      // Find the stage ID for this status
-      const stage = stages.find(s => s.name === newStatus);
-      
       // Update via API
       await goClient.patch(`/forms/${formId}/submissions/${appId}`, {
         metadata: {
-          status: newStatus,
-          current_stage_id: stage?.id
+          status: newStatus
         }
       });
       
       // Update local state
       setApplications(prev => prev.map(app => 
         app.id === appId 
-          ? { ...app, status: newStatus, stageName: newStatus, stageId: stage?.id, lastActivity: 'Just now' }
+          ? { ...app, status: newStatus, lastActivity: 'Just now' }
           : app
       ));
       
       if (selectedApp?.id === appId) {
         setSelectedApp(prev => prev ? { 
           ...prev, 
-          status: newStatus, 
-          stageName: newStatus,
-          stageId: stage?.id,
+          status: newStatus,
           lastActivity: 'Just now' 
         } : null);
       }
@@ -662,7 +614,7 @@ export function ReviewWorkspaceV2({
       setActivities(prev => [{
         id: `status-${appId}-${Date.now()}`,
         type: 'status',
-        message: `Application moved to ${newStatus}`,
+        message: `Application status changed to ${newStatus}`,
         user: 'You',
         time: 'Just now',
         applicationId: appId
@@ -672,34 +624,13 @@ export function ReviewWorkspaceV2({
       console.error('Failed to update status:', error);
       toast.error('Failed to update application status');
     }
-  }, [formId, stages, selectedApp]);
+  }, [formId, selectedApp]);
 
   // Handle view change
-  const handleViewChange = useCallback((view: 'review' | 'workflows' | 'analytics' | 'team' | 'portal' | 'share') => {
+  const handleViewChange = useCallback((view: 'review' | 'analytics' | 'team' | 'portal' | 'share') => {
     setActiveView(view);
     onViewChange?.(view);
   }, [onViewChange]);
-
-  // Handle workflow change
-  const handleWorkflowChange = useCallback(async (workflowId: string) => {
-    const wf = workflows.find(w => w.id === workflowId);
-    if (!wf) return;
-    
-    setSelectedWorkflow(wf);
-    
-    try {
-      const stagesList = await workflowsClient.listStages(workspaceId, workflowId);
-      const stagesData = stagesList.map((s: ApplicationStage) => ({
-        id: s.id,
-        name: s.name,
-        color: s.color,
-        order: s.order_index
-      }));
-      setStages(stagesData);
-    } catch (error) {
-      console.error('Failed to load stages:', error);
-    }
-  }, [workflows, workspaceId]);
 
   return (
     <div className="bg-gray-50 flex flex-col h-full">
@@ -716,7 +647,6 @@ export function ReviewWorkspaceV2({
             activeTab="Queue"
             onTabChange={() => {}}
             applications={applications}
-            stages={stages}
             filterStatus={filterStatus}
             onFilterChange={setFilterStatus}
             searchQuery={searchQuery}
@@ -724,9 +654,6 @@ export function ReviewWorkspaceV2({
             committee={committee}
             onCommitteeChange={setCommittee}
             onOpenPipelineActivity={() => setShowPipelineActivity(true)}
-            workflows={workflows.map(w => ({ id: w.id, name: w.name }))}
-            selectedWorkflowId={selectedWorkflow?.id}
-            onWorkflowChange={handleWorkflowChange}
             onDownload={() => handleDownloadCSV(filteredApplications)}
             workspaceSlug={currentWorkspace?.slug}
             formId={formId ?? undefined}
@@ -742,7 +669,6 @@ export function ReviewWorkspaceV2({
               onSortChange={setSortBy}
               filterStatus={filterStatus}
               onFilterChange={setFilterStatus}
-              stages={stages}
               hasMore={hasMore}
               isLoadingMore={isLoadingMore}
               onLoadMore={loadMoreApplications}
@@ -760,7 +686,6 @@ export function ReviewWorkspaceV2({
               }
             }}
             application={selectedApp}
-            stages={stages}
             reviewersMap={reviewersMap}
             workspaceId={workspaceId || ''}
             formId={formId || undefined}
@@ -821,8 +746,6 @@ export function ReviewWorkspaceV2({
             <ReviewPanel
               application={selectedApp}
               form={form}
-              rubrics={rubrics}
-              stages={stages}
               workspaceId={workspaceId}
               formId={formId || ''}
               onClose={() => setIsReviewMode(false)}

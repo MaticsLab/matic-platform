@@ -18,14 +18,15 @@ import (
 
 // ApplicantCRM represents an applicant with their form submissions
 type ApplicantCRM struct {
-	ID           string        `json:"id"`
-	Email        string        `json:"email"`
-	Name         *string       `json:"name"`
-	UserType     string        `json:"user_type"`
-	CreatedAt    string        `json:"created_at"`
-	LastLoginAt  *string       `json:"last_login_at,omitempty"`
-	Applications []application `json:"applications"`
-	TotalForms   int           `json:"total_forms"`
+	ID                     string        `json:"id"`
+	Email                  string        `json:"email"`
+	Name                   *string       `json:"name"`
+	UserType               string        `json:"user_type"`
+	CreatedAt              string        `json:"created_at"`
+	LastLoginAt            *string       `json:"last_login_at,omitempty"`
+	Applications           []application `json:"applications"`
+	TotalForms             int           `json:"total_forms"`
+	PasswordResetRequested *string       `json:"password_reset_requested,omitempty"`
 }
 
 // FormSummary represents a form application by an applicant
@@ -69,24 +70,25 @@ func GetApplicantsCRM(c *gin.Context) {
 	}
 
 	// Query all applicants who have applied to forms in this workspace
-	// Uses portal_applicants to link applicants to forms
+	// Uses form_submissions to link applicants to forms (unified schema)
 	type ApplicantRow struct {
-		UserID        string  `json:"user_id"`
-		Email         string  `json:"email"`
-		Name          *string `json:"name"`
-		UserType      string  `json:"user_type"`
-		UserCreatedAt string  `json:"user_created_at"`
-		LastLoginAt   *string `json:"last_login_at"`
-		FormID        string  `json:"form_id"`
-		FormName      string  `json:"form_name"`
-		FormSlug      *string `json:"form_slug"`
-		RowID         *string `json:"row_id"`
-		SubmissionID  *string `json:"submission_id"`
-		Status        string  `json:"status"`
-		CompletionPct int     `json:"completion_pct"`
-		SubmittedAt   *string `json:"submitted_at"`
-		LastSavedAt   *string `json:"last_saved_at"`
-		AppCreatedAt  string  `json:"app_created_at"`
+		UserID                 string  `json:"user_id"`
+		Email                  string  `json:"email"`
+		Name                   *string `json:"name"`
+		UserType               string  `json:"user_type"`
+		UserCreatedAt          string  `json:"user_created_at"`
+		LastLoginAt            *string `json:"last_login_at"`
+		PasswordResetRequested *string `json:"password_reset_requested"`
+		FormID                 string  `json:"form_id"`
+		FormName               string  `json:"form_name"`
+		FormSlug               *string `json:"form_slug"`
+		RowID                  *string `json:"row_id"`
+		SubmissionID           *string `json:"submission_id"`
+		Status                 string  `json:"status"`
+		CompletionPct          int     `json:"completion_pct"`
+		SubmittedAt            *string `json:"submitted_at"`
+		LastSavedAt            *string `json:"last_saved_at"`
+		AppCreatedAt           string  `json:"app_created_at"`
 	}
 
 	var rows []ApplicantRow
@@ -97,33 +99,38 @@ func GetApplicantsCRM(c *gin.Context) {
 			ba.name,
 			ba.user_type,
 			ba.created_at::text as user_created_at,
-			pa.last_login_at::text as last_login_at,
-			COALESCE(dt.id::text, pa.form_id::text) as form_id,
-			COALESCE(dt.name, 'Unknown Form') as form_name,
-			dt.custom_slug as form_slug,
-			pa.row_id::text as row_id,
-			pa.row_id::text as submission_id,
-			COALESCE(
-				(tr.metadata->>'status')::text,
-				CASE WHEN tr.id IS NOT NULL THEN 'in_progress' ELSE 'not_started' END
-			) as status,
-			COALESCE(
-				(tr.metadata->>'completion_percentage')::int,
-				0
-			) as completion_pct,
-			(tr.metadata->>'submitted_at')::text as submitted_at,
-			tr.updated_at::text as last_saved_at,
-			pa.created_at::text as app_created_at
+			ba.updated_at::text as last_login_at,
+			(ba.metadata->>'password_reset_requested')::text as password_reset_requested,
+			f.id::text as form_id,
+			f.name as form_name,
+			f.slug as form_slug,
+			fs.id::text as row_id,
+			fs.id::text as submission_id,
+			COALESCE(fs.status, 'not_started') as status,
+			CASE 
+				WHEN fs.status = 'submitted' THEN 100
+				WHEN fs.status = 'draft' THEN COALESCE(
+					(SELECT (COUNT(DISTINCT CASE WHEN fr.id IS NOT NULL THEN ff.id END)::float * 100 / NULLIF(COUNT(DISTINCT ff.id), 0))::int
+					 FROM form_fields ff
+					 LEFT JOIN form_responses fr ON fr.field_id = ff.id AND fr.submission_id = fs.id
+					 WHERE ff.form_id = f.id),
+					0
+				)
+				ELSE 0
+			END as completion_pct,
+			fs.submitted_at::text as submitted_at,
+			fs.updated_at::text as last_saved_at,
+			COALESCE(fs.created_at::text, ba.created_at::text) as app_created_at
 		FROM ba_users ba
-		LEFT JOIN portal_applicants pa ON pa.ba_user_id = ba.id
-		LEFT JOIN table_rows tr ON pa.row_id = tr.id
-		LEFT JOIN data_tables dt ON tr.table_id = dt.id AND dt.workspace_id = ?
+		LEFT JOIN form_submissions fs ON fs.user_id = ba.id
+		LEFT JOIN forms f ON f.id = fs.form_id
 		WHERE ba.user_type LIKE 'applicant%'
-		ORDER BY ba.created_at DESC, pa.created_at DESC
+		  AND (f.workspace_id = ? OR f.workspace_id IS NULL OR fs.id IS NULL)
+		ORDER BY ba.created_at DESC, fs.created_at DESC NULLS LAST
 	`, wsID).Scan(&rows).Error
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch applicants"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch applicants", "details": err.Error()})
 		return
 	}
 
@@ -132,14 +139,15 @@ func GetApplicantsCRM(c *gin.Context) {
 	for _, row := range rows {
 		if _, exists := applicantMap[row.UserID]; !exists {
 			applicantMap[row.UserID] = &ApplicantCRM{
-				ID:           row.UserID,
-				Email:        row.Email,
-				Name:         row.Name,
-				UserType:     row.UserType,
-				CreatedAt:    row.UserCreatedAt,
-				LastLoginAt:  row.LastLoginAt,
-				Applications: []application{},
-				TotalForms:   0,
+				ID:                     row.UserID,
+				Email:                  row.Email,
+				Name:                   row.Name,
+				UserType:               row.UserType,
+				CreatedAt:              row.UserCreatedAt,
+				LastLoginAt:            row.LastLoginAt,
+				PasswordResetRequested: row.PasswordResetRequested,
+				Applications:           []application{},
+				TotalForms:             0,
 			}
 		}
 
@@ -203,20 +211,28 @@ func GetApplicantDetail(c *gin.Context) {
 		Name          *string `json:"name"`
 		UserType      string  `json:"user_type"`
 		CreatedAt     string  `json:"created_at"`
+		UpdatedAt     *string `json:"updated_at,omitempty"`
 		EmailVerified bool    `json:"email_verified"`
+		LastLoginAt   *string `json:"last_login_at,omitempty"`
 	}
 
 	var applicant ApplicantDetail
 	err = database.DB.Raw(`
 		SELECT 
-			id,
-			email,
-			name,
-			user_type,
-			created_at::text,
-			email_verified
-		FROM ba_users
-		WHERE id = ? AND user_type LIKE 'applicant%'
+			bu.id,
+			bu.email,
+			bu.name,
+			bu.user_type,
+			bu.created_at::text,
+			bu.updated_at::text as updated_at,
+			bu.email_verified,
+			(
+				SELECT MAX(s.created_at)::text 
+				FROM ba_sessions s 
+				WHERE s.user_id = bu.id
+			) as last_login_at
+		FROM ba_users bu
+		WHERE bu.id = ? AND bu.user_type LIKE 'applicant%'
 	`, applicantID).Scan(&applicant).Error
 
 	if err != nil || applicant.ID == "" {
@@ -240,37 +256,93 @@ func GetApplicantDetail(c *gin.Context) {
 
 	var applications []ApplicationDetail
 	err = database.DB.Raw(`
-		WITH workspace_forms AS (
-			SELECT id, name, custom_slug 
-			FROM data_tables 
-			WHERE workspace_id = ? AND icon = 'form'
-		)
 		SELECT 
-			wf.id::text as form_id,
-			wf.name as form_name,
-			wf.custom_slug as form_slug,
-			pa.row_id::text as submission_id,
-			COALESCE(
-				(tr.metadata->>'status')::text,
-				CASE WHEN tr.id IS NOT NULL THEN 'in_progress' ELSE 'not_started' END
-			) as status,
-			COALESCE(
-				(tr.metadata->>'completion_percentage')::int,
-				0
-			) as completion_pct,
-			(tr.metadata->>'submitted_at')::text as submitted_at,
-			tr.updated_at::text as last_saved_at,
-			pa.created_at::text as created_at
-		FROM portal_applicants pa
-		JOIN workspace_forms wf ON pa.form_id = wf.id
-		LEFT JOIN table_rows tr ON pa.row_id = tr.id
-		WHERE pa.ba_user_id = ?
-		ORDER BY pa.created_at DESC
-	`, wsID, applicantID).Scan(&applications).Error
+			f.id::text as form_id,
+			f.name as form_name,
+			f.slug as form_slug,
+			fs.id::text as submission_id,
+			COALESCE(fs.status, 'not_started') as status,
+			CASE 
+				WHEN fs.status = 'submitted' THEN 100
+				WHEN fs.status = 'draft' THEN COALESCE(
+					(SELECT (COUNT(DISTINCT CASE WHEN fr.id IS NOT NULL THEN ff.id END)::float * 100 / NULLIF(COUNT(DISTINCT ff.id), 0))::int
+					 FROM form_fields ff
+					 LEFT JOIN form_responses fr ON fr.field_id = ff.id AND fr.submission_id = fs.id
+					 WHERE ff.form_id = f.id),
+					0
+				)
+				ELSE 0
+			END as completion_pct,
+			fs.submitted_at::text as submitted_at,
+			fs.updated_at::text as last_saved_at,
+			fs.created_at::text as created_at
+		FROM forms f
+		LEFT JOIN form_submissions fs ON fs.form_id = f.id AND fs.user_id = ?
+		WHERE f.workspace_id = ?
+		ORDER BY fs.created_at DESC NULLS LAST
+	`, applicantID, wsID).Scan(&applications).Error
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch applications"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch applications", "details": err.Error()})
 		return
+	}
+
+	// Fetch form data for each submission
+	for i, app := range applications {
+		if app.SubmissionID != nil {
+			var responses []struct {
+				FieldKey     string      `json:"field_key"`
+				FieldLabel   string      `json:"field_label"`
+				ValueType    string      `json:"value_type"`
+				ValueText    *string     `json:"value_text"`
+				ValueNumber  *float64    `json:"value_number"`
+				ValueBoolean *bool       `json:"value_boolean"`
+				ValueJSON    interface{} `json:"value_json"`
+			}
+
+			err = database.DB.Raw(`
+				SELECT 
+					fr.field_key,
+					COALESCE(ff.label, ff.field_key) as field_label,
+					fr.value_type,
+					fr.value_text,
+					fr.value_number,
+					fr.value_boolean,
+					fr.value_json
+				FROM form_responses fr
+				LEFT JOIN form_fields ff ON ff.id = fr.field_id
+				WHERE fr.submission_id = ?
+				ORDER BY ff.order_index NULLS LAST, fr.created_at
+			`, *app.SubmissionID).Scan(&responses).Error
+
+			if err == nil && len(responses) > 0 {
+				// Convert responses to a map for easier consumption
+				dataMap := make(map[string]interface{})
+				for _, resp := range responses {
+					var value interface{}
+					switch resp.ValueType {
+					case "text":
+						if resp.ValueText != nil {
+							value = *resp.ValueText
+						}
+					case "number":
+						if resp.ValueNumber != nil {
+							value = *resp.ValueNumber
+						}
+					case "boolean":
+						if resp.ValueBoolean != nil {
+							value = *resp.ValueBoolean
+						}
+					case "json":
+						value = resp.ValueJSON
+					}
+					if value != nil {
+						dataMap[resp.FieldKey] = value
+					}
+				}
+				applications[i].Data = dataMap
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -605,6 +677,14 @@ func ResetApplicantPassword(c *gin.Context) {
 		return
 	}
 
+	// Clear the password_reset_requested flag after successful reset
+	database.DB.Exec(`
+		UPDATE ba_users 
+		SET metadata = metadata - 'password_reset_requested',
+		updated_at = NOW()
+		WHERE id = $1
+	`, req.ApplicantID)
+
 	name := "Unknown"
 	if applicant.Name != nil {
 		name = *applicant.Name
@@ -616,6 +696,109 @@ func ResetApplicantPassword(c *gin.Context) {
 		Email:             applicant.Email,
 		Name:              name,
 		Message:           "Password reset successfully. Share this temporary password with the applicant.",
+	})
+}
+
+// SetApplicantPasswordRequest for setting a custom password
+type SetApplicantPasswordRequest struct {
+	ApplicantID string `json:"applicant_id" binding:"required"`
+	WorkspaceID string `json:"workspace_id" binding:"required"`
+	Password    string `json:"password" binding:"required,min=8"`
+}
+
+// SetApplicantPasswordResponse contains the result
+type SetApplicantPasswordResponse struct {
+	Success bool   `json:"success"`
+	Email   string `json:"email"`
+	Name    string `json:"name"`
+	Message string `json:"message"`
+}
+
+// SetApplicantPassword sets a custom password for an applicant
+// POST /api/v1/crm/applicants/set-password
+func SetApplicantPassword(c *gin.Context) {
+	var req SetApplicantPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check workspace access
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	wsID, err := uuid.Parse(req.WorkspaceID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace ID"})
+		return
+	}
+
+	if _, isMember := checkWorkspaceMembership(wsID, userID); !isMember {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have access to this workspace"})
+		return
+	}
+
+	// Get applicant details
+	var applicant struct {
+		ID    string  `gorm:"column:id"`
+		Email string  `gorm:"column:email"`
+		Name  *string `gorm:"column:name"`
+	}
+
+	if err := database.DB.Raw(`
+		SELECT id, email, name 
+		FROM ba_users 
+		WHERE id = ? AND user_type = 'applicant'
+	`, req.ApplicantID).Scan(&applicant).Error; err != nil || applicant.ID == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Applicant not found"})
+		return
+	}
+
+	// Hash the custom password using scrypt (Better Auth compatible)
+	hashedPassword, err := hashPasswordScrypt(req.Password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+
+	// Update password in ba_accounts
+	result := database.DB.Exec(`
+		UPDATE ba_accounts 
+		SET password = $1, updated_at = NOW()
+		WHERE user_id = $2 AND provider_id = 'credential'
+	`, hashedPassword, req.ApplicantID)
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
+		return
+	}
+
+	if result.RowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No credential account found for this applicant"})
+		return
+	}
+
+	// Clear the password_reset_requested flag after successful password set
+	database.DB.Exec(`
+		UPDATE ba_users 
+		SET metadata = metadata - 'password_reset_requested',
+		updated_at = NOW()
+		WHERE id = $1
+	`, req.ApplicantID)
+
+	name := "Unknown"
+	if applicant.Name != nil {
+		name = *applicant.Name
+	}
+
+	c.JSON(http.StatusOK, SetApplicantPasswordResponse{
+		Success: true,
+		Email:   applicant.Email,
+		Name:    name,
+		Message: "Password set successfully.",
 	})
 }
 
@@ -663,15 +846,20 @@ func randomInt(max int) int {
 // hashPasswordScrypt hashes a password using scrypt (Better Auth compatible)
 // Returns hash in format: {salt}:{key} where both are hex-encoded
 func hashPasswordScrypt(password string) (string, error) {
-	// Generate 16-byte random salt
+	// Generate 16-byte random salt (same as Better Auth)
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
+	// Encode salt as hex string (Better Auth uses hex.encode())
 	saltHex := hex.EncodeToString(salt)
 
-	// Use same parameters as Better Auth
-	// N=16384, r=16, p=1, dkLen=64
+	// Use same parameters as Better Auth:
+	// N=16384, r=16, p=1, dkLen=64, maxmem=128*N*r*2
+	// Note: Better Auth uses the hex-encoded salt string directly in scrypt
+	// Note: Better Auth normalizes password with NFKC, but Go's standard library
+	//       doesn't include unicode normalization by default, and our passwords
+	//       are ASCII alphanumeric + symbols, so this shouldn't cause issues
 	key, err := scrypt.Key([]byte(password), []byte(saltHex), 16384, 16, 1, 64)
 	if err != nil {
 		return "", err

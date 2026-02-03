@@ -14,7 +14,6 @@ export interface ReviewHistoryEntry {
   reviewer_id: string;
   reviewer_name?: string;
   reviewer_type_id?: string;
-  stage_id?: string;
   scores: Record<string, number>;
   total_score?: number;
   notes?: string;
@@ -44,35 +43,11 @@ export interface Application {
   assignedReviewerIds?: string[]; // Reviewer IDs
   tags?: string[];
   lastActivity?: string;
-  stageId?: string;
-  stageName?: string;
   raw_data?: Record<string, any>;
   scores?: Record<string, number>;
   comments?: string;
   flagged?: boolean;
-  workflowId?: string;
   reviewHistory?: ReviewHistoryEntry[];
-  stageHistory?: StageHistoryEntry[];
-}
-
-export interface StageHistoryEntry {
-  from_stage_id?: string;
-  to_stage_id?: string;
-  from_stage?: string;
-  to_stage?: string;
-  moved_at?: string;
-  timestamp?: string;
-  reason?: string;
-  action?: string;
-  condition?: string;
-}
-
-export interface Stage {
-  id: string;
-  name: string;
-  color?: string;
-  order: number;
-  applicationCount?: number;
 }
 
 export interface Reviewer {
@@ -110,7 +85,6 @@ export interface ApplicationListProps {
   onSortChange?: (sort: 'recent' | 'oldest' | 'score' | 'name') => void;
   filterStatus?: ApplicationStatus | 'all';
   onFilterChange?: (status: ApplicationStatus | 'all') => void;
-  stages?: Stage[];
   hasMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
@@ -118,7 +92,6 @@ export interface ApplicationListProps {
 
 export interface ApplicationDetailProps {
   application: Application;
-  stages: Stage[];
   reviewersMap: ReviewersMap;
   onStatusChange: (appId: string, newStatus: ApplicationStatus) => void;
   onClose: () => void;
@@ -134,7 +107,6 @@ export interface PipelineHeaderProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   applications: Application[];
-  stages: Stage[];
   filterStatus: ApplicationStatus | 'all';
   onFilterChange: (status: ApplicationStatus | 'all') => void;
   searchQuery: string;
@@ -142,9 +114,6 @@ export interface PipelineHeaderProps {
   committee: string;
   onCommitteeChange: (value: string) => void;
   onOpenPipelineActivity: () => void;
-  workflows?: Array<{ id: string; name: string }>;
-  selectedWorkflowId?: string;
-  onWorkflowChange?: (id: string) => void;
   onDownload?: () => void;
   workspaceSlug?: string;
   formId?: string;
@@ -168,7 +137,5 @@ export interface PipelineActivityPanelProps {
 
 export interface HeaderProps {
   formName: string;
-  activeView?: 'review' | 'workflows' | 'analytics' | 'team' | 'portal' | 'share';
-  onViewChange?: (view: 'review' | 'workflows' | 'analytics' | 'team' | 'portal' | 'share') => void;
-  onBack: () => void;
-}
+  activeView?: 'review' | 'analytics' | 'team' | 'portal' | 'share';
+  onViewChange?: (view: 'review' | 'analytics' | 'team' | 'portal' | 'share') => void;

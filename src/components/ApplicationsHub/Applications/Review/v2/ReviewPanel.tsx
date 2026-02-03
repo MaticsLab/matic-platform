@@ -12,16 +12,13 @@ import { Textarea } from '@/ui-components/textarea';
 import { Slider } from '@/ui-components/slider';
 import { ScrollArea } from '@/ui-components/scroll-area';
 import { cn } from '@/lib/utils';
-import { Application, Stage } from './types';
+import { Application } from './types';
 import { Form } from '@/types/forms';
-import { Rubric } from '@/lib/api/workflows-client';
 import { recommendationsClient, RecommendationRequest } from '@/lib/api/recommendations-client';
 
 interface ReviewPanelProps {
   application: Application;
   form: Form | null;
-  rubrics: Rubric[];
-  stages: Stage[];
   workspaceId: string;
   formId: string;
   onClose: () => void;
@@ -35,8 +32,6 @@ interface ReviewPanelProps {
 export function ReviewPanel({
   application,
   form,
-  rubrics,
-  stages,
   workspaceId,
   formId,
   onClose,

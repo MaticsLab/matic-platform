@@ -5,7 +5,7 @@ import {
   Building2,
   Code2,
   Database,
-  GraduationCap,
+  Globe,
   Users,
   ChevronsUpDown,
   User,
@@ -86,7 +86,7 @@ export function AppSidebar({
   const { state } = useSidebar()
 
   const navItems = [
-    { title: 'Programs', icon: GraduationCap, slug: 'applications' },
+    { title: 'Portals', icon: Globe, slug: 'applications' },
     { title: 'Database', icon: Database, slug: 'tables' },
     { title: 'CRM', icon: Users, slug: 'crm' },
   ]
@@ -95,12 +95,25 @@ export function AppSidebar({
     if (!tabManager) return
     
     const workspace = currentWorkspace || { slug: workspaceId }
+    
+    // Special handling for Portals/Applications hub
+    if (slug === 'applications') {
+      tabManager.openPortalsHub()
+      return
+    }
+    
+    // For other tabs (tables, crm, etc.)
+    const tabTitles: Record<string, string> = {
+      tables: 'Database',
+      crm: 'CRM'
+    }
+    
     tabManager.addTab({
-      id: `${workspace.slug}-${slug}`,
-      title: slug.charAt(0).toUpperCase() + slug.slice(1),
+      title: tabTitles[slug] || slug.charAt(0).toUpperCase() + slug.slice(1),
       type: 'custom',
-      url: `/workspace/${workspace.slug}/${slug}`,
+      url: `/workspace/${workspace.slug}`,
       workspaceId: workspace.slug,
+      metadata: { view: slug }
     })
   }
 

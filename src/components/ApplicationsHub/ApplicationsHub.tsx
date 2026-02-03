@@ -62,12 +62,19 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'draft'>('all')
 
-  // Check URL parameters for formId on mount
+  // Check URL parameters for formId - always sync with URL
   useEffect(() => {
     const formIdFromUrl = searchParams.get('formId')
-    if (formIdFromUrl && !selectedFormId) {
+    console.log('🔍 ApplicationsHub URL check:', { formIdFromUrl, currentView, selectedFormId })
+    if (formIdFromUrl) {
+      console.log('✅ Setting formId and switching to scholarships view')
       setSelectedFormId(formIdFromUrl)
       setCurrentView('scholarships')
+    } else {
+      // If no formId in URL, ensure we're in home view
+      console.log('🏠 No formId in URL, showing home view')
+      setCurrentView('home')
+      setSelectedFormId(null)
     }
   }, [searchParams])
 
@@ -82,16 +89,22 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
   const [newAppDescription, setNewAppDescription] = useState('')
   const [isCreating, setIsCreating] = useState(false)
 
-  // Initialize state from metadata
+  // Initialize state from metadata - but respect URL parameters first
   useEffect(() => {
     if (hubTab && !isInitialized) {
-      const savedView = (hubTab.metadata?.currentView as View) || 'home'
-      const savedFormId = hubTab.metadata?.selectedFormId as string
-      setCurrentView(savedView)
-      if (savedFormId) setSelectedFormId(savedFormId)
+      const formIdFromUrl = searchParams.get('formId')
+      if (formIdFromUrl) {
+        // URL has formId, use it
+        setSelectedFormId(formIdFromUrl)
+        setCurrentView('scholarships')
+      } else {
+        // No formId in URL, show home
+        setCurrentView('home')
+        setSelectedFormId(null)
+      }
       setIsInitialized(true)
     }
-  }, [hubTab, isInitialized])
+  }, [hubTab, isInitialized, searchParams])
 
   // Fetch forms
   useEffect(() => {
@@ -161,7 +174,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
     if (currentView !== 'home') return
 
     setTabHeaderContent({
-      title: 'Programs'
+      title: 'Portals'
     })
 
     setTabActions([
@@ -186,7 +199,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
     const context: HubSearchContext = {
       hubType: 'applications',
       hubId: workspaceId,
-      hubName: 'Programs',
+      hubName: 'Portals',
       placeholder: 'Search applications...',
       actions: [
         { id: 'new-app', label: 'New Application', icon: Plus, action: () => setIsCreateDialogOpen(true) }
@@ -253,8 +266,12 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
   }
 
   const handleFormClick = (formId: string) => {
-    setSelectedFormId(formId)
-    setCurrentView('scholarships')
+    const form = forms.find(f => f.id === formId)
+    if (!form || !tabManager) return
+    
+    console.log('📂 Opening portal:', form.name, formId)
+    // Use the new openPortal method for cleaner tab management
+    tabManager.openPortal(formId, form.name)
   }
 
   const handleDeleteApplication = async () => {
@@ -277,6 +294,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
 
   // If we are in the scholarships module, render the manager
   if (currentView === 'scholarships') {
+    console.log('🎯 Rendering ApplicationManager with:', { workspaceId, formId: selectedFormId })
     return (
       <ApplicationManager 
         workspaceId={workspaceId}

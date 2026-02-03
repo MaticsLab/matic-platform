@@ -25,4 +25,20 @@ export const crmClient = {
         workspace_id: workspaceId,
       }),
     }),
+
+  // Set a custom password for an applicant
+  setPassword: (applicantId: string, workspaceId: string, password: string) =>
+    goFetch<{
+      success: boolean
+      email: string
+      name: string
+      message: string
+    }>('/crm/applicants/set-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        applicant_id: applicantId,
+        workspace_id: workspaceId,
+        password: password,
+      }),
+    }),
 }

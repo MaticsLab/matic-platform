@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import { X, Plus, FileText, Calendar, Users, Search, Settings, Workflow, UserPlus, Bell } from 'lucide-react'
 import { TabManager, TabData } from '@/lib/tab-manager'
 import { useTabContext } from './WorkspaceTabProvider'
@@ -29,6 +30,8 @@ export function TabNavigation({
   tabManager: externalTabManager,
   setShowInviteSidebar
 }: TabNavigationProps) {
+  const router = useRouter()
+  const pathname = usePathname()
   const { tabManager: contextTabManager, activeTab, tabs, triggerNavigation } = useTabContext()
   const tabManager = externalTabManager || contextTabManager
   
@@ -80,6 +83,14 @@ export function TabNavigation({
       onTabChange?.(currentActiveTab)
     })
 
+    // Listen for URL change events from tab manager
+    const handleUrlChange = (event: CustomEvent<{ url: string }>) => {
+      console.log('📍 Tab URL change event:', event.detail.url)
+      router.push(event.detail.url)
+    }
+
+    window.addEventListener('tab-url-change', handleUrlChange as EventListener)
+
     // Initial load
     if (!contextTabManager) {
       setLocalTabs(tabManager.getTabs())
@@ -87,11 +98,24 @@ export function TabNavigation({
       onTabChange?.(tabManager.getActiveTab())
     }
 
-    return unsubscribe
-  }, [tabManager, onTabChange, contextTabManager])
+    return () => {
+      unsubscribe()
+      window.removeEventListener('tab-url-change', handleUrlChange as EventListener)
+    }
+  }, [tabManager, onTabChange, contextTabManager, router])
 
   const handleTabClick = (tabId: string) => {
-    tabManager?.setActiveTab(tabId)
+    if (!tabManager) return
+    
+    const tab = tabManager.getTabs().find(t => t.id === tabId)
+    if (!tab) return
+    
+    // Update tab manager state
+    tabManager.setActiveTab(tabId)
+    
+    // Navigate to the tab's URL
+    console.log('🔄 Navigating to tab URL:', tab.url)
+    router.push(tab.url)
   }
 
   const handleTabClose = (e: React.MouseEvent, tabId: string) => {
@@ -136,7 +160,7 @@ export function TabNavigation({
           const isActive = currentActiveTab?.id === tab.id
           const isApplicationsTab = 
             tab.id === 'applications' || 
-            (tab.title === 'Programs' && tab.url === `/workspace/${workspaceId}/applications`)
+            (tab.title === 'Portals' && tab.url === `/workspace/${workspaceId}/applications`)
           
           return (
             <div

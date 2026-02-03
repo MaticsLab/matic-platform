@@ -962,3 +962,79 @@ func syncToLegacyRow(submission models.FormSubmission) {
 		database.DB.Model(&models.Row{}).Where("id = ?", submission.LegacyRowID).Update("data", datatypes.JSON(jsonData))
 	}
 }
+
+// GetFormSubmissionByID gets a single submission with its responses
+// GET /api/v1/form-submissions/:id
+func GetFormSubmissionByID(c *gin.Context) {
+	submissionID := c.Param("id")
+
+	var submission models.FormSubmission
+	if err := database.DB.Preload("Responses.Field").First(&submission, "id = ?", submissionID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, submission)
+}
+
+// ListFormFields gets all fields for a form
+// GET /api/v1/form-fields?form_id=xxx
+func ListFormFields(c *gin.Context) {
+	formID := c.Query("form_id")
+	if formID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "form_id is required"})
+		return
+	}
+
+	var fields []models.FormField
+	if err := database.DB.Where("form_id = ?", formID).Order("sort_order ASC").Find(&fields).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Convert to old format for compatibility
+	type LegacyField struct {
+		ID        string                 `json:"id"`
+		Name      string                 `json:"name"`
+		FieldType string                 `json:"field_type"`
+		Position  int                    `json:"position"`
+		Config    map[string]interface{} `json:"config,omitempty"`
+	}
+
+	legacyFields := make([]LegacyField, len(fields))
+	for i, field := range fields {
+		config := map[string]interface{}{
+			"required":    field.Required,
+			"placeholder": field.Placeholder,
+			"description": field.Description,
+		}
+
+		// Add validation rules
+		if field.Validation != nil {
+			var validation map[string]interface{}
+			json.Unmarshal(field.Validation, &validation)
+			config["validation"] = validation
+		}
+
+		// Add options for select/radio/checkbox fields
+		if field.Options != nil {
+			var options []interface{}
+			json.Unmarshal(field.Options, &options)
+			config["options"] = options
+		}
+
+		legacyFields[i] = LegacyField{
+			ID:        field.ID.String(),
+			Name:      field.Label,
+			FieldType: field.FieldType,
+			Position:  field.SortOrder,
+			Config:    config,
+		}
+	}
+
+	c.JSON(http.StatusOK, legacyFields)
+}

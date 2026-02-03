@@ -461,26 +461,57 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
                 // This updates the data after the form is already shown
                 try {
                   const baseUrl = getApiUrl()
-                  const res = await fetch(`${baseUrl}/forms/${formData.id}/submission?email=${encodeURIComponent(authData.email)}`)
-                  if (res.ok) {
-                    const rowData = await res.json()
-                    let existingData = rowData.data || rowData
-                    if (existingData && Object.keys(existingData).length > 0) {
-                      // If we have a row ID, load and merge documents
-                      if (rowData.id) {
-                        existingData = await loadAndMergeDocuments(baseUrl, rowData.id, formData, existingData)
-                        if (!authData.applicationRowId) {
-                          setApplicationRowId(rowData.id)
+                  // Use new portal v2 endpoint if we have a submission ID
+                  if (authData.applicationRowId) {
+                    const res = await fetch(
+                      `${baseUrl}/portal/v2/submissions/${authData.applicationRowId}`,
+                      { credentials: 'include' }
+                    )
+                    if (res.ok) {
+                      const submissionData = await res.json()
+                      const existingData = submissionData.data || {}
+                      if (existingData && Object.keys(existingData).length > 0) {
+                        setInitialData(existingData)
+                        setSubmissionData(existingData)
+                        setHasExistingSubmission(true)
+                        setCurrentFormData(existingData)
+                      }
+                      
+                      if (submissionData.status && !authData.applicationStatus) {
+                        setApplicationStatus(submissionData.status)
+                      }
+                    }
+                  } else {
+                    // Try to get submission for this form
+                    const submissionRes = await fetch(
+                      `${baseUrl}/portal/v2/forms/${formData.id}/submissions`,
+                      { 
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' }
+                      }
+                    )
+                    if (submissionRes.ok) {
+                      const submission = await submissionRes.json()
+                      setApplicationRowId(submission.id)
+                      
+                      // Load data if it exists
+                      if (submission.existing && submission.id) {
+                        const dataRes = await fetch(
+                          `${baseUrl}/portal/v2/submissions/${submission.id}`,
+                          { credentials: 'include' }
+                        )
+                        if (dataRes.ok) {
+                          const submissionData = await dataRes.json()
+                          const existingData = submissionData.data || {}
+                          if (existingData && Object.keys(existingData).length > 0) {
+                            setInitialData(existingData)
+                            setSubmissionData(existingData)
+                            setHasExistingSubmission(true)
+                            setCurrentFormData(existingData)
+                          }
                         }
                       }
-                      setInitialData(existingData)
-                      setSubmissionData(existingData)
-                      setHasExistingSubmission(true)
-                      setCurrentFormData(existingData)
-                    }
-                    
-                    if (rowData.metadata?.status && !authData.applicationStatus) {
-                      setApplicationStatus(rowData.metadata.status)
                     }
                   }
                 } catch (err) {
@@ -513,49 +544,34 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
               const session = await portalBetterAuthClient.getSession()
               if (session?.data?.session) {
                 setEmail(email)
-                // Sync with portal_applicant
+                // Get or create submission
                 try {
                   const baseUrl = getApiUrl()
-                  const syncResponse = await fetch(`${baseUrl}/portal/sync-better-auth-applicant`, {
+                  const syncResponse = await fetch(`${baseUrl}/portal/v2/forms/${formData.id}/submissions`, {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 
                       'Content-Type': 'application/json',
-                    },
-                    credentials: 'include', // Include cookies for Better Auth session
-                    body: JSON.stringify({
-                      form_id: formData.id,
-                      email: email,
-                      better_auth_user_id: session.data.session.userId,
-                      name: email.split('@')[0],
-                      first_name: '',
-                      last_name: ''
-                    })
+                    }
                   })
                   if (syncResponse.ok) {
-                    const applicant = await syncResponse.json()
-                    setApplicantId(applicant.id)
-                    setApplicantName(applicant.name || email.split('@')[0] || '')
-                    if (applicant.row_id) {
-                      setApplicationRowId(applicant.row_id)
-                    }
-                    if (applicant.status) {
-                      setApplicationStatus(applicant.status)
-                    }
+                    const submission = await syncResponse.json()
+                    setApplicationRowId(submission.id)
                     
-                    // Fetch submission data
-                    const res = await fetch(`${baseUrl}/forms/${formData.id}/submission?email=${encodeURIComponent(email)}`)
-                    if (res.ok) {
-                      const rowData = await res.json()
-                      let existingData = rowData.data || rowData
-                      if (existingData && Object.keys(existingData).length > 0) {
-                        // If we have a row ID, load and merge documents
-                        if (rowData.id) {
-                          existingData = await loadAndMergeDocuments(baseUrl, rowData.id, formData, existingData)
+                    if (submission.existing && submission.id) {
+                      // Fetch submission data
+                      const dataRes = await fetch(`${baseUrl}/portal/v2/submissions/${submission.id}`, {
+                        credentials: 'include'
+                      })
+                      if (dataRes.ok) {
+                        const submissionData = await dataRes.json()
+                        const existingData = submissionData.data || {}
+                        if (existingData && Object.keys(existingData).length > 0) {
+                          setInitialData(existingData)
+                          setSubmissionData(existingData)
+                          setHasExistingSubmission(true)
+                          setCurrentFormData(existingData)
                         }
-                        setInitialData(existingData)
-                        setSubmissionData(existingData)
-                        setHasExistingSubmission(true)
-                        setCurrentFormData(existingData)
                       }
                     }
                     
@@ -719,43 +735,53 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         setIsAuthenticated(true)
         setApplicantName(betterAuthUser.name || betterAuthUser.email)
 
-        // Fetch applicant-specific data (submission, status) using Better Auth cookie
+        // Get or create form_submission in new schema
         const baseUrl = getApiUrl()
         try {
-          // Try to get submission data
+          // Step 1: Get or create submission (uses Better Auth session token from cookies)
           const submissionRes = await fetch(
-            `${baseUrl}/forms/${form.id}/submission?email=${encodeURIComponent(email)}`,
-            { credentials: 'include' }
+            `${baseUrl}/portal/v2/forms/${form.id}/submissions`,
+            { 
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' }
+            }
           )
 
           if (submissionRes.ok) {
-            const rowData = await submissionRes.json()
-            const existingData = rowData.data || rowData
+            const submission = await submissionRes.json()
+            console.log('[PublicPortalV2] Got submission:', submission.id)
+            setApplicationRowId(submission.id)
 
-            if (rowData.id) {
-              setApplicationRowId(rowData.id)
-              
-              // Load and merge documents if we have a row ID
+            // Step 2: Load existing submission data if it exists
+            if (submission.existing && submission.id) {
               try {
-                const mergedData = await loadAndMergeDocuments(baseUrl, rowData.id, form, existingData)
-                setInitialData(mergedData)
-                setSubmissionData(mergedData)
-                setHasExistingSubmission(true)
-              } catch (docError) {
-                console.warn('[PublicPortalV2] Failed to load documents:', docError)
-                setInitialData(existingData)
-                setSubmissionData(existingData)
-                setHasExistingSubmission(true)
+                const dataRes = await fetch(
+                  `${baseUrl}/portal/v2/submissions/${submission.id}`,
+                  { credentials: 'include' }
+                )
+                
+                if (dataRes.ok) {
+                  const submissionData = await dataRes.json()
+                  const existingData = submissionData.data || {}
+                  
+                  setInitialData(existingData)
+                  setSubmissionData(existingData)
+                  setCurrentFormData(existingData)
+                  setHasExistingSubmission(true)
+                  
+                  if (submissionData.status) {
+                    setApplicationStatus(submissionData.status)
+                  }
+
+                  // If we have submission data, go to dashboard
+                  if (Object.keys(existingData).length > 0) {
+                    setCurrentView('dashboard')
+                  }
+                }
+              } catch (dataError) {
+                console.warn('[PublicPortalV2] Failed to load submission data:', dataError)
               }
-            }
-
-            if (rowData.metadata?.status) {
-              setApplicationStatus(rowData.metadata.status)
-            }
-
-            // If we have submission data, go to dashboard
-            if (existingData && Object.keys(existingData).length > 0) {
-              setCurrentView('dashboard')
             }
           }
         } catch (err) {
@@ -765,46 +791,88 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
 
         toast.success('Logged in successfully')
       } else {
-        // Signup: Create account using backend (creates Better Auth user + account atomically)
+        // Signup: Use Better Auth SDK directly (Approach 1)
         const fullName: string = signupData.full_name || signupData.name || ''
         const displayName = fullName.trim() || email
 
-        const baseUrl = getApiUrl()
-        const signupResponse = await fetch(`${baseUrl}/portal/v2/signup`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            email,
-            password,
-            full_name: displayName,
-            form_id: formIdToUse
-          })
+        console.log('[PublicPortalV2] Signing up with Better Auth SDK:', {
+          email,
+          name: displayName,
+          formId: formIdToUse
         })
 
-        if (!signupResponse.ok) {
-          const error = await signupResponse.json()
-          throw new Error(error.error || 'Signup failed')
-        }
-
-        const signupResult = await signupResponse.json()
-        console.log('[PublicPortalV2] Signup successful:', { userId: signupResult.user_id })
-
-        // After signup, log in with Better Auth to get session cookie
-        const loginResult = await portalBetterAuthClient.signIn.email({
+        // Step 1: Create user with Better Auth SDK
+        const signupResult = await portalBetterAuthClient.signUp.email({
           email,
           password,
+          name: displayName,
         })
 
-        if (loginResult.error || !loginResult.data?.user) {
-          throw new Error('Signup successful but login failed. Please try logging in.')
+        if (signupResult.error) {
+          // Check if user already exists
+          if (signupResult.error.message?.toLowerCase().includes('already exists') ||
+              signupResult.error.message?.toLowerCase().includes('user exists') ||
+              signupResult.error.message?.toLowerCase().includes('email is taken')) {
+            toast.error('An account with this email already exists. Please login instead.')
+            setIsLogin(true) // Switch to login mode
+            setIsLoading(false)
+            return
+          }
+          throw new Error(signupResult.error.message || 'Signup failed')
         }
 
-        const betterAuthUser = loginResult.data.user
+        if (!signupResult.data?.user) {
+          throw new Error('Signup failed - no user returned')
+        }
+
+        const betterAuthUser = signupResult.data.user
+        console.log('[PublicPortalV2] Better Auth signup successful:', {
+          userId: betterAuthUser.id,
+          email: betterAuthUser.email
+        })
+
+        // Step 2: Get or create form_submission in new schema
+        const baseUrl = getApiUrl()
+        try {
+          const submissionRes = await fetch(
+            `${baseUrl}/portal/v2/forms/${formIdToUse}/submissions`,
+            { 
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' }
+            }
+          )
+
+          if (submissionRes.ok) {
+            const submission = await submissionRes.json()
+            console.log('[PublicPortalV2] Created submission:', submission.id)
+            setApplicationRowId(submission.id)
+          } else {
+            console.warn('[PublicPortalV2] Failed to create submission but user created')
+            // Don't fail - user is created, they can still use the portal
+          }
+        } catch (syncError) {
+          console.warn('[PublicPortalV2] Failed to create submission:', syncError)
+          // Don't fail - user is created, they can still proceed
+        }
 
         // Set authentication state
         setIsAuthenticated(true)
         setApplicantName(displayName || betterAuthUser.name || betterAuthUser.email)
+
+        // Save to localStorage
+        try {
+          const authData = {
+            email: betterAuthUser.email,
+            formId: form.id,
+            betterAuthUserId: betterAuthUser.id,
+            applicantName: displayName,
+            timestamp: Date.now()
+          }
+          localStorage.setItem(`portal-auth-${form.id}`, JSON.stringify(authData))
+        } catch (err) {
+          console.warn('Failed to save auth to localStorage:', err)
+        }
 
         toast.success('Account created successfully')
       }
@@ -858,26 +926,69 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       const isDraft = options?.saveAndExit === true
       
       const baseUrl = getApiUrl()
-      const response = await fetch(`${baseUrl}/forms/${form.id}/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          data: cleanedFormData, 
-          email,
-          save_draft: isDraft ? true : undefined
+      
+      // Use new portal v2 submission endpoint if we have a submission ID
+      if (submissionId) {
+        console.log('[PublicPortalV2] Updating submission via new endpoint:', submissionId)
+        
+        // Better Auth session is handled via cookies automatically
+        const response = await fetch(`${baseUrl}/portal/v2/submissions/${submissionId}`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include', // Include Better Auth session cookies
+          body: JSON.stringify({ 
+            data: cleanedFormData,
+            status: isDraft ? 'draft' : 'submitted',
+            completion_percentage: Math.round(Object.keys(cleanedFormData).length / Math.max(form?.fields?.length || 1, 1) * 100)
+          })
         })
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || errorData.message || `Submission failed (HTTP ${response.status})`)
-      }
-      
-      const savedRow = await response.json()
-      
-      if (savedRow.id) {
-        setApplicationRowId(savedRow.id)
-        setInitialData((prev: Record<string, any> | null) => ({ ...prev, _submission_id: savedRow.id }))
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || errorData.message || `Submission failed (HTTP ${response.status})`)
+        }
+        
+        const savedSubmission = await response.json()
+        console.log('[PublicPortalV2] Submission saved to form_responses')
+      } else {
+        // No submission ID - try to get or create one first
+        console.log('[PublicPortalV2] No submission ID, getting/creating one')
+        const submissionRes = await fetch(
+          `${baseUrl}/portal/v2/forms/${form.id}/submissions`,
+          { 
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+          }
+        )
+        
+        if (!submissionRes.ok) {
+          throw new Error('Failed to create submission')
+        }
+        
+        const submission = await submissionRes.json()
+        setApplicationRowId(submission.id)
+        
+        // Now save the data
+        const response = await fetch(`${baseUrl}/portal/v2/submissions/${submission.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ 
+            data: cleanedFormData,
+            status: isDraft ? 'draft' : 'submitted',
+            completion_percentage: Math.round(Object.keys(cleanedFormData).length / Math.max(form?.fields?.length || 1, 1) * 100)
+          })
+        })
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || errorData.message || `Submission failed (HTTP ${response.status})`)
+        }
+        
+        console.log('[PublicPortalV2] New submission created and saved')
       }
       
       setSubmissionData(cleanedFormData)

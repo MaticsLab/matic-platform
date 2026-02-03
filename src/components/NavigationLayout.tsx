@@ -11,6 +11,7 @@ import { TabNavigation } from './TabNavigation'
 import { WorkspaceSettingsSidebar } from './WorkspaceSettingsSidebar'
 import { ProfileSidebar } from './ProfileSidebar'
 import { InviteToWorkspaceSidebarV2 } from './InviteToWorkspaceSidebarV2'
+import { WorkspaceSettingsPanel } from './WorkspaceSettingsPanel'
 import { UpdatePasswordDialog } from './UpdatePasswordDialog'
 import { ApiKeyDialog } from './ApiKeyDialog'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
@@ -186,12 +187,12 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
         onClose={() => setShowApiKeyDialog(false)}
       />
 
-      {/* Invite Sidebar */}
+      {/* Workspace Settings Panel */}
       {currentWorkspace && showInviteSidebar && (
-        <InviteToWorkspaceSidebarV2
+        <WorkspaceSettingsPanel
           isOpen={showInviteSidebar}
           onClose={() => setShowInviteSidebar(false)}
-          workspaceId={currentWorkspace.id}
+          workspaceId={currentWorkspace.ba_organization_id || currentWorkspace.id}
           workspaceName={currentWorkspace.name}
         />
       )}

@@ -138,8 +138,6 @@ type ApplicationInfo struct {
 	FormID      uuid.UUID              `json:"form_id"`
 	FormName    string                 `json:"form_name"`
 	Status      string                 `json:"status"`
-	StageName   string                 `json:"stage_name,omitempty"`
-	StageColor  string                 `json:"stage_color,omitempty"`
 	Data        map[string]interface{} `json:"data"`
 	SubmittedAt *time.Time             `json:"submitted_at,omitempty"`
 	UpdatedAt   time.Time              `json:"updated_at"`
@@ -214,19 +212,12 @@ func GetApplicantDashboard(c *gin.Context) {
 	var metadata map[string]interface{}
 	json.Unmarshal(row.Metadata, &metadata)
 
-	// Extract status and stage from metadata if present
+	// Extract status from metadata if present
 	status := "submitted"
-	var stageName, stageColor string
 	if s, ok := metadata["status"].(string); ok {
 		status = s
 	}
-	if stageID, ok := metadata["stage_id"].(string); ok && stageID != "" {
-		var stage models.ApplicationStage
-		if err := database.DB.First(&stage, "id = ?", stageID).Error; err == nil {
-			stageName = stage.Name
-			stageColor = stage.Color
-		}
-	}
+	// Stage tracking removed - workflow feature deprecated
 
 	// Get submitted_at from metadata
 	var submittedAt *time.Time
@@ -245,8 +236,6 @@ func GetApplicantDashboard(c *gin.Context) {
 			FormID:      row.TableID,
 			FormName:    table.Name,
 			Status:      status,
-			StageName:   stageName,
-			StageColor:  stageColor,
 			Data:        rowData,
 			SubmittedAt: submittedAt,
 			UpdatedAt:   row.UpdatedAt,

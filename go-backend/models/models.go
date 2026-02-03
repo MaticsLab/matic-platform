@@ -40,8 +40,8 @@ type Organization struct {
 	//   "default_timezone": "America/Chicago",
 	//   "features": {"sso_enabled": true, "audit_logs_retention_days": 365}
 	// }
-	Settings         datatypes.JSON       `gorm:"type:jsonb;default:'{}" json:"settings"`
-	SubscriptionTier string               `gorm:"default:'free'" json:"subscription_tier"`
+	Settings         datatypes.JSON       `gorm:"type:jsonb;default:'{}'" json:"settings"`
+	SubscriptionTier string               `gorm:"default:free" json:"subscription_tier"`
 	Members          []OrganizationMember `gorm:"foreignKey:OrganizationID" json:"members,omitempty"`
 	Workspaces       []Workspace          `gorm:"foreignKey:OrganizationID" json:"workspaces,omitempty"`
 }
@@ -459,18 +459,21 @@ func (f *TableFile) FormatSize() string {
 	}
 }
 
-// PortalApplicant - Stores applicant accounts for portal authentication
+// DEPRECATED: PortalApplicant is being phased out
+// Use ba_users + form_submissions instead
+// This model remains only for backwards compatibility during migration
 type PortalApplicant struct {
 	BaseModel
 	FormID           uuid.UUID      `gorm:"type:uuid;not null;index" json:"form_id"`
 	Email            string         `gorm:"uniqueIndex:idx_form_email;not null" json:"email"`
-	PasswordHash     string         `gorm:"not null" json:"-"` // Never expose password hash in JSON
+	PasswordHash     string         `gorm:"not null" json:"-"`
 	FullName         string         `json:"full_name,omitempty"`
 	SubmissionData   datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"submission_data,omitempty"`
-	RowID            *uuid.UUID     `gorm:"type:uuid;index" json:"row_id,omitempty"` // Links to the table_rows submission
+	RowID            *uuid.UUID     `gorm:"type:uuid;index" json:"row_id,omitempty"`
 	ResetToken       *string        `gorm:"uniqueIndex" json:"-"`
 	ResetTokenExpiry *time.Time     `json:"-"`
 	LastLoginAt      *time.Time     `json:"last_login_at,omitempty"`
+	BAUserID         *string        `gorm:"type:text;index" json:"ba_user_id,omitempty"` // Better Auth user ID
 }
 
 func (PortalApplicant) TableName() string {

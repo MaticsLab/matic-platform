@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Application, ApplicationStatus, ApplicationDetailProps, Stage, ReviewHistoryEntry } from './types';
+import { Application, ApplicationStatus, ApplicationDetailProps, ReviewHistoryEntry } from './types';
 import { 
   X, Mail, Trash2, ChevronRight, ChevronDown, ChevronLeft,
   User, FileText, Star, MessageSquare,
@@ -20,7 +20,6 @@ import { ScrollArea } from '@/ui-components/scroll-area';
 import { Button } from '@/ui-components/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui-components/tooltip';
 import { emailClient, SendEmailRequest, EmailAttachment, EmailSignature } from '@/lib/api/email-client';
-import { workflowsClient, StageAction, WorkflowAction } from '@/lib/api/workflows-client';
 import { dashboardClient } from '@/lib/api/dashboard-client';
 import {
   Popover,
@@ -456,7 +455,6 @@ function renderFieldValue(value: any, depth: number = 0, fieldLabel?: string, fi
 
 export function ApplicationDetail({
   application,
-  stages,
   reviewersMap,
   onStatusChange,
   onClose,
@@ -471,7 +469,7 @@ export function ApplicationDetail({
   const [showRecommendersPanel, setShowRecommendersPanel] = useState(false); // Toggle recommenders panel
   const [showDocumentsPanel, setShowDocumentsPanel] = useState(false); // Toggle documents panel
   const [viewMode, setViewMode] = useState<'modal' | 'fullscreen' | 'sidebar'>('sidebar');
-  const [selectedStage, setSelectedStage] = useState(application.stageId || application.status);
+  const [selectedStage, setSelectedStage] = useState(application.status);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [activeCommentTab, setActiveCommentTab] = useState<'comment' | 'email'>('comment');
   const [comment, setComment] = useState('');
@@ -486,9 +484,6 @@ export function ApplicationDetail({
   const [isSending, setIsSending] = useState(false);
   const [showEmailSettings, setShowEmailSettings] = useState(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
-  const [stageActions, setStageActions] = useState<StageAction[]>([]);
-  const [workflowActions, setWorkflowActions] = useState<WorkflowAction[]>([]);
-  const [customStatuses, setCustomStatuses] = useState<any[]>([]); // Workflow triggers/actions
   const [isLoadingActions, setIsLoadingActions] = useState(false);
   const [storageFiles, setStorageFiles] = useState<TableFileResponse[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
@@ -715,94 +710,6 @@ export function ApplicationDetail({
       }];
     });
   };
-
-  // Fetch stage actions, workflow actions, and custom statuses (workflow triggers)
-  useEffect(() => {
-    const fetchActions = async () => {
-      if (!workspaceId) {
-        console.log('[ApplicationDetail] No workspaceId, skipping action fetch');
-        return;
-      }
-      
-      console.log('[ApplicationDetail] Fetching actions:', {
-        stageId: application.stageId,
-        workflowId: application.workflowId,
-        workspaceId
-      });
-      
-      setIsLoadingActions(true);
-      try {
-        // Use getReviewWorkspaceData to get all actions in one call (more efficient)
-        if (application.workflowId) {
-          const workspaceData = await workflowsClient.getReviewWorkspaceData(workspaceId, application.workflowId);
-          
-          console.log('[ApplicationDetail] Workspace data loaded:', {
-            workflowActions: workspaceData.workflow_actions?.length || 0,
-            stages: workspaceData.stages?.length || 0
-          });
-          
-          // Get workflow actions
-          setWorkflowActions(workspaceData.workflow_actions || []);
-          
-          // Get stage actions from the current stage
-          if (application.stageId) {
-            const currentStage = workspaceData.stages.find((s: any) => s.id === application.stageId);
-            if (currentStage?.stage_actions) {
-              console.log('[ApplicationDetail] Found stage actions in workspace data:', currentStage.stage_actions.length);
-              setStageActions(currentStage.stage_actions || []);
-            } else {
-              // Fallback: fetch stage actions directly
-              try {
-                console.log('[ApplicationDetail] Fetching stage actions directly for stage:', application.stageId);
-                const stageActionsData = await workflowsClient.listStageActions(application.stageId);
-                console.log('[ApplicationDetail] Stage actions fetched:', stageActionsData?.length || 0);
-                setStageActions(stageActionsData || []);
-              } catch (err) {
-                console.error('[ApplicationDetail] Failed to fetch stage actions:', err);
-                setStageActions([]);
-              }
-            }
-          }
-        } else {
-          // If no workflow, try to fetch stage actions directly
-          if (application.stageId) {
-            try {
-              console.log('[ApplicationDetail] No workflowId, fetching stage actions directly for stage:', application.stageId);
-              const stageActionsData = await workflowsClient.listStageActions(application.stageId);
-              console.log('[ApplicationDetail] Stage actions fetched:', stageActionsData?.length || 0);
-              setStageActions(stageActionsData || []);
-            } catch (err) {
-              console.error('[ApplicationDetail] Failed to fetch stage actions:', err);
-              setStageActions([]);
-            }
-          }
-        }
-        
-        // Fetch custom statuses (workflow triggers) - these are the actions configured in workflow settings
-        if (application.stageId && workspaceId) {
-          try {
-            console.log('[ApplicationDetail] Fetching custom statuses for stage:', application.stageId);
-            const customStatusesData = await workflowsClient.listCustomStatuses(application.stageId, workspaceId);
-            console.log('[ApplicationDetail] Custom statuses fetched:', customStatusesData?.length || 0);
-            setCustomStatuses(customStatusesData || []);
-          } catch (err) {
-            console.error('[ApplicationDetail] Failed to fetch custom statuses:', err);
-            setCustomStatuses([]);
-          }
-        }
-      } catch (error) {
-        console.error('[ApplicationDetail] Failed to fetch actions:', error);
-        // Set empty arrays on error to prevent showing "No actions available" incorrectly
-        setStageActions([]);
-        setWorkflowActions([]);
-        setCustomStatuses([]);
-      } finally {
-        setIsLoadingActions(false);
-      }
-    };
-    
-    fetchActions();
-  }, [application.stageId, application.workflowId, workspaceId]);
 
   // Fetch files from table_files (uploaded to Supabase storage)
   useEffect(() => {
@@ -1195,13 +1102,11 @@ export function ApplicationDetail({
     }
   };
 
-  // Build stages list from props or fallback to default
-  const displayStages: ApplicationStatus[] = stages.length > 0 
-    ? stages.map(s => s.name as ApplicationStatus)
-    : ['Submitted', 'Initial Review', 'Under Review', 'Final Review', 'Approved'];
+  // Default statuses for filtering
+  const displayStages: ApplicationStatus[] = ['Submitted', 'Initial Review', 'Under Review', 'Final Review', 'Approved'];
 
   const currentStageIndex = displayStages.findIndex(s => 
-    s === application.stageName || s === application.status
+    s === application.status
   );
 
   const handleStageChange = (newStage: ApplicationStatus) => {
@@ -1248,11 +1153,9 @@ export function ApplicationDetail({
     return date.toLocaleDateString();
   };
 
-  // Get stage name by ID
-  const getStageName = (stageId?: string) => {
-    if (!stageId) return UNKNOWN;
-    const stage = stages.find(s => s.id === stageId);
-    return stage?.name || stageId;
+  // Status names are used directly now
+  const getStatusName = (status?: string) => {
+    return status || UNKNOWN;
   };
 
   // Build activities from real data (stageHistory and reviewHistory)
@@ -1266,32 +1169,7 @@ export function ApplicationDetail({
       timestamp: number;
     }> = [];
 
-    // Add stage history items
-    if (application.stageHistory && Array.isArray(application.stageHistory)) {
-      application.stageHistory.forEach((entry, idx) => {
-        const timestamp = entry.moved_at || entry.timestamp;
-        const toStage = entry.to_stage_id ? getStageName(entry.to_stage_id) : (entry.to_stage || UNKNOWN);
-        const action = entry.action || 'moved';
-        
-        let message = '';
-        if (action === 'auto_advanced') {
-          message = `Auto-advanced to ${toStage}`;
-        } else if (action === 'auto_rejected') {
-          message = 'Application auto-rejected';
-        } else {
-          message = `Moved to ${toStage}`;
-        }
-
-        items.push({
-          id: `stage-${idx}`,
-          type: 'status',
-          message,
-          user: 'System',
-          time: formatRelativeTime(timestamp),
-          timestamp: timestamp ? new Date(timestamp).getTime() : 0,
-        });
-      });
-    }
+    // Stage history removed - workflow feature deleted
 
     // Add review history items
     if (application.reviewHistory && Array.isArray(application.reviewHistory)) {
@@ -1319,26 +1197,13 @@ export function ApplicationDetail({
       });
     }
 
-    // Also add current status if not in history
-    const currentStageInHistory = application.stageHistory?.some(
-      h => (h.to_stage_id === application.stageId) || (h.to_stage === application.stageName)
-    );
-    if (!currentStageInHistory && application.stageName) {
-      items.push({
-        id: 'current-status',
-        type: 'status',
-        message: `Moved to ${application.stageName}`,
-        user: 'System',
-        time: application.lastActivity || 'Recently',
-        timestamp: Date.now() - 1000, // Recent but not newest
-      });
-    }
+    // Current status tracking - simplified without workflow stages
 
     // Sort by timestamp descending (newest first)
     items.sort((a, b) => b.timestamp - a.timestamp);
 
     return items;
-  }, [application.stageHistory, application.reviewHistory, application.stageName, application.stageId, application.lastActivity, application.submittedDate, application.name, application.email, stages]);
+  }, [application.reviewHistory, application.lastActivity, application.submittedDate, application.name, application.email]);
 
   // Main content JSX
   const mainContent = (
@@ -1434,50 +1299,14 @@ export function ApplicationDetail({
                   {application.name || UNKNOWN}
                 </h1>
                 <div className="flex items-center gap-2 shrink-0">
-                  {/* Stage Dropdown */}
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Badge 
-                        variant="secondary"
-                        className="cursor-pointer hover:bg-green-100 bg-green-50 text-green-700 border-green-200 gap-1.5 px-2.5 py-1"
-                      >
-                        <Play className="h-3 w-3" />
-                        {application.stageName || application.status || 'Submitted'}
-                        <ChevronDown className="h-3 w-3 opacity-70" />
-                      </Badge>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-56 p-2" align="end">
-                      <div className="space-y-1">
-                        <p className="text-xs font-medium text-gray-500 px-2 pb-1">Change Status</p>
-                        {stages.map((stage) => {
-                          const isCurrentStage = stage.id === application.stageId || stage.name === application.stageName;
-                          return (
-                            <button
-                              key={stage.id}
-                              onClick={() => {
-                                if (!isCurrentStage) {
-                                  onStatusChange?.(application.id, stage.name as ApplicationStatus);
-                                }
-                              }}
-                              className={cn(
-                                "w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors",
-                                isCurrentStage 
-                                  ? "bg-green-100 text-green-700 font-medium" 
-                                  : "hover:bg-gray-100 text-gray-700"
-                              )}
-                            >
-                              <div 
-                                className="w-2 h-2 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: stage.color || '#6B7280' }}
-                              />
-                              <span className="flex-1 truncate">{stage.name}</span>
-                              {isCurrentStage && <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                  {/* Status Badge (read-only) */}
+                  <Badge 
+                    variant="secondary"
+                    className="bg-green-50 text-green-700 border-green-200 gap-1.5 px-2.5 py-1"
+                  >
+                    <Play className="h-3 w-3" />
+                    {application.status || 'Submitted'}
+                  </Badge>
 
                   {/* Workflow Button */}
                   <TooltipProvider>
@@ -1605,127 +1434,6 @@ export function ApplicationDetail({
                   <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Application Data</span>
                 </div>
-                      {/* Sticky Bottom Action Bar */}
-                      <div className="sticky bottom-0 left-0 right-0 z-20 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between shadow-sm">
-                        <div className="flex items-center gap-2">
-                          {/* Action Dropdown */}
-                          <div className="relative">
-                            <button
-                              onClick={() => setShowActionsDropdown(!showActionsDropdown)}
-                              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium shadow hover:bg-blue-700 transition-colors flex items-center gap-2"
-                            >
-                              Actions
-                              <ChevronDown className="w-4 h-4" />
-                            </button>
-                            {showActionsDropdown && ([...customStatuses, ...stageActions, ...workflowActions].length > 0 ? (
-                              <div className="absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-96 overflow-y-auto">
-                                {/* Custom Statuses (Workflow Triggers) */}
-                                {customStatuses.map((status) => (
-                                  <button
-                                    key={status.id}
-                                    className="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700 flex items-center gap-2"
-                                    onClick={async () => {
-                                      setShowActionsDropdown(false);
-                                      if (!formId) {
-                                        toast.error('Form ID is required');
-                                        return;
-                                      }
-                                      try {
-                                        // Execute custom status (workflow trigger) - this will automatically execute associated actions
-                                        if (!application.stageId) {
-                                          toast.error('Stage ID is required');
-                                          return;
-                                        }
-                                        
-                                        await workflowsClient.executeStatusAction({
-                                          stage_id: application.stageId,
-                                          status_name: status.name,
-                                          submission_id: application.id,
-                                        });
-                                        
-                                        toast.success(`Action "${status.name}" executed successfully`);
-                                        onActivityCreated?.();
-                                      } catch (error: any) {
-                                        console.error('Failed to execute custom status:', error);
-                                        toast.error(error?.message || 'Failed to execute action');
-                                      }
-                                    }}
-                                  >
-                                    <span 
-                                      className={cn(
-                                        "w-2 h-2 rounded-full",
-                                        status.color === 'green' ? 'bg-green-500' :
-                                        status.color === 'red' ? 'bg-red-500' :
-                                        status.color === 'yellow' ? 'bg-yellow-500' :
-                                        status.color === 'purple' ? 'bg-purple-500' :
-                                        status.color === 'gray' ? 'bg-gray-500' :
-                                        'bg-blue-500'
-                                      )}
-                                    ></span>
-                                    {status.name}
-                                  </button>
-                                ))}
-                                
-                                {/* Stage Actions and Workflow Actions */}
-                                {[...stageActions, ...workflowActions].map((action) => (
-                                  <button
-                                    key={action.id}
-                                    className="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700"
-                                    onClick={async () => {
-                                      setShowActionsDropdown(false);
-                                      if (!formId) {
-                                        toast.error('Form ID is required');
-                                        return;
-                                      }
-                                      try {
-                                        await workflowsClient.executeAction({
-                                          form_id: formId,
-                                          submission_id: application.id,
-                                          action_type: stageActions.some(a => a.id === action.id) ? 'stage_action' : 'workflow_action',
-                                          action_id: action.id,
-                                        });
-                                        toast.success(`Action "${action.name}" executed successfully`);
-                                        if (action.target_stage_id) {
-                                          const targetStage = stages.find(s => s.id === action.target_stage_id);
-                                          if (targetStage) {
-                                            onStatusChange?.(application.id, targetStage.name as ApplicationStatus);
-                                          }
-                                        }
-                                        onActivityCreated?.();
-                                      } catch (error) {
-                                        console.error('Failed to execute action:', error);
-                                        toast.error('Failed to execute action');
-                                      }
-                                    }}
-                                  >
-                                    {action.name}
-                                  </button>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-30">
-                                <div className="px-4 py-2 text-gray-400">No actions available</div>
-                              </div>
-                            ))}
-                          </div>
-                          {/* Request Revision Button */}
-                          <button
-                            className="px-4 py-2 bg-yellow-500 text-white rounded-lg font-medium shadow hover:bg-yellow-600 transition-colors"
-                            onClick={() => toast('Request Revision sent!')}
-                          >
-                            Request Revision
-                          </button>
-                          {/* Delete Button */}
-                          <button
-                            className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium shadow hover:bg-red-700 transition-colors"
-                            onClick={handleDelete}
-                            // No isLoading state for delete, so do not disable
-                          >
-                            {showDeleteConfirm ? 'Confirm Delete' : 'Delete'}
-                          </button>
-                        </div>
-                        {/* Optional: Add more controls or info here */}
-                      </div>
                 <div className="space-y-4">
                   {(() => {
                     // Create field map for nested field lookup (includes all subfields recursively)
@@ -1840,108 +1548,8 @@ export function ApplicationDetail({
               </div>
             )}
 
-            {/* Actions Section - Compact */}
-            {(customStatuses.length > 0 || stageActions.length > 0 || workflowActions.length > 0) && (
-              <Card className="shadow-none border-gray-100">
-                <CardHeader className="p-3 pb-2">
-                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Play className="h-3 w-3" />
-                    Quick Actions
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 pt-0">
-                  <div className="flex flex-wrap gap-2">
-                    {/* Custom Statuses (Workflow Triggers) */}
-                    {customStatuses.map((status) => (
-                      <Button
-                        key={status.id}
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-xs gap-1.5"
-                        onClick={async () => {
-                          if (!formId) {
-                            toast.error('Form ID is required');
-                            return;
-                          }
-                          try {
-                            if (!application.stageId) {
-                              toast.error('Stage ID is required');
-                              return;
-                            }
-                            
-                            await workflowsClient.executeStatusAction({
-                              stage_id: application.stageId,
-                              status_name: status.name,
-                              submission_id: application.id,
-                            });
-                            
-                            toast.success(`Action "${status.name}" executed successfully`);
-                            onActivityCreated?.();
-                          } catch (error: any) {
-                            console.error('Failed to execute custom status:', error);
-                            toast.error(error?.message || 'Failed to execute action');
-                          }
-                        }}
-                      >
-                        <span 
-                          className={cn(
-                            "w-2 h-2 rounded-full",
-                            status.color === 'green' ? 'bg-green-500' :
-                            status.color === 'red' ? 'bg-red-500' :
-                            status.color === 'yellow' ? 'bg-yellow-500' :
-                            status.color === 'purple' ? 'bg-purple-500' :
-                            status.color === 'gray' ? 'bg-gray-500' :
-                            'bg-blue-500'
-                          )}
-                        />
-                        {status.name}
-                      </Button>
-                    ))}
-                  
-                    {/* Stage Actions and Workflow Actions */}
-                    {[...stageActions, ...workflowActions].map((action) => {
-                      const icon = actionIcons[action.icon || 'arrow-right'] || <ArrowRight className="w-3 h-3" />;
-                      const isStageAction = stageActions.some(a => a.id === action.id);
-                      return (
-                        <Button
-                          key={action.id}
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs gap-1.5"
-                          onClick={async () => {
-                            if (!formId) {
-                              toast.error('Form ID is required');
-                              return;
-                            }
-                            try {
-                              await workflowsClient.executeAction({
-                                form_id: formId,
-                                submission_id: application.id,
-                                action_type: isStageAction ? 'stage_action' : 'workflow_action',
-                                action_id: action.id,
-                              });
-                              toast.success(`Action "${action.name}" executed successfully`);
-                              if (action.target_stage_id) {
-                                const targetStage = stages.find(s => s.id === action.target_stage_id);
-                                if (targetStage) {
-                                  onStatusChange?.(application.id, targetStage.name as ApplicationStatus);
-                                }
-                              }
-                            } catch (error) {
-                              console.error('Failed to execute action:', error);
-                              toast.error('Failed to execute action');
-                            }
-                          }}
-                        >
-                          {icon}
-                          {action.name}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Actions Section - Removed (workflow feature deleted) */}
+
               </div>
             </ScrollArea>
           </div>

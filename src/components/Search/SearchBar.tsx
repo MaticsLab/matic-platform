@@ -146,12 +146,12 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
       },
       {
         id: 'nav-applications',
-        title: 'Programs',
+        title: 'Portals',
         subtitle: 'Manage scholarships and applications',
         icon: GraduationCap,
         type: 'navigation',
         category: 'Navigate',
-        action: () => navigateTo(`/workspace/${workspaceSlug}/applications`, 'Programs', 'custom')
+        action: () => navigateTo(`/workspace/${workspaceSlug}/applications`, 'Portals', 'custom')
       }
     ]
   }, [workspaceSlug, navigateTo])
@@ -186,7 +186,7 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
   // Get category name from hub type
   const getCategoryName = (hubType?: string): string => {
     switch (hubType) {
-      case 'applications': return 'Programs'
+      case 'applications': return 'Portals'
       case 'activities': return 'Activities'
       case 'data': return 'Database'
       default: return 'Results'
@@ -257,7 +257,7 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
           break
         default:
           url = `/workspace/${workspaceSlug}/applications`
-          title = 'Programs'
+          title = 'Portals'
       }
     } else if (result.hubType === 'activities') {
       // Activities hub content - redirect to workspace

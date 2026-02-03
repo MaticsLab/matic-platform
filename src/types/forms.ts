@@ -1,142 +1,212 @@
 /**
- * Form Types for Matic Platform
- * Based on database schema in 001_initial_schema.sql
+ * Unified Forms Schema Types
+ * 
+ * These types correspond to the new normalized forms tables:
+ * - forms (form definitions)
+ * - form_fields (field definitions) 
+ * - form_submissions (user submissions)
+ * - form_responses (individual field responses)
  */
 
-export type FormStatus = 'draft' | 'published' | 'archived' | 'paused'
-
-export type FieldType =
-  | 'text'
-  | 'textarea'
-  | 'email'
-  | 'phone'
-  | 'number'
-  | 'url'
-  | 'address'
-  | 'select'
-  | 'multiselect'
-  | 'radio'
-  | 'checkbox'
-  | 'date'
-  | 'datetime'
-  | 'time'
-  | 'file'
-  | 'image'
-  | 'signature'
-  | 'rating'
-  | 'divider'
-  | 'heading'
-  | 'paragraph'
-  | 'callout'
-  | 'section'
-  | 'group'
-  | 'repeater'
-
-export type FieldWidth = 'full' | 'half' | 'third' | 'quarter'
-
-export interface LogicRule {
+export interface Form {
   id: string
-  fieldId: string
-  operator: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'is_empty' | 'is_not_empty'
-  value: string
-  action: 'show' | 'hide' | 'require'
+  workspace_id: string
+  legacy_table_id?: string | null
+  name: string
+  slug: string
+  description?: string | null
+  settings: FormSettings
+  status: 'draft' | 'published' | 'archived' | 'closed'
+  published_at?: string | null
+  closes_at?: string | null
+  max_submissions?: number | null
+  allow_multiple_submissions: boolean
+  require_auth: boolean
+  version: number
+  created_at: string
+  updated_at: string
+  created_by?: string | null
 }
 
-export interface DashboardTile {
-  id: string
-  title: string
-  type: 'stat' | 'folder'
-  filter?: LogicRule[]
-  icon?: string
-  color?: string
-  aggregation?: 'count' | 'sum' | 'avg'
-  fieldId?: string
-}
-
-export interface DashboardConfig {
-  tiles: DashboardTile[]
+export interface FormSettings {
+  branding?: {
+    logo_url?: string
+    primary_color?: string
+    font_family?: string
+  }
+  notifications?: {
+    enabled: boolean
+    recipients: string[]
+    on_submit?: boolean
+    on_status_change?: boolean
+  }
+  security?: {
+    require_captcha?: boolean
+    allowed_domains?: string[]
+    ip_whitelist?: string[]
+  }
+  customization?: {
+    custom_css?: string
+    custom_js?: string
+    thank_you_message?: string
+    redirect_url?: string
+  }
+  [key: string]: any
 }
 
 export interface FormField {
   id: string
-  form_id: string // This might be table_id in backend
-  table_id?: string
-  section_id?: string // ID of the section this field belongs to
-  name: string
+  form_id: string
+  section_id?: string | null
+  legacy_field_id?: string | null
+  field_key: string
+  field_type: string
   label: string
-  title?: string // For section type fields
-  placeholder?: string
-  description?: string
-  type: FieldType // Changed from field_type to type to match backend
-  settings: Record<string, any>
-  config?: Record<string, any>
+  description?: string | null
+  placeholder?: string | null
+  required: boolean
   validation: Record<string, any>
   options: Array<{ label: string; value: string }>
-  position: number
-  width: FieldWidth
-  is_visible: boolean
+  conditions: Array<any>
+  sort_order: number
+  width: 'full' | 'half' | 'third' | 'quarter'
+  version: number
   created_at: string
   updated_at: string
 }
 
-export interface Form {
+export interface FormSection {
   id: string
-  view_id?: string
-  workspace_id: string
+  form_id: string
   name: string
-  description?: string
-  slug: string
-  custom_slug?: string | null
-  settings: Record<string, any>
-  submit_settings: Record<string, any>
-  status: FormStatus
-  version: number
-  is_public: boolean
-  created_by: string
+  description?: string | null
+  sort_order: number
+  conditions: Array<any>
   created_at: string
   updated_at: string
-  published_at?: string
-  fields?: FormField[]
-  // Preview/Share metadata
-  preview_title?: string | null
-  preview_description?: string | null
-  preview_image_url?: string | null
 }
 
 export interface FormSubmission {
   id: string
   form_id: string
-  data: Record<string, any>
-  metadata: Record<string, any>
-  status: 'submitted' | 'reviewed' | 'approved' | 'rejected'
-  submitted_by?: string
-  email?: string
-  submitted_at: string
-  reviewed_at?: string
-  reviewed_by?: string
-  applicant_full_name?: string // Full name from portal_applicants table (from portal signup)
+  user_id: string
+  legacy_row_id?: string | null
+  status: 'draft' | 'in_progress' | 'submitted' | 'under_review' | 'accepted' | 'rejected' | 'withdrawn'
+  current_section_id?: string | null
+  completion_percentage: number
+  started_at: string
+  last_saved_at: string
+  submitted_at?: string | null
+  form_version: number
+  workflow_id?: string | null
+  current_stage_id?: string | null
+  assigned_reviewer_id?: string | null
+  created_at: string
+  updated_at: string
 }
 
-export interface FormCreate {
+export interface FormResponse {
+  id: string
+  submission_id: string
+  field_id: string
+  value_text?: string | null
+  value_number?: number | null
+  value_boolean?: boolean | null
+  value_date?: string | null
+  value_datetime?: string | null
+  value_json?: Record<string, any> | null
+  value_type: 'text' | 'number' | 'boolean' | 'date' | 'datetime' | 'json'
+  is_valid: boolean
+  validation_errors: Array<string>
+  created_at: string
+  updated_at: string
+}
+
+export interface FormResponseHistory {
+  id: string
+  response_id: string
+  previous_value_text?: string | null
+  previous_value_number?: number | null
+  previous_value_boolean?: boolean | null
+  previous_value_date?: string | null
+  previous_value_datetime?: string | null
+  previous_value_json?: Record<string, any> | null
+  previous_value_type?: string | null
+  changed_by?: string | null
+  changed_at: string
+  change_reason?: string | null
+}
+
+// Enriched types for API responses
+export interface FormWithFields extends Form {
+  fields: FormField[]
+  sections?: FormSection[]
+}
+
+export interface FormSubmissionWithResponses extends FormSubmission {
+  responses: FormResponse[]
+  form?: Form
+}
+
+export interface FormSubmissionSummary {
+  id: string
+  form_id: string
+  form_name: string
+  status: string
+  completion_percentage: number
+  submitted_at?: string | null
+  last_saved_at: string
+  created_at: string
+  updated_at: string
+}
+
+// Create/Update types
+export interface CreateFormInput {
   workspace_id: string
   name: string
-  description?: string
   slug: string
-  settings?: Record<string, any>
-  submit_settings?: Record<string, any>
-  status?: FormStatus
-  is_public?: boolean
+  description?: string
+  settings?: FormSettings
+  status?: 'draft' | 'published'
+  require_auth?: boolean
 }
 
-export interface FormUpdate {
-    preview_title?: string | null
-    preview_description?: string | null
-    preview_image_url?: string | null
+export interface UpdateFormInput {
   name?: string
   description?: string
-  slug?: string
-  settings?: Record<string, any>
-  submit_settings?: Record<string, any>
-  status?: FormStatus
-  is_public?: boolean
+  settings?: FormSettings
+  status?: 'draft' | 'published' | 'archived' | 'closed'
+  closes_at?: string | null
+  max_submissions?: number | null
+  allow_multiple_submissions?: boolean
+}
+
+export interface CreateFormFieldInput {
+  form_id: string
+  section_id?: string
+  field_key: string
+  field_type: string
+  label: string
+  description?: string
+  placeholder?: string
+  required?: boolean
+  validation?: Record<string, any>
+  options?: Array<{ label: string; value: string }>
+  sort_order?: number
+}
+
+export interface UpdateFormFieldInput {
+  label?: string
+  description?: string
+  placeholder?: string
+  required?: boolean
+  validation?: Record<string, any>
+  options?: Array<{ label: string; value: string }>
+  sort_order?: number
+}
+
+export interface SubmitFormResponseInput {
+  submission_id: string
+  field_id: string
+  value: string | number | boolean | Record<string, any>
 }

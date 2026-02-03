@@ -21,6 +21,7 @@ export interface ApplicantCRM {
   last_login_at?: string
   applications: ApplicationSummary[]
   total_forms: number
+  password_reset_requested?: string // ISO timestamp when reset was requested
 }
 
 export interface ApplicantDetail {

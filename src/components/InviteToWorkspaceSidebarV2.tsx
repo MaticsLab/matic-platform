@@ -44,7 +44,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { goFetch } from '@/lib/api/go-client'
+import { organizationAPI } from '@/lib/better-auth-client'
 
 interface InviteToWorkspaceSidebarV2Props {
   isOpen: boolean
@@ -111,20 +111,71 @@ export function InviteToWorkspaceSidebarV2({
     
     setIsLoading(true)
     try {
-      // Load members with Better Auth user data
-      const membersResult = await goFetch<WorkspaceMemberWithAuth[]>(
-        `/workspaces/${workspaceId}/members-with-auth`
-      )
-      if (membersResult) {
-        setMembers(membersResult)
+      console.log('Loading data for workspace (BA Org ID):', workspaceId)
+      
+      // Load members using Better Auth organization API
+      const membersResponse = await organizationAPI.listMembers({ 
+        query: { organizationId: workspaceId } 
+      })
+      
+      console.log('Members response:', membersResponse)
+      
+      if (membersResponse.data) {
+        const membersArray = Array.isArray(membersResponse.data) 
+          ? membersResponse.data 
+          : (membersResponse.data as any).members || []
+        
+        console.log('Members array:', membersArray)
+        
+        // Map to the format expected by the UI
+        const mappedMembers = membersArray.map((m: any) => ({
+          id: m.id,
+          workspace_id: workspaceId,
+          ba_user_id: m.userId,
+          role: m.role,
+          created_at: m.createdAt,
+          updated_at: m.createdAt,
+          user_name: m.user?.name || m.email,
+          user_email: m.user?.email || m.email,
+          user_image: m.user?.image || null,
+          user_email_verified: m.user?.emailVerified || true,
+          user_created_at: m.createdAt
+        }))
+        console.log('Mapped members:', mappedMembers)
+        setMembers(mappedMembers)
       }
 
-      // Load pending invitations with inviter data
-      const invitationsResult = await goFetch<WorkspaceInvitationData[]>(
-        `/workspaces/${workspaceId}/invitations?status=pending`
-      )
-      if (invitationsResult) {
-        setInvitations(invitationsResult)
+      // Load pending invitations using Better Auth organization API
+      const invitationsResponse = await organizationAPI.listInvitations({ 
+        query: { organizationId: workspaceId } 
+      })
+      
+      console.log('Invitations response:', invitationsResponse)
+      
+      if (invitationsResponse.data) {
+        const invitationsArray = Array.isArray(invitationsResponse.data)
+          ? invitationsResponse.data
+          : []
+        
+        console.log('Invitations array:', invitationsArray)
+        
+        // Map to the format expected by the UI
+        const mappedInvitations = invitationsArray
+          .filter((inv: any) => inv.status === 'pending')
+          .map((inv: any) => ({
+            id: inv.id,
+            workspace_id: workspaceId,
+            email: inv.email,
+            role: inv.role,
+            status: inv.status,
+            expires_at: inv.expiresAt,
+            created_at: inv.createdAt,
+            invited_by_user_id: inv.inviterId,
+            inviter_name: null,
+            inviter_email: null
+          }))
+        console.log('Mapped invitations:', mappedInvitations)
+        setInvitations(mappedInvitations)
       }
     } catch (error) {
       console.error('Failed to load data:', error)
@@ -154,9 +205,10 @@ export function InviteToWorkspaceSidebarV2({
 
     setIsSending(true)
     try {
-      await goFetch(`/workspaces/${workspaceId}/invitations`, {
-        method: 'POST',
-        body: JSON.stringify({ email, role })
+      await organizationAPI.inviteMember({
+        organizationId: workspaceId,
+        email,
+        role
       })
       
       toast.success(`Invitation sent to ${email}`)
@@ -174,41 +226,64 @@ export function InviteToWorkspaceSidebarV2({
 
   const handleRemoveMember = async (memberId: string, memberName: string) => {
     try {
-      await goFetch(`/workspace-members/${memberId}`, {
-        method: 'DELETE'
+      await organizationAPI.removeMember({
+        organizationId: workspaceId,
+        memberIdOrUserId: memberId
       })
       
       toast.success(`Removed ${memberName}`)
       await loadData()
     } catch (error) {
+      console.error('Failed to remove member:', error)
       toast.error('Failed to remove member')
     }
   }
 
   const handleUpdateRole = async (memberId: string, newRole: MemberRole) => {
     try {
-      await goFetch(`/workspace-members/${memberId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ role: newRole })
+      await organizationAPI.updateMemberRole({
+        organizationId: workspaceId,
+        memberIdOrUserId: memberId,
+        role: newRole
       })
       
       toast.success('Role updated')
       await loadData()
     } catch (error) {
+      console.error('Failed to update role:', error)
       toast.error('Failed to update role')
     }
   }
 
   const handleCancelInvitation = async (invitationId: string) => {
     try {
-      await goFetch(`/workspace-invitations/${invitationId}`, {
-        method: 'DELETE'
+      await organizationAPI.cancelInvitation({
+        invitationId
       })
       
       toast.success('Invitation cancelled')
       await loadData()
     } catch (error) {
+      console.error('Failed to cancel invitation:', error)
       toast.error('Failed to cancel invitation')
+    }
+  }
+
+  const handleResendInvitation = async (invitationId: string, email: string) => {
+    try {
+      // Cancel and resend (Better Auth doesn't have a direct resend method)
+      await organizationAPI.cancelInvitation({ invitationId })
+      await organizationAPI.inviteMember({
+        organizationId: workspaceId,
+        email,
+        role: invitations.find(i => i.id === invitationId)?.role || 'viewer'
+      })
+      
+      toast.success(`Invitation resent to ${email}`)
+      await loadData()
+    } catch (error) {
+      console.error('Failed to resend invitation:', error)
+      toast.error('Failed to resend invitation')
     }
   }
 
@@ -517,6 +592,16 @@ export function InviteToWorkspaceSidebarV2({
                           <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50 text-xs">
                             Pending
                           </Badge>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleResendInvitation(invitation.id, invitation.email)}
+                            className="h-7 px-2 text-xs text-gray-600 hover:text-blue-600 hover:bg-blue-50"
+                          >
+                            <Send className="h-3 w-3 mr-1" />
+                            Resend
+                          </Button>
 
                           <Button
                             variant="ghost"

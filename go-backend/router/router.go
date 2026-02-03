@@ -191,31 +191,21 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.POST("/forms/:id/submit", handlers.SubmitForm)
 		api.GET("/forms/:id/submission", handlers.GetFormSubmission)
 
-		// Portal Authentication V2 Routes (Better Auth based)
-		api.POST("/portal/v2/signup", handlers.PortalSignupV2)
-		api.POST("/portal/v2/login", handlers.PortalLoginV2)
+		// Portal Authentication V2 Routes (DEPRECATED - matic folder only)
+		// Main platform uses Better Auth SDK + /portal/sync-better-auth-applicant
+		api.POST("/portal/v2/signup", handlers.PortalSignupV2) // DEPRECATED
+		api.POST("/portal/v2/login", handlers.PortalLoginV2)   // DEPRECATED
 		api.POST("/portal/v2/logout", handlers.PortalLogoutV2)
 		api.GET("/portal/v2/me", handlers.PortalAuthMiddlewareV2(), handlers.PortalGetMeV2)
 		api.GET("/portal/v2/submissions", handlers.PortalAuthMiddlewareV2(), handlers.GetApplicantSubmissions)
 
+		// NEW: Unified Forms Schema Portal Routes
+		api.POST("/portal/v2/forms/:form_id/submissions", handlers.PortalAuthMiddlewareV2(), handlers.GetOrCreatePortalSubmission)
+		api.GET("/portal/v2/submissions/:id", handlers.PortalAuthMiddlewareV2(), handlers.GetPortalSubmission)
+		api.PUT("/portal/v2/submissions/:id", handlers.PortalAuthMiddlewareV2(), handlers.UpdatePortalSubmission)
+
 		// Legacy Portal Login (alias for v2 - backwards compatibility)
-		api.POST("/portal/login", handlers.PortalLoginV2)
-
-		// Application Submissions Routes (Better Auth protected)
-		submissions := api.Group("/submissions")
-		submissions.Use(handlers.PortalAuthMiddlewareV2())
-		{
-			submissions.GET("", handlers.ListUserSubmissions)
-			submissions.GET("/:id", handlers.GetSubmission)
-			submissions.PUT("/:id", handlers.ManualSaveSubmission)
-			submissions.POST("/:id/autosave", handlers.AutosaveSubmission)
-			submissions.POST("/:id/submit", handlers.SubmitApplication)
-			submissions.GET("/:id/versions", handlers.GetSubmissionVersions)
-			submissions.POST("/:id/restore/:version", handlers.RestoreSubmissionVersion)
-		}
-
-		// Start submission (also protected)
-		api.POST("/forms/:id/start", handlers.PortalAuthMiddlewareV2(), handlers.GetOrStartSubmission)
+		api.POST("/portal/login", handlers.PortalLoginV2) // DEPRECATED
 
 		// Portal Dashboard Routes (Public with Portal Token)
 		// Note: These routes use portal auth (applicant token) not main auth
@@ -254,10 +244,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 		// Public Resend Webhook (must be public for Resend to send events)
 		api.POST("/email/resend/webhook", handlers.HandleResendWebhook)
-
-		// External Review Routes (Public with Token)
-		api.GET("/external-review/:token", handlers.GetExternalReviewData)
-		api.POST("/external-review/:token/submit/:submission_id", handlers.SubmitExternalReview)
 
 		// Recommendation Routes (Public with Token - for recommenders)
 		api.GET("/recommend/:token", handlers.GetRecommendationByToken)     // Get recommendation request details
@@ -477,8 +463,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				forms.GET("", handlers.ListForms)
 				forms.GET("/list", handlers.ListFormsOptimized) // Optimized endpoint for Applications Hub (must be before /:id)
 				forms.POST("", handlers.CreateForm)
-				forms.GET("/:id", handlers.GetForm)                                // This must come after /list to avoid route conflicts
-				forms.GET("/:id/full", handlers.GetFormWithSubmissionsAndWorkflow) // Combined endpoint for Review Workspace
+				forms.GET("/:id", handlers.GetForm) // This must come after /list to avoid route conflicts
 				forms.PATCH("/:id", handlers.UpdateForm)
 				forms.PUT("/:id/structure", handlers.UpdateFormStructure)    // Add this line
 				forms.PUT("/:id/custom-slug", handlers.UpdateFormCustomSlug) // Update custom URL slug
@@ -498,16 +483,13 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				forms.PATCH("/:id/integrations/google_drive", handlers.UpdateFormIntegrationSettings)
 				forms.POST("/:id/integrations/google_drive/folder", handlers.CreateFormFolder)
 
-				// Reviewer Assignment
-				forms.POST("/:id/reviewers/:reviewer_id/assign", handlers.AssignReviewerApplications)
-
-				// Workflow Assignment & Stage Management
-				forms.POST("/:id/submissions/:submission_id/assign-workflow", handlers.AssignSubmissionWorkflow)
-				forms.POST("/:id/submissions/:submission_id/move-stage", handlers.MoveSubmissionToStage)
-				forms.PATCH("/:id/submissions/:submission_id/review-data", handlers.UpdateSubmissionReviewData)
+				// Submission Management
 				forms.PATCH("/:id/submissions/:submission_id", handlers.UpdateSubmissionMetadata)
-				forms.POST("/:id/submissions/bulk-assign-workflow", handlers.BulkAssignWorkflow)
 			}
+
+			// Unified schema endpoints
+			protected.GET("/form-submissions/:id", handlers.GetFormSubmissionByID)
+			protected.GET("/form-fields", handlers.ListFormFields)
 
 			// Ending Pages
 			endingPages := protected.Group("/ending-pages")
@@ -557,58 +539,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				search.DELETE("/history/:workspace_id", handlers.ClearSearchHistory)
 			}
 
-			// Workflows
-			workflows := protected.Group("/workflows")
-			{
-				workflows.GET("", handlers.ListReviewWorkflows)
-				workflows.POST("", handlers.CreateReviewWorkflow)
-				workflows.GET("/:id", handlers.GetReviewWorkflow)
-				workflows.PATCH("/:id", handlers.UpdateReviewWorkflow)
-				workflows.DELETE("/:id", handlers.DeleteReviewWorkflow)
-			}
-
-			// Workflow Webhooks (for workflow builder integration)
-			webhooks := protected.Group("/workflow-webhooks")
-			{
-				webhooks.GET("", handlers.ListWorkflowWebhooks)
-				webhooks.POST("", handlers.CreateWorkflowWebhook)
-				webhooks.PATCH("/:id", handlers.UpdateWorkflowWebhook)
-				webhooks.DELETE("/:id", handlers.DeleteWorkflowWebhook)
-			}
-
-			// Review Workspace - Combined data endpoint for fast loading
-			protected.GET("/review-workspace-data", handlers.GetReviewWorkspaceData)
-
-			// Application Stages
-			stages := protected.Group("/stages")
-			{
-				stages.GET("", handlers.ListApplicationStages)
-				stages.POST("", handlers.CreateApplicationStage)
-				stages.GET("/:id", handlers.GetApplicationStage)
-				stages.PATCH("/:id", handlers.UpdateApplicationStage)
-				stages.DELETE("/:id", handlers.DeleteApplicationStage)
-			}
-
-			// Reviewer Types
-			reviewerTypes := protected.Group("/reviewer-types")
-			{
-				reviewerTypes.GET("", handlers.ListReviewerTypes)
-				reviewerTypes.POST("", handlers.CreateReviewerType)
-				reviewerTypes.GET("/:id", handlers.GetReviewerType)
-				reviewerTypes.PATCH("/:id", handlers.UpdateReviewerType)
-				reviewerTypes.DELETE("/:id", handlers.DeleteReviewerType)
-			}
-
-			// Rubrics
-			rubrics := protected.Group("/rubrics")
-			{
-				rubrics.GET("", handlers.ListRubrics)
-				rubrics.POST("", handlers.CreateRubric)
-				rubrics.GET("/:id", handlers.GetRubric)
-				rubrics.PATCH("/:id", handlers.UpdateRubric)
-				rubrics.DELETE("/:id", handlers.DeleteRubric)
-			}
-
 			// CRM - Applicant Management
 			crm := protected.Group("/crm")
 			{
@@ -616,76 +546,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				crm.GET("/applicants/:id", handlers.GetApplicantDetail)
 				crm.PATCH("/applicants/:id", handlers.UpdateApplicant)
 				crm.POST("/applicants/reset-password", handlers.ResetApplicantPassword)
+				crm.POST("/applicants/set-password", handlers.SetApplicantPassword)
 				crm.POST("/import-users", handlers.ImportBAUsersToWorkspace)
-			}
-
-			// Stage Reviewer Configs
-			stageConfigs := protected.Group("/stage-reviewer-configs")
-			{
-				stageConfigs.GET("", handlers.ListStageReviewerConfigs)
-				stageConfigs.POST("", handlers.CreateStageReviewerConfig)
-				stageConfigs.PATCH("/:id", handlers.UpdateStageReviewerConfig)
-				stageConfigs.DELETE("/:id", handlers.DeleteStageReviewerConfig)
-			}
-
-			// Application Groups (Rejected, Waitlist, etc.)
-			groups := protected.Group("/application-groups")
-			{
-				groups.GET("", handlers.ListApplicationGroups)
-				groups.POST("", handlers.CreateApplicationGroup)
-				groups.GET("/:id", handlers.GetApplicationGroup)
-				groups.PATCH("/:id", handlers.UpdateApplicationGroup)
-				groups.DELETE("/:id", handlers.DeleteApplicationGroup)
-				groups.GET("/:id/applications", handlers.GetGroupApplications)
-			}
-
-			// Workflow Actions (global actions like Reject)
-			workflowActions := protected.Group("/workflow-actions")
-			{
-				workflowActions.GET("", handlers.ListWorkflowActions)
-				workflowActions.POST("", handlers.CreateWorkflowAction)
-				workflowActions.GET("/:id", handlers.GetWorkflowAction)
-				workflowActions.PATCH("/:id", handlers.UpdateWorkflowAction)
-				workflowActions.DELETE("/:id", handlers.DeleteWorkflowAction)
-			}
-
-			// Stage Actions (stage-specific actions)
-			stageActions := protected.Group("/stage-actions")
-			{
-				stageActions.GET("", handlers.ListStageActions)
-				stageActions.POST("", handlers.CreateStageAction)
-				stageActions.PATCH("/:id", handlers.UpdateStageAction)
-				stageActions.DELETE("/:id", handlers.DeleteStageAction)
-			}
-
-			// Stage Groups (sub-groups within a stage, visible only in that stage)
-			stageGroups := protected.Group("/stage-groups")
-			{
-				stageGroups.GET("", handlers.ListStageGroups)
-				stageGroups.POST("", handlers.CreateStageGroup)
-				stageGroups.GET("/:id", handlers.GetStageGroup)
-				stageGroups.PATCH("/:id", handlers.UpdateStageGroup)
-				stageGroups.DELETE("/:id", handlers.DeleteStageGroup)
-			}
-
-			// Custom Statuses (action buttons in review interface)
-			customStatuses := protected.Group("/custom-statuses")
-			{
-				customStatuses.GET("", handlers.ListCustomStatuses)
-				customStatuses.POST("", handlers.CreateCustomStatus)
-				customStatuses.GET("/:id", handlers.GetCustomStatus)
-				customStatuses.PATCH("/:id", handlers.UpdateCustomStatus)
-				customStatuses.DELETE("/:id", handlers.DeleteCustomStatus)
-			}
-
-			// Action Execution
-			actions := protected.Group("/actions")
-			{
-				actions.POST("/execute", handlers.ExecuteAction)
-				actions.POST("/execute-status", handlers.ExecuteStatusAction)
-				actions.POST("/move-to-group", handlers.MoveToGroup)
-				actions.POST("/move-to-stage-group", handlers.MoveToStageGroup)
-				actions.POST("/restore-from-group", handlers.RestoreFromGroup)
 			}
 
 			// Email / Gmail Integration
@@ -820,20 +682,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				recommendations.GET("/submission/:submissionId", handlers.GetRecommendationsForReview) // For reviewers
 			}
 
-			// ============================================================
-			// AUTOMATION WORKFLOWS
-			// ============================================================
-			automationWorkflows := protected.Group("/automation-workflows")
-			{
-				automationWorkflows.GET("", handlers.GetAutomationWorkflows)    // ?workspace_id=xxx
-				automationWorkflows.POST("", handlers.CreateAutomationWorkflow) // ?workspace_id=xxx
-				automationWorkflows.GET("/:id", handlers.GetAutomationWorkflow)
-				automationWorkflows.PATCH("/:id", handlers.UpdateAutomationWorkflow)
-				automationWorkflows.DELETE("/:id", handlers.DeleteAutomationWorkflow)
-				automationWorkflows.POST("/:id/duplicate", handlers.DuplicateAutomationWorkflow)
-				automationWorkflows.GET("/:id/executions", handlers.GetAutomationWorkflowExecutions)
-				automationWorkflows.GET("/:id/executions/:executionId/logs", handlers.GetAutomationWorkflowExecutionLogs)
-			}
 		}
 	}
 
@@ -848,21 +696,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		apiV2.POST("/forms", handlers.CreateFormV2)
 		apiV2.GET("/forms/:id", handlers.GetFormV2)
 		apiV2.PATCH("/forms/:id", handlers.UpdateFormV2)
-		apiV2.DELETE("/forms/:id", handlers.DeleteFormV2)
-		apiV2.POST("/forms/:id/publish", handlers.PublishFormV2)
-
-		// Form Fields
-		apiV2.GET("/forms/:id/fields", handlers.ListFormFieldsV2)
-		apiV2.POST("/forms/:id/fields", handlers.CreateFormFieldV2)
-		apiV2.PATCH("/fields/:id", handlers.UpdateFormFieldV2)
-		apiV2.DELETE("/fields/:id", handlers.DeleteFormFieldV2)
-
-		// Form Submissions (admin view)
-		apiV2.GET("/forms/:id/submissions", handlers.ListFormSubmissionsV2)
-
-		// User Submissions
-		apiV2.GET("/submissions/me", handlers.GetMySubmissionsV2)
-		apiV2.POST("/forms/:id/submissions/start", handlers.StartSubmissionV2)
 		apiV2.GET("/submissions/:id", handlers.GetSubmissionV2)
 		apiV2.PUT("/submissions/:id/responses", handlers.SaveResponsesV2)
 		apiV2.POST("/submissions/:id/submit", handlers.SubmitSubmissionV2)

@@ -2,6 +2,7 @@
 export interface Workspace {
   id: string
   organization_id: string
+  ba_organization_id?: string | null  // Better Auth organization ID for members/invitations
   name: string
   slug: string
   custom_subdomain?: string | null  // Custom subdomain for branded portal URLs

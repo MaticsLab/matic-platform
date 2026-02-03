@@ -1,12 +1,9 @@
 package handlers
 
 import (
-	"crypto/subtle"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
@@ -14,69 +11,31 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/crypto/scrypt"
 )
 
-// verifyScryptPassword verifies a password against Better Auth's scrypt hash format
-// Better Auth stores passwords as: base64(salt):base64(hash)
-func verifyScryptPassword(storedPassword, inputPassword string) bool {
-	parts := strings.Split(storedPassword, ":")
-	if len(parts) != 2 {
-		return false
-	}
-
-	salt, err := base64.StdEncoding.DecodeString(parts[0])
-	if err != nil {
-		return false
-	}
-
-	storedHash, err := base64.StdEncoding.DecodeString(parts[1])
-	if err != nil {
-		return false
-	}
-
-	// Better Auth uses N=16384, r=8, p=1, keyLen=64
-	derivedKey, err := scrypt.Key([]byte(inputPassword), salt, 16384, 8, 1, 64)
-	if err != nil {
-		return false
-	}
-
-	return subtle.ConstantTimeCompare(derivedKey, storedHash) == 1
-}
+// ==================== LEGACY CODE - DEPRECATED ====================
+// Legacy signup/login handlers kept for backward compatibility with matic folder.
+// Main platform now uses Better Auth SDK (portalBetterAuthClient.signUp.email())
+// followed by sync endpoint (/portal/sync-better-auth-applicant).
+// See: docs/PORTAL_MIGRATION_TO_BETTER_AUTH_SDK.md
 
 // ==================== REQUEST TYPES ====================
 
-// PortalSignupV2Request for creating a new applicant account using Better Auth
-type PortalSignupV2Request struct {
-	FormID   string `json:"form_id" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8"`
-	FullName string `json:"full_name"`
-}
-
-// PortalLoginV2Request for logging in as applicant
-type PortalLoginV2Request struct {
-	FormID   string `json:"form_id" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
-}
-
-// PortalUserResponse is the response for authenticated applicant
-type PortalUserResponse struct {
-	ID           string     `json:"id"`
-	Email        string     `json:"email"`
-	Name         string     `json:"name"`
-	UserType     string     `json:"user_type"`
-	FormsApplied []string   `json:"forms_applied"`
-	SessionToken string     `json:"session_token,omitempty"`
-	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
-}
-
-// ==================== HANDLERS ====================
+// ==================== LEGACY HANDLERS - DEPRECATED ====================
+// These are kept for backward compatibility with matic folder only.
+// Main platform uses Better Auth SDK (portalBetterAuthClient.signUp.email())
+// followed by sync endpoint (/portal/sync-better-auth-applicant).
 
 // PortalSignupV2 creates a new applicant account using Better Auth tables
+// DEPRECATED: Use Better Auth SDK instead (see PublicPortalV2.tsx)
 // POST /api/v1/portal/v2/signup
 func PortalSignupV2(c *gin.Context) {
+	type PortalSignupV2Request struct {
+		FormID   string `json:"form_id" binding:"required"`
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required,min=8"`
+		FullName string `json:"full_name"`
+	}
 	var req PortalSignupV2Request
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -132,6 +91,71 @@ func PortalSignupV2(c *gin.Context) {
 			return
 		}
 
+		// Get user email for portal_applicants
+		var userEmail string
+		database.DB.Raw("SELECT email FROM ba_users WHERE id = ?", existingUser.ID).Scan(&userEmail)
+
+		// Check for existing orphaned submission for this user/form by email
+		var existingRow struct {
+			ID string `gorm:"column:id"`
+		}
+		database.DB.Raw(`
+			SELECT tr.id 
+			FROM table_rows tr
+			WHERE tr.table_id = $1
+			AND tr.ba_created_by IS NULL
+			AND (
+				tr.data->'personal'->>'personalEmail' = $2
+				OR tr.data->'personal'->>'email' = $2
+				OR tr.data->>'email' = $2
+			)
+			LIMIT 1
+		`, req.FormID, req.Email).Scan(&existingRow)
+
+		var rowID string
+		if existingRow.ID != "" {
+			// Link existing orphaned submission to this existing user
+			rowID = existingRow.ID
+			if err := database.DB.Exec(`
+				UPDATE table_rows
+				SET ba_created_by = $1, ba_updated_by = $1, updated_at = NOW()
+				WHERE id = $2
+			`, existingUser.ID, rowID).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to link existing submission"})
+				return
+			}
+			fmt.Printf("🔗 Linked existing submission %s to existing user %s\n", rowID, existingUser.ID)
+		} else {
+			// Create new table_row for the form submission
+			rowID = uuid.New().String()
+			initialData := map[string]interface{}{
+				"status":                "not_started",
+				"completion_percentage": 0,
+				"ba_user_id":            existingUser.ID,
+				"applicant_email":       userEmail,
+			}
+			rowMetadata, _ := json.Marshal(initialData)
+
+			if err := database.DB.Exec(`
+				INSERT INTO table_rows (id, table_id, data, metadata, created_at, updated_at)
+				VALUES ($1, $2, '{}'::jsonb, $3, NOW(), NOW())
+			`, rowID, req.FormID, rowMetadata).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create form submission"})
+				return
+			}
+			fmt.Printf("📝 Created new submission %s for existing user %s\n", rowID, existingUser.ID)
+		}
+
+		// Create portal_applicants record for this new form application
+		portalApplicantID := uuid.New().String()
+		if err := database.DB.Exec(`
+			INSERT INTO portal_applicants (id, ba_user_id, form_id, email, row_id, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+		`, portalApplicantID, existingUser.ID, req.FormID, userEmail, rowID).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create portal applicant record"})
+			return
+		}
+
 		// User exists but hasn't applied to this form - they should login
 		c.JSON(http.StatusOK, gin.H{
 			"message":  "Account exists. Please login with your existing password.",
@@ -144,6 +168,7 @@ func PortalSignupV2(c *gin.Context) {
 
 	// Create new Better Auth user
 	userID := uuid.New().String()
+	// Use bcrypt for legacy support (Better Auth SDK uses scrypt automatically)
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
@@ -178,6 +203,71 @@ func PortalSignupV2(c *gin.Context) {
 		return
 	}
 
+	// Check for existing orphaned submission for this user/form by email
+	var existingRow struct {
+		ID string `gorm:"column:id"`
+	}
+	tx.Raw(`
+		SELECT tr.id 
+		FROM table_rows tr
+		WHERE tr.table_id = $1
+		AND tr.ba_created_by IS NULL
+		AND (
+			tr.data->'personal'->>'personalEmail' = $2
+			OR tr.data->'personal'->>'email' = $2
+			OR tr.data->>'email' = $2
+		)
+		LIMIT 1
+	`, req.FormID, req.Email).Scan(&existingRow)
+
+	var rowID string
+	if existingRow.ID != "" {
+		// Link existing orphaned submission to this new user
+		rowID = existingRow.ID
+		if err := tx.Exec(`
+			UPDATE table_rows
+			SET ba_created_by = $1, ba_updated_by = $1, updated_at = NOW()
+			WHERE id = $2
+		`, userID, rowID).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to link existing submission: " + err.Error()})
+			return
+		}
+		fmt.Printf("🔗 Linked existing submission %s to new user %s\n", rowID, userID)
+	} else {
+		// Create new table_row for the form submission
+		rowID = uuid.New().String()
+		initialData := map[string]interface{}{
+			"status":                "not_started",
+			"completion_percentage": 0,
+			"ba_user_id":            userID,
+			"applicant_email":       req.Email,
+			"applicant_name":        req.FullName,
+		}
+		rowMetadata, _ := json.Marshal(initialData)
+
+		if err := tx.Exec(`
+			INSERT INTO table_rows (id, table_id, data, metadata, created_at, updated_at)
+			VALUES ($1, $2, '{}'::jsonb, $3, NOW(), NOW())
+		`, rowID, req.FormID, rowMetadata).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create form submission: " + err.Error()})
+			return
+		}
+		fmt.Printf("📝 Created new submission %s for user %s\n", rowID, userID)
+	}
+
+	// Create portal_applicants record linking user to form and their table_row
+	portalApplicantID := uuid.New().String()
+	if err := tx.Exec(`
+		INSERT INTO portal_applicants (id, ba_user_id, form_id, email, row_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+	`, portalApplicantID, userID, req.FormID, req.Email, rowID).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create portal applicant record: " + err.Error()})
+		return
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
 		return
@@ -185,18 +275,24 @@ func PortalSignupV2(c *gin.Context) {
 
 	fmt.Printf("✅ Created new applicant: %s (%s) for form %s\n", userID, req.Email, req.FormID)
 
-	c.JSON(http.StatusCreated, PortalUserResponse{
-		ID:           userID,
-		Email:        req.Email,
-		Name:         req.FullName,
-		UserType:     "applicant",
-		FormsApplied: []string{req.FormID},
+	c.JSON(http.StatusCreated, gin.H{
+		"id":            userID,
+		"email":         req.Email,
+		"name":          req.FullName,
+		"user_type":     "applicant",
+		"forms_applied": []string{req.FormID},
 	})
 }
 
 // PortalLoginV2 authenticates an applicant and returns session
+// DEPRECATED: Login now handled by Better Auth (/api/portal-auth/sign-in)
 // POST /api/v1/portal/v2/login
 func PortalLoginV2(c *gin.Context) {
+	type PortalLoginV2Request struct {
+		FormID   string `json:"form_id" binding:"required"`
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required"`
+	}
 	var req PortalLoginV2Request
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -227,19 +323,8 @@ func PortalLoginV2(c *gin.Context) {
 		return
 	}
 
-	// Verify password - try scrypt first (Better Auth format), then bcrypt (legacy)
-	passwordValid := false
-	if strings.Contains(account.Password, ":") {
-		// Better Auth scrypt format: base64(salt):base64(hash)
-		passwordValid = verifyScryptPassword(account.Password, req.Password)
-	} else {
-		// Legacy bcrypt format
-		if err := bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(req.Password)); err == nil {
-			passwordValid = true
-		}
-	}
-
-	if !passwordValid {
+	// Verify password using bcrypt (legacy support only)
+	if err := bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(req.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
@@ -277,6 +362,34 @@ func PortalLoginV2(c *gin.Context) {
 			updated_at = NOW()
 			WHERE id = $2
 		`, toJSONArray(formsApplied), user.ID)
+
+		// Check for existing orphaned submission for this user/form by email
+		var existingRow struct {
+			ID string `gorm:"column:id"`
+		}
+		database.DB.Raw(`
+			SELECT tr.id 
+			FROM table_rows tr
+			WHERE tr.table_id = $1
+			AND tr.ba_created_by IS NULL
+			AND (
+				tr.data->'personal'->>'personalEmail' = $2
+				OR tr.data->'personal'->>'email' = $2
+				OR tr.data->>'email' = $2
+			)
+			LIMIT 1
+		`, req.FormID, user.Email).Scan(&existingRow)
+
+		if existingRow.ID != "" {
+			// Link existing orphaned submission to this user
+			if err := database.DB.Exec(`
+				UPDATE table_rows
+				SET ba_created_by = $1, ba_updated_by = $1, updated_at = NOW()
+				WHERE id = $2
+			`, user.ID, existingRow.ID).Error; err == nil {
+				fmt.Printf("🔗 Linked existing submission %s to logged-in user %s\n", existingRow.ID, user.ID)
+			}
+		}
 	}
 
 	// Create session
@@ -294,14 +407,14 @@ func PortalLoginV2(c *gin.Context) {
 
 	fmt.Printf("✅ Applicant logged in: %s (%s)\n", user.ID, req.Email)
 
-	c.JSON(http.StatusOK, PortalUserResponse{
-		ID:           user.ID,
-		Email:        user.Email,
-		Name:         user.Name,
-		UserType:     user.UserType,
-		FormsApplied: formsApplied,
-		SessionToken: sessionToken,
-		ExpiresAt:    &expiresAt,
+	c.JSON(http.StatusOK, gin.H{
+		"id":            user.ID,
+		"email":         user.Email,
+		"name":          user.Name,
+		"user_type":     user.UserType,
+		"forms_applied": formsApplied,
+		"session_token": sessionToken,
+		"expires_at":    &expiresAt,
 	})
 }
 
@@ -338,12 +451,12 @@ func PortalGetMeV2(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, PortalUserResponse{
-		ID:           user.ID,
-		Email:        user.Email,
-		Name:         user.Name,
-		UserType:     user.UserType,
-		FormsApplied: formsApplied,
+	c.JSON(http.StatusOK, gin.H{
+		"id":            user.ID,
+		"email":         user.Email,
+		"name":          user.Name,
+		"user_type":     user.UserType,
+		"forms_applied": formsApplied,
 	})
 }
 
@@ -379,19 +492,25 @@ func GetApplicantSubmissions(c *gin.Context) {
 		return
 	}
 
-	// PERFORMANCE OPTIMIZATION: Use JOIN instead of N+1 query loop
-	// Single query with JOIN to get submissions + form names
+	// Query form_submissions (new unified schema)
 	type EnrichedSubmission struct {
-		models.ApplicationSubmission
-		FormName string `json:"form_name"`
+		ID                   uuid.UUID  `json:"id"`
+		FormID               uuid.UUID  `json:"form_id"`
+		FormName             string     `json:"form_name"`
+		Status               string     `json:"status"`
+		CompletionPercentage int        `json:"completion_percentage"`
+		SubmittedAt          *time.Time `json:"submitted_at"`
+		LastSavedAt          time.Time  `json:"last_saved_at"`
+		CreatedAt            time.Time  `json:"created_at"`
+		UpdatedAt            time.Time  `json:"updated_at"`
 	}
 
 	var results []EnrichedSubmission
-	if err := database.DB.Table("application_submissions").
-		Select("application_submissions.*, data_tables.name as form_name").
-		Joins("LEFT JOIN data_tables ON application_submissions.form_id = data_tables.id").
-		Where("application_submissions.user_id = ?", userID).
-		Order("application_submissions.updated_at DESC").
+	if err := database.DB.Table("form_submissions").
+		Select("form_submissions.id, form_submissions.form_id, forms.name as form_name, form_submissions.status, form_submissions.completion_percentage, form_submissions.submitted_at, form_submissions.last_saved_at, form_submissions.created_at, form_submissions.updated_at").
+		Joins("LEFT JOIN forms ON form_submissions.form_id = forms.id").
+		Where("form_submissions.user_id = ?", userID).
+		Order("form_submissions.updated_at DESC").
 		Scan(&results).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -525,40 +644,53 @@ func PortalSyncBetterAuthApplicant(c *gin.Context) {
 	}
 
 	// It's a legacy table-based form
-	// Check for existing row by email in the table
+	// Check for existing portal_applicants record first
 	fmt.Printf("📋 Syncing Better Auth user %s with legacy form (table) %s\n", req.BetterAuthUserID, req.FormID)
 
-	var row models.Row
-	// Look for email in multiple possible locations
-	err = database.DB.Where("table_id = ?", formUUID).
-		Where("data->>'_applicant_email' = ? OR data->>'email' = ? OR data->>'Email' = ? OR data->'personal'->>'personalEmail' = ?",
-			req.Email, req.Email, req.Email, req.Email).
-		First(&row).Error
+	var portalApplicant struct {
+		ID    string `gorm:"column:id"`
+		RowID string `gorm:"column:row_id"`
+		Email string `gorm:"column:email"`
+	}
 
-	if err == nil {
-		// Found existing row/submission
-		status := "in_progress"
-		var metadata map[string]interface{}
-		if row.Metadata != nil {
-			json.Unmarshal(row.Metadata, &metadata)
-			if s, ok := metadata["status"].(string); ok {
-				status = s
+	err = database.DB.Raw(`
+		SELECT id, row_id, email 
+		FROM portal_applicants 
+		WHERE ba_user_id = ? AND form_id = ?
+	`, req.BetterAuthUserID, formUUID).Scan(&portalApplicant).Error
+
+	if err == nil && portalApplicant.ID != "" {
+		// Found existing portal_applicants record - get the associated row
+		var row models.Row
+		if portalApplicant.RowID != "" {
+			database.DB.First(&row, "id = ?", portalApplicant.RowID)
+		}
+
+		status := "not_started"
+		var submissionData map[string]interface{}
+
+		if row.ID != uuid.Nil {
+			status = "in_progress"
+			var metadata map[string]interface{}
+			if row.Metadata != nil {
+				json.Unmarshal(row.Metadata, &metadata)
+				if s, ok := metadata["status"].(string); ok {
+					status = s
+				}
+			}
+
+			if row.Data != nil {
+				json.Unmarshal(row.Data, &submissionData)
 			}
 		}
 
-		// Parse row data for submission_data
-		var submissionData map[string]interface{}
-		if row.Data != nil {
-			json.Unmarshal(row.Data, &submissionData)
-		}
-
-		fmt.Printf("✅ Found existing legacy submission (row) for %s on form %s\n", req.Email, req.FormID)
+		fmt.Printf("✅ Found existing portal_applicants record for user %s on form %s\n", req.BetterAuthUserID, req.FormID)
 		c.JSON(http.StatusOK, gin.H{
 			"id":              req.BetterAuthUserID,
 			"email":           req.Email,
 			"name":            req.Name,
 			"form_id":         formUUID,
-			"row_id":          row.ID,
+			"row_id":          portalApplicant.RowID,
 			"status":          status,
 			"submission_data": submissionData,
 			"synced":          true,
@@ -567,16 +699,89 @@ func PortalSyncBetterAuthApplicant(c *gin.Context) {
 		return
 	}
 
-	// No existing submission
+	// No existing portal_applicants record - create one for new signup
+	fmt.Printf("🆕 Creating new portal records for user %s on form %s\n", req.BetterAuthUserID, req.FormID)
+
+	tx := database.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Update ba_users metadata to include user_type and forms_applied
+	err = tx.Exec(`
+		UPDATE ba_users 
+		SET 
+			user_type = 'applicant',
+			metadata = COALESCE(metadata, '{}'::jsonb) || 
+				jsonb_build_object('forms_applied', 
+					COALESCE(metadata->'forms_applied', '[]'::jsonb) || $1::jsonb
+				),
+			updated_at = NOW()
+		WHERE id = $2
+	`, fmt.Sprintf(`["%s"]`, formUUID), req.BetterAuthUserID).Error
+
+	if err != nil {
+		tx.Rollback()
+		fmt.Printf("⚠️ Failed to update ba_users metadata: %v\n", err)
+		// Don't fail - this is not critical
+	}
+
+	// Create table_row for the form submission
+	rowID := uuid.New().String()
+	initialData := map[string]interface{}{
+		"status":                "not_started",
+		"completion_percentage": 0,
+		"ba_user_id":            req.BetterAuthUserID,
+		"applicant_email":       req.Email,
+		"applicant_name":        req.Name,
+	}
+	rowMetadata, _ := json.Marshal(initialData)
+
+	err = tx.Exec(`
+		INSERT INTO table_rows (id, table_id, data, metadata, created_at, updated_at)
+		VALUES ($1, $2, '{}'::jsonb, $3, NOW(), NOW())
+	`, rowID, formUUID, rowMetadata).Error
+
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create form submission: " + err.Error()})
+		return
+	}
+
+	// Create portal_applicants record
+	portalApplicantID := uuid.New().String()
+	err = tx.Exec(`
+		INSERT INTO portal_applicants (id, ba_user_id, form_id, email, row_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+	`, portalApplicantID, req.BetterAuthUserID, formUUID, req.Email, rowID).Error
+
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create portal applicant record: " + err.Error()})
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction: " + err.Error()})
+		return
+	}
+
+	fmt.Printf("✅ Created portal records for user %s: row_id=%s, portal_applicant_id=%s\n",
+		req.BetterAuthUserID, rowID, portalApplicantID)
+
 	c.JSON(http.StatusOK, gin.H{
-		"id":      req.BetterAuthUserID,
-		"email":   req.Email,
-		"name":    req.Name,
-		"form_id": formUUID,
-		"row_id":  nil,
-		"status":  "not_started",
-		"synced":  true,
-		"v2":      false,
+		"id":                    req.BetterAuthUserID,
+		"email":                 req.Email,
+		"name":                  req.Name,
+		"form_id":               formUUID,
+		"row_id":                rowID,
+		"status":                "not_started",
+		"completion_percentage": 0,
+		"synced":                true,
+		"v2":                    false,
+		"created":               true,
 	})
 }
 

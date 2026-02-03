@@ -127,65 +127,20 @@ export async function fetchFormBasicDirect(formId: string): Promise<{
 /**
  * Fetch workflow stages directly
  */
+/**
+ * Fetch stages for a workflow
+ * @deprecated Workflow feature removed
+ */
 export async function fetchStagesDirect(workflowId: string): Promise<any[]> {
-  console.time('⚡ Direct stages fetch')
-  
-  const { data, error } = await supabase
-    .from('workflow_stages')
-    .select(`
-      id,
-      name,
-      description,
-      order_index,
-      stage_type,
-      review_workflow_id,
-      workspace_id,
-      color,
-      hide_pii,
-      hidden_pii_fields,
-      created_at,
-      updated_at,
-      stage_reviewer_configs (
-        id,
-        stage_id,
-        reviewer_type_id,
-        rubric_id,
-        min_reviews_required,
-        allow_self_assignment,
-        auto_assign,
-        field_visibility_config,
-        created_at
-      )
-    `)
-    .eq('review_workflow_id', workflowId)
-    .order('order_index', { ascending: true })
-  
-  console.timeEnd('⚡ Direct stages fetch')
-  
-  if (error) {
-    console.error('Direct stages fetch error:', error)
-    throw error
-  }
-  
-  return data || []
+  return []
 }
 
 /**
  * Fetch workflows for a workspace
+ * @deprecated Workflow feature removed
  */
 export async function fetchWorkflowsDirect(workspaceId: string): Promise<any[]> {
-  const { data, error } = await supabase
-    .from('review_workflows')
-    .select('*')
-    .eq('workspace_id', workspaceId)
-    .order('created_at', { ascending: false })
-  
-  if (error) {
-    console.error('Direct workflows fetch error:', error)
-    throw error
-  }
-  
-  return data || []
+  return []
 }
 
 /**
@@ -221,11 +176,10 @@ export async function fetchReviewWorkspaceDataDirect(
 }> {
   console.time('⚡ Total direct fetch')
   
-  // Fetch all data in parallel
-  const [form, submissions, workflows, rubrics] = await Promise.all([
+  // Fetch all data in parallel (workflows removed - feature deprecated)
+  const [form, submissions, rubrics] = await Promise.all([
     fetchFormBasicDirect(formId),
     fetchSubmissionsDirect(formId),
-    fetchWorkflowsDirect(workspaceId),
     fetchRubricsDirect(workspaceId),
   ])
   
@@ -233,21 +187,13 @@ export async function fetchReviewWorkspaceDataDirect(
     throw new Error('Form not found')
   }
   
-  // If we have workflows, fetch stages for the active one
-  const activeWorkflow = workflows.find(w => w.is_active) || workflows[0]
-  let stages: any[] = []
-  
-  if (activeWorkflow) {
-    stages = await fetchStagesDirect(activeWorkflow.id)
-  }
-  
   console.timeEnd('⚡ Total direct fetch')
   
   return {
     form,
     submissions,
-    workflows,
-    stages,
+    workflows: [],
+    stages: [],
     rubrics,
   }
 }

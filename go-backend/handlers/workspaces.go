@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
 	"github.com/Jsanchez767/matic-platform/middleware"
@@ -195,8 +196,6 @@ func CreateWorkspace(c *gin.Context) {
 		return
 	}
 
-	// Get legacy UUID for backward compatibility
-	legacyUserID := getLegacyUserID(userID)
 	baUserID := userID // Better Auth user ID (TEXT)
 
 	// Check for duplicate slug within organization
@@ -216,19 +215,37 @@ func CreateWorkspace(c *gin.Context) {
 		icon = "folder"
 	}
 
-	workspace := models.Workspace{
-		OrganizationID: input.OrganizationID,
-		Name:           input.Name,
-		Slug:           input.Slug,
-		Description:    input.Description,
-		Color:          color,
-		Icon:           icon,
-		Settings:       mapToJSON(input.Settings),
-		BACreatedBy:    &baUserID, // Better Auth user ID (TEXT)
+	// Begin transaction to create workspace and Better Auth organization
+	tx := database.DB.Begin()
+
+	// Create Better Auth organization
+	baOrg := models.BetterAuthOrganization{
+		ID:        uuid.New().String(),
+		Name:      input.Name,
+		Slug:      input.Slug,
+		Logo:      nil,
+		Metadata:  nil,
+		CreatedAt: time.Now(),
 	}
 
-	// Begin transaction to create workspace and add creator as member
-	tx := database.DB.Begin()
+	if err := tx.Create(&baOrg).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Better Auth organization: " + err.Error()})
+		return
+	}
+
+	// Create workspace with link to Better Auth organization
+	workspace := models.Workspace{
+		OrganizationID:   input.OrganizationID,
+		BAOrganizationID: &baOrg.ID, // Link to Better Auth organization
+		Name:             input.Name,
+		Slug:             input.Slug,
+		Description:      input.Description,
+		Color:            color,
+		Icon:             icon,
+		Settings:         mapToJSON(input.Settings),
+		BACreatedBy:      &baUserID, // Better Auth user ID (TEXT)
+	}
 
 	if err := tx.Create(&workspace).Error; err != nil {
 		tx.Rollback()
@@ -236,18 +253,18 @@ func CreateWorkspace(c *gin.Context) {
 		return
 	}
 
-	// Add creator as owner member
-	member := models.WorkspaceMember{
-		WorkspaceID: workspace.ID,
-		UserID:      legacyUserID,
-		BAUserID:    &baUserID, // Better Auth user ID (TEXT)
-		Role:        "owner",
-		Status:      "active",
+	// Add creator as owner in Better Auth members table
+	baMember := models.BetterAuthMember{
+		ID:             uuid.New().String(),
+		OrganizationID: baOrg.ID,
+		UserID:         baUserID,
+		Role:           "owner",
+		CreatedAt:      time.Now(),
 	}
 
-	if err := tx.Create(&member).Error; err != nil {
+	if err := tx.Create(&baMember).Error; err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add user as workspace member"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add user as Better Auth member: " + err.Error()})
 		return
 	}
 

@@ -4,11 +4,12 @@
  * Following Better Auth skill guidelines:
  * - Uses createAuthClient from better-auth/react
  * - Simple configuration with baseURL and basePath
- * - No unnecessary plugins (removed magicLink)
+ * - Includes magicLinkClient plugin for passwordless auth
  * - Proper credentials: 'include' for cookies
  */
 
 import { createAuthClient } from "better-auth/react";
+import { magicLinkClient } from "better-auth/client/plugins";
 
 const getPortalAuthBaseURL = () => {
   if (typeof window !== "undefined") {
@@ -24,6 +25,9 @@ export const portalBetterAuthClient = createAuthClient({
   fetchOptions: {
     credentials: "include", // Include cookies for session
   },
+  plugins: [
+    magicLinkClient(),
+  ],
 });
 
 // Export convenience methods

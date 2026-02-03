@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/ui-components/dialog'
 import { goClient } from '@/lib/api/go-client'
 import { Form } from '@/types/forms'
-import { WorkflowBuilder } from './WorkflowBuilder'
 
 interface SettingsModalProps {
   open: boolean
@@ -40,13 +39,9 @@ export function SettingsModal({ open, onOpenChange, formId, onSave }: SettingsMo
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0 overflow-hidden">
-        {workspaceId ? (
-          <WorkflowBuilder workspaceId={workspaceId} />
-        ) : (
-          <div className="p-6 text-center">
-            {isLoading ? 'Loading...' : 'Failed to load workspace information.'}
-          </div>
-        )}
+        <div className="p-6 text-center">
+          <p className="text-gray-500">Workflow configuration has been removed.</p>
+        </div>
       </DialogContent>
     </Dialog>
   )

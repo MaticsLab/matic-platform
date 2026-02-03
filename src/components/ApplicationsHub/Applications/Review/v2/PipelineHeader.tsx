@@ -1,6 +1,6 @@
 'use client';
 
-import { Application, ApplicationStatus, PipelineHeaderProps, Stage } from './types';
+import { Application, ApplicationStatus, PipelineHeaderProps } from './types';
 import { Download, ChevronDown, Mail, SlidersHorizontal, FileText } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -14,7 +14,6 @@ export function PipelineHeader({
   activeTab, 
   onTabChange, 
   applications,
-  stages,
   filterStatus,
   onFilterChange,
   searchQuery,
@@ -22,16 +21,14 @@ export function PipelineHeader({
   committee,
   onCommitteeChange,
   onOpenPipelineActivity,
-  workflows,
-  selectedWorkflowId,
-  onWorkflowChange,
   onDownload,
   workspaceSlug,
   formId
 }: PipelineHeaderProps) {
   const [showFilterPopover, setShowFilterPopover] = useState(false);
   
-  // Build filter options from stages
+  // Build filter options based on application statuses
+  const uniqueStatuses = Array.from(new Set(applications.map(a => a.status)));
   const filterOptions: Array<{
     label: string;
     value: ApplicationStatus | 'all';
@@ -41,7 +38,7 @@ export function PipelineHeader({
     dotColor: string;
   }> = [
     { label: 'All', value: 'all', count: applications.length, color: 'text-gray-700', bgColor: 'bg-gray-100', dotColor: 'bg-gray-500' },
-    ...(stages || []).map((stage, idx) => {
+    ...uniqueStatuses.map((status, idx) => {
       const colors = [
         { color: 'text-slate-700', bgColor: 'bg-slate-100', dotColor: 'bg-slate-500' },
         { color: 'text-purple-700', bgColor: 'bg-purple-100', dotColor: 'bg-purple-500' },
@@ -50,12 +47,10 @@ export function PipelineHeader({
         { color: 'text-green-700', bgColor: 'bg-green-100', dotColor: 'bg-green-500' },
       ];
       const colorSet = colors[idx % colors.length];
-      const count = applications.filter(a => 
-        a.stageId === stage.id || a.stageName === stage.name || a.status === stage.name
-      ).length;
+      const count = applications.filter(a => a.status === status).length;
       return {
-        label: stage.name,
-        value: stage.name as ApplicationStatus,
+        label: status,
+        value: status as ApplicationStatus,
         count,
         ...colorSet
       };
@@ -70,34 +65,7 @@ export function PipelineHeader({
       <div className="px-4 py-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {/* Workflow/Committee Selector */}
-            {workflows && workflows.length > 0 ? (
-              <div className="relative">
-                <select
-                  value={selectedWorkflowId || ''}
-                  onChange={(e) => onWorkflowChange?.(e.target.value)}
-                  className="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-1.5 pr-9 text-gray-900 hover:border-gray-300 transition-colors cursor-pointer text-sm font-medium"
-                >
-                  {workflows.map(w => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-gray-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            ) : (
-              <div className="relative">
-                <select
-                  value={committee}
-                  onChange={(e) => onCommitteeChange(e.target.value)}
-                  className="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-1.5 pr-9 text-gray-900 hover:border-gray-300 transition-colors cursor-pointer text-sm"
-                >
-                  <option value="reading committee">Reading Committee</option>
-                  <option value="review committee">Review Committee</option>
-                  <option value="final committee">Final Committee</option>
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-gray-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            )}
+            {/* Committee selector removed */}
           </div>
 
           <div className="flex items-center gap-1">

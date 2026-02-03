@@ -3,35 +3,8 @@ import { PortalConfig } from '@/types/portal'
 import { semanticSearchClient } from './semantic-search-client'
 import { Form } from '@/types/forms'
 export type { Form } from '@/types/forms'
-import { 
-  ReviewWorkflow, 
-  Rubric, 
-  ReviewerType, 
-  ApplicationStage, 
-  StageReviewerConfig, 
-  StageAction,
-  WorkflowAction,
-  ApplicationGroup,
-  StageGroup 
-} from './workflows-client'
 
 // Use shared `Form` type from `src/types/forms.ts`
-
-// Combined response for Review Workspace - all data in one call
-export interface FormWithWorkflowData {
-  form: Form
-  submissions: any[]
-  workflows: ReviewWorkflow[]
-  rubrics: Rubric[]
-  reviewer_types: ReviewerType[]
-  stages: Array<ApplicationStage & {
-    reviewer_configs: StageReviewerConfig[]
-    stage_actions: StageAction[]
-  }>
-  workflow_actions: WorkflowAction[]
-  groups: ApplicationGroup[]
-  stage_groups: StageGroup[]
-}
 
 // Extended form data with workspace info (returned by subdomain resolution)
 export interface PortalForm extends Form {
@@ -69,13 +42,7 @@ export const formsClient = {
 
   // Combined endpoint: form + submissions + all workflow data in ONE call
   // This is the fastest way to load the Review Workspace
-  getFull: async (id: string) => {
-    const data = await goClient.get<any>(`/forms/${id}/full`)
-    return {
-      ...data,
-      form: normalizeFormResponse(data.form)
-    } as FormWithWorkflowData
-  },
+  // Removed: getFull endpoint no longer exists (workflow feature removed)
 
   getBySlug: async (slug: string) => {
     const form = await goClient.get<any>(`/forms/by-slug/${slug}`)

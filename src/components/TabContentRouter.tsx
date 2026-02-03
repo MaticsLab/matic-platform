@@ -74,18 +74,18 @@ export function TabContentRouter({ tab: propTab, workspaceId }: TabContentRouter
       )
       
     case 'custom':
-      // Handle Applications Hub
-      if (tab.url?.includes('/applications')) {
+      // Handle Applications Hub (either by metadata or URL)
+      if (tab.metadata?.view === 'applications' || tab.url?.includes('/applications')) {
         return <ApplicationsHub workspaceId={workspaceId} />
       }
 
       // Handle Database/Tables hub
-      if (tab.url?.includes('/tables') && !tab.url?.includes('/tables/')) {
+      if (tab.metadata?.view === 'tables' || (tab.url?.includes('/tables') && !tab.url?.includes('/tables/'))) {
         return <TablesListPage workspaceId={workspaceId} />
       }
 
       // Handle CRM - Applicant management
-      if (tab.url?.includes('/crm')) {
+      if (tab.metadata?.view === 'crm' || tab.url?.includes('/crm')) {
         return <ApplicantCRMPage workspaceId={workspaceId} />
       }
       
@@ -331,7 +331,7 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
     switch (hub) {
       case 'applications':
         tabManager.addTab({
-          title: 'Programs',
+          title: 'Portals',
           type: 'custom',
           url: `/workspace/${workspaceId}/applications`,
           workspaceId,
@@ -399,7 +399,7 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
   const hubs = [
     { 
       id: 'applications', 
-      name: 'Programs', 
+      name: 'Portals', 
       icon: GraduationCap, 
       description: 'Manage scholarships, grants, and admissions.', 
       color: 'green',

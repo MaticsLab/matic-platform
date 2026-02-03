@@ -23,13 +23,6 @@ interface UseOptimisticReviewDataOptions {
 interface ReviewDataState {
   form: any | null
   submissions: DirectSubmission[]
-  workflows: any[]
-  stages: any[]
-  rubrics: any[]
-  reviewer_types: any[]
-  groups: any[]
-  stage_groups: any[]
-  workflow_actions: any[]
   isFromCache: boolean
   isFetching: boolean
   error: Error | null
@@ -53,13 +46,6 @@ export function useOptimisticReviewData({
   const [state, setState] = useState<ReviewDataState>({
     form: null,
     submissions: [],
-    workflows: [],
-    stages: [],
-    rubrics: [],
-    reviewer_types: [],
-    groups: [],
-    stage_groups: [],
-    workflow_actions: [],
     isFromCache: false,
     isFetching: false,
     error: null,
@@ -82,13 +68,6 @@ export function useOptimisticReviewData({
         ...prev,
         form: cached.form,
         submissions: cached.submissions,
-        workflows: cached.workflow.workflows,
-        stages: cached.workflow.stages,
-        rubrics: cached.workflow.rubrics,
-        reviewer_types: cached.workflow.reviewer_types,
-        groups: cached.workflow.groups,
-        stage_groups: cached.workflow.stage_groups,
-        workflow_actions: cached.workflow.workflow_actions,
         isFromCache: true,
       }))
     }
@@ -115,17 +94,10 @@ export function useOptimisticReviewData({
         ...prev,
         form: directData.form,
         submissions: directData.submissions,
-        workflows: directData.workflows,
-        stages: directData.stages.map(s => ({
-          ...s,
-          reviewer_configs: s.stage_reviewer_configs || [],
-        })),
-        rubrics: directData.rubrics,
         isFromCache: false,
       }))
       
       // Phase 3: Complete data from Go backend (for complex joins)
-      // This fetches reviewer_types, groups, stage_groups, workflow_actions
       console.log('🔄 Phase 3: Fetching complete data from Go backend')
       
       const fullData = await formsClient.getFull(formId)
@@ -137,16 +109,6 @@ export function useOptimisticReviewData({
         ...prev,
         form: fullData.form,
         submissions: fullData.submissions,
-        workflows: fullData.workflows || prev.workflows,
-        stages: (fullData.stages || []).map((s: any) => ({
-          ...s,
-          reviewer_configs: s.reviewer_configs || [],
-        })),
-        rubrics: fullData.rubrics || prev.rubrics,
-        reviewer_types: fullData.reviewer_types || [],
-        groups: fullData.groups || [],
-        stage_groups: fullData.stage_groups || [],
-        workflow_actions: fullData.workflow_actions || [],
         isFromCache: false,
         isFetching: false,
       }))
@@ -154,13 +116,6 @@ export function useOptimisticReviewData({
       // Cache for next time
       setCachedReviewWorkspace(formId, workspaceId, {
         form: fullData.form,
-        workflows: fullData.workflows || [],
-        stages: fullData.stages || [],
-        rubrics: fullData.rubrics || [],
-        reviewer_types: fullData.reviewer_types || [],
-        groups: fullData.groups || [],
-        stage_groups: fullData.stage_groups || [],
-        workflow_actions: fullData.workflow_actions || [],
         submissions: fullData.submissions || [],
       })
       

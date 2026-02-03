@@ -5,7 +5,6 @@ import { FileCheck, Mail, Settings, FileText, Users, GitMerge, BarChart3, Chevro
 import { ReviewWorkspaceV2 } from './Review/v2'
 import { CommunicationsCenter } from './Communications/CommunicationsCenter'
 import { ReviewerManagement } from './Reviewers/ReviewerManagement'
-import { WorkflowBuilder } from './Configuration/WorkflowBuilder'
 import { ApplicationDashboard } from './Dashboard/ApplicationDashboard'
 import { SettingsModal } from './Configuration/SettingsModal'
 import { ApplicationSettingsModal } from './Configuration/ApplicationSettingsModal'
@@ -248,11 +247,8 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
           />
         )}
         {activeTab === 'workflows' && (
-          <div className="h-full flex flex-col">
-            {/* Workflow Builder Content */}
-            <div className="flex-1 overflow-hidden">
-              <WorkflowBuilder workspaceId={workspaceId} formId={formId} />
-            </div>
+          <div className="h-full flex flex-col items-center justify-center">
+            <p className="text-gray-500">Workflow configuration has been removed.</p>
           </div>
         )}
         {activeTab === 'analytics' && <ApplicationDashboard workspaceId={workspaceId} formId={formId} />}

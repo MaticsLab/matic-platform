@@ -1,7 +1,6 @@
 /**
- * Simplified Tab Manager
- * Manages workspace tabs using localStorage instead of Yjs
- * For multi-user real-time sync, we can add Yjs later
+ * Enhanced Tab Manager v2
+ * Manages workspace tabs with improved URL-based routing and state sync
  */
 
 export interface TabData {
@@ -13,6 +12,7 @@ export interface TabData {
   workspaceId: string
   metadata?: Record<string, any>
   lastAccessed: number
+  isPinned?: boolean // Pinned tabs can't be closed
 }
 
 type TabChangeListener = () => void
@@ -21,26 +21,72 @@ export class TabManager {
   private workspaceId: string
   private listeners: Set<TabChangeListener> = new Set()
   private storageKey: string
+  private readonly PORTALS_TAB_ID = 'portals-hub'
 
   constructor(workspaceId: string) {
     this.workspaceId = workspaceId
     this.storageKey = `workspace_tabs_${workspaceId}`
     
-    // Initialize with Applications Hub tab if no tabs exist
+    // Migrate old tabs to new format
+    this.migrateOldTabs()
+    
+    // Initialize with Portals Hub tab if no tabs exist
     const tabs = this.getTabs()
     if (tabs.length === 0) {
-      this.addTab({
-        id: 'applications',
-        title: 'Programs',
-        url: `/workspace/${workspaceId}/applications`,
-        type: 'custom',
-        workspaceId
-      })
+      this.createPortalsHubTab()
     }
 
     // Listen for storage changes from other tabs
     if (typeof window !== 'undefined') {
       window.addEventListener('storage', this.handleStorageChange)
+    }
+  }
+
+  /**
+   * Migrate old tab format to new format
+   * - Convert old "applications" id to "portals-hub"
+   * - Remove duplicate Portals tabs
+   * - Update title from "Programs" to "Portals"
+   */
+  private migrateOldTabs() {
+    const { tabs, activeTabId } = this.getStorage()
+    if (tabs.length === 0) return
+
+    let needsUpdate = false
+    const baseWorkspaceUrl = `/workspace/${this.workspaceId}`
+    
+    // Find all tabs that point to the applications hub
+    const appHubTabs = tabs.filter(t => {
+      const [path] = t.url.split('?')
+      const normalizedPath = path.replace(/\/$/, '')
+      // Match both old /applications route and base workspace with applications view
+      return normalizedPath === baseWorkspaceUrl || 
+             normalizedPath === `${baseWorkspaceUrl}/applications`
+    })
+
+    if (appHubTabs.length > 0) {
+      // Keep only the first one, convert it to the new format
+      const primaryTab = appHubTabs[0]
+      
+      // Update the primary tab
+      primaryTab.id = this.PORTALS_TAB_ID
+      primaryTab.title = 'Portals'
+      primaryTab.url = baseWorkspaceUrl
+      primaryTab.isPinned = true
+      primaryTab.metadata = { view: 'applications' }
+      needsUpdate = true
+
+      // Remove duplicates
+      for (let i = 1; i < appHubTabs.length; i++) {
+        const index = tabs.indexOf(appHubTabs[i])
+        if (index > -1) {
+          tabs.splice(index, 1)
+        }
+      }
+    }
+
+    if (needsUpdate) {
+      this.setStorage({ tabs, activeTabId })
     }
   }
 
@@ -77,9 +123,21 @@ export class TabManager {
     }
   }
 
+  private createPortalsHubTab(): TabData {
+    return this.addTab({
+      id: this.PORTALS_TAB_ID,
+      title: 'Portals',
+      url: `/workspace/${this.workspaceId}`,
+      type: 'custom',
+      workspaceId: this.workspaceId,
+      isPinned: true,
+      metadata: { view: 'applications' }
+    })
+  }
+
   getTabs(): TabData[] {
     const { tabs } = this.getStorage()
-    return tabs // Keep original order, don't sort
+    return tabs
   }
 
   getActiveTab(): TabData | null {
@@ -88,30 +146,75 @@ export class TabManager {
     return tabs.find(tab => tab.id === activeTabId) || tabs[0] || null
   }
 
-  addTab(tab: Omit<TabData, 'id' | 'lastAccessed'> & { id?: string }): TabData {
-    const { tabs, activeTabId } = this.getStorage()
+  /**
+   * Add a new tab or activate existing one
+   * Uses URL as the unique identifier - if a tab with the same URL exists, it activates it
+   */
+  addTab(tab: Omit<TabData, 'lastAccessed'> & { id?: string }): TabData {
+    const { tabs } = this.getStorage()
     
-    // Check if tab with same URL already exists
-    const existing = tabs.find(t => t.url === tab.url)
-    if (existing) {
-      this.setActiveTab(existing.id)
-      return existing
+    // Normalize URL by removing trailing slashes and query params for comparison
+    const normalizeUrl = (url: string) => {
+      const [path] = url.split('?')
+      return path.replace(/\/$/, '')
+    }
+    
+    const newUrl = tab.url
+    const newUrlNormalized = normalizeUrl(newUrl)
+    
+    // Special handling for Portals Hub - always use the same tab ID
+    const isApplicationsHub = newUrlNormalized === normalizeUrl(`/workspace/${this.workspaceId}`) && 
+      (!tab.metadata || tab.metadata.view === 'applications' || !tab.metadata.formId)
+    
+    if (isApplicationsHub) {
+      const existingHub = tabs.find(t => t.id === this.PORTALS_TAB_ID)
+      if (existingHub) {
+        // Update the existing hub tab with new URL (preserves query params)
+        existingHub.url = newUrl
+        existingHub.lastAccessed = Date.now()
+        this.setStorage({ tabs, activeTabId: existingHub.id })
+        this.triggerUrlChange(existingHub)
+        return existingHub
+      }
+    }
+    
+    // For other tabs, check if exact URL match exists (including query params)
+    const existingTab = tabs.find(t => t.url === newUrl)
+    if (existingTab) {
+      existingTab.lastAccessed = Date.now()
+      // Update metadata if provided
+      if (tab.metadata) {
+        existingTab.metadata = { ...existingTab.metadata, ...tab.metadata }
+      }
+      this.setStorage({ tabs, activeTabId: existingTab.id })
+      this.triggerUrlChange(existingTab)
+      return existingTab
     }
 
+    // Create new tab
     const newTab: TabData = {
       id: tab.id || `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       title: tab.title,
-      url: tab.url,
+      url: newUrl,
       type: tab.type,
       icon: tab.icon,
       workspaceId: this.workspaceId,
       metadata: tab.metadata,
-      lastAccessed: Date.now()
+      lastAccessed: Date.now(),
+      isPinned: tab.isPinned || false
     }
 
     tabs.push(newTab)
     this.setStorage({ tabs, activeTabId: newTab.id })
+    this.triggerUrlChange(newTab)
     return newTab
+  }
+
+  private triggerUrlChange(tab: TabData) {
+    // Dispatch custom event that TabNavigation can listen to
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tab-url-change', { detail: { url: tab.url } }))
+    }
   }
 
   closeTab(tabId: string) {
@@ -120,26 +223,27 @@ export class TabManager {
     
     if (index === -1) return
 
-    // Don't allow closing the last tab
-    if (tabs.length === 1) return
-
-    // Don't allow closing the Applications Hub tab (check all possible identifiers)
     const tab = tabs[index]
-    const isApplicationsTab = 
-      tab.id === 'applications' || 
-      (tab.title === 'Programs' && tab.url === `/workspace/${this.workspaceId}/applications`)
     
-    if (isApplicationsTab) {
-      console.log('Cannot close the Applications Hub tab')
+    // Don't allow closing pinned tabs
+    if (tab.isPinned) {
+      console.log('Cannot close pinned tab:', tab.title)
+      return
+    }
+
+    // Don't allow closing the last tab
+    if (tabs.length === 1) {
+      console.log('Cannot close the last tab')
       return
     }
 
     tabs.splice(index, 1)
     
-    // If we closed the active tab, activate the next one
+    // If we closed the active tab, activate the next one (or previous if it was the last)
     let newActiveTabId = activeTabId
     if (activeTabId === tabId) {
-      const nextTab = tabs[Math.max(0, index - 1)]
+      const nextIndex = Math.min(index, tabs.length - 1)
+      const nextTab = tabs[nextIndex]
       newActiveTabId = nextTab?.id || null
     }
 
@@ -150,7 +254,10 @@ export class TabManager {
     const { tabs, activeTabId } = this.getStorage()
     const tab = tabs.find(t => t.id === tabId)
     
-    if (!tab) return
+    if (!tab) {
+      console.warn('Tab not found:', tabId)
+      return
+    }
 
     // Update lastAccessed
     tab.lastAccessed = Date.now()
@@ -163,6 +270,11 @@ export class TabManager {
     const tab = tabs.find(t => t.id === tabId)
     
     if (!tab) return
+
+    // Don't allow unpinning the Portals Hub
+    if (tab.id === this.PORTALS_TAB_ID && updates.isPinned === false) {
+      delete updates.isPinned
+    }
 
     Object.assign(tab, updates)
     this.setStorage({ tabs, activeTabId })
@@ -186,19 +298,52 @@ export class TabManager {
     this.listeners.clear()
   }
 
-  // Utility method to navigate and create/activate tab
-  navigateToTab(url: string, title: string, type: TabData['type'], metadata?: Record<string, any>) {
-    const tab = this.addTab({
+  /**
+   * Navigate to a URL by creating/activating a tab
+   */
+  navigateToUrl(url: string, title: string, type: TabData['type'] = 'custom', metadata?: Record<string, any>) {
+    return this.addTab({
       title,
       url,
       type,
       workspaceId: this.workspaceId,
       metadata
     })
-    
-    return tab
+  }
+
+  /**
+   * Open the Portals Hub (home view of all portals)
+   */
+  openPortalsHub() {
+    return this.addTab({
+      id: this.PORTALS_TAB_ID,
+      title: 'Portals',
+      url: `/workspace/${this.workspaceId}`,
+      type: 'custom',
+      workspaceId: this.workspaceId,
+      isPinned: true,
+      metadata: { view: 'applications' }
+    })
+  }
+
+  /**
+   * Open a specific portal in a new tab
+   */
+  openPortal(portalId: string, portalName: string) {
+    return this.addTab({
+      title: portalName,
+      url: `/workspace/${this.workspaceId}?formId=${portalId}`,
+      type: 'custom',
+      workspaceId: this.workspaceId,
+      metadata: {
+        view: 'applications',
+        formId: portalId,
+        portalName
+      }
+    })
   }
 }
 
 // Export YjsTabManager as alias for backwards compatibility
 export const YjsTabManager = TabManager
+

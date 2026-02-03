@@ -30,6 +30,7 @@ import {
   Key,
   Copy,
   Check,
+  Pencil,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SubmissionSidePanel } from './SubmissionSidePanel'
@@ -41,6 +42,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui-components/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui-components/tabs'
 
 function getStatusBadge(status: string) {
   switch (status) {
@@ -84,13 +86,33 @@ export function ApplicantCRMPage({ workspaceId, workspaceSlug }: ApplicantCRMPag
     applicant: ApplicantCRM | null
     loading: boolean
     tempPassword: string | null
+    mode: 'generate' | 'custom' // Tab mode
+    customPassword: string
   }>({
     open: false,
     applicant: null,
     loading: false,
     tempPassword: null,
+    mode: 'generate',
+    customPassword: '',
+  })
+  
+  // Store generated passwords by applicant ID with localStorage persistence
+  const [generatedPasswords, setGeneratedPasswords] = useState<Record<string, string>>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(`crm-passwords-${workspaceId}`)
+      return stored ? JSON.parse(stored) : {}
+    }
+    return {}
   })
   const [copied, setCopied] = useState(false)
+
+  // Persist passwords to localStorage whenever they change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && Object.keys(generatedPasswords).length > 0) {
+      localStorage.setItem(`crm-passwords-${workspaceId}`, JSON.stringify(generatedPasswords))
+    }
+  }, [generatedPasswords, workspaceId])
 
   useEffect(() => {
     loadData()
@@ -126,32 +148,102 @@ export function ApplicantCRMPage({ workspaceId, workspaceSlug }: ApplicantCRMPag
     }
   }
 
-  async function handleResetPassword(applicant: ApplicantCRM) {
+  // Open dialog and show existing password if available
+  function handleResetPasswordClick(applicant: ApplicantCRM) {
+    const existingPassword = generatedPasswords[applicant.id]
     setResetPasswordDialog({
       open: true,
       applicant,
-      loading: true,
-      tempPassword: null,
+      loading: false,
+      tempPassword: existingPassword || null,
+      mode: 'generate',
+      customPassword: '',
     })
+  }
+
+  // Manually set a password (useful for passwords generated via script)
+  function handleSetManualPassword(applicantId: string, password: string) {
+    setGeneratedPasswords(prev => ({
+      ...prev,
+      [applicantId]: password,
+    }))
+  }
+
+  // Generate new password for applicant
+  async function handleGeneratePassword() {
+    if (!resetPasswordDialog.applicant) return
+
+    setResetPasswordDialog(prev => ({
+      ...prev,
+      loading: true,
+    }))
 
     try {
-      const result = await crmClient.resetPassword(applicant.id, workspaceId)
-      setResetPasswordDialog({
-        open: true,
-        applicant,
+      const result = await crmClient.resetPassword(resetPasswordDialog.applicant.id, workspaceId)
+      
+      // Store password in our cache
+      setGeneratedPasswords(prev => ({
+        ...prev,
+        [resetPasswordDialog.applicant!.id]: result.temporary_password,
+      }))
+      
+      setResetPasswordDialog(prev => ({
+        ...prev,
         loading: false,
         tempPassword: result.temporary_password,
-      })
+      }))
       toast.success('Password reset successfully')
     } catch (err: any) {
       console.error('Failed to reset password:', err)
       toast.error(err.message || 'Failed to reset password')
-      setResetPasswordDialog({
-        open: false,
-        applicant: null,
+      setResetPasswordDialog(prev => ({
+        ...prev,
         loading: false,
-        tempPassword: null,
-      })
+      }))
+    }
+  }
+
+  // Set custom password for applicant
+  async function handleSetCustomPassword() {
+    if (!resetPasswordDialog.applicant || !resetPasswordDialog.customPassword) return
+
+    if (resetPasswordDialog.customPassword.length < 8) {
+      toast.error('Password must be at least 8 characters')
+      return
+    }
+
+    setResetPasswordDialog(prev => ({
+      ...prev,
+      loading: true,
+    }))
+
+    try {
+      await crmClient.setPassword(
+        resetPasswordDialog.applicant.id,
+        workspaceId,
+        resetPasswordDialog.customPassword
+      )
+      
+      // Store password in our cache
+      setGeneratedPasswords(prev => ({
+        ...prev,
+        [resetPasswordDialog.applicant!.id]: resetPasswordDialog.customPassword,
+      }))
+      
+      setResetPasswordDialog(prev => ({
+        ...prev,
+        loading: false,
+        tempPassword: prev.customPassword,
+        customPassword: '',
+      }))
+      toast.success('Password set successfully')
+    } catch (err: any) {
+      console.error('Failed to set password:', err)
+      toast.error(err.message || 'Failed to set password')
+      setResetPasswordDialog(prev => ({
+        ...prev,
+        loading: false,
+      }))
     }
   }
 
@@ -170,6 +262,8 @@ export function ApplicantCRMPage({ workspaceId, workspaceSlug }: ApplicantCRMPag
       applicant: null,
       loading: false,
       tempPassword: null,
+      mode: 'generate',
+      customPassword: '',
     })
     setCopied(false)
   }
@@ -287,8 +381,14 @@ export function ApplicantCRMPage({ workspaceId, workspaceSlug }: ApplicantCRMPag
                       }}
                     >
                       <TableCell>
-                        <div className="font-medium">
+                        <div className="font-medium flex items-center gap-2">
                           {applicant.name || 'Unnamed'}
+                          {applicant.password_reset_requested && (
+                            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 text-xs">
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              Reset Requested
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -327,7 +427,7 @@ export function ApplicantCRMPage({ workspaceId, workspaceSlug }: ApplicantCRMPag
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleResetPassword(applicant)
+                            handleResetPasswordClick(applicant)
                           }}
                           className="h-8"
                         >
@@ -364,12 +464,15 @@ export function ApplicantCRMPage({ workspaceId, workspaceSlug }: ApplicantCRMPag
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Key className="w-5 h-5 text-blue-600" />
-              Reset Password
+              Set Password
             </DialogTitle>
             <DialogDescription>
               {resetPasswordDialog.applicant && (
                 <span>
-                  Generate a temporary password for <strong>{resetPasswordDialog.applicant.name || resetPasswordDialog.applicant.email}</strong>
+                  {resetPasswordDialog.tempPassword 
+                    ? `Password for ${resetPasswordDialog.applicant.name || resetPasswordDialog.applicant.email}`
+                    : `Set password for ${resetPasswordDialog.applicant.name || resetPasswordDialog.applicant.email}`
+                  }
                 </span>
               )}
             </DialogDescription>
@@ -383,10 +486,10 @@ export function ApplicantCRMPage({ workspaceId, workspaceSlug }: ApplicantCRMPag
             <div className="space-y-4">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <p className="text-sm text-green-800 font-medium mb-2">
-                  ✓ Password reset successfully
+                  ✓ Password set successfully
                 </p>
                 <p className="text-xs text-green-700">
-                  Share this temporary password with {resetPasswordDialog.applicant?.name || 'the applicant'}:
+                  Share this password with {resetPasswordDialog.applicant?.name || 'the applicant'}:
                 </p>
               </div>
 
@@ -414,11 +517,76 @@ export function ApplicantCRMPage({ workspaceId, workspaceSlug }: ApplicantCRMPag
                 </p>
                 <p className="text-xs text-blue-700 mt-1">
                   Send this password to the applicant via email or your preferred communication method.
-                  They should change it after logging in.
                 </p>
               </div>
+              
+              <Button
+                variant="outline"
+                onClick={() => setResetPasswordDialog(prev => ({ ...prev, tempPassword: null }))}
+                className="w-full"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Set New Password
+              </Button>
             </div>
-          ) : null}
+          ) : (
+            <Tabs 
+              value={resetPasswordDialog.mode} 
+              onValueChange={(mode) => setResetPasswordDialog(prev => ({ ...prev, mode: mode as 'generate' | 'custom' }))}
+            >
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="generate">Generate</TabsTrigger>
+                <TabsTrigger value="custom">Set Custom</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="generate" className="space-y-4">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+                  <p className="text-sm text-gray-600">
+                    Click below to generate a secure 12-character password with letters, numbers, and special characters.
+                  </p>
+                </div>
+                
+                <Button
+                  onClick={handleGeneratePassword}
+                  disabled={resetPasswordDialog.loading}
+                  className="w-full"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Generate Password
+                </Button>
+              </TabsContent>
+              
+              <TabsContent value="custom" className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Enter Custom Password
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="Minimum 8 characters"
+                    value={resetPasswordDialog.customPassword}
+                    onChange={(e) => setResetPasswordDialog(prev => ({ 
+                      ...prev, 
+                      customPassword: e.target.value 
+                    }))}
+                    className="font-mono"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Password must be at least 8 characters long
+                  </p>
+                </div>
+                
+                <Button
+                  onClick={handleSetCustomPassword}
+                  disabled={resetPasswordDialog.loading || resetPasswordDialog.customPassword.length < 8}
+                  className="w-full"
+                >
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Set Password
+                </Button>
+              </TabsContent>
+            </Tabs>
+          )}
 
           <DialogFooter>
             <Button onClick={closeResetDialog}>

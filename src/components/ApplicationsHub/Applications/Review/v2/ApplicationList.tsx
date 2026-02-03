@@ -44,7 +44,6 @@ export function ApplicationList({
   onSortChange,
   filterStatus = 'all',
   onFilterChange,
-  stages = [],
   hasMore = false,
   isLoadingMore = false,
   onLoadMore
@@ -118,7 +117,7 @@ export function ApplicationList({
                       "text-xs px-1.5 py-0.5 rounded border whitespace-nowrap flex-shrink-0",
                       getStatusColor(app.status)
                     )}>
-                      {app.stageName || app.status}
+                      {app.status}
                     </span>
                   </div>
 

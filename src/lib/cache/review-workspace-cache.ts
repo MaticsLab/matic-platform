@@ -5,7 +5,6 @@
  * 
  * Provides instant UI rendering by caching:
  * - Form structure (rarely changes)
- * - Workflow configuration (changes occasionally)
  * - Submissions (frequently changes - use realtime for updates)
  * 
  * Strategy:
@@ -32,16 +31,6 @@ interface FormCache {
   workspace_id: string
 }
 
-interface WorkflowCache {
-  workflows: any[]
-  stages: any[]
-  rubrics: any[]
-  reviewer_types: any[]
-  groups: any[]
-  stage_groups: any[]
-  workflow_actions: any[]
-}
-
 interface SubmissionsCache {
   submissions: any[]
   lastFetchedAt: number
@@ -50,7 +39,6 @@ interface SubmissionsCache {
 // Cache TTLs (in milliseconds)
 const TTL = {
   FORM: 5 * 60 * 1000,         // 5 minutes - form structure rarely changes
-  WORKFLOW: 2 * 60 * 1000,     // 2 minutes - workflow config changes occasionally
   SUBMISSIONS: 30 * 1000,       // 30 seconds - use realtime for live updates
 }
 
@@ -150,14 +138,6 @@ export function setCachedForm(formId: string, form: FormCache): void {
   setInCache('form', formId, form)
 }
 
-export function getCachedWorkflow(workspaceId: string): WorkflowCache | null {
-  return getFromCache<WorkflowCache>('workflow', workspaceId, TTL.WORKFLOW)
-}
-
-export function setCachedWorkflow(workspaceId: string, workflow: WorkflowCache): void {
-  setInCache('workflow', workspaceId, workflow)
-}
-
 export function getCachedSubmissions(formId: string): SubmissionsCache | null {
   return getFromCache<SubmissionsCache>('submissions', formId, TTL.SUBMISSIONS)
 }
@@ -172,7 +152,6 @@ export function setCachedSubmissions(formId: string, submissions: any[]): void {
 // Cache the entire review workspace data
 export interface ReviewWorkspaceCache {
   form: FormCache
-  workflow: WorkflowCache
   submissions: any[]
   cachedAt: number
 }
@@ -183,21 +162,11 @@ export function getCachedReviewWorkspace(formId: string): ReviewWorkspaceCache |
   const form = getCachedForm(formId)
   if (!form) return null
   
-  const workflow = getCachedWorkflow(form.workspace_id)
   const submissionsCache = getCachedSubmissions(formId)
   
   // We need at least form to render something useful
   return {
     form,
-    workflow: workflow || {
-      workflows: [],
-      stages: [],
-      rubrics: [],
-      reviewer_types: [],
-      groups: [],
-      stage_groups: [],
-      workflow_actions: [],
-    },
     submissions: submissionsCache?.submissions || [],
     cachedAt: Math.min(
       form ? Date.now() : 0,
@@ -211,13 +180,6 @@ export function setCachedReviewWorkspace(
   workspaceId: string,
   data: {
     form: any
-    workflows: any[]
-    stages: any[]
-    rubrics: any[]
-    reviewer_types: any[]
-    groups: any[]
-    stage_groups: any[]
-    workflow_actions: any[]
     submissions: any[]
   }
 ): void {
@@ -228,17 +190,6 @@ export function setCachedReviewWorkspace(
     fields: data.form.fields,
     settings: data.form.settings,
     workspace_id: workspaceId,
-  })
-  
-  // Cache workflow config
-  setCachedWorkflow(workspaceId, {
-    workflows: data.workflows,
-    stages: data.stages,
-    rubrics: data.rubrics,
-    reviewer_types: data.reviewer_types,
-    groups: data.groups,
-    stage_groups: data.stage_groups,
-    workflow_actions: data.workflow_actions,
   })
   
   // Cache submissions

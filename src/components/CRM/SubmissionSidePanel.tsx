@@ -5,6 +5,7 @@ import { goClient } from '@/lib/api/go-client'
 import { toast } from 'sonner'
 import { Sheet, SheetPortal, SheetOverlay } from '@/ui-components/sheet'
 import * as SheetPrimitive from "@radix-ui/react-dialog"
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { Badge } from '@/ui-components/badge'
 import { ScrollArea } from '@/ui-components/scroll-area'
 import { Loader2, Download, ExternalLink, CheckCircle2, Clock, AlertCircle, X, Mail, User, Calendar, FileText } from 'lucide-react'
@@ -73,6 +74,37 @@ export function SubmissionSidePanel({
   async function loadSubmission() {
     try {
       setLoading(true)
+      
+      // Try new unified schema first
+      try {
+        const [submissionData, fieldsData] = await Promise.all([
+          goClient.get<any>(`/form-submissions/${submissionId}`),
+          goClient.get<TableField[]>(`/form-fields?form_id=${formId}`),
+        ])
+        
+        // Convert form_responses to data format for display
+        const data: Record<string, any> = {}
+        if (submissionData.responses) {
+          submissionData.responses.forEach((response: any) => {
+            data[response.field_id] = response.value_text || response.value_number || response.value_boolean || response.value_json
+          })
+        }
+        
+        setSubmission({
+          id: submissionData.id,
+          table_id: submissionData.form_id,
+          data: data,
+          metadata: {},
+          created_at: submissionData.created_at,
+          updated_at: submissionData.updated_at,
+        })
+        setFields(fieldsData || [])
+        return
+      } catch (newSchemaError) {
+        console.log('New schema failed, falling back to legacy:', newSchemaError)
+      }
+      
+      // Fallback to legacy schema
       const [rowData, formData] = await Promise.all([
         goClient.get<TableRow>(`/tables/${formId}/rows/${submissionId}`),
         goClient.get<{ fields: TableField[] }>(`/forms/${formId}`),
@@ -81,7 +113,7 @@ export function SubmissionSidePanel({
       setFields(formData.fields || [])
     } catch (err: any) {
       console.error('Failed to load submission:', err)
-      toast.error('Failed to load submission details')
+      // Don't toast on every error - just show in UI
     } finally {
       setLoading(false)
     }
@@ -195,6 +227,14 @@ export function SubmissionSidePanel({
         <SheetPrimitive.Content
           className="fixed inset-y-0 right-0 z-50 h-full w-[60vw] md:w-[50vw] lg:w-[45vw] border-l-2 border-gray-200 bg-white shadow-2xl transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right overflow-hidden"
         >
+          {/* Accessibility requirements */}
+          <VisuallyHidden>
+            <SheetPrimitive.Title>{formName} - Submission Details</SheetPrimitive.Title>
+            <SheetPrimitive.Description>
+              View submission details for {applicantName || applicantEmail || 'applicant'}
+            </SheetPrimitive.Description>
+          </VisuallyHidden>
+          
           {/* Close button */}
           <SheetPrimitive.Close className="absolute right-4 top-4 z-10 rounded-full p-2 bg-gray-100 hover:bg-gray-200 transition-colors">
             <X className="h-5 w-5 text-gray-600" />

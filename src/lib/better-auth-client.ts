@@ -1,26 +1,8 @@
+// Compatibility wrapper to use the existing auth client from auth folder
+import { authClient } from '@/lib/auth/auth-client'
 
-import { createAuthClient } from "better-auth/react";
-import { organizationClient, multiSessionClient, magicLinkClient } from "better-auth/client/plugins";
-
-// Create the Better Auth client for frontend use
-// Always use window.location.origin in the browser for maximum compatibility
-export const authClient = createAuthClient({
-  baseURL: typeof window !== "undefined" 
-    ? window.location.origin 
-    : process.env.NEXT_PUBLIC_APP_URL || 'https://www.maticsapp.com',
-  plugins: [
-    organizationClient({
-      // Enable advanced features if needed in the future
-      // dynamicAccessControl: { enabled: true },
-      
-      // Custom role definitions would go here if implementing custom access control
-      // ac: accessController,
-      // roles: { owner, admin, member, customRole },
-    }),
-    multiSessionClient(),
-    magicLinkClient(),
-  ],
-});
+// Re-export the main client
+export { authClient }
 
 // Export commonly used hooks and methods
 export const {
@@ -70,12 +52,11 @@ export const organizationAPI = {
   useListOrganizations: authClient.useListOrganizations,
 };
 
-// Password management - exposed directly from authClient
+// Password management
 export const changePassword = authClient.changePassword;
 export const resetPassword = authClient.resetPassword;
 
-// User profile management - exposed directly from authClient
-// Use this instead of type assertions: (authClient as any).updateUser
+// User profile management
 export const updateUser = authClient.updateUser;
 
 // Multi-session management

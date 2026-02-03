@@ -205,16 +205,8 @@ func gatherWorkspaceStats(workspaceID uuid.UUID) ReportStats {
 		stats.Submissions += int(submissionCount)
 	}
 
-	// Count workflows
-	var workflowCount int64
-	database.DB.Model(&models.ReviewWorkflow{}).
-		Where("workspace_id = ?", workspaceID).
-		Count(&workflowCount)
-	stats.Workflows = int(workflowCount)
-
-	// Count pending reviews (if workflow model supports it)
-	// This would require a WorkflowSubmission model with status field
-	// For now, set to 0
+	// Workflows removed - feature deprecated
+	stats.Workflows = 0
 	stats.PendingReviews = 0
 
 	return stats

@@ -4,13 +4,12 @@ import { Sheet, SheetPortal, SheetOverlay } from '@/ui-components/sheet';
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { X } from 'lucide-react';
 import { ApplicationDetail } from './ApplicationDetail';
-import type { Application, Stage, ReviewersMap } from './types';
+import type { Application, ReviewersMap } from './types';
 
 interface ApplicationDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   application: Application;
-  stages: Stage[];
   reviewersMap: ReviewersMap;
   workspaceId: string;
   formId?: string;
@@ -25,7 +24,6 @@ export function ApplicationDetailSheet({
   open,
   onOpenChange,
   application,
-  stages,
   reviewersMap,
   workspaceId,
   formId,
@@ -55,7 +53,6 @@ export function ApplicationDetailSheet({
           <div className="h-full w-full">
             <ApplicationDetail
               application={application}
-              stages={stages}
               reviewersMap={reviewersMap}
               workspaceId={workspaceId}
               formId={formId}

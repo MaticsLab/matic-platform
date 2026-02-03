@@ -102,15 +102,9 @@ export function WorkspaceTabProvider({ children, workspaceId }: WorkspaceTabProv
       const currentTabs = manager.getTabs()
       const currentActiveTab = manager.getActiveTab()
       
-      // Auto-create Applications Hub tab if all tabs are closed
+      // Ensure Portals Hub tab exists (fallback safety)
       if (currentTabs.length === 0) {
-        manager.addTab({
-          id: 'applications',
-          title: 'Programs',
-          type: 'custom',
-          url: `/workspace/${workspaceId}/applications`,
-          workspaceId
-        })
+        manager.openPortalsHub()
         return // The subscription will fire again with the new tab
       }
       
@@ -120,17 +114,10 @@ export function WorkspaceTabProvider({ children, workspaceId }: WorkspaceTabProv
 
     // Initial load
     const initialTabs = manager.getTabs()
-    const initialActiveTab = manager.getActiveTab()
     
-    // Create default tab if no tabs exist
+    // Ensure default tab exists
     if (initialTabs.length === 0) {
-      manager.addTab({
-        id: 'applications',
-        title: 'Programs',
-        type: 'custom',
-        url: `/workspace/${workspaceId}/applications`,
-        workspaceId
-      })
+      manager.openPortalsHub()
     }
     
     setTabs(manager.getTabs())

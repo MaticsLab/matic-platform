@@ -80,18 +80,6 @@ func AutoMigrate() error {
 		&models.ChangeRequest{},
 		&models.ChangeApproval{},
 
-		// Workflows
-		&models.ReviewWorkflow{},
-		&models.ApplicationStage{},
-		&models.ReviewerType{},
-		&models.Rubric{},
-		&models.StageReviewerConfig{},
-
-		// Application Groups and Actions (009_application_groups.sql)
-		&models.ApplicationGroup{},
-		&models.WorkflowAction{},
-		&models.StageAction{},
-
 		// Email / Gmail Integration
 		&models.GmailConnection{},
 		&models.EmailCampaign{},
