@@ -10,6 +10,9 @@ const nextConfig = {
   // Compression
   compress: true,
   
+  // Transpile better-auth package
+  transpilePackages: ['better-auth'],
+  
   // API proxy to backend (excludes /api/auth which is handled by Better Auth)
   async rewrites() {
     return [
