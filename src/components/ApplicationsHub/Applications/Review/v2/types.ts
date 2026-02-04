@@ -100,6 +100,7 @@ export interface ApplicationDetailProps {
   workspaceId?: string;
   formId?: string;
   fields?: Array<{ id: string; label: string; type: string; config?: Record<string, any>; name?: string }>;
+  sections?: Array<{ id: string; name: string; description?: string; sort_order: number }>;
   onActivityCreated?: () => void;
 }
 

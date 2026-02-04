@@ -27,6 +27,8 @@ import {
   PopoverTrigger,
 } from "@/ui-components/popover";
 import { Checkbox } from '@/ui-components/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui-components/collapsible';
+import { Progress } from '@/ui-components/progress';
 import { useEmailConnection } from '@/hooks/useEmailConnection';
 import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
 import { filesClient, rowFilesClient } from '@/lib/api/files-client';
@@ -463,6 +465,7 @@ export function ApplicationDetail({
   workspaceId,
   formId,
   fields = [],
+  sections = [],
   onActivityCreated
 }: ApplicationDetailProps) {
   const [showActivityPanel, setShowActivityPanel] = useState(false); // Toggle between details and activity
@@ -485,6 +488,53 @@ export function ApplicationDetail({
   const [showEmailSettings, setShowEmailSettings] = useState(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
   const [isLoadingActions, setIsLoadingActions] = useState(false);
+  
+  // Collapsible sections state - first section open by default
+  const [openSections, setOpenSections] = useState<{ [sectionName: string]: boolean }>({});
+
+  // Calculate completion percentage for a section
+  const calculateSectionCompletion = (sectionFields: any[]) => {
+    let totalFields = 0;
+    let completedFields = 0;
+    
+    sectionFields.forEach(field => {
+      // Skip non-required fields from completion calculation
+      if (!(field as any).required && (field as any).required !== undefined) {
+        return;
+      }
+      
+      totalFields++;
+      
+      const value = application.raw_data?.[field.id] || 
+                   application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
+                   application.raw_data?.[field.label];
+      
+      // Check if field is completed
+      if (value !== null && value !== undefined && value !== '' && value !== '[]' && value !== '{}') {
+        // For arrays, check if they have content
+        if (Array.isArray(value) && value.length === 0) {
+          return;
+        }
+        // For objects, check if they have meaningful content
+        if (typeof value === 'object' && Object.keys(value).length === 0) {
+          return;
+        }
+        completedFields++;
+      }
+    });
+    
+    const completionPercentage = totalFields > 0 ? Math.round((completedFields / totalFields) * 100) : 0;
+    
+    return { completionPercentage, completedFields, totalFields };
+  };
+
+  // Toggle section open/closed
+  const toggleSection = (sectionName: string) => {
+    setOpenSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
+    }));
+  };
   const [storageFiles, setStorageFiles] = useState<TableFileResponse[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   
@@ -872,32 +922,94 @@ export function ApplicationDetail({
     return null;
   };
 
-  // Group fields by section
+  // Group fields by section using form editor sections
   const fieldSections = useMemo(() => {
+    console.log('ApplicationDetail - Processing sections:', sections);
+    console.log('ApplicationDetail - Processing fields:', fields);
+    console.log('ApplicationDetail - Application raw_data keys:', Object.keys(application.raw_data || {}));
+    
     if (!fields || fields.length === 0) return [];
     
-    // Filter out layout fields (section, divider, heading, paragraph, callout, etc.)
-    // Layout fields should not appear in database/application data views
+    // If we have sections from the form editor, use those
+    if (sections && sections.length > 0) {
+      console.log('ApplicationDetail - Using form editor sections');
+      return sections
+        .map((section, index) => {
+          // Handle different section property names based on source
+          const sectionId = section.id;
+          const sectionName = section.title || section.name;
+          const sectionDescription = section.description;
+          const sortOrder = section.sort_order !== undefined ? section.sort_order : index;
+          
+          console.log('ApplicationDetail - Processing section:', sectionName, 'with id:', sectionId);
+          
+          // Get fields for this section
+          const sectionFields = fields.filter(field => {
+            const fieldSectionId = (field as any).section_id;
+            const hasSection = fieldSectionId === sectionId;
+            console.log(`ApplicationDetail - Field ${field.label} (${field.id}) section_id: ${fieldSectionId}, matches section ${sectionId}: ${hasSection}`);
+            return hasSection;
+          });
+          
+          console.log(`ApplicationDetail - Section "${sectionName}" has ${sectionFields.length} fields:`, sectionFields.map(f => f.label));
+          
+          // Filter out layout fields
+          const layoutFieldTypes = ['section', 'divider', 'heading', 'paragraph', 'callout'];
+          const regularFields = sectionFields.filter(field => {
+            if ((field as any).field_type?.category === 'layout') {
+              return false;
+            }
+            if (layoutFieldTypes.includes(field.type)) {
+              return false;
+            }
+            return true;
+          });
+          
+          // Skip sections with no regular fields
+          if (regularFields.length === 0) {
+            console.log(`ApplicationDetail - Skipping section "${sectionName}" - no regular fields`);
+            return null;
+          }
+          
+          const completionStats = calculateSectionCompletion(regularFields);
+          
+          console.log(`ApplicationDetail - Section "${sectionName}" completion:`, completionStats);
+          
+          return {
+            name: sectionName,
+            description: sectionDescription,
+            fields: regularFields,
+            sortOrder,
+            ...completionStats
+          };
+        })
+        .filter(Boolean) // Remove null sections
+        .sort((a: any, b: any) => a.sortOrder - b.sortOrder); // Sort by order
+    }
+    
+    // Fallback to original field-based parsing if no sections available
+    console.log('ApplicationDetail - No sections available, using fallback field-based parsing');
     const layoutFieldTypes = ['section', 'divider', 'heading', 'paragraph', 'callout'];
     const regularFields = fields.filter(field => {
-      // Check if field type category is layout (if field_type is available)
       if ((field as any).field_type?.category === 'layout') {
         return false;
       }
-      // Also filter by type as fallback
       if (layoutFieldTypes.includes(field.type)) {
         return false;
       }
       return true;
     });
     
-    const sections: { name: string; fields: typeof fields }[] = [];
+    console.log('ApplicationDetail - Regular fields for fallback:', regularFields.length);
+    
+    const fallbackSections: { name: string; fields: typeof fields; completionPercentage: number; completedFields: number; totalFields: number }[] = [];
     let currentSection = { name: 'General Information', fields: [] as typeof fields };
     
     regularFields.forEach(field => {
       if (field.type === 'section') {
         if (currentSection.fields.length > 0) {
-          sections.push(currentSection);
+          const completionStats = calculateSectionCompletion(currentSection.fields);
+          fallbackSections.push({ ...currentSection, ...completionStats });
         }
         currentSection = { name: field.label || 'Section', fields: [] };
       } else {
@@ -906,11 +1018,22 @@ export function ApplicationDetail({
     });
     
     if (currentSection.fields.length > 0) {
-      sections.push(currentSection);
+      const completionStats = calculateSectionCompletion(currentSection.fields);
+      fallbackSections.push({ ...currentSection, ...completionStats });
     }
     
-    return sections;
-  }, [fields]);
+    console.log('ApplicationDetail - Fallback sections created:', fallbackSections.map(s => ({ name: s.name, fieldCount: s.fields.length })));
+    
+    return fallbackSections;
+  }, [fields, sections, application.raw_data]);
+  
+  // Initialize open sections - first section open by default
+  useEffect(() => {
+    const firstSection = fieldSections[0];
+    if (fieldSections.length > 0 && firstSection?.name && !openSections.hasOwnProperty(firstSection.name)) {
+      setOpenSections(prev => ({ ...prev, [firstSection.name]: true }));
+    }
+  }, [fieldSections]);
 
   // Insert merge tag into email body
   const insertMergeTag = (fieldLabel: string) => {
@@ -1308,27 +1431,7 @@ export function ApplicationDetail({
                     {application.status || 'Submitted'}
                   </Badge>
 
-                  {/* Workflow Button */}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          onClick={() => {
-                            // TODO: Implement workflow assignment
-                            toast.info('Workflow assignment coming soon');
-                          }}
-                        >
-                          <Settings className="h-3.5 w-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Assign workflow</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+
                 </div>
               </div>
 
@@ -1427,14 +1530,14 @@ export function ApplicationDetail({
               </Card>
             )}
 
-            {/* Custom Fields Section - Compact cards */}
+            {/* Custom Fields Section - Form-like layout with collapsible sections */}
             {fields && fields.length > 0 && (
               <div className="mb-4">
-                <div className="flex items-center gap-1.5 mb-3">
-                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Application Data</span>
+                <div className="flex items-center gap-1.5 mb-4">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-foreground">Application Details</span>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {(() => {
                     // Create field map for nested field lookup (includes all subfields recursively)
                     const fieldMap = new Map<string, any>();
@@ -1496,50 +1599,104 @@ export function ApplicationDetail({
                     // Add all top-level fields
                     fields.forEach(addFieldToMap);
                     
-                    return fieldSections.map((section, sectionIdx) => {
-                      // Check if section has any data
-                      const hasData = section.fields.some(field => {
-                        const value = application.raw_data?.[field.id] || 
-                                     application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
-                                     application.raw_data?.[field.label];
-                        return value !== null && value !== undefined && value !== '';
-                      });
-                      
-                      if (!hasData) return null;
+                    return fieldSections
+                      .filter((section): section is NonNullable<typeof section> => section !== null)
+                      .map((section, sectionIdx) => {
+                        const isOpen = openSections[section.name] || false;
                       
                       return (
-                        <Card key={sectionIdx} className="shadow-none border-gray-100 mb-3 last:mb-0">
-                          {/* Section Header */}
-                          {fieldSections.length > 1 && (
-                            <CardHeader className="p-3 pb-0">
-                              <CardTitle className="text-sm font-medium text-foreground">{section.name}</CardTitle>
-                            </CardHeader>
-                          )}
-                          
-                          {/* Section Fields */}
-                          <CardContent className={cn("p-3", fieldSections.length > 1 && "pt-2")}>
-                            <div className="space-y-3">
-                              {section.fields.map((field) => {
-                                const value = application.raw_data?.[field.id] || 
-                                             application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
-                                             application.raw_data?.[field.label];
-                                if (value === null || value === undefined || value === '') return null;
-                                // Use field.label directly, fallback to formatFieldLabel if not available
-                                const displayLabel = field.label || formatFieldLabel(field.id, fieldMap);
-
-                                return (
-                                  <div key={field.id} className="space-y-1">
-                                    <p className="text-xs font-medium text-muted-foreground">
-                                      {displayLabel}
-                                    </p>
-                                    <div className="text-sm text-foreground leading-relaxed">
-                                      {renderFieldValue(value, 0, field.id, fieldMap)}
+                        <Card key={sectionIdx} className="shadow-none border-gray-100">
+                          <Collapsible 
+                            open={isOpen} 
+                            onOpenChange={() => toggleSection(section.name)}
+                          >
+                            <CollapsibleTrigger asChild>
+                              <CardHeader className="p-4 pb-3 cursor-pointer hover:bg-gray-50/50 transition-colors">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-2">
+                                      {isOpen ? (
+                                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                      )}
+                                      <div className="flex flex-col">
+                                        <CardTitle className="text-sm font-medium text-foreground">
+                                          {section.name}
+                                        </CardTitle>
+                                        {(section as any).description && (
+                                          <p className="text-xs text-muted-foreground mt-0.5">
+                                            {(section as any).description}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {/* Completion indicator */}
+                                    <div className="flex items-center gap-2">
+                                      <Progress 
+                                        value={section.completionPercentage} 
+                                        className="w-16 h-1.5"
+                                      />
+                                      <span className="text-xs text-muted-foreground font-mono">
+                                        {section.completionPercentage}%
+                                      </span>
                                     </div>
                                   </div>
-                                );
-                              })}
-                            </div>
-                          </CardContent>
+                                  <div className="text-xs text-muted-foreground">
+                                    {section.completedFields}/{section.totalFields} fields completed
+                                  </div>
+                                </div>
+                              </CardHeader>
+                            </CollapsibleTrigger>
+                            
+                            <CollapsibleContent>
+                              <CardContent className="p-4 pt-0">
+                                <div className="space-y-4">
+                                  {section.fields.map((field) => {
+                                    const value = application.raw_data?.[field.id] || 
+                                                 application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
+                                                 application.raw_data?.[field.label];
+                                    
+                                    // Use field.label directly, fallback to formatFieldLabel if not available
+                                    const displayLabel = field.label || formatFieldLabel(field.id, fieldMap);
+                                    const isRequired = (field as any).required;
+                                    const isEmpty = value === null || value === undefined || value === '';
+
+                                    return (
+                                      <div key={field.id} className="space-y-2">
+                                        {/* Form field label styling */}
+                                        <div className="flex items-center gap-1">
+                                          <label className="text-sm font-medium text-foreground">
+                                            {displayLabel}
+                                          </label>
+                                          {isRequired && (
+                                            <span className="text-red-500 text-sm">*</span>
+                                          )}
+                                        </div>
+                                        
+                                        {/* Form field value styling - looks like a disabled input */}
+                                        <div className="relative">
+                                          <div className={cn(
+                                            "min-h-[36px] w-full rounded-md border px-3 py-2 text-sm ring-offset-background",
+                                            isEmpty 
+                                              ? "border-input bg-muted/20 text-muted-foreground" 
+                                              : "border-input bg-muted/30"
+                                          )}>
+                                            <div className={isEmpty ? "text-muted-foreground italic" : "text-foreground"}>
+                                              {isEmpty 
+                                                ? "Not filled out" 
+                                                : renderFieldValue(value, 0, field.id, fieldMap)
+                                              }
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </CardContent>
+                            </CollapsibleContent>
+                          </Collapsible>
                         </Card>
                       );
                     });

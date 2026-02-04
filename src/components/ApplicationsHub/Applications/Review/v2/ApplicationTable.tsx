@@ -16,12 +16,21 @@ import { Badge } from '@/ui-components/badge';
 
 interface Submission {
   id: string;
-  applicant_name: string;
-  applicant_email: string;
-  form_name: string;
+  firstName: string;
+  lastName: string;
+  name?: string;
+  email: string;
+  phone?: string;
   status: string;
-  submitted_at: string;
-  data: Record<string, any>;
+  submittedDate: string;
+  raw_data: Record<string, any>;
+  reviewedCount?: number;
+  totalReviewers?: number;
+  // Keep these for compatibility
+  applicant_name?: string;
+  applicant_email?: string;
+  form_name?: string;
+  submitted_at?: string;
   documents?: { name: string; url: string; type: string }[];
 }
 
@@ -56,16 +65,30 @@ const getStatusBadge = (status: string) => {
 };
 
 const getBetterAuthDisplayName = (submission: Submission) => {
-  if (submission.applicant_name && submission.applicant_name.trim() && submission.applicant_name !== submission.applicant_email) {
-    return submission.applicant_name.trim();
+  // First check the name field (from Better Auth ba_users table)
+  if (submission.name && submission.name.trim() && submission.name !== submission.email) {
+    return submission.name.trim();
   }
-  return submission.applicant_email;
+  
+  // Try constructing from firstName/lastName
+  if (submission.firstName || submission.lastName) {
+    const fullName = `${submission.firstName || ''} ${submission.lastName || ''}`.trim();
+    if (fullName) return fullName;
+  }
+  
+  // Fallback to applicant_name for compatibility
+  if (submission.applicant_name && submission.applicant_name !== submission.email) {
+    return submission.applicant_name;
+  }
+  
+  // Final fallback to email
+  return submission.email || 'Unknown User';
 };
 
 const getDocumentCount = (submission: Submission) => {
   if (!submission.documents) {
-    // Count documents from form data
-    const data = submission.data || {};
+    // Count documents from form raw_data
+    const data = submission.raw_data || {};
     let count = 0;
     Object.values(data).forEach(value => {
       if (value && typeof value === 'object' && (value as any).url && (value as any).name) {
@@ -81,7 +104,7 @@ const getDocumentsFromData = (submission: Submission) => {
   if (submission.documents) return submission.documents;
   
   const docs: { name: string; url: string; type: string }[] = [];
-  const data = submission.data || {};
+  const data = submission.raw_data || {};
   
   Object.entries(data).forEach(([key, value]) => {
     if (value && typeof value === 'object' && (value as any).url && (value as any).name) {
@@ -136,7 +159,6 @@ export function SubmissionTable({
                 <TableHead>Status</TableHead>
                 <TableHead>Documents</TableHead>
                 <TableHead>Submitted</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -158,14 +180,14 @@ export function SubmissionTable({
                   <TableCell>
                     <div className="flex items-center gap-1 text-gray-600">
                       <Mail className="w-3 h-3" />
-                      {submission.applicant_email}
+                      {submission.email}
                     </div>
                   </TableCell>
                   
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <FileText className="w-4 h-4 text-blue-500" />
-                      <span className="text-sm">{submission.form_name}</span>
+                      <span className="text-sm">{submission.form_name || 'Form'}</span>
                     </div>
                   </TableCell>
                   
@@ -199,21 +221,8 @@ export function SubmissionTable({
                   <TableCell>
                     <div className="flex items-center gap-1 text-gray-500 text-sm">
                       <Calendar className="w-3 h-3" />
-                      {new Date(submission.submitted_at).toLocaleDateString()}
+                      {new Date(submission.submittedDate).toLocaleDateString()}
                     </div>
-                  </TableCell>
-                  
-                  <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelect(submission);
-                      }}
-                    >
-                      View Details
-                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

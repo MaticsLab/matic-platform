@@ -899,7 +899,8 @@ found:
 
 func ListFormSubmissions(c *gin.Context) {
 	formID := c.Param("id")
-	fmt.Printf("Listing submissions for form: %s\n", formID)
+	includeUser := c.Query("include_user") == "true"
+	fmt.Printf("Listing submissions for form: %s, include_user: %v\n", formID, includeUser)
 
 	// Get the table_id - formID might be a view_id
 	var tableID uuid.UUID
@@ -931,6 +932,103 @@ func ListFormSubmissions(c *gin.Context) {
 		}
 	}
 
+	// If include_user is requested, we need to join with Better Auth users
+	if includeUser {
+		type SubmissionWithUser struct {
+			ID                uuid.UUID              `json:"id"`
+			TableID           uuid.UUID              `json:"table_id"`
+			FormID            string                 `json:"form_id"` // Alias for table_id for frontend compatibility
+			Data              json.RawMessage        `json:"data"`
+			Metadata          json.RawMessage        `json:"metadata"`
+			IsArchived        bool                   `json:"is_archived"`
+			Position          int64                  `json:"position"`
+			StageGroupID      *uuid.UUID             `json:"stage_group_id,omitempty"`
+			Tags              json.RawMessage        `json:"tags"`
+			BACreatedBy       *string                `json:"ba_created_by,omitempty"`
+			BAUpdatedBy       *string                `json:"ba_updated_by,omitempty"`
+			CreatedAt         time.Time              `json:"created_at"`
+			UpdatedAt         time.Time              `json:"updated_at"`
+			SubmittedAt       time.Time              `json:"submitted_at"` // Alias for created_at for frontend compatibility
+			ApplicantFullName string                 `json:"applicant_full_name,omitempty"`
+			Status            string                 `json:"status,omitempty"`
+			BAUser            *models.BetterAuthUser `json:"ba_user,omitempty"`
+		}
+
+		var results []SubmissionWithUser
+		// Join with ba_users table using ba_created_by field
+		query := database.DB.Table("table_rows").
+			Select(`table_rows.id, table_rows.table_id, table_rows.data, table_rows.metadata, 
+				table_rows.is_archived, table_rows.position, table_rows.stage_group_id, 
+				table_rows.tags, table_rows.ba_created_by, table_rows.ba_updated_by, 
+				table_rows.created_at, table_rows.updated_at,
+				ba_users.id as ba_user_id, ba_users.email as ba_user_email, ba_users.name as ba_user_name`).
+			Joins("LEFT JOIN ba_users ON table_rows.ba_created_by = ba_users.id").
+			Where("table_rows.table_id = ?", tableID).
+			Order("table_rows.created_at DESC").
+			Offset(offset).Limit(limit)
+
+		rows, err := query.Rows()
+		if err != nil {
+			fmt.Printf("Error fetching submissions with users: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var result SubmissionWithUser
+			var baUserID, baUserEmail, baUserName *string
+
+			if err := rows.Scan(
+				&result.ID, &result.TableID, &result.Data, &result.Metadata,
+				&result.IsArchived, &result.Position, &result.StageGroupID,
+				&result.Tags, &result.BACreatedBy, &result.BAUpdatedBy,
+				&result.CreatedAt, &result.UpdatedAt,
+				&baUserID, &baUserEmail, &baUserName,
+			); err != nil {
+				fmt.Printf("Error scanning submission row: %v\n", err)
+				continue
+			}
+
+			result.FormID = result.TableID.String()
+			result.SubmittedAt = result.CreatedAt
+
+			// Parse data to extract status and other info
+			var rowData map[string]interface{}
+			if len(result.Data) > 0 {
+				json.Unmarshal(result.Data, &rowData)
+			}
+
+			var metadata map[string]interface{}
+			if len(result.Metadata) > 0 {
+				json.Unmarshal(result.Metadata, &metadata)
+			}
+
+			// Extract status from metadata if available
+			if s, ok := metadata["status"].(string); ok && s != "" {
+				result.Status = s
+			}
+
+			// Build Better Auth user if data exists
+			if baUserID != nil && baUserEmail != nil {
+				result.BAUser = &models.BetterAuthUser{
+					ID:    *baUserID,
+					Email: *baUserEmail,
+				}
+				if baUserName != nil {
+					result.BAUser.Name = *baUserName
+				}
+			}
+
+			results = append(results, result)
+		}
+
+		fmt.Printf("Found %d submissions with users for form %s\n", len(results), formID)
+		c.JSON(http.StatusOK, results)
+		return
+	}
+
+	// Fallback to original logic without user data
 	var rows []models.Row
 	// OPTIMIZATION: Select only needed columns to reduce data transfer
 	// Note: table_rows has ba_created_by/ba_updated_by, NOT created_by/updated_by

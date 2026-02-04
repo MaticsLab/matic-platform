@@ -5,8 +5,8 @@ import { toast } from 'sonner';
 import { goClient } from '@/lib/api/go-client';
 import { Form } from '@/types/forms';
 import { SubmissionTable } from './ApplicationTable';
-import { SubmissionPanel } from './SubmissionPanel';
-import { Search, Filter, Download } from 'lucide-react';
+import { ApplicationDetail } from './ApplicationDetail';
+import { Search, Filter, Download, X } from 'lucide-react';
 import { Input } from '@/ui-components/input';
 import { Button } from '@/ui-components/button';
 import {
@@ -16,15 +16,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/ui-components/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/ui-components/popover';
+import { cn } from '@/lib/utils';
 
 interface Submission {
   id: string;
-  applicant_name: string;
-  applicant_email: string;
-  form_name: string;
+  firstName: string;
+  lastName: string;
+  name?: string;
+  email: string;
+  phone?: string;
   status: string;
-  submitted_at: string;
-  data: Record<string, any>;
+  submittedDate: string;
+  raw_data: Record<string, any>;
+  reviewedCount?: number;
+  totalReviewers?: number;
+  // Keep these for compatibility
+  applicant_name?: string;
+  applicant_email?: string;
+  form_name?: string;
+  submitted_at?: string;
   documents?: { name: string; url: string; type: string }[];
 }
 
@@ -41,6 +56,7 @@ export function SubmissionViewer({ workspaceId, formId, onBack }: SubmissionView
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [showSearch, setShowSearch] = useState(false);
 
   // Load form and submissions
   useEffect(() => {
@@ -52,52 +68,96 @@ export function SubmissionViewer({ workspaceId, formId, onBack }: SubmissionView
   const loadData = async () => {
     setIsLoading(true);
     try {
-      // Load form details
-      const formData = await goClient.get(`/forms/${formId}`) as Form;
-      setForm(formData);
+      // Load form details first
+      const formData = await goClient.get(`/forms/${formId}`) as Form & { settings?: any };
+      
+      console.log('Form data loaded:', formData);
+      console.log('Form settings:', formData.settings);
+      
+      // Extract sections from settings and fields from response
+      const sections = formData.settings?.sections || [];
+      const fields = (formData as any).fields || [];
+      
+      console.log('Extracted sections from settings:', sections);
+      console.log('Extracted fields from response:', fields);
+      
+      // Merge the data
+      const enhancedFormData = {
+        ...formData,
+        sections,
+        fields
+      };
+      
+      setForm(enhancedFormData);
 
-      // Load submissions
+      // Load submissions with Better Auth user data
       const submissionsData = await goClient.get(
-        `/forms/${formId}/submissions?workspace_id=${workspaceId}`
+        `/forms/${formId}/submissions?workspace_id=${workspaceId}&include_user=true`
       ) as any[];
 
-      // Transform submissions data
+      // Transform submissions data to match Application interface
       const transformedSubmissions: Submission[] = (submissionsData || []).map((sub: any) => {
-        // Extract applicant name from various sources
-        let applicantName = sub.applicant_full_name || '';
+        // Get Better Auth user name - the backend now returns ba_user object
+        let applicantName = '';
+        let firstName = '';
+        let lastName = '';
+        let email = '';
+        
+        // First priority: Better Auth user from backend join
+        if (sub.ba_user?.name) {
+          applicantName = sub.ba_user.name;
+          const nameParts = applicantName.split(' ');
+          firstName = nameParts[0] || '';
+          lastName = nameParts.slice(1).join(' ') || '';
+        }
+        
+        // Get email from Better Auth user or form data
+        if (sub.ba_user?.email) {
+          email = sub.ba_user.email;
+        } else if (sub.data) {
+          const data = typeof sub.data === 'string' ? JSON.parse(sub.data) : sub.data;
+          email = data.email || data.Email || '';
+        }
+        
+        // If no Better Auth name, try form data
         if (!applicantName && sub.data) {
-          const data = sub.data;
-          applicantName = data.name || data.full_name || data.fullName || 
-                        `${data.first_name || data.firstName || ''} ${data.last_name || data.lastName || ''}`.trim() ||
-                        data.applicant_name || '';
+          const data = typeof sub.data === 'string' ? JSON.parse(sub.data) : sub.data;
+          firstName = data.first_name || data.firstName || data.fname || '';
+          lastName = data.last_name || data.lastName || data.lname || '';
+          
+          if (firstName && lastName) {
+            applicantName = `${firstName} ${lastName}`.trim();
+          } else {
+            applicantName = data.name || data.full_name || data.fullName || data.applicant_name || '';
+          }
+        }
+        
+        // Final fallback
+        if (!applicantName) {
+          applicantName = email || 'Unknown User';
         }
 
-        // Extract email
-        const email = sub.applicant_email || sub.data?.email || sub.data?.Email || '';
-
-        // Extract documents from form data
-        const documents: { name: string; url: string; type: string }[] = [];
-        if (sub.data) {
-          Object.entries(sub.data).forEach(([key, value]) => {
-            if (value && typeof value === 'object' && (value as any).url && (value as any).name) {
-              documents.push({
-                name: (value as any).name,
-                url: (value as any).url,
-                type: (value as any).type || 'document'
-              });
-            }
-          });
-        }
+        // Parse form data for additional fields
+        const rawData = typeof sub.data === 'string' ? JSON.parse(sub.data) : (sub.data || {});
+        const metadata = typeof sub.metadata === 'string' ? JSON.parse(sub.metadata) : (sub.metadata || {});
 
         return {
           id: sub.id,
-          applicant_name: applicantName || email || 'Unknown',
+          firstName,
+          lastName, 
+          name: applicantName,
+          email,
+          phone: rawData?.phone || rawData?.Phone || '',
+          status: sub.status || metadata.status || 'Submitted',
+          submittedDate: sub.submitted_at || sub.created_at,
+          raw_data: rawData,
+          reviewedCount: 0,
+          totalReviewers: 1,
+          // Keep compatibility fields
+          applicant_name: applicantName,
           applicant_email: email,
           form_name: formData.name || 'Unknown Form',
-          status: sub.status || 'Submitted',
-          submitted_at: sub.submitted_at || sub.created_at,
-          data: sub.data || {},
-          documents
+          submitted_at: sub.submitted_at || sub.created_at
         };
       });
 
@@ -113,8 +173,8 @@ export function SubmissionViewer({ workspaceId, formId, onBack }: SubmissionView
   // Filter submissions based on search and status
   const filteredSubmissions = submissions.filter(submission => {
     const matchesSearch = searchQuery === '' || 
-      submission.applicant_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      submission.applicant_email.toLowerCase().includes(searchQuery.toLowerCase());
+      (submission.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      submission.email.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesStatus = filterStatus === 'all' || submission.status === filterStatus;
     
@@ -127,12 +187,12 @@ export function SubmissionViewer({ workspaceId, formId, onBack }: SubmissionView
   const handleExportCSV = () => {
     // Basic CSV export functionality
     const csvData = filteredSubmissions.map(sub => ({
-      Name: sub.applicant_name,
-      Email: sub.applicant_email,
-      Form: sub.form_name,
+      Name: sub.name || 'Unknown',
+      Email: sub.email,
+      Form: form?.name || 'Unknown Form',
       Status: sub.status,
-      'Submitted At': new Date(sub.submitted_at).toLocaleDateString(),
-      Documents: sub.documents?.length || 0
+      'Submitted At': new Date(sub.submittedDate).toLocaleDateString(),
+      Phone: sub.phone || ''
     }));
 
     const csvContent = [
@@ -151,64 +211,120 @@ export function SubmissionViewer({ workspaceId, formId, onBack }: SubmissionView
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b px-6 py-4">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {form?.name || 'Form Submissions'}
-            </h1>
-            <p className="text-gray-500">
-              {filteredSubmissions.length} submission{filteredSubmissions.length !== 1 ? 's' : ''}
-              {searchQuery && ` matching "${searchQuery}"`}
-            </p>
+      {/* Compressed Header */}
+      <div className="bg-white border-b px-4 py-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            {!showSearch ? (
+              <div>
+                <h1 className="text-lg font-semibold text-gray-900">
+                  {form?.name || 'Form Submissions'}
+                </h1>
+                <p className="text-xs text-gray-500">
+                  {filteredSubmissions.length} submission{filteredSubmissions.length !== 1 ? 's' : ''}
+                  {searchQuery && ` matching "${searchQuery}"`}
+                </p>
+              </div>
+            ) : (
+              <div className="flex-1 max-w-lg">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    placeholder="Search by name or email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-10"
+                    autoFocus
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowSearch(false);
+                      setSearchQuery('');
+                    }}
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleExportCSV}>
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
+          
+          <div className="flex items-center gap-1">
+            {/* Search Toggle */}
+            {!showSearch && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSearch(true)}
+                className="h-8 w-8 p-0"
+              >
+                <Search className="w-4 h-4" />
+              </Button>
+            )}
+            
+            {/* Status Filter - Icon only */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-8 w-8 p-0",
+                    filterStatus !== 'all' && "bg-blue-50 text-blue-600"
+                  )}
+                >
+                  <Filter className="w-4 h-4" />
+                  {filterStatus !== 'all' && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-600 rounded-full" />
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="end">
+                <div className="space-y-1">
+                  <div className="text-xs font-medium text-gray-500 px-2 py-1">Filter by status</div>
+                  <Button
+                    variant={filterStatus === 'all' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => setFilterStatus('all')}
+                  >
+                    All
+                  </Button>
+                  {availableStatuses.map(status => (
+                    <Button
+                      key={status}
+                      variant={filterStatus === status ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => setFilterStatus(status)}
+                    >
+                      {status}
+                    </Button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+            
+            <Button variant="ghost" size="sm" onClick={handleExportCSV} className="h-8 w-8 p-0">
+              <Download className="w-4 h-4" />
             </Button>
+            
             {onBack && (
-              <Button variant="outline" onClick={onBack}>
+              <Button variant="outline" size="sm" onClick={onBack}>
                 Back
               </Button>
             )}
           </div>
         </div>
-
-        {/* Search and Filters */}
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <Input
-              placeholder="Search by name or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-48">
-              <Filter className="w-4 h-4 mr-2" />
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              {availableStatuses.map(status => (
-                <SelectItem key={status} value={status}>
-                  {status}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Submissions Table */}
-        <div className="flex-1 p-6">
+      <div className="flex-1 relative overflow-hidden">
+        {/* Submissions Table - Full Width */}
+        <div className="absolute inset-0 p-6 overflow-auto">
           <SubmissionTable
             submissions={filteredSubmissions}
             selectedId={selectedSubmission?.id}
@@ -218,23 +334,43 @@ export function SubmissionViewer({ workspaceId, formId, onBack }: SubmissionView
           />
         </div>
 
-        {/* Submission Panel */}
+        {/* Sliding Review Panel - Overlay from right */}
         {selectedSubmission && (
-          <div className="w-1/2 border-l bg-white">
-            <SubmissionPanel
-              submission={selectedSubmission}
-              form={form}
-              onClose={() => setSelectedSubmission(null)}
-              onStatusChange={(newStatus) => {
-                // Handle status change
-                setSelectedSubmission(prev => prev ? { ...prev, status: newStatus } : null);
-                setSubmissions(prev => prev.map(sub => 
-                  sub.id === selectedSubmission.id ? { ...sub, status: newStatus } : sub
-                ));
-                toast.success('Status updated successfully');
-              }}
-            />
-          </div>
+          <>
+            <div className={`fixed top-0 right-0 h-full w-2/3 max-w-4xl bg-white shadow-2xl border-l z-50 transform transition-transform duration-300 ease-in-out ${
+              selectedSubmission ? 'translate-x-0' : 'translate-x-full'
+            }`}>
+              <div className="h-full w-full overflow-hidden relative">
+                <ApplicationDetail
+                  application={{
+                    ...selectedSubmission,
+                    reviewedCount: selectedSubmission.reviewedCount || 0,
+                    totalReviewers: selectedSubmission.totalReviewers || 0
+                  }}
+                  reviewersMap={{}}
+                  onStatusChange={(appId: string, newStatus: string) => {
+                    // Handle status change
+                    setSelectedSubmission(prev => prev ? { ...prev, status: newStatus } : null);
+                    setSubmissions(prev => prev.map(sub => 
+                      sub.id === appId ? { ...sub, status: newStatus } : sub
+                    ));
+                  }}
+                  onClose={() => setSelectedSubmission(null)}
+                  workspaceId={workspaceId}
+                  formId={formId}
+                  fields={(form as any)?.fields || []}
+                  sections={(form as any)?.sections || []}
+                />
+              </div>
+            </div>
+            
+            {/* CSS Override to make ApplicationDetail modal/fullscreen work within our panel */}
+            <style jsx global>{`
+              .fixed.inset-0.z-50:not(.w-2\\/3) {
+                z-index: 60 !important;
+              }
+            `}</style>
+          </>
         )}
       </div>
     </div>
