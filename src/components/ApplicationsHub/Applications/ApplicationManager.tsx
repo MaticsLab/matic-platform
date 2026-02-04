@@ -17,7 +17,7 @@ import { Label } from '@/ui-components/label'
 import { goClient } from '@/lib/api/go-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { Form } from '@/types/forms'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -46,6 +46,7 @@ const tabConfig = [
 export function ApplicationManager({ workspaceId, formId }: ApplicationManagerProps) {
   const { tabs, tabManager, setTabActions, setTabHeaderContent } = useTabContext()
   const { setHubContext } = useSearch()
+  const router = useRouter()
   const hubUrl = `/workspace/${workspaceId}/applications`
   const hubTab = tabs.find(t => t.url === hubUrl)
   
@@ -128,7 +129,7 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
       {
         label: 'Portal Editor',
         icon: FileText,
-        onClick: () => window.location.href = `/workspace/${workspaceSlug || workspaceId}/portal-editor?formId=${formId}`,
+        onClick: () => router.push(`/workspace/${workspaceSlug || workspaceId}/portal-editor?formId=${formId}`),
         variant: 'outline' as const
       }
     )

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
@@ -55,6 +55,7 @@ function getStatusBadge(status: string) {
 
 function CRMPageContent() {
   const params = useParams()
+  const router = useRouter()
   const slug = params.slug as string
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [applicants, setApplicants] = useState<ApplicantCRM[]>([])
@@ -284,7 +285,7 @@ function CRMPageContent() {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation()
-                            window.location.href = `/workspace/${slug}?tab=forms&form=${app.form_id}&submission=${app.submission_id}`
+                            router.push(`/workspace/${slug}?tab=forms&form=${app.form_id}&submission=${app.submission_id}`)
                           }}
                         >
                           View

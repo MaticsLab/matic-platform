@@ -3,6 +3,7 @@
 import { Application, ApplicationStatus, PipelineHeaderProps } from './types';
 import { Download, ChevronDown, Mail, SlidersHorizontal, FileText } from 'lucide-react';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   Popover,
@@ -25,6 +26,7 @@ export function PipelineHeader({
   workspaceSlug,
   formId
 }: PipelineHeaderProps) {
+  const router = useRouter();
   const [showFilterPopover, setShowFilterPopover] = useState(false);
   
   // Build filter options based on application statuses
@@ -126,7 +128,7 @@ export function PipelineHeader({
             </Popover>
             {workspaceSlug && formId && (
               <button 
-                onClick={() => window.location.href = `/workspace/${workspaceSlug}/portal-editor?formId=${formId}`}
+                onClick={() => router.push(`/workspace/${workspaceSlug}/portal-editor?formId=${formId}`)}
                 className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
                 title="Portal Editor"
               >
