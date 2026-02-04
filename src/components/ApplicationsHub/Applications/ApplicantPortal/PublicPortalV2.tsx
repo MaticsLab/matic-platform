@@ -405,6 +405,14 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         }
         
         const formData = await formResponse.json()
+        console.log('[PublicPortalV2] Raw form data from API:', {
+          formData,
+          hasSettings: !!formData.settings,
+          settingsKeys: formData.settings ? Object.keys(formData.settings) : null,
+          settingsSections: formData.settings?.sections,
+          sectionsType: typeof formData.settings?.sections,
+          sectionsLength: Array.isArray(formData.settings?.sections) ? formData.settings.sections.length : 'not an array'
+        })
         
         // Check if request was aborted
         if (abortController.signal.aborted) {
@@ -1153,6 +1161,14 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
 
   // Build portal config from translated form
   const portalConfig: PortalConfig = useMemo(() => {
+    console.log('[PublicPortalV2] Building portal config from translatedForm:', {
+      translatedForm,
+      hasTranslatedForm: !!translatedForm,
+      settings: translatedForm?.settings,
+      settingsType: typeof translatedForm?.settings,
+      settingsSections: (translatedForm?.settings as any)?.sections
+    })
+
     if (!translatedForm) {
       return {
         sections: [],
@@ -1229,7 +1245,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       })
     }
 
-    return {
+    const config = {
       sections,
       settings: {
         ...translatedForm.settings,
@@ -1240,6 +1256,16 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         signupFields: []
       }
     }
+
+    console.log('[PublicPortalV2] Portal config built:', {
+      rawSections,
+      fieldsBySection,
+      sectionsCount: sections.length,
+      totalFields: sections.reduce((acc, s) => acc + s.fields.length, 0),
+      config
+    })
+
+    return config
   }, [translatedForm])
 
   // Show loading state

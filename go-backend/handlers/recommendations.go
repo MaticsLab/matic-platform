@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/Jsanchez767/matic-platform/database"
 	"github.com/Jsanchez767/matic-platform/models"
+	"github.com/Jsanchez767/matic-platform/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -379,8 +381,8 @@ func CreateRecommendationRequest(c *gin.Context) {
 				fmt.Printf("[Recommendations] Extended expiration date to %v for reminder\n", newExpiresAt)
 			}
 
-			// Send reminder email
-			if err := sendRecommendationReminderEmail(&existingRequest, &submission, &form, &fieldConfig); err != nil {
+			// Send reminder email (no specific sender account for initial creation)
+			if err := sendRecommendationReminderEmail(&existingRequest, &submission, &form, &fieldConfig, nil); err != nil {
 				fmt.Printf("[Recommendations] Failed to send reminder email: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send reminder email"})
 				return
@@ -921,6 +923,14 @@ func SubmitRecommendation(c *gin.Context) {
 func SendRecommendationReminder(c *gin.Context) {
 	id := c.Param("id")
 
+	// Parse request body for sender account ID
+	var requestBody struct {
+		SenderAccountID *string `json:"sender_account_id,omitempty"`
+	}
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		// Ignore binding errors, sender account is optional
+	}
+
 	var request models.RecommendationRequest
 	if err := database.DB.First(&request, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Recommendation request not found"})
@@ -980,7 +990,7 @@ func SendRecommendationReminder(c *gin.Context) {
 	}
 
 	// Send reminder email
-	if err := sendRecommendationReminderEmail(&request, &submission, &form, &fieldConfig); err != nil {
+	if err := sendRecommendationReminderEmail(&request, &submission, &form, &fieldConfig, requestBody.SenderAccountID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send reminder email"})
 		return
 	}
@@ -993,13 +1003,9 @@ func SendRecommendationReminder(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Reminder sent successfully"})
 }
 
-func sendRecommendationReminderEmail(request *models.RecommendationRequest, submission *models.Row, form *models.Table, config *models.RecommendationFieldConfig) error {
-	apiKey := os.Getenv("RESEND_API_KEY")
-	if apiKey == "" {
-		return fmt.Errorf("RESEND_API_KEY not configured")
-	}
-
-	client := resend.NewClient(apiKey)
+func sendRecommendationReminderEmail(request *models.RecommendationRequest, submission *models.Row, form *models.Table, config *models.RecommendationFieldConfig, senderAccountID *string) error {
+	// Get workspace ID from form
+	workspaceID := form.WorkspaceID
 
 	// Get applicant info
 	applicantName := "the applicant"
@@ -1075,23 +1081,42 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 		subject = strings.ReplaceAll(subject, "{{form_title}}", form.Name)
 	}
 
-	// Build sender name - check for custom emailSettings first
-	senderName := form.Name
-	var formSettings map[string]interface{}
-	if err := json.Unmarshal(form.Settings, &formSettings); err == nil {
-		if emailSettings, ok := formSettings["emailSettings"].(map[string]interface{}); ok {
-			if customSenderName, ok := emailSettings["senderName"].(string); ok && customSenderName != "" {
-				senderName = customSenderName
+	// Determine sender email and name
+	fromEmail := "hello@notifications.maticsapp.com"
+	fromName := "Matic"
+
+	// If sender account ID is provided, get the Gmail account details
+	if senderAccountID != nil && *senderAccountID != "" {
+		var account models.GmailConnection
+		accountUUID, err := uuid.Parse(*senderAccountID)
+		if err == nil {
+			if err := database.DB.Where("id = ? AND workspace_id = ?", accountUUID, workspaceID).First(&account).Error; err == nil {
+				fromEmail = account.Email
+				fromName = account.DisplayName
+				if fromName == "" {
+					fromName = strings.Split(account.Email, "@")[0]
+				}
 			}
 		}
+	} else {
+		// Use form settings for sender info
+		senderName := form.Name
+		var formSettings map[string]interface{}
+		if err := json.Unmarshal(form.Settings, &formSettings); err == nil {
+			if emailSettings, ok := formSettings["emailSettings"].(map[string]interface{}); ok {
+				if customSenderName, ok := emailSettings["senderName"].(string); ok && customSenderName != "" {
+					senderName = customSenderName
+				}
+			}
+		}
+		if senderName != "" {
+			fromName = senderName
+		}
 	}
-	if senderName == "" {
-		senderName = "Matic"
-	}
-	fromEmail := fmt.Sprintf("%s <hello@notifications.maticsapp.com>", senderName)
 
-	// Check for reply-to email in settings - default to support@maticsapp.com
+	// Check for reply-to email in settings
 	replyTo := "support@maticsapp.com"
+	var formSettings map[string]interface{}
 	if err := json.Unmarshal(form.Settings, &formSettings); err == nil {
 		if emailSettings, ok := formSettings["emailSettings"].(map[string]interface{}); ok {
 			if replyToEmail, ok := emailSettings["replyToEmail"].(string); ok && replyToEmail != "" {
@@ -1100,20 +1125,34 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 		}
 	}
 
-	params := &resend.SendEmailRequest{
-		From:    fromEmail,
-		To:      []string{request.RecommenderEmail},
-		Subject: subject,
-		Html:    body,
+	// Create email request
+	emailReq := services.EmailSendRequest{
+		WorkspaceID: workspaceID,
+		To:          request.RecommenderEmail,
+		ToName:      request.RecommenderName,
+		From:        fromEmail,
+		FromName:    fromName,
+		Subject:     subject,
+		Body:        subject, // Plain text fallback
+		BodyHTML:    body,
+		ReplyTo:     replyTo,
+		FormID:      &request.FormID,
+		ServiceType: services.ServiceTypeGmail, // Prefer Gmail
+		TrackOpens:  true,
 	}
 
-	// Add reply-to if configured
-	if replyTo != "" {
-		params.ReplyTo = replyTo
+	// Send email via router
+	router := services.NewEmailRouter()
+	result, err := router.SendEmail(context.Background(), emailReq)
+	if err != nil {
+		return fmt.Errorf("failed to send reminder email: %v", err)
 	}
 
-	_, err := client.Emails.Send(params)
-	return err
+	if !result.Success {
+		return fmt.Errorf("email sending failed: %s", result.ErrorMessage)
+	}
+
+	return nil
 }
 
 // CancelRecommendationRequest cancels a pending recommendation request

@@ -94,9 +94,10 @@ export const recommendationsClient = {
   /**
    * Send a reminder email
    */
-  sendReminder: (id: string) =>
+  sendReminder: (id: string, senderAccountId?: string) =>
     goFetch<{ message: string }>(`/recommendations/${id}/remind`, {
       method: 'POST',
+      body: senderAccountId ? JSON.stringify({ sender_account_id: senderAccountId }) : undefined,
     }),
 
   /**
