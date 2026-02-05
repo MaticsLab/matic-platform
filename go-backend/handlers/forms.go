@@ -1435,6 +1435,17 @@ func SubmitForm(c *gin.Context) {
 			existingRow.Data = mapToJSON(data)
 			existingRow.UpdatedAt = time.Now()
 
+			// Link to Better Auth user if not already linked and we have an email
+			if existingRow.BACreatedBy == nil && email != "" {
+				var baUser struct {
+					ID string `gorm:"column:id"`
+				}
+				if err := database.DB.Raw("SELECT id FROM ba_users WHERE email = ? LIMIT 1", email).Scan(&baUser).Error; err == nil && baUser.ID != "" {
+					existingRow.BACreatedBy = &baUser.ID
+					fmt.Printf("🔗 SubmitForm: Linked existing submission to Better Auth user %s (email=%s)\n", baUser.ID, email)
+				}
+			}
+
 			// Update metadata - only change status if not a draft save
 			var existingMetadata map[string]interface{}
 			if existingRow.Metadata != nil {
@@ -1577,11 +1588,23 @@ func SubmitForm(c *gin.Context) {
 		Data:     mapToJSON(data),
 		Metadata: mapToJSON(initialMetadata),
 	}
-	// Add user ID if authenticated (optional for forms)
+	// Add user ID if authenticated (from middleware)
 	var userIDStr string
 	if s, exists := middleware.GetUserID(c); exists {
 		row.BACreatedBy = &s
 		userIDStr = s
+	} else if email != "" {
+		// For public submissions, try to find Better Auth user by email
+		var baUser struct {
+			ID string `gorm:"column:id"`
+		}
+		if err := database.DB.Raw("SELECT id FROM ba_users WHERE email = ? LIMIT 1", email).Scan(&baUser).Error; err == nil && baUser.ID != "" {
+			row.BACreatedBy = &baUser.ID
+			userIDStr = baUser.ID
+			fmt.Printf("📝 SubmitForm: Linked submission to Better Auth user %s (email=%s)\n", baUser.ID, email)
+		} else {
+			fmt.Printf("⚠️ SubmitForm: No Better Auth user found for email=%s, creating unlinked submission\n", email)
+		}
 	}
 	if err := tx.Create(&row).Error; err != nil {
 		fmt.Printf("❌ SubmitForm: failed to create row for %s: %v\n", formID, err)

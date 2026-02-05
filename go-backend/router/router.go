@@ -204,6 +204,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.GET("/portal/v2/submissions/:id", handlers.PortalAuthMiddlewareV2(), handlers.GetPortalSubmission)
 		api.PUT("/portal/v2/submissions/:id", handlers.PortalAuthMiddlewareV2(), handlers.UpdatePortalSubmission)
 
+		// Portal Submission Routes (Authenticated - for public portal applicants)
+		api.GET("/portal/forms/:form_id/my-submission", handlers.PortalAuthMiddlewareV2(), handlers.GetMyPortalSubmission)
+		api.POST("/portal/forms/:form_id/my-submission", handlers.PortalAuthMiddlewareV2(), handlers.SaveMyPortalSubmission)
+
 		// Legacy Portal Login (alias for v2 - backwards compatibility)
 		api.POST("/portal/login", handlers.PortalLoginV2) // DEPRECATED
 

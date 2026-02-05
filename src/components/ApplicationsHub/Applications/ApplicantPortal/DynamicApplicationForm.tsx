@@ -87,6 +87,16 @@ export function DynamicApplicationForm({
   initialVersion = 1,
   useOptimisticSave = false,
 }: DynamicApplicationFormProps) {
+  console.log('[DynamicApplicationForm] Received config:', {
+    sectionsCount: config.sections?.length || 0,
+    sections: config.sections?.map(s => ({
+      id: s.id,
+      sectionType: s.sectionType,
+      title: s.title,
+      fieldsCount: s.fields?.length || 0
+    }))
+  })
+  
   const defaultLanguage = config.settings.language?.default || 'en'
   const supportedLanguages = Array.from(new Set([defaultLanguage, ...((Array.isArray(config.settings.language?.supported) ? config.settings.language?.supported : []) as string[])])).filter(lang => lang && lang.trim() !== '')
   const [activeLanguage, setActiveLanguage] = useState<string>(defaultLanguage)
@@ -290,7 +300,18 @@ export function DynamicApplicationForm({
 
   // Load initial data when provided - only on first mount
   useEffect(() => {
-    if (initialData && !initialDataLoadedRef.current) {
+    console.log('[DynamicApplicationForm] Initial data effect triggered:', {
+      hasInitialData: !!initialData,
+      initialDataKeys: initialData ? Object.keys(initialData) : [],
+      alreadyLoaded: initialDataLoadedRef.current,
+      sampleData: initialData ? Object.keys(initialData).slice(0, 3).reduce((acc, key) => {
+        acc[key] = initialData[key]
+        return acc
+      }, {} as any) : null
+    })
+    
+    if (initialData && Object.keys(initialData).length > 0 && !initialDataLoadedRef.current) {
+      console.log('[DynamicApplicationForm] Loading initial data into form:', Object.keys(initialData))
       const initialDataString = JSON.stringify(initialData)
       setFormData(initialData)
       setLastSavedData(initialDataString)

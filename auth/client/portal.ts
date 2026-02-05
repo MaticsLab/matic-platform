@@ -63,6 +63,23 @@ export const getPortalUser = async () => {
 };
 
 /**
+ * Get portal session token for API requests
+ * This retrieves the Better Auth session token from cookies
+ */
+export const getPortalSessionToken = async (): Promise<string | null> => {
+  try {
+    const session = await portalAuthClient.getSession();
+    if (session?.data?.session) {
+      // Better Auth stores the session token in the session object
+      return session.data.session.token || null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+/**
  * Clear portal auth (sign out and cleanup)
  */
 export const clearPortalAuth = async () => {
