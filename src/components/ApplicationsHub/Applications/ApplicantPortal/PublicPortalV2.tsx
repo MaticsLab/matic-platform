@@ -1261,7 +1261,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       rawSections,
       fieldsBySection,
       sectionsCount: sections.length,
-      totalFields: sections.reduce((acc, s) => acc + s.fields.length, 0),
+      totalFields: sections.reduce((acc: number, s) => acc + s.fields.length, 0),
       config
     })
 
