@@ -942,7 +942,7 @@ export function ApplicationDetail({
         .map((section, index) => {
           // Handle different section property names based on source
           const sectionId = section.id;
-          const sectionName = section.title || section.name;
+          const sectionName = section.name;
           const sectionDescription = section.description;
           const sortOrder = section.sort_order !== undefined ? section.sort_order : index;
           
