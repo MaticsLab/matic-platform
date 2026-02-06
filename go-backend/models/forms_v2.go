@@ -188,8 +188,7 @@ type FormSubmission struct {
 	Status string `gorm:"default:'draft'" json:"status"` // draft, in_progress, submitted, etc.
 
 	// Progress tracking
-	CurrentSectionID     *uuid.UUID `gorm:"type:uuid" json:"current_section_id,omitempty"`
-	CompletionPercentage int        `gorm:"default:0" json:"completion_percentage"`
+	CompletionPercentage int `gorm:"default:0" json:"completion_percentage"`
 
 	// Important timestamps
 	StartedAt   time.Time  `gorm:"default:now()" json:"started_at"`
@@ -201,7 +200,6 @@ type FormSubmission struct {
 
 	// Review workflow integration
 	WorkflowID         *uuid.UUID `gorm:"type:uuid" json:"workflow_id,omitempty"`
-	CurrentStageID     *uuid.UUID `gorm:"type:uuid" json:"current_stage_id,omitempty"`
 	AssignedReviewerID *string    `gorm:"type:text" json:"assigned_reviewer_id,omitempty"` // TEXT to match ba_users.id
 
 	// Timestamps
