@@ -803,7 +803,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
               }
             }
             
-            if (submissionData.status) {
+            if (submissionData && submissionData.status) {
               setApplicationStatus(submissionData.status)
             }
           }
