@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { GraduationCap, FileText, Layout, Plus, Search, MoreVertical, ArrowRight, Loader2, Filter, CheckCircle, Clock, Trash2 } from 'lucide-react'
+import { GraduationCap, FileText, Layout, Plus, Search, MoreVertical, ArrowRight, Loader2, Filter, CheckCircle, Clock, Trash2, Database, Star, MessageSquare, ChevronDown, UserPlus } from 'lucide-react'
 import { ApplicationManager } from './Applications/ApplicationManager'
+import { FormPreview } from './FormPreview'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import {
@@ -41,6 +42,7 @@ import { Form } from '@/types/forms'
 import { useSearch, HubSearchContext } from '@/components/Search'
 import { cn } from '@/lib/utils'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
+import { useSession } from '@/auth/client/main'
 
 interface ApplicationsHubProps {
   workspaceId: string
@@ -51,6 +53,7 @@ type View = 'home' | 'scholarships' | 'create'
 export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
   const { registerNavigationHandler, tabs, tabManager, setTabActions, setTabHeaderContent } = useTabContext()
   const { setHubContext, query: searchQuery } = useSearch()
+  const { data: session } = useSession()
   const searchParams = useSearchParams()
   const hubUrl = `/workspace/${workspaceId}/applications`
   const hubTab = tabs.find(t => t.url === hubUrl)
@@ -174,17 +177,10 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
     if (currentView !== 'home') return
 
     setTabHeaderContent({
-      title: 'Portals'
+      title: 'Home'
     })
 
-    setTabActions([
-      {
-        label: 'New Application',
-        icon: Plus,
-        onClick: () => setIsCreateDialogOpen(true),
-        variant: 'default'
-      }
-    ])
+    setTabActions([])
 
     return () => {
       setTabHeaderContent(null)
@@ -313,175 +309,175 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
     return matchesSearch && matchesFilter
   })
 
+  // Get recently viewed forms (mock for now - we'd track this properly later)
+  const recentForms = filteredForms.slice(0, 4)
+  
+  // Get starred forms (mock for now - we'd track this properly later)  
+  const starredForms = filteredForms.slice(0, 1)
+
+  // Get user's first name
+  const userName = session?.user?.name?.split(' ')[0] || session?.user?.email?.split('@')[0] || 'there'
+
   return (
-    <div className="h-full flex bg-gray-50/50">
-      {/* Left Sidebar */}
-      <div className="w-56 flex-shrink-0 bg-white border-r border-gray-200 p-3 flex flex-col gap-3">
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-          <Input 
-            placeholder="Filter applications..." 
-            className="pl-8 h-8 text-sm bg-gray-50/50 border-gray-200"
-          />
-        </div>
-
-        {/* Stats */}
-        <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">Total</span>
-            <span className="font-semibold text-gray-900">{(Array.isArray(forms) ? forms : []).length}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600 flex items-center gap-1.5">
-              <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-              Active
-            </span>
-            <span className="font-semibold text-green-600">{(Array.isArray(forms) ? forms : []).filter(f => (f as any).is_public).length}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-gray-400" />
-              Draft
-            </span>
-            <span className="font-semibold text-gray-600">{(Array.isArray(forms) ? forms : []).filter(f => !(f as any).is_public).length}</span>
-          </div>
-        </div>
-
-        {/* Status Filter */}
-        <div className="space-y-1.5">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide px-1">Status</span>
-          <div className="space-y-0.5">
-            {[
-              { value: 'all', label: 'All Applications' },
-              { value: 'active', label: 'Active' },
-              { value: 'draft', label: 'Draft' }
-            ].map((option) => (
-              <button
-                key={option.value}
-                onClick={() => setFilterStatus(option.value as 'all' | 'active' | 'draft')}
-                className={cn(
-                  "w-full text-left px-2.5 py-1.5 rounded-md text-sm transition-colors",
-                  filterStatus === option.value
-                    ? "bg-blue-50 text-blue-700 font-medium"
-                    : "text-gray-600 hover:bg-gray-100"
-                )}
+    <div className="h-full flex bg-white">
+      {/* Main Content - No sidebar, full width */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-6xl mx-auto p-8">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">Welcome, {userName}</h1>
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline"
+                className="text-blue-600 border-blue-200 bg-blue-50 hover:bg-blue-100"
               >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto bg-white border-l border-gray-200">
-        <div className="p-6">
-          {isLoading ? (
-            <LoadingOverlay message="Loading applications..." fullScreen={false} />
-          ) : filteredForms.length === 0 ? (
-            <div className="text-center py-16">
-              <GraduationCap className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                {searchQuery || filterStatus !== 'all' ? 'No matching applications' : 'No applications yet'}
-              </h3>
-              <p className="text-sm text-gray-500 mb-6">
-                {searchQuery || filterStatus !== 'all' 
-                  ? 'Try adjusting your search or filters'
-                  : 'Create your first application to get started'}
-              </p>
-              {!searchQuery && filterStatus === 'all' && (
-                <Button 
-                  className="bg-blue-600 hover:bg-blue-700"
-                  onClick={() => setIsCreateDialogOpen(true)}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Application
-                </Button>
-              )}
+                <FileText className="w-4 h-4 mr-2" />
+                Forms
+                <ChevronDown className="ml-2 w-4 h-4" />
+              </Button>
+              <Button 
+                onClick={() => setIsCreateDialogOpen(true)}
+                className="bg-gray-900 hover:bg-gray-800 gap-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                Invite members
+              </Button>
             </div>
+          </div>
+
+          {isLoading ? (
+            <LoadingOverlay message="Loading..." fullScreen={false} />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredForms.map((form) => (
-                <div 
-                  key={form.id}
-                  onClick={() => handleFormClick(form.id)}
-                  className="group bg-gray-50 rounded-lg border border-gray-200 p-4 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg flex items-center justify-center">
-                          <GraduationCap className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button 
-                              className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreVertical className="w-4 h-4" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="z-[100]" onClick={(e) => e.stopPropagation()}>
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleFormClick(form.id)
-                              }}
-                            >
-                              Open
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setFormToDelete(form)
-                                setDeleteDialogOpen(true)
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      
-                      <h3 className="text-base font-semibold text-gray-900 mb-1 group-hover:text-blue-600 line-clamp-1">
-                        {form.name}
-                      </h3>
-                      <p className="text-gray-500 text-sm mb-3 line-clamp-2 min-h-[2.5rem]">
-                        {form.description || 'No description provided.'}
-                      </p>
-
-                      <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full ${(form as any).is_public ? 'bg-green-500' : 'bg-gray-300'}`} />
-                          <span className="text-xs font-medium text-gray-600">
-                            {(form as any).is_public ? 'Active' : 'Draft'}
-                          </span>
-                        </div>
-                        <span className="text-xs font-medium text-blue-600 flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                          Open <ArrowRight className="w-3 h-3" />
-                        </span>
-                      </div>
+            <>
+              {/* Quick Start Section */}
+              <div className="mb-8">
+                <h2 className="text-sm font-medium text-gray-700 mb-4">Quick start</h2>
+                <div className="grid grid-cols-2 gap-4">
+                  <button className="flex items-center gap-4 p-6 bg-white border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-sm transition-all text-left">
+                    <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-6 h-6 text-blue-600" />
                     </div>
-                  ))}
-
-                  {/* Create New Card */}
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-1">Form</h3>
+                      <p className="text-sm text-gray-500">Forms, Scheduling</p>
+                    </div>
+                  </button>
                   <button 
-                    className="border-2 border-dashed border-gray-200 rounded-lg p-4 flex flex-col items-center justify-center text-gray-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50/50 transition-all min-h-[180px]"
-                    onClick={() => setIsCreateDialogOpen(true)}
+                    className="flex items-center gap-4 p-6 bg-white border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-sm transition-all text-left relative"
+                    onClick={() => tabManager?.addTab({
+                      id: `tables-${workspaceId}-${Date.now()}`,
+                      title: 'Database',
+                      type: 'table',
+                      url: `/workspace/${workspaceId}/tables`,
+                      workspaceId,
+                      metadata: { hub: 'data' }
+                    })}
                   >
-                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-                      <Plus className="w-5 h-5" />
+                    <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Database className="w-6 h-6 text-green-600" />
                     </div>
-                    <h3 className="font-medium text-sm mb-1">Create Application</h3>
-                    <p className="text-xs text-center max-w-[160px]">
-                      Start a new application process
-                    </p>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-1">Database</h3>
+                      <p className="text-sm text-gray-500">Storage for apps and forms</p>
+                    </div>
+                    <span className="absolute top-3 right-3 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
+                      New
+                    </span>
                   </button>
                 </div>
+              </div>
+
+              {/* Starred Section */}
+              {starredForms.length > 0 && (
+                <div className="mb-8">
+                  <h2 className="text-sm font-medium text-gray-700 mb-4">Starred</h2>
+                  <div className="grid grid-cols-1 gap-4">
+                    {starredForms.map((form) => (
+                      <button
+                        key={form.id}
+                        onClick={() => handleFormClick(form.id)}
+                        className="relative bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-blue-300 hover:shadow-md transition-all text-left group"
+                      >
+                        <div className="flex items-center gap-4 p-4">
+                          {/* Preview with submission count */}
+                          <div className="relative">
+                            <FormPreview form={form} size="medium" />
+                            {/* Submission count badge */}
+                            <div className="absolute top-2 right-2 px-2 py-1 bg-white/95 backdrop-blur-sm rounded-md shadow-sm flex items-center gap-1">
+                              <MessageSquare className="w-3 h-3 text-gray-600" />
+                              <span className="text-xs font-semibold text-gray-900">12</span>
+                            </div>
+                          </div>
+                          
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-1">
+                                <FileText className="w-5 h-5 text-blue-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-base font-semibold text-gray-900 group-hover:text-blue-600 mb-1">
+                                  {form.name}
+                                </h3>
+                                <p className="text-sm text-gray-500">
+                                  Viewed 7 minutes ago
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
+
+              {/* Recently Viewed Section */}
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-sm font-medium text-gray-700">Recently viewed</h2>
+                  <button className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                    View all
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-4">
+                  {recentForms.map((form, index) => (
+                    <button
+                      key={form.id}
+                      onClick={() => handleFormClick(form.id)}
+                      className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-blue-300 hover:shadow-md transition-all text-left group"
+                    >
+                      {/* Preview with submission count */}
+                      <div className="relative">
+                        <FormPreview form={form} size="small" />
+                        {/* Submission count badge */}
+                        <div className="absolute top-2 right-2 px-2 py-1 bg-white/95 backdrop-blur-sm rounded-md shadow-sm flex items-center gap-1">
+                          <MessageSquare className="w-3 h-3 text-gray-600" />
+                          <span className="text-xs font-semibold text-gray-900">
+                            {[12, 5, 8, 15][index % 4]}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Content */}
+                      <div className="p-4">
+                        <div className="flex items-start gap-2 mb-2">
+                          <FileText className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                          <h3 className="font-medium text-gray-900 text-sm group-hover:text-blue-600 line-clamp-2 flex-1">
+                            {form.name}
+                          </h3>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          Viewed {['a minute ago', '2 hours ago', 'a month ago', '3 days ago'][index % 4]}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

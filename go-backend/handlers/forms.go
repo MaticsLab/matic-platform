@@ -902,6 +902,32 @@ func ListFormSubmissions(c *gin.Context) {
 	includeUser := c.Query("include_user") == "true"
 	fmt.Printf("Listing submissions for form: %s, include_user: %v\n", formID, includeUser)
 
+	// ======================================================
+	// NEW SCHEMA PATH: Try form_submissions with raw_data first
+	// ======================================================
+	parsedID, parseErr := uuid.Parse(formID)
+	if parseErr == nil {
+		var form models.Form
+		// Try new form ID, then legacy_table_id
+		found := false
+		if err := database.DB.Where("id = ?", parsedID).First(&form).Error; err == nil {
+			found = true
+		} else if err := database.DB.Where("legacy_table_id = ?", parsedID).First(&form).Error; err == nil {
+			found = true
+		}
+
+		if found {
+			fmt.Printf("✅ ListFormSubmissions: Using new schema for form %s (actual ID: %s)\n", formID, form.ID)
+			listFormSubmissionsNewSchema(c, form, includeUser)
+			return
+		}
+	}
+
+	// ======================================================
+	// LEGACY PATH: Fall back to table_rows
+	// ======================================================
+	fmt.Printf("⚠️ ListFormSubmissions: Falling back to legacy table_rows for form %s\n", formID)
+
 	// Get the table_id - formID might be a view_id
 	var tableID uuid.UUID
 	var view models.View
@@ -909,12 +935,11 @@ func ListFormSubmissions(c *gin.Context) {
 		tableID = view.TableID
 	} else {
 		// formID is the table_id itself
-		parsedFormID, err := uuid.Parse(formID)
-		if err != nil {
+		if parseErr != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid form ID"})
 			return
 		}
-		tableID = parsedFormID
+		tableID = parsedID
 	}
 
 	// Parse pagination parameters
@@ -1168,6 +1193,128 @@ func ListFormSubmissions(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+// listFormSubmissionsNewSchema serves submissions from the new form_submissions table with raw_data JSONB.
+// Returns a response shape compatible with the frontend's expected format.
+func listFormSubmissionsNewSchema(c *gin.Context, form models.Form, includeUser bool) {
+	// Parse pagination
+	limit := 100
+	if limitParam := c.Query("limit"); limitParam != "" {
+		if parsedLimit, err := strconv.Atoi(limitParam); err == nil && parsedLimit > 0 && parsedLimit <= 1000 {
+			limit = parsedLimit
+		}
+	}
+	offset := 0
+	if offsetParam := c.Query("offset"); offsetParam != "" {
+		if parsedOffset, err := strconv.Atoi(offsetParam); err == nil && parsedOffset >= 0 {
+			offset = parsedOffset
+		}
+	}
+
+	// Response type matching what the frontend expects
+	type SubmissionResult struct {
+		ID          uuid.UUID              `json:"id"`
+		FormID      string                 `json:"form_id"`
+		Data        map[string]interface{} `json:"data"`
+		Status      string                 `json:"status"`
+		SubmittedAt *time.Time             `json:"submitted_at"`
+		CreatedAt   time.Time              `json:"created_at"`
+		UpdatedAt   time.Time              `json:"updated_at"`
+		BAUser      *models.BetterAuthUser `json:"ba_user,omitempty"`
+	}
+
+	// Query form_submissions, optionally joining with ba_users
+	var results []SubmissionResult
+
+	if includeUser {
+		type scanRow struct {
+			models.FormSubmission
+			BAUserID    *string `gorm:"column:ba_user_id"`
+			BAUserEmail *string `gorm:"column:ba_user_email"`
+			BAUserName  *string `gorm:"column:ba_user_name"`
+		}
+
+		var rows []scanRow
+		err := database.DB.Table("form_submissions").
+			Select(`form_submissions.*, 
+				ba_users.id as ba_user_id, ba_users.email as ba_user_email, ba_users.name as ba_user_name`).
+			Joins("LEFT JOIN ba_users ON form_submissions.user_id = ba_users.id").
+			Where("form_submissions.form_id = ?", form.ID).
+			Order("form_submissions.created_at DESC").
+			Offset(offset).Limit(limit).
+			Find(&rows).Error
+
+		if err != nil {
+			fmt.Printf("❌ listFormSubmissionsNewSchema: Error querying: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		for _, row := range rows {
+			// Parse raw_data JSONB into map
+			data := make(map[string]interface{})
+			if row.RawData != nil && len(row.RawData) > 2 {
+				json.Unmarshal(row.RawData, &data)
+			}
+
+			result := SubmissionResult{
+				ID:          row.ID,
+				FormID:      form.ID.String(),
+				Data:        data,
+				Status:      row.Status,
+				SubmittedAt: row.SubmittedAt,
+				CreatedAt:   row.CreatedAt,
+				UpdatedAt:   row.UpdatedAt,
+			}
+
+			if row.BAUserID != nil && row.BAUserEmail != nil {
+				result.BAUser = &models.BetterAuthUser{
+					ID:    *row.BAUserID,
+					Email: *row.BAUserEmail,
+				}
+				if row.BAUserName != nil {
+					result.BAUser.Name = *row.BAUserName
+				}
+			}
+
+			results = append(results, result)
+		}
+	} else {
+		var submissions []models.FormSubmission
+		err := database.DB.Where("form_id = ?", form.ID).
+			Order("created_at DESC").
+			Offset(offset).Limit(limit).
+			Find(&submissions).Error
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		for _, sub := range submissions {
+			data := make(map[string]interface{})
+			if sub.RawData != nil && len(sub.RawData) > 2 {
+				json.Unmarshal(sub.RawData, &data)
+			}
+			results = append(results, SubmissionResult{
+				ID:          sub.ID,
+				FormID:      form.ID.String(),
+				Data:        data,
+				Status:      sub.Status,
+				SubmittedAt: sub.SubmittedAt,
+				CreatedAt:   sub.CreatedAt,
+				UpdatedAt:   sub.UpdatedAt,
+			})
+		}
+	}
+
+	if results == nil {
+		results = []SubmissionResult{}
+	}
+
+	fmt.Printf("✅ listFormSubmissionsNewSchema: Returning %d submissions for form %s\n", len(results), form.ID)
+	c.JSON(http.StatusOK, results)
+}
+
 // DeleteFormSubmission deletes a single form submission (row) by its ID
 func DeleteFormSubmission(c *gin.Context) {
 	formID := c.Param("id")
@@ -1213,6 +1360,51 @@ func DeleteFormSubmission(c *gin.Context) {
 
 	fmt.Printf("✅ DeleteFormSubmission: Successfully deleted submission %s\n", submissionID)
 	c.JSON(http.StatusOK, gin.H{"message": "Submission deleted successfully"})
+}
+
+// BulkDeleteFormSubmissions deletes multiple form submissions by their IDs
+func BulkDeleteFormSubmissions(c *gin.Context) {
+	formID := c.Param("id")
+
+	var input struct {
+		SubmissionIDs []string `json:"submission_ids" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	if len(input.SubmissionIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No submission IDs provided"})
+		return
+	}
+
+	fmt.Printf("🗑️ BulkDeleteFormSubmissions: formID=%s count=%d\n", formID, len(input.SubmissionIDs))
+
+	// formID is typically the table_id, but might be a view_id
+	tableID := formID
+
+	var view models.View
+	if err := database.DB.Where("id = ?", formID).First(&view).Error; err == nil {
+		tableID = view.TableID.String()
+		fmt.Printf("🗑️ BulkDeleteFormSubmissions: Resolved view_id %s to table_id %s\n", formID, tableID)
+	}
+
+	// Delete all submissions in one query - use Unscoped to permanently delete
+	result := database.DB.Unscoped().Where("id IN ?", input.SubmissionIDs).Delete(&models.Row{})
+
+	if result.Error != nil {
+		fmt.Printf("❌ BulkDeleteFormSubmissions: Failed to delete: %v\n", result.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete submissions"})
+		return
+	}
+
+	fmt.Printf("✅ BulkDeleteFormSubmissions: Successfully deleted %d submissions\n", result.RowsAffected)
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "Submissions deleted successfully",
+		"deleted_count": result.RowsAffected,
+	})
 }
 
 type SubmitFormInput struct {

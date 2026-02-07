@@ -36,19 +36,63 @@ export interface FormSettings {
   logo_url?: string;
   primary_color?: string;
   background_color?: string;
+  theme?: FormTheme;
 
   // Behavior
   show_progress_bar?: boolean;
   show_section_nav?: boolean;
   autosave_interval?: number; // seconds
+  allow_save_and_exit?: boolean;
+
+  // Navigation & Branching
+  enable_branching?: boolean;
+  branching_rules?: BranchingRule[];
+  start_section_id?: string;
 
   // Confirmation
   confirmation_message?: string;
   redirect_url?: string;
+  show_confirmation_page?: boolean;
 
   // Notifications
   notify_on_submission?: boolean;
   notification_emails?: string[];
+
+  // Rich text
+  enable_rich_text?: boolean;
+}
+
+export interface FormTheme {
+  // Colors
+  primary_color?: string;
+  secondary_color?: string;
+  background_color?: string;
+  text_color?: string;
+  border_color?: string;
+  error_color?: string;
+  success_color?: string;
+
+  // Typography
+  font_family?: string;
+  font_size?: string;
+  heading_font?: string;
+
+  // Layout
+  border_radius?: string;
+  spacing?: string;
+  max_width?: string;
+
+  // Buttons
+  button_style?: 'solid' | 'outline' | 'ghost';
+  button_size?: 'sm' | 'md' | 'lg';
+}
+
+export interface BranchingRule {
+  id: string;
+  from_section_id: string;
+  conditions: FieldCondition[];
+  to_section_id: string;
+  priority: number; // Lower number = higher priority
 }
 
 // ==================== SECTION TYPES ====================
@@ -59,7 +103,7 @@ export interface FormSection {
   name: string;
   description?: string;
   sort_order: number;
-  conditions: FieldCondition[];
+  conditions?: ConditionalAction[]; // Show/hide section based on conditions
   created_at: string;
   updated_at: string;
 
@@ -79,10 +123,14 @@ export interface FormField {
   label: string;
   description?: string;
   placeholder?: string;
+  help_text?: string; // Additional guidance
+  is_rich_text?: boolean; // Label/description contain HTML
   required: boolean;
-  validation: FieldValidation;
-  options: FieldOption[];
-  conditions: FieldCondition[];
+  validation?: FieldValidation;
+  options?: FieldOption[];
+  conditions?: ConditionalAction[]; // Show/hide/require/disable/prefill logic
+  prefill_value?: string;
+  calculation_rule?: string; // Formula for calculated fields
   sort_order: number;
   width: FieldWidth;
   version: number;
@@ -129,44 +177,115 @@ export type FieldType =
 export type FieldWidth = 'full' | 'half' | 'third';
 
 export interface FieldValidation {
+  // Numeric
   min?: number;
   max?: number;
+
+  // Text length
   min_length?: number;
   max_length?: number;
-  pattern?: string;
+
+  // Pattern validation
+  pattern?: string; // Custom regex
   pattern_message?: string;
+  validation_type?: 'email' | 'phone' | 'url' | 'date' | 'time';
+
+  // Built-in validation patterns
+  email_validation?: EmailValidation;
+  phone_validation?: PhoneValidation;
+  url_validation?: URLValidation;
+  date_validation?: DateValidation;
+
+  // File validation
   allowed_file_types?: string[];
   max_file_size?: number; // bytes
-  custom_validator?: string;
+  min_files?: number;
+  max_files?: number;
+
+  // Custom validation
+  custom_validation?: string; // JS function
+  custom_message?: string;
+  custom_validator?: string; // Legacy name
+}
+
+export interface EmailValidation {
+  allowed_domains?: string[]; // e.g., ["gmail.com", "company.com"]
+  blocked_domains?: string[];
+  require_corporate?: boolean; // Block free email providers
+}
+
+export interface PhoneValidation {
+  country_code?: string; // e.g., "US", "UK"
+  format?: string; // e.g., "(###) ###-####"
+  allowed_countries?: string[];
+}
+
+export interface URLValidation {
+  require_https?: boolean;
+  allowed_domains?: string[];
+  blocked_domains?: string[];
+}
+
+export interface DateValidation {
+  min_date?: string;
+  max_date?: string;
+  allow_past?: boolean;
+  allow_future?: boolean;
+  disabled_dates?: string[]; // ISO dates
+  disabled_days?: number[]; // 0=Sunday, 6=Saturday
 }
 
 export interface FieldOption {
   value: string;
   label: string;
   description?: string;
+  color?: string;
+  icon?: string;
   disabled?: boolean;
 }
 
 export interface FieldCondition {
+  id?: string;
   field_key: string;
   operator: ConditionOperator;
   value: unknown;
-  action: ConditionAction;
+  logic?: 'and' | 'or'; // For multiple conditions
 }
 
 export type ConditionOperator =
+  // Comparison
   | 'equals'
   | 'not_equals'
-  | 'contains'
-  | 'not_contains'
   | 'greater_than'
   | 'less_than'
+  | 'greater_or_equal'
+  | 'less_or_equal'
+  // String
+  | 'contains'
+  | 'not_contains'
+  | 'starts_with'
+  | 'ends_with'
+  | 'matches' // Regex
+  // Existence
   | 'is_empty'
   | 'is_not_empty'
-  | 'starts_with'
-  | 'ends_with';
+  | 'is_null'
+  | 'is_not_null'
+  // Array/Multi-select
+  | 'includes'
+  | 'not_includes'
+  | 'includes_any'
+  | 'includes_all';
 
 export type ConditionAction = 'show' | 'hide' | 'require' | 'disable';
+
+export interface ConditionalAction {
+  type: 'show' | 'hide' | 'require' | 'disable' | 'prefill' | 'calculate';
+  conditions: FieldCondition[];
+  logic?: 'and' | 'or';
+  target?: string; // field_key or section_id
+  value?: unknown; // For prefill/calculate actions
+}
 
 // ==================== SUBMISSION TYPES ====================
 
@@ -391,3 +510,29 @@ export type FormBuilderAction =
   | { type: 'SET_SAVING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: { field: string; message: string } }
   | { type: 'CLEAR_ERRORS' };
+
+// ==================== VALIDATION PATTERNS ====================
+
+export const VALIDATION_PATTERNS: Record<string, string> = {
+  email: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$',
+  phone_us: '^\\(?([0-9]{3})\\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$',
+  phone_intl: '^\\+?[1-9]\\d{1,14}$',
+  url: '^https?://[^\\s/$.?#].[^\\s]*$',
+  zip_us: '^\\d{5}(-\\d{4})?$',
+  ssn: '^\\d{3}-?\\d{2}-?\\d{4}$',
+  credit_card: '^\\d{4}[- ]?\\d{4}[- ]?\\d{4}[- ]?\\d{4}$',
+  ipv4: '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$',
+  alphanumeric: '^[a-zA-Z0-9]+$',
+  alpha: '^[a-zA-Z]+$',
+  numeric: '^[0-9]+$',
+};
+
+// ==================== PORTAL DATA ====================
+
+export interface PortalSubmissionData {
+  submission: FormSubmission;
+  form: Form;
+  fields: FormField[];
+  sections: FormSection[];
+  data: Record<string, unknown>; // field_key or legacy UUID -> value
+}

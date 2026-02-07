@@ -5,8 +5,37 @@
  * - forms (form definitions)
  * - form_fields (field definitions) 
  * - form_submissions (user submissions)
- * - form_responses (individual field responses)
+ * - form_responses (individual field responses - legacy, dual-write)
  */
+
+// ============================================
+// LAYOUT FIELD HELPERS
+// ============================================
+
+/** Field types that are purely visual and don't collect data */
+export const LAYOUT_FIELD_TYPES = [
+  'heading',
+  'section_header',
+  'divider',
+  'separator',
+  'html',
+  'description',
+  'page_break',
+  'button',
+] as const;
+
+export type LayoutFieldType = typeof LAYOUT_FIELD_TYPES[number];
+
+/** Returns true if the field is a layout-only element (no data collection) */
+export function isLayoutField(field: { field_type: string; category?: string }): boolean {
+  if (field.category === 'layout') return true;
+  return (LAYOUT_FIELD_TYPES as readonly string[]).includes(field.field_type);
+}
+
+/** Filters a list of fields to only data-collecting fields */
+export function getDataFields<T extends { field_type: string; category?: string }>(fields: T[]): T[] {
+  return fields.filter(f => !isLayoutField(f));
+}
 
 export interface Form {
   id: string
@@ -16,6 +45,7 @@ export interface Form {
   slug: string
   description?: string | null
   settings: FormSettings
+  layout: Array<Record<string, any>>
   status: 'draft' | 'published' | 'archived' | 'closed'
   published_at?: string | null
   closes_at?: string | null
@@ -70,6 +100,7 @@ export interface FormField {
   conditions: Array<any>
   sort_order: number
   width: 'full' | 'half' | 'third' | 'quarter'
+  category: 'data' | 'layout'
   version: number
   created_at: string
   updated_at: string
@@ -91,6 +122,7 @@ export interface FormSubmission {
   form_id: string
   user_id: string
   legacy_row_id?: string | null
+  raw_data: Record<string, any>
   status: 'draft' | 'in_progress' | 'submitted' | 'under_review' | 'accepted' | 'rejected' | 'withdrawn'
   current_section_id?: string | null
   completion_percentage: number

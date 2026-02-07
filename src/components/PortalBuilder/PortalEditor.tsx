@@ -7,7 +7,7 @@ import { HTML5Backend } from 'react-dnd-html5-backend'
 import { 
   Layout, Settings, FileText, Plus, Save, Eye,
   ChevronLeft, Monitor, Smartphone, Palette, Lock, Loader2, X, CheckCircle2,
-  BookOpen, CheckCircle, Eye as EyeIcon, ScrollText, ArrowLeft
+  BookOpen, CheckCircle, Eye as EyeIcon, ScrollText, ArrowLeft, Home, ChevronDown, Clock, UserPlus
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -24,13 +24,9 @@ import { ConditionBuilder } from './ConditionBuilder'
 import { ShareTab } from './ShareTab'
 import { SignUpPreview } from './SignUpPreview'
 import { AuthPageRenderer } from '@/components/Portal/AuthPageRenderer'
-import { ConfirmationPreview } from './ConfirmationPreview'
 import { ReviewPreview } from './ReviewPreview'
-import { EndingPagesBuilder } from '@/components/EndingPages/EndingPagesBuilder'
 import { UnifiedSidebar } from './UnifiedSidebar'
 import { PageThemeSettings } from './PageThemeSettings'
-import { EndingBlocksToolbox } from './EndingBlocksToolbox'
-import { EndingBlockEditor } from './EndingBlockEditor'
 import { CoverBlockEditor } from './CoverBlockEditor'
 import { NovelCoverEditorV2 } from '@/components/novel-editor/cover-editor'
 import { DEFAULT_ENDING_TEMPLATE } from '@/lib/ending-templates'
@@ -152,6 +148,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   const [selectedEndingId, setSelectedEndingId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop')
   const [isPreview, setIsPreview] = useState(false)
+  const [previewSectionId, setPreviewSectionId] = useState<string | null>(null)
   const [formId, setFormId] = useState<string | null>(initialFormId || null)
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -1064,69 +1061,157 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     return <PortalEditorSkeleton />
   }
 
+  // Get preview section for dropdown
+  const previewSection = displayConfig.sections.find((s: Section) => s.id === previewSectionId) || displayConfig.sections[0]
+
   return (
     <CollaborationProvider roomId={formId || 'new-form'} enabled={!!formId}>
     {/* Sync portal config with other collaborators via Yjs */}
     <PortalConfigSyncBridge config={config} setConfig={setConfig} />
     <DndProvider backend={HTML5Backend}>
       <div className="flex flex-col h-full bg-gray-100">
-        {/* Top Bar - Full Width */}
+        {/* Preview Mode Header */}
+        {isPreview && (
+          <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm z-20 shrink-0">
+            <div className="flex items-center gap-3">
+              {/* Home Button */}
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => {
+                  const baseUrl = `/workspace/${workspaceSlug}`
+                  window.location.href = baseUrl
+                }}
+                className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 p-2"
+              >
+                <Home className="w-5 h-5" />
+              </Button>
+              
+              {/* Form Name Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-2 text-base font-semibold text-gray-900 hover:bg-gray-50 px-2 py-1 rounded-md transition-colors">
+                    <span className="max-w-[300px] truncate">{config.settings.name || 'Untitled Form'}</span>
+                    <ChevronDown className="w-4 h-4 text-gray-500" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    const baseUrl = `/workspace/${workspaceSlug}`
+                    window.location.href = baseUrl
+                  }}>
+                    Return to Workspace
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Center - Desktop/Mobile Switcher */}
+            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={cn("h-8 px-4 text-sm", viewMode === 'desktop' && "bg-white shadow-sm text-gray-900")}
+                onClick={() => setViewMode('desktop')}
+              >
+                Desktop
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={cn("h-8 px-4 text-sm", viewMode === 'mobile' && "bg-white shadow-sm text-gray-900")}
+                onClick={() => setViewMode('mobile')}
+              >
+                Mobile
+              </Button>
+            </div>
+
+            {/* Right Side Actions */}
+            <div className="flex items-center gap-2">
+              {/* Section Dropdown */}
+              <Select 
+                value={previewSectionId || displayConfig.sections[0]?.id} 
+                onValueChange={(value) => setPreviewSectionId(value)}
+              >
+                <SelectTrigger className="w-[180px] h-9 text-sm bg-orange-50 border-orange-200">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 bg-orange-500 rounded flex items-center justify-center text-white text-xs font-bold">
+                      {displayConfig.sections.findIndex((s: Section) => s.id === (previewSectionId || displayConfig.sections[0]?.id)) + 1}
+                    </div>
+                    <SelectValue />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {displayConfig.sections.map((section: Section, index: number) => (
+                    <SelectItem key={section.id} value={section.id}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 bg-orange-500 rounded flex items-center justify-center text-white text-xs font-bold">
+                          {index + 1}
+                        </div>
+                        <span>{section.title}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {/* Exit Preview Button */}
+              <Button 
+                variant="default"
+                size="sm"
+                onClick={() => setIsPreview(false)}
+                className="bg-gray-900 hover:bg-gray-800 text-white h-9"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Exit preview
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Normal Editor Header */}
+        {!isPreview && (
         <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm z-20 shrink-0">
-            <div className="flex items-center gap-4">
-                {/* Back to Hub Button */}
+            <div className="flex items-center gap-3">
+                {/* Home Button */}
                 <Button 
                   variant="ghost" 
                   size="sm"
                   onClick={() => {
-                    // Navigate back to applications hub with the specific form selected
                     const baseUrl = `/workspace/${workspaceSlug}`
                     window.location.href = baseUrl
-                    
                   }}
-                  className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 p-2"
                 >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Return to Workspace
+                  <Home className="w-5 h-5" />
                 </Button>
-                <div className="h-6 w-px bg-gray-200" />
-                {/* Presence indicators - click avatars to navigate to their location */}
-                <PresenceHeader onNavigateToUser={handleNavigateToUser} />
-                <div className="h-6 w-px bg-gray-200" />
-                <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className={cn("h-7 px-2", viewMode === 'desktop' && "bg-white shadow-sm")}
-                    onClick={() => setViewMode('desktop')}
-                  >
-                    <Monitor className="w-4 h-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className={cn("h-7 px-2", viewMode === 'mobile' && "bg-white shadow-sm")}
-                    onClick={() => setViewMode('mobile')}
-                  >
-                    <Smartphone className="w-4 h-4" />
-                  </Button>
-                </div>
-                {config.settings.language?.enabled && (
-                  <div className="flex items-center gap-2">
-                    <Select value={activeLanguage} onValueChange={handleLanguageChange} disabled={isTranslatingActiveLanguage}>
-                      <SelectTrigger className="w-32 h-8 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {supportedLanguages.map(lang => (
-                          <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {isTranslatingActiveLanguage && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
-                  </div>
-                )}
+                
+                {/* Form Name Dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-2 text-base font-semibold text-gray-900 hover:bg-gray-50 px-2 py-1 rounded-md transition-colors">
+                      <span className="max-w-[300px] truncate">{config.settings.name || 'Untitled Form'}</span>
+                      <ChevronDown className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
+                      Rename
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => {
+                      const baseUrl = `/workspace/${workspaceSlug}`
+                      window.location.href = baseUrl
+                    }}>
+                      Return to Workspace
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
             </div>
 
+            {/* Center - Rounded Pill Tabs */}
             <div className="flex items-center justify-center bg-gray-100 p-1 rounded-full">
                <button 
                  onClick={() => setActiveTopTab('edit')}
@@ -1136,6 +1221,12 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                  )}
                >
                  Edit
+               </button>
+               <button 
+                 onClick={() => toast.info('Integrations coming soon')}
+                 className="px-4 py-1.5 text-sm font-medium rounded-full transition-all text-gray-600 hover:text-gray-900"
+               >
+                 Integrate
                </button>
                <button 
                  onClick={() => setActiveTopTab('share')}
@@ -1148,26 +1239,64 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                </button>
             </div>
 
-            <div className="flex items-center gap-2">           <Button 
+            {/* Right Side Actions */}
+            <div className="flex items-center gap-2">
+              {/* History/Clock Button */}
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => toast.info('Version history coming soon')}
+                className="text-gray-600 hover:text-gray-900 p-2"
+              >
+                <Clock className="w-5 h-5" />
+              </Button>
+              
+              {/* Presence indicators - User avatars */}
+              <div className="flex items-center">
+                <PresenceHeader onNavigateToUser={handleNavigateToUser} />
+                
+                {/* Add collaborator button */}
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => toast.info('Invite collaborators coming soon')}
+                  className="text-gray-600 hover:text-gray-900 p-2 ml-1"
+                >
+                  <UserPlus className="w-5 h-5" />
+                </Button>
+              </div>
+              
+              {/* Settings Button */}
+              <Button 
                 variant="ghost" 
                 size="sm"
                 onClick={() => setIsSettingsOpen(true)}
+                className="text-gray-600 hover:text-gray-900 p-2"
               >
-                <Settings className="w-4 h-4 mr-2" />
-                Settings
+                <Settings className="w-5 h-5" />
               </Button>
+              
+              {/* Preview Button */}
               <Button 
-                variant={isPreview ? "default" : "outline"} 
+                variant="outline" 
                 size="sm"
-                onClick={() => setIsPreview(!isPreview)}
+                onClick={() => {
+                  setIsPreview(!isPreview)
+                  if (!isPreview) {
+                    // Set initial preview section to current active section
+                    setPreviewSectionId(activeSectionId)
+                  }
+                }}
+                className="text-gray-700 border-gray-300"
               >
-                <Eye className="w-4 h-4 mr-2" /> 
-                {isPreview ? 'Edit Mode' : 'Preview'}
+                Preview
               </Button>
+              
+              {/* Publish Button */}
               <Button 
                 size="sm" 
                 className={cn(
-                  "text-white transition-all duration-300",
+                  "text-white transition-all duration-300 font-medium",
                   isPublished && !hasUnsavedChanges
                     ? "bg-green-600 hover:bg-green-700" 
                     : "bg-gray-900 hover:bg-gray-800"
@@ -1179,23 +1308,41 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : isPublished && !hasUnsavedChanges ? (
                   <CheckCircle2 className="w-4 h-4 mr-2" />
-                ) : (
-                  <Save className="w-4 h-4 mr-2" />
-                )}
+                ) : null}
                 {isPublished && !hasUnsavedChanges ? 'Published' : 'Publish'}
               </Button>
             </div>
         </div>
+        )}
+
+        {/* Preview Mode - Full Screen */}
+        {isPreview && (
+          <div className="flex-1 flex justify-center items-start bg-gradient-to-br from-gray-100 to-gray-50 overflow-y-auto p-6">
+            <div 
+              className={cn(
+                "transition-all duration-300 bg-white shadow-xl border border-gray-200/80 rounded-2xl overflow-hidden",
+                viewMode === 'mobile' ? "w-[375px]" : "w-full max-w-4xl"
+              )}
+            >
+              <DynamicApplicationForm 
+                config={displayConfig} 
+                isExternal={false} 
+                formId={formId || undefined}
+                initialSectionId={previewSectionId || undefined}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Main Content Area */}
-        {activeTopTab === 'share' && (
+        {!isPreview && activeTopTab === 'share' && (
           <div className="flex-1 overflow-auto bg-white">
             <ShareTab key={`share-${formId}-${workspaceId}-${shareTabKey}`} formId={formId} isPublished={isPublished} workspaceId={workspaceId || undefined} />
           </div>
         )}
         
 
-        {activeTopTab === 'edit' && (
+        {!isPreview && activeTopTab === 'edit' && (
         <div className="flex-1 flex overflow-hidden">
             {/* Left Sidebar - Navigation or Theme */}
             {showThemeSidebar ? (
@@ -1303,18 +1450,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                     }
                   }}
                 >
-                  {isPreview ? (
-                    <div className="h-full">
-                      <DynamicApplicationForm 
-                        config={displayConfig} 
-                        isExternal={false} 
-                        formId={formId || undefined}
-                        initialSectionId={activeSectionId}
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-full">
-                      {activeSpecialPage === 'signup' ? (
+                  <div className="w-full">
+                    {activeSpecialPage === 'signup' ? (
                     <AuthPagePreviewWithState
                       type={themePageType === 'login' ? 'login' : 'signup'}
                       config={displayConfig}
@@ -1336,15 +1473,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         setIsPublished(false)
                       }}
                     />
-                  ) : displaySection?.sectionType === 'ending' ? (
-                    <ConfirmationPreview 
-                      config={displayConfig}
-                      onUpdateSettings={(updates) => {
-                        setConfig(prev => ({ ...prev, settings: { ...prev.settings, ...updates } }))
-                        setHasUnsavedChanges(true)
-                        setIsPublished(false)
-                      }}
-                    />
                   ) : displaySection ? (
                     displaySection.sectionType === 'cover' ? (
                       // Cover Section - Novel V2 editor (Notion-like)
@@ -1352,15 +1480,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         key={displaySection.id}
                         initialContent={displaySection.content || ''}
                         onUpdate={(content) => handleUpdateSection(displaySection.id, { content })}
-                      />
-                    ) : displaySection.sectionType === 'ending' ? (
-                      // Ending Section - Show ending blocks with drag-and-drop
-                      <EndingBlockEditor
-                        blocks={displaySection.blocks || []}
-                        onUpdate={(blocks) => handleUpdateSection(displaySection.id, { blocks })}
-                        selectedBlockId={selectedBlockId}
-                        onSelectBlock={setSelectedBlockId}
-                        onDeleteBlock={handleDeleteBlock}
                       />
                     ) : useBlockEditor ? (
                       <BlockEditor 
@@ -1394,20 +1513,19 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       <p className="text-sm text-gray-400 mt-1">Choose a section from the sidebar to start editing</p>
                     </div>
                   )}
-                    </div>
-                  )}
+                  </div>
                 </div>
             </div>
 
             {/* Right Sidebar - Settings */}
             <div className={cn(
                "bg-white border-l border-gray-200 flex flex-col shadow-sm z-10 transition-all duration-300 ease-in-out",
-               (showFieldSettings && (selectedFieldId || selectedBlockId || ((displaySection?.sectionType === 'ending' || displaySection?.sectionType === 'cover') && activeSectionId))) ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
+               (showFieldSettings && (selectedFieldId || selectedBlockId || (displaySection?.sectionType === 'cover' && activeSectionId))) ? "w-80 translate-x-0" : "w-0 translate-x-full opacity-0"
             )}>
                <div className="flex items-center justify-between p-4 border-b border-gray-100">
                   <span className="font-semibold text-sm">
-                    {(displaySection?.sectionType === 'ending' || displaySection?.sectionType === 'cover') 
-                      ? `${displaySection.sectionType === 'cover' ? 'Cover' : 'Ending'} Settings` 
+                    {displaySection?.sectionType === 'cover'
+                      ? 'Cover Settings' 
                       : (() => {
                           const selectedField = selectedBlockId 
                             ? findFieldRecursive(displaySection?.fields || [], selectedBlockId)
@@ -1438,8 +1556,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                   </Button>
                </div>
                <div className="flex-1 overflow-y-auto">
-                   {/* Block Settings - When ending/cover block is selected */}
-                   {selectedBlockId && (displaySection?.sectionType === 'ending' || displaySection?.sectionType === 'cover') && (() => {
+                   {/* Block Settings - When cover block is selected */}
+                   {selectedBlockId && displaySection?.sectionType === 'cover' && (() => {
                      const selectedBlock = displaySection.blocks?.find((b: EndingBlock) => b.id === selectedBlockId)
                      if (!selectedBlock) return null
                      
@@ -1535,18 +1653,6 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       </div>
                    )}
 
-                   {/* Ending Settings - Conditions */}
-                   {displaySection?.sectionType === 'ending' && activeSectionId && !selectedBlockId && (
-                      <div className="p-4">
-                        <ConditionBuilder
-                          conditions={displaySection.conditions || []}
-                          onConditionsChange={(newConditions) => {
-                            handleUpdateSection(displaySection.id, { conditions: newConditions })
-                          }}
-                          availableFields={getAllFields()}
-                        />
-                      </div>
-                   )}
                    {/* Field Settings for Block Editor mode - uses selectedBlockId but works with fields directly */}
                    {useBlockEditor && selectedBlockId && displaySection && (
                       <FieldSettingsPanel 

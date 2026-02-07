@@ -55,65 +55,53 @@ export function PresenceHeader({ className, onNavigateToUser }: PresenceHeaderPr
   const totalUsers = collaborators.length + (currentUser ? 1 : 0);
 
   return (
-    <div className={cn("flex items-center gap-3", className)}>
-      {/* User avatars */}
+    <div className={cn("flex items-center", className)}>
+      {/* User avatars - just the avatar stack */}
       {totalUsers > 0 && (
-        <div className="flex items-center gap-2 px-2.5 py-1 bg-white border border-gray-200 rounded-full shadow-sm cursor-default">
-          <Users className="w-3.5 h-3.5 text-gray-400" />
+        <div className="flex -space-x-2">
+          {/* Current user first */}
+          {currentUser && (
+            <div
+              className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-xs font-medium text-white overflow-hidden bg-gray-900 shadow-sm"
+              title="You"
+            >
+              {currentUser.avatarUrl ? (
+                <img src={currentUser.avatarUrl} alt="You" className="w-full h-full object-cover" />
+              ) : (
+                currentUser.name.charAt(0).toUpperCase()
+              )}
+            </div>
+          )}
           
-          {/* Avatar stack */}
-          <div className="flex -space-x-2">
-            {/* Current user first */}
-            {currentUser && (
-              <div
-                className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-medium text-white overflow-hidden ring-2 ring-blue-400"
-                style={{ backgroundColor: '#3B82F6' }}
-                title="You"
-              >
-                {currentUser.avatarUrl ? (
-                  <img src={currentUser.avatarUrl} alt="You" className="w-full h-full object-cover" />
-                ) : (
-                  currentUser.name.charAt(0).toUpperCase()
-                )}
-              </div>
-            )}
-            
-            {/* Other collaborators - clickable to navigate */}
-            {collaborators.slice(0, 3).map((user) => (
-              <button
-                key={user.id}
-                onClick={() => onNavigateToUser?.(user)}
-                className={cn(
-                  "w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-medium text-white overflow-hidden transition-all",
-                  onNavigateToUser && "hover:scale-110 hover:ring-2 hover:ring-offset-1 cursor-pointer",
-                  !onNavigateToUser && "cursor-default"
-                )}
-                style={{ 
-                  backgroundColor: user.avatarUrl ? 'transparent' : user.color,
-                  ['--tw-ring-color' as string]: user.color 
-                }}
-                title={`${user.name}${user.currentSectionTitle ? ` - ${user.currentSectionTitle}` : ''}${user.selectedBlockId ? ' (click to go to their location)' : ''}`}
-              >
-                {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
-                ) : (
-                  user.name.charAt(0).toUpperCase()
-                )}
-              </button>
-            ))}
-            
-            {/* Overflow indicator */}
-            {collaborators.length > 3 && (
-              <div className="w-6 h-6 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-[10px] font-medium text-gray-600">
-                +{collaborators.length - 3}
-              </div>
-            )}
-          </div>
+          {/* Other collaborators - clickable to navigate */}
+          {collaborators.slice(0, 3).map((user) => (
+            <button
+              key={user.id}
+              onClick={() => onNavigateToUser?.(user)}
+              className={cn(
+                "w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-xs font-medium text-white overflow-hidden transition-all shadow-sm",
+                onNavigateToUser && "hover:scale-110 hover:z-10 cursor-pointer",
+                !onNavigateToUser && "cursor-default"
+              )}
+              style={{ 
+                backgroundColor: user.avatarUrl ? 'transparent' : user.color
+              }}
+              title={`${user.name}${user.currentSectionTitle ? ` - ${user.currentSectionTitle}` : ''}${user.selectedBlockId ? ' (click to go to their location)' : ''}`}
+            >
+              {user.avatarUrl ? (
+                <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+              ) : (
+                user.name.charAt(0).toUpperCase()
+              )}
+            </button>
+          ))}
           
-          {/* Count */}
-          <span className="text-xs text-gray-500 tabular-nums">
-            {totalUsers}
-          </span>
+          {/* Overflow indicator */}
+          {collaborators.length > 3 && (
+            <div className="w-8 h-8 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600 shadow-sm">
+              +{collaborators.length - 3}
+            </div>
+          )}
         </div>
       )}
     </div>

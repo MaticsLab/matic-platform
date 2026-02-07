@@ -30,6 +30,9 @@ type Form struct {
 	// Form settings (branding, behavior)
 	Settings datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"settings"`
 
+	// Layout-only elements (headings, dividers, etc.) stored as JSONB array
+	Layout datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"layout"`
+
 	// Status
 	Status      string     `gorm:"default:'draft'" json:"status"` // draft, published, archived, closed
 	PublishedAt *time.Time `json:"published_at,omitempty"`
@@ -60,22 +63,68 @@ func (Form) TableName() string {
 // FormSettings represents the settings JSONB structure
 type FormSettings struct {
 	// Branding
-	LogoURL         string `json:"logo_url,omitempty"`
-	PrimaryColor    string `json:"primary_color,omitempty"`
-	BackgroundColor string `json:"background_color,omitempty"`
+	LogoURL         string     `json:"logo_url,omitempty"`
+	PrimaryColor    string     `json:"primary_color,omitempty"`
+	BackgroundColor string     `json:"background_color,omitempty"`
+	Theme           *FormTheme `json:"theme,omitempty"`
 
 	// Behavior
 	ShowProgressBar  bool `json:"show_progress_bar,omitempty"`
 	ShowSectionNav   bool `json:"show_section_nav,omitempty"`
 	AutosaveInterval int  `json:"autosave_interval,omitempty"` // seconds
+	AllowSaveAndExit bool `json:"allow_save_and_exit,omitempty"`
+
+	// Navigation & Branching
+	EnableBranching bool            `json:"enable_branching,omitempty"`
+	BranchingRules  []BranchingRule `json:"branching_rules,omitempty"`
+	StartSectionID  *string         `json:"start_section_id,omitempty"`
 
 	// Confirmation
-	ConfirmationMessage string `json:"confirmation_message,omitempty"`
-	RedirectURL         string `json:"redirect_url,omitempty"`
+	ConfirmationMessage  string `json:"confirmation_message,omitempty"`
+	RedirectURL          string `json:"redirect_url,omitempty"`
+	ShowConfirmationPage bool   `json:"show_confirmation_page,omitempty"`
 
 	// Notifications
 	NotifyOnSubmission bool     `json:"notify_on_submission,omitempty"`
 	NotificationEmails []string `json:"notification_emails,omitempty"`
+
+	// Rich text
+	EnableRichText bool `json:"enable_rich_text,omitempty"`
+}
+
+// FormTheme defines visual styling
+type FormTheme struct {
+	// Colors
+	PrimaryColor    string `json:"primary_color,omitempty"`
+	SecondaryColor  string `json:"secondary_color,omitempty"`
+	BackgroundColor string `json:"background_color,omitempty"`
+	TextColor       string `json:"text_color,omitempty"`
+	BorderColor     string `json:"border_color,omitempty"`
+	ErrorColor      string `json:"error_color,omitempty"`
+	SuccessColor    string `json:"success_color,omitempty"`
+
+	// Typography
+	FontFamily  string `json:"font_family,omitempty"`
+	FontSize    string `json:"font_size,omitempty"`
+	HeadingFont string `json:"heading_font,omitempty"`
+
+	// Layout
+	BorderRadius string `json:"border_radius,omitempty"`
+	Spacing      string `json:"spacing,omitempty"`
+	MaxWidth     string `json:"max_width,omitempty"`
+
+	// Buttons
+	ButtonStyle string `json:"button_style,omitempty"` // solid, outline, ghost
+	ButtonSize  string `json:"button_size,omitempty"`  // sm, md, lg
+}
+
+// BranchingRule defines conditional navigation between sections
+type BranchingRule struct {
+	ID            string           `json:"id"`
+	FromSectionID string           `json:"from_section_id"`
+	Conditions    []FieldCondition `json:"conditions"`
+	ToSectionID   string           `json:"to_section_id"`
+	Priority      int              `json:"priority"` // Lower number = higher priority
 }
 
 // FormSection represents a logical grouping of fields
@@ -117,9 +166,11 @@ type FormField struct {
 
 	// Field definition
 	FieldType   string  `gorm:"not null" json:"field_type"`
-	Label       string  `gorm:"not null" json:"label"`
-	Description *string `json:"description,omitempty"`
+	Label       string  `gorm:"not null" json:"label"` // Can be plain text or rich text HTML
+	Description *string `json:"description,omitempty"` // Can be plain text or rich text HTML
 	Placeholder *string `json:"placeholder,omitempty"`
+	HelpText    *string `json:"help_text,omitempty"`               // Additional guidance
+	IsRichText  bool    `gorm:"default:false" json:"is_rich_text"` // Label/description contain HTML
 
 	// Validation
 	Required   bool           `gorm:"default:false" json:"required"`
@@ -128,8 +179,15 @@ type FormField struct {
 	// Options (for select, radio, checkbox)
 	Options datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"options"`
 
-	// Conditional logic
-	Conditions datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"conditions"`
+	// Conditional logic (show/hide/require/disable this field)
+	Conditions datatypes.JSON `gorm:"type:jsonb;default:'[]'" json:"conditions"` // []ConditionalAction
+
+	// Prefill/calculated values
+	PrefillValue    *string `json:"prefill_value,omitempty"`
+	CalculationRule *string `json:"calculation_rule,omitempty"` // Formula for calculated fields
+
+	// Field category: data (collects input) or layout (visual only)
+	Category string `gorm:"default:'data'" json:"category"`
 
 	// Display
 	SortOrder int    `gorm:"default:0" json:"sort_order"`
@@ -149,14 +207,65 @@ func (FormField) TableName() string {
 
 // FieldValidation represents validation rules
 type FieldValidation struct {
-	Min              *float64 `json:"min,omitempty"`
-	Max              *float64 `json:"max,omitempty"`
-	MinLength        *int     `json:"min_length,omitempty"`
-	MaxLength        *int     `json:"max_length,omitempty"`
-	Pattern          string   `json:"pattern,omitempty"`
-	PatternMessage   string   `json:"pattern_message,omitempty"`
+	// Numeric
+	Min *float64 `json:"min,omitempty"`
+	Max *float64 `json:"max,omitempty"`
+
+	// Text length
+	MinLength *int `json:"min_length,omitempty"`
+	MaxLength *int `json:"max_length,omitempty"`
+
+	// Pattern validation
+	Pattern        string `json:"pattern,omitempty"` // Custom regex
+	PatternMessage string `json:"pattern_message,omitempty"`
+	ValidationType string `json:"validation_type,omitempty"` // email, phone, url, date, time, etc.
+
+	// Built-in validation patterns
+	EmailValidation *EmailValidation `json:"email_validation,omitempty"`
+	PhoneValidation *PhoneValidation `json:"phone_validation,omitempty"`
+	URLValidation   *URLValidation   `json:"url_validation,omitempty"`
+	DateValidation  *DateValidation  `json:"date_validation,omitempty"`
+
+	// File validation
 	AllowedFileTypes []string `json:"allowed_file_types,omitempty"`
 	MaxFileSize      *int64   `json:"max_file_size,omitempty"` // bytes
+	MinFiles         *int     `json:"min_files,omitempty"`
+	MaxFiles         *int     `json:"max_files,omitempty"`
+
+	// Custom validation
+	CustomValidation string `json:"custom_validation,omitempty"` // JS function
+	CustomMessage    string `json:"custom_message,omitempty"`
+}
+
+// EmailValidation defines email-specific rules
+type EmailValidation struct {
+	AllowedDomains   []string `json:"allowed_domains,omitempty"` // e.g., ["gmail.com", "company.com"]
+	BlockedDomains   []string `json:"blocked_domains,omitempty"`
+	RequireCorporate bool     `json:"require_corporate,omitempty"` // Block free email providers
+}
+
+// PhoneValidation defines phone-specific rules
+type PhoneValidation struct {
+	CountryCode      string   `json:"country_code,omitempty"` // e.g., "US", "UK"
+	Format           string   `json:"format,omitempty"`       // e.g., "(###) ###-####"
+	AllowedCountries []string `json:"allowed_countries,omitempty"`
+}
+
+// URLValidation defines URL-specific rules
+type URLValidation struct {
+	RequireHTTPS   bool     `json:"require_https,omitempty"`
+	AllowedDomains []string `json:"allowed_domains,omitempty"`
+	BlockedDomains []string `json:"blocked_domains,omitempty"`
+}
+
+// DateValidation defines date-specific rules
+type DateValidation struct {
+	MinDate       *time.Time `json:"min_date,omitempty"`
+	MaxDate       *time.Time `json:"max_date,omitempty"`
+	AllowPast     *bool      `json:"allow_past,omitempty"`
+	AllowFuture   *bool      `json:"allow_future,omitempty"`
+	DisabledDates []string   `json:"disabled_dates,omitempty"` // ISO dates
+	DisabledDays  []int      `json:"disabled_days,omitempty"`  // 0=Sunday, 6=Saturday
 }
 
 // FieldOption represents a select/radio/checkbox option
@@ -169,10 +278,50 @@ type FieldOption struct {
 
 // FieldCondition represents conditional logic
 type FieldCondition struct {
+	ID       string `json:"id,omitempty"`
 	FieldKey string `json:"field_key"`
-	Operator string `json:"operator"` // equals, not_equals, contains, etc.
+	Operator string `json:"operator"` // See ConditionOperator constants
 	Value    any    `json:"value"`
-	Action   string `json:"action"` // show, hide, require, disable
+	Logic    string `json:"logic,omitempty"` // and, or (for multiple conditions)
+}
+
+// Condition operators
+const (
+	// Comparison
+	OperatorEquals         = "equals"
+	OperatorNotEquals      = "not_equals"
+	OperatorGreaterThan    = "greater_than"
+	OperatorLessThan       = "less_than"
+	OperatorGreaterOrEqual = "greater_or_equal"
+	OperatorLessOrEqual    = "less_or_equal"
+
+	// String
+	OperatorContains    = "contains"
+	OperatorNotContains = "not_contains"
+	OperatorStartsWith  = "starts_with"
+	OperatorEndsWith    = "ends_with"
+	OperatorMatches     = "matches" // Regex
+
+	// Existence
+	OperatorIsEmpty    = "is_empty"
+	OperatorIsNotEmpty = "is_not_empty"
+	OperatorIsNull     = "is_null"
+	OperatorIsNotNull  = "is_not_null"
+
+	// Array/Multi-select
+	OperatorIncludes    = "includes"
+	OperatorNotIncludes = "not_includes"
+	OperatorIncludesAny = "includes_any"
+	OperatorIncludesAll = "includes_all"
+)
+
+// ConditionalAction defines what happens when conditions are met
+type ConditionalAction struct {
+	Type       string           `json:"type"` // show, hide, require, disable, prefill, calculate
+	Conditions []FieldCondition `json:"conditions"`
+	Logic      string           `json:"logic,omitempty"`  // and, or
+	Target     string           `json:"target,omitempty"` // field_key or section_id
+	Value      any              `json:"value,omitempty"`  // For prefill/calculate actions
 }
 
 // FormSubmission represents a user's submission to a form
@@ -183,6 +332,9 @@ type FormSubmission struct {
 
 	// Link to legacy row if migrated
 	LegacyRowID *uuid.UUID `gorm:"type:uuid" json:"legacy_row_id,omitempty"`
+
+	// Denormalized submission data as JSONB blob (primary read source)
+	RawData datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"raw_data"`
 
 	// Submission metadata
 	Status string `gorm:"default:'draft'" json:"status"` // draft, in_progress, submitted, etc.
@@ -429,4 +581,54 @@ type UserFormSubmissions struct {
 	Email       string                   `json:"email"`
 	UserName    *string                  `json:"user_name,omitempty"`
 	Submissions []UserFormSubmissionItem `json:"submissions"`
+}
+
+// ============================================
+// LAYOUT FIELD HELPERS
+// ============================================
+
+// LayoutFieldTypes lists field types that are purely visual (no data collection)
+var LayoutFieldTypes = []string{
+	"heading",
+	"section_header",
+	"divider",
+	"separator",
+	"html",
+	"description",
+	"page_break",
+	"button",
+}
+
+// IsLayoutField returns true if the field is a layout-only element
+func (f *FormField) IsLayoutField() bool {
+	if f.Category == "layout" {
+		return true
+	}
+	for _, t := range LayoutFieldTypes {
+		if f.FieldType == t {
+			return true
+		}
+	}
+	return false
+}
+
+// DataFieldsOnly filters a slice of FormFields to only data-collecting fields
+func DataFieldsOnly(fields []FormField) []FormField {
+	var result []FormField
+	for _, f := range fields {
+		if !f.IsLayoutField() {
+			result = append(result, f)
+		}
+	}
+	return result
+}
+
+// BuildRawDataFromResponses converts a slice of FormResponses into a JSONB map
+// keyed by field_id (as string). This is used for backfilling raw_data.
+func BuildRawDataFromResponses(responses []FormResponse) map[string]interface{} {
+	data := make(map[string]interface{})
+	for _, resp := range responses {
+		data[resp.FieldID.String()] = resp.GetValue()
+	}
+	return data
 }

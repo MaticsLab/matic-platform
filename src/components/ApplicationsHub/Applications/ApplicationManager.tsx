@@ -125,15 +125,6 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
       variant: 'outline' as const
     })
     
-    actions.push(
-      {
-        label: 'Portal Editor',
-        icon: FileText,
-        onClick: () => router.push(`/workspace/${workspaceSlug || workspaceId}/portal-editor?formId=${formId}`),
-        variant: 'outline' as const
-      }
-    )
-    
     setTabActions(actions)
 
     return () => setTabActions([])
@@ -238,8 +229,8 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
         {activeTab === 'review' && formId && (
           <ReviewWorkspaceV2 
             workspaceId={workspaceId}
+            workspaceSlug={workspaceSlug}
             formId={formId} 
-            onBack={() => window.history.back()}
             onViewChange={(view) => {
               if (view === 'analytics') setActiveTab('analytics')
               else if (view === 'team') setShowReviewersPanel(true)

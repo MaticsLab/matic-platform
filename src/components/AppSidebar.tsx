@@ -6,6 +6,7 @@ import {
   Code2,
   Database,
   Globe,
+  Home,
   Users,
   ChevronsUpDown,
   User,
@@ -86,7 +87,7 @@ export function AppSidebar({
   const { state } = useSidebar()
 
   const navItems = [
-    { title: 'Portals', icon: Globe, slug: 'applications' },
+    { title: 'Home', icon: Home, slug: 'applications' },
     { title: 'Database', icon: Database, slug: 'tables' },
     { title: 'CRM', icon: Users, slug: 'crm' },
   ]
@@ -96,7 +97,7 @@ export function AppSidebar({
     
     const workspace = currentWorkspace || { slug: workspaceId }
     
-    // Special handling for Portals/Applications hub
+    // Special handling for Home/Applications hub
     if (slug === 'applications') {
       tabManager.openPortalsHub()
       return

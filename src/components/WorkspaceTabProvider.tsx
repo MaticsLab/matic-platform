@@ -102,7 +102,7 @@ export function WorkspaceTabProvider({ children, workspaceId }: WorkspaceTabProv
       const currentTabs = manager.getTabs()
       const currentActiveTab = manager.getActiveTab()
       
-      // Ensure Portals Hub tab exists (fallback safety)
+      // Ensure Home tab exists (fallback safety)
       if (currentTabs.length === 0) {
         manager.openPortalsHub()
         return // The subscription will fire again with the new tab

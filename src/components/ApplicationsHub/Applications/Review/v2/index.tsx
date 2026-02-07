@@ -4,15 +4,15 @@ import { SubmissionViewer } from './SubmissionViewer';
 
 interface ReviewWorkspaceV2Props {
   workspaceId: string;
+  workspaceSlug?: string;
   formId: string | null;
-  onBack?: () => void;
   onViewChange?: (view: string) => void;
 }
 
 export function ReviewWorkspaceV2({ 
   workspaceId, 
+  workspaceSlug,
   formId, 
-  onBack,
   onViewChange 
 }: ReviewWorkspaceV2Props) {
   // Handle null formId
@@ -30,8 +30,8 @@ export function ReviewWorkspaceV2({
   return (
     <SubmissionViewer
       workspaceId={workspaceId}
+      workspaceSlug={workspaceSlug}
       formId={formId}
-      onBack={onBack}
     />
   );
 }

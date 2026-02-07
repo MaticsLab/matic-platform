@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { X, Plus, FileText, Calendar, Users, Search, Settings, Workflow, UserPlus, Bell, Layout } from 'lucide-react'
+import { X, Plus, FileText, Calendar, Users, Search, Settings, Workflow, UserPlus, Bell } from 'lucide-react'
 import { TabManager, TabData } from '@/lib/tab-manager'
 import { useTabContext } from './WorkspaceTabProvider'
 import { cn } from '@/lib/utils'
@@ -163,7 +163,7 @@ export function TabNavigation({
           const isActive = currentActiveTab?.id === tab.id
           const isApplicationsTab = 
             tab.id === 'applications' || 
-            (tab.title === 'Portals' && tab.url === `/workspace/${workspaceId}/applications`)
+            (tab.title === 'Home' && tab.url === `/workspace/${workspaceId}/applications`)
           
           return (
             <div
@@ -192,18 +192,6 @@ export function TabNavigation({
           )
         })}
       </div>
-      
-      {/* Portal Editor Button */}
-      {workspaceSlug && (
-        <button
-          onClick={() => router.push(`/workspace/${workspaceSlug}/portal-editor`)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-md text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground transition-colors flex-shrink-0"
-          title="Portal Editor"
-        >
-          <Layout size={14} />
-          <span className="hidden sm:inline">Portal Editor</span>
-        </button>
-      )}
     </div>
   )
 }

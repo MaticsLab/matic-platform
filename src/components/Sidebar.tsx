@@ -49,8 +49,8 @@ export function Sidebar({
   const navItems = [
     {
       id: 'applications',
-      label: 'Portals',
-      icon: Globe,
+      label: 'Home',
+      icon: Home,
       url: `/workspace/${workspaceId}/applications`,
       type: 'custom'
     },

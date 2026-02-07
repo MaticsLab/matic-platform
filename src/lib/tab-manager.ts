@@ -313,12 +313,12 @@ export class TabManager {
   }
 
   /**
-   * Open the Portals Hub (home view of all portals)
+   * Open the Home Hub (home view of all portals)
    */
   openPortalsHub() {
     return this.addTab({
       id: this.PORTALS_TAB_ID,
-      title: 'Portals',
+      title: 'Home',
       url: `/workspace/${this.workspaceId}`,
       type: 'custom',
       workspaceId: this.workspaceId,

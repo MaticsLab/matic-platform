@@ -13,6 +13,8 @@ import {
 } from '@/ui-components/table';
 import { Button } from '@/ui-components/button';
 import { Badge } from '@/ui-components/badge';
+import { Checkbox } from '@/ui-components/checkbox';
+import { isLayoutField } from '@/types/forms';
 
 interface Submission {
   id: string;
@@ -34,12 +36,25 @@ interface Submission {
   documents?: { name: string; url: string; type: string }[];
 }
 
+interface FormField {
+  id: string;
+  field_key: string;
+  field_type: string;
+  label: string;
+  required: boolean;
+}
+
 interface SubmissionTableProps {
   submissions: Submission[];
   selectedId?: string;
   onSelect: (submission: Submission) => void;
   isLoading: boolean;
   searchQuery?: string;
+  selectedRows: Set<string>;
+  onToggleRow: (id: string) => void;
+  onToggleAll: () => void;
+  fields?: FormField[];
+  hiddenFields?: Set<string>;
 }
 
 const getStatusColor = (status: string) => {
@@ -124,8 +139,40 @@ export function SubmissionTable({
   selectedId,
   onSelect,
   isLoading,
-  searchQuery
+  searchQuery,
+  selectedRows,
+  onToggleRow,
+  onToggleAll,
+  fields = [],
+  hiddenFields = new Set()
 }: SubmissionTableProps) {
+  const allSelected = submissions.length > 0 && submissions.every(s => selectedRows.has(s.id));
+  const someSelected = submissions.some(s => selectedRows.has(s.id)) && !allSelected;
+  
+  // Show all fields except hidden ones, file uploads, and layout fields
+  const displayFields = fields
+    .filter(f => f.field_type !== 'file_upload' && f.field_type !== 'document')
+    .filter(f => !isLayoutField(f))
+    .filter(f => !hiddenFields.has(f.id));
+  
+  // Debug: Log field keys and raw data keys for first submission
+  if (submissions.length > 0 && displayFields.length > 0) {
+    const firstSub = submissions[0];
+    console.log('🔍 Field structure:', displayFields.map(f => ({ id: f.id, field_key: f.field_key, label: f.label })));
+    console.log('🔍 Raw data keys:', Object.keys(firstSub.raw_data || {}));
+    console.log('🔍 First submission raw_data:', firstSub.raw_data);
+    console.log('🔍 Personal object:', firstSub.raw_data?.personal);
+    console.log('🔍 First submission full object:', firstSub);
+    
+    // Test lookup by field ID (actual data structure)
+    displayFields.slice(0, 5).forEach(field => {
+      const valueById = firstSub.raw_data?.[field.id];
+      const valueByKey = firstSub.raw_data?.[field.field_key];
+      const valueInPersonal = firstSub.raw_data?.personal?.[field.id];
+      console.log(`🔍 Field "${field.label}": root[id]=${valueById}, root[key]=${valueByKey}, personal[id]=${valueInPersonal}`);
+    });
+  }
+  
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -153,24 +200,57 @@ export function SubmissionTable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Applicant</TableHead>
+                <TableHead className="w-14 pl-4">
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={onToggleAll}
+                    aria-label="Select all"
+                    className={someSelected ? "data-[state=checked]:bg-gray-400" : ""}
+                  />
+                </TableHead>
+                <TableHead>User</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Form</TableHead>
+                {displayFields.map(field => (
+                  <TableHead key={field.id}>{field.label}</TableHead>
+                ))}
                 <TableHead>Status</TableHead>
                 <TableHead>Documents</TableHead>
                 <TableHead>Submitted</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {submissions.map((submission) => (
+              {submissions.map((submission, index) => (
                 <TableRow
                   key={submission.id}
                   className={cn(
-                    "cursor-pointer hover:bg-gray-50 transition-colors",
-                    selectedId === submission.id && "bg-blue-50"
+                    "group cursor-pointer hover:bg-gray-50 transition-colors",
+                    selectedId === submission.id && "bg-blue-50",
+                    selectedRows.has(submission.id) && "bg-blue-50"
                   )}
                   onClick={() => onSelect(submission)}
                 >
+                  <TableCell className="w-14 pl-4" onClick={(e) => e.stopPropagation()}>
+                    <div className="relative w-6 h-6 flex items-center justify-center">
+                      {/* Row number - hidden on hover or when selected */}
+                      <span className={cn(
+                        "text-sm text-gray-400 absolute inset-0 flex items-center justify-center transition-opacity",
+                        selectedRows.has(submission.id) ? "opacity-0" : "group-hover:opacity-0"
+                      )}>
+                        {index + 1}
+                      </span>
+                      {/* Checkbox - shown on hover or when selected */}
+                      <div className={cn(
+                        "absolute inset-0 flex items-center justify-center transition-opacity",
+                        selectedRows.has(submission.id) ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                      )}>
+                        <Checkbox
+                          checked={selectedRows.has(submission.id)}
+                          onCheckedChange={() => onToggleRow(submission.id)}
+                          aria-label={`Select ${getBetterAuthDisplayName(submission)}`}
+                        />
+                      </div>
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="font-medium text-gray-900">
                       {getBetterAuthDisplayName(submission)}
@@ -184,12 +264,62 @@ export function SubmissionTable({
                     </div>
                   </TableCell>
                   
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <FileText className="w-4 h-4 text-blue-500" />
-                      <span className="text-sm">{submission.form_name || 'Form'}</span>
-                    </div>
-                  </TableCell>
+                  {displayFields.map(field => {
+                    // Try multiple key variations to find the value
+                    // Primary: Try field.id (most common in actual data)
+                    let value = submission.raw_data?.[field.id];
+                    
+                    // Fallback: Try field_key if it exists
+                    if ((value === null || value === undefined) && field.field_key) {
+                      value = submission.raw_data?.[field.field_key];
+                    }
+                    
+                    // Fallback: Try nested structures (e.g., personal object)
+                    if (value === null || value === undefined) {
+                      // Check common nested structures
+                      const personal = submission.raw_data?.personal;
+                      if (personal && typeof personal === 'object') {
+                        value = personal[field.id] || personal[field.field_key];
+                      }
+                    }
+                    
+                    // Fallback: Try label variations
+                    if (value === null || value === undefined) {
+                      const labelKey = field.label?.toLowerCase().replace(/\s+/g, '_');
+                      const labelKeyNoSpace = field.label?.toLowerCase().replace(/\s+/g, '');
+                      
+                      value = submission.raw_data?.[labelKey] 
+                        || submission.raw_data?.[labelKeyNoSpace]
+                        || submission.raw_data?.[field.label];
+                      
+                      // Also check nested personal object with label variations
+                      if ((value === null || value === undefined) && submission.raw_data?.personal) {
+                        const personal = submission.raw_data.personal;
+                        value = personal[labelKey] || personal[labelKeyNoSpace] || personal[field.label];
+                      }
+                    }
+                    
+                    let displayValue = '';
+                    
+                    if (value === null || value === undefined) {
+                      displayValue = '-';
+                    } else if (typeof value === 'object' && !Array.isArray(value)) {
+                      // Handle object values (like file uploads)
+                      displayValue = value.name || value.label || JSON.stringify(value);
+                    } else if (Array.isArray(value)) {
+                      displayValue = value.join(', ');
+                    } else {
+                      displayValue = String(value);
+                    }
+                    
+                    return (
+                      <TableCell key={field.id}>
+                        <span className="text-sm text-gray-900 truncate max-w-[200px] block" title={displayValue}>
+                          {displayValue}
+                        </span>
+                      </TableCell>
+                    );
+                  })}
                   
                   <TableCell>
                     {getStatusBadge(submission.status)}

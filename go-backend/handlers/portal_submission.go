@@ -13,11 +13,94 @@ import (
 	"gorm.io/datatypes"
 )
 
+// resolveForm resolves a form by its new ID or legacy_table_id.
+// Returns the form and true on success, or writes an error response and returns false.
+func resolveForm(c *gin.Context, formIDStr string) (*models.Form, bool) {
+	parsedFormID, err := uuid.Parse(formIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid form ID"})
+		return nil, false
+	}
+
+	var form models.Form
+
+	// Try new form ID first
+	err = database.DB.Where("id = ?", parsedFormID).First(&form).Error
+	if err == nil {
+		return &form, true
+	}
+
+	// Fallback: try legacy_table_id
+	err = database.DB.Where("legacy_table_id = ?", parsedFormID).First(&form).Error
+	if err == nil {
+		fmt.Printf("✅ Resolved form via legacy_table_id %s -> %s\n", formIDStr, form.ID)
+		return &form, true
+	}
+
+	return nil, false
+}
+
+// getDataFields returns only data-collecting fields for a form (excludes layout fields)
+func getDataFields(formID uuid.UUID) []models.FormField {
+	var fields []models.FormField
+	database.DB.Where("form_id = ?", formID).Find(&fields)
+	return models.DataFieldsOnly(fields)
+}
+
+// computeCompletion calculates completion percentage based on filled data fields
+func computeCompletion(data map[string]interface{}, dataFields []models.FormField) int {
+	if len(dataFields) == 0 {
+		return 0
+	}
+	filled := 0
+	for _, f := range dataFields {
+		if v, exists := data[f.ID.String()]; exists && v != nil && v != "" {
+			filled++
+		}
+	}
+	return (filled * 100) / len(dataFields)
+}
+
+// buildLegacyKeyMap builds a mapping of field_key -> legacy field UUID string
+// for forms that were migrated from the legacy data_tables system.
+func buildLegacyKeyMap(form *models.Form, fields []models.FormField) map[string]string {
+	if form.LegacyTableID == nil {
+		return nil
+	}
+
+	var legacyFields []models.Field
+	database.DB.Where("table_id = ?", form.LegacyTableID).Find(&legacyFields)
+
+	legacyMap := make(map[string]string)
+	for _, lf := range legacyFields {
+		legacyMap[lf.Name] = lf.ID.String()
+	}
+	return legacyMap
+}
+
+// buildLegacyUUIDToFieldID builds a mapping of legacy UUID string -> new field ID
+// for resolving incoming data that uses old field UUIDs as keys.
+func buildLegacyUUIDToFieldID(form *models.Form, fieldKeyToID map[string]uuid.UUID) map[string]uuid.UUID {
+	if form.LegacyTableID == nil {
+		return nil
+	}
+
+	var legacyFields []models.Field
+	database.DB.Where("table_id = ?", form.LegacyTableID).Find(&legacyFields)
+
+	mapping := make(map[string]uuid.UUID)
+	for _, lf := range legacyFields {
+		if newFieldID, exists := fieldKeyToID[lf.Name]; exists {
+			mapping[lf.ID.String()] = newFieldID
+		}
+	}
+	return mapping
+}
+
 // GetMyPortalSubmission gets the authenticated user's submission for a form
 // GET /api/v1/portal/forms/:form_id/my-submission
-// Accepts either the new forms.id or the legacy data_tables.id (will lookup via legacy_table_id)
+// Reads from raw_data JSONB first, falls back to form_responses for legacy data.
 func GetMyPortalSubmission(c *gin.Context) {
-	// Get authenticated user ID from portal middleware
 	userID := c.GetString("user_id")
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
@@ -25,48 +108,25 @@ func GetMyPortalSubmission(c *gin.Context) {
 	}
 
 	formID := c.Param("form_id")
-	parsedFormID, err := uuid.Parse(formID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid form ID"})
+	fmt.Printf("📋 GetMyPortalSubmission: User %s requesting submission for form %s\n", userID, formID)
+
+	form, ok := resolveForm(c, formID)
+	if !ok {
+		// Form not found at all — return empty state
+		c.JSON(http.StatusOK, gin.H{
+			"id":         nil,
+			"data":       map[string]interface{}{},
+			"metadata":   map[string]interface{}{"status": "not_started"},
+			"created_at": nil,
+			"updated_at": nil,
+		})
 		return
 	}
 
-	fmt.Printf("📋 GetMyPortalSubmission: User %s requesting submission for form %s\n", userID, formID)
-
-	// Try to resolve the actual form ID from forms table
-	// First check if it's already a new form ID
-	var actualFormID uuid.UUID
-	var form models.Form
-	err = database.DB.Where("id = ?", parsedFormID).First(&form).Error
-	if err == nil {
-		// Found by new form ID
-		actualFormID = form.ID
-		fmt.Printf("✅ Found form by new ID: %s\n", actualFormID)
-	} else {
-		// Not found by new ID, try legacy_table_id lookup
-		err = database.DB.Where("legacy_table_id = ?", parsedFormID).First(&form).Error
-		if err != nil {
-			fmt.Printf("❌ Form not found by ID or legacy_table_id: %s\n", formID)
-			// Return empty state - form might not be migrated yet
-			c.JSON(http.StatusOK, gin.H{
-				"id":         nil,
-				"data":       map[string]interface{}{},
-				"metadata":   map[string]interface{}{"status": "not_started"},
-				"created_at": nil,
-				"updated_at": nil,
-			})
-			return
-		}
-		actualFormID = form.ID
-		fmt.Printf("✅ Found form by legacy_table_id %s -> new ID: %s\n", formID, actualFormID)
-	}
-
-	// Query form_submissions for this user's submission
+	// Query submission
 	var submission models.FormSubmission
-	err = database.DB.Where("form_id = ? AND user_id = ?", actualFormID, userID).First(&submission).Error
-
+	err := database.DB.Where("form_id = ? AND user_id = ?", form.ID, userID).First(&submission).Error
 	if err != nil {
-		// No submission found - return empty state
 		fmt.Printf("ℹ️ GetMyPortalSubmission: No submission found for user %s\n", userID)
 		c.JSON(http.StatusOK, gin.H{
 			"id":         nil,
@@ -78,36 +138,47 @@ func GetMyPortalSubmission(c *gin.Context) {
 		return
 	}
 
-	// Get all responses for this submission
-	var responses []models.FormResponse
-	database.DB.Where("submission_id = ?", submission.ID).Find(&responses)
-
-	// Build data object from responses
+	// --- Read data: prefer raw_data JSONB, fall back to form_responses ---
 	data := make(map[string]interface{})
-	for _, resp := range responses {
-		// Get field info to get the field_key
-		var field models.FormField
-		if err := database.DB.First(&field, "id = ?", resp.FieldID).Error; err == nil {
-			// Extract value based on type
-			var value interface{}
-			switch resp.ValueType {
-			case "text":
-				value = resp.ValueText
-			case "number":
-				value = resp.ValueNumber
-			case "boolean":
-				value = resp.ValueBoolean
-			case "date":
-				value = resp.ValueDate
-			case "datetime":
-				value = resp.ValueDatetime
-			case "json":
-				if resp.ValueJSON != nil {
-					json.Unmarshal(resp.ValueJSON, &value)
-				}
-			}
-			data[field.FieldKey] = value
+
+	// Try raw_data first
+	hasRawData := false
+	if submission.RawData != nil && len(submission.RawData) > 2 { // > 2 means more than '{}'
+		if err := json.Unmarshal(submission.RawData, &data); err == nil && len(data) > 0 {
+			hasRawData = true
+			fmt.Printf("✅ GetMyPortalSubmission: Read %d fields from raw_data\n", len(data))
 		}
+	}
+
+	// Fallback: build from form_responses (legacy path)
+	if !hasRawData {
+		var responses []models.FormResponse
+		database.DB.Where("submission_id = ?", submission.ID).Find(&responses)
+
+		legacyKeyMap := buildLegacyKeyMap(form, nil)
+
+		for _, resp := range responses {
+			var field models.FormField
+			if err := database.DB.First(&field, "id = ?", resp.FieldID).Error; err != nil {
+				continue
+			}
+
+			value := resp.GetValue()
+
+			// Determine data key (legacy UUID or field_key)
+			var dataKey string
+			if legacyKeyMap != nil {
+				if legacyUUID, exists := legacyKeyMap[field.FieldKey]; exists {
+					dataKey = legacyUUID
+				} else {
+					dataKey = field.FieldKey
+				}
+			} else {
+				dataKey = field.FieldKey
+			}
+			data[dataKey] = value
+		}
+		fmt.Printf("✅ GetMyPortalSubmission: Built %d fields from form_responses (legacy)\n", len(data))
 	}
 
 	// Build metadata
@@ -120,7 +191,7 @@ func GetMyPortalSubmission(c *gin.Context) {
 	}
 	metadata["last_saved_at"] = submission.LastSavedAt
 
-	fmt.Printf("✅ GetMyPortalSubmission: Found submission %s with %d responses\n", submission.ID, len(responses))
+	fmt.Printf("✅ GetMyPortalSubmission: Returning submission %s with %d data fields\n", submission.ID, len(data))
 
 	c.JSON(http.StatusOK, gin.H{
 		"id":         submission.ID,
@@ -134,14 +205,13 @@ func GetMyPortalSubmission(c *gin.Context) {
 // SaveMyPortalSubmissionInput is the request body for saving portal submissions
 type SaveMyPortalSubmissionInput struct {
 	Data      map[string]interface{} `json:"data" binding:"required"`
-	SaveDraft bool                   `json:"save_draft"` // true = draft, false = submit
+	SaveDraft bool                   `json:"save_draft"`
 }
 
 // SaveMyPortalSubmission creates or updates the authenticated user's submission
 // POST /api/v1/portal/forms/:form_id/my-submission
-// Accepts either the new forms.id or the legacy data_tables.id (will lookup via legacy_table_id)
+// Writes to raw_data JSONB (primary) + dual-writes to form_responses (backward compat).
 func SaveMyPortalSubmission(c *gin.Context) {
-	// Get authenticated user ID from portal middleware
 	userID := c.GetString("user_id")
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
@@ -149,11 +219,6 @@ func SaveMyPortalSubmission(c *gin.Context) {
 	}
 
 	formID := c.Param("form_id")
-	parsedFormID, err := uuid.Parse(formID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid form ID"})
-		return
-	}
 
 	var input SaveMyPortalSubmissionInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -161,43 +226,62 @@ func SaveMyPortalSubmission(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("📝 SaveMyPortalSubmission: User %s saving submission for form %s (draft=%v)\n", userID, formID, input.SaveDraft)
+	fmt.Printf("📝 SaveMyPortalSubmission: User %s saving for form %s (draft=%v)\n", userID, formID, input.SaveDraft)
 
-	// Try to resolve the actual form ID from forms table
-	// First check if it's already a new form ID
-	var actualFormID uuid.UUID
-	var form models.Form
-	err = database.DB.Where("id = ?", parsedFormID).First(&form).Error
-	if err == nil {
-		// Found by new form ID
-		actualFormID = form.ID
-		fmt.Printf("✅ Found form by new ID: %s\n", actualFormID)
-	} else {
-		// Not found by new ID, try legacy_table_id lookup
-		err = database.DB.Where("legacy_table_id = ?", parsedFormID).First(&form).Error
-		if err != nil {
-			fmt.Printf("❌ Form not found by ID or legacy_table_id: %s\n", formID)
-			c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
-			return
-		}
-		actualFormID = form.ID
-		fmt.Printf("✅ Found form by legacy_table_id %s -> new ID: %s\n", formID, actualFormID)
+	form, ok := resolveForm(c, formID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
+		return
 	}
 
-	// Get form fields to map data keys to field IDs
-	var fields []models.FormField
-	database.DB.Where("form_id = ?", actualFormID).Find(&fields)
+	// Get data fields (excludes layout)
+	dataFields := getDataFields(form.ID)
 
-	// Create map of field_key -> field_id
+	// Build field lookup maps
 	fieldKeyToID := make(map[string]uuid.UUID)
-	for _, field := range fields {
-		fieldKeyToID[field.FieldKey] = field.ID
+	fieldIDToField := make(map[uuid.UUID]models.FormField)
+	for _, f := range dataFields {
+		fieldKeyToID[f.FieldKey] = f.ID
+		fieldIDToField[f.ID] = f
 	}
 
-	// Check if user already has a submission
-	var existingSubmission models.FormSubmission
-	err = database.DB.Where("form_id = ? AND user_id = ?", actualFormID, userID).First(&existingSubmission).Error
+	// Build legacy UUID -> new field ID map for forms migrated from legacy system
+	legacyUUIDToID := buildLegacyUUIDToFieldID(form, fieldKeyToID)
 
+	// --- Normalize incoming data keys to field IDs ---
+	normalized := make(map[string]interface{})
+	for dataKey, value := range input.Data {
+		// Try field_key first
+		if fid, exists := fieldKeyToID[dataKey]; exists {
+			normalized[fid.String()] = value
+			continue
+		}
+		// Try legacy UUID mapping
+		if legacyUUIDToID != nil {
+			if fid, exists := legacyUUIDToID[dataKey]; exists {
+				normalized[fid.String()] = value
+				continue
+			}
+		}
+		// Try direct field ID (already a UUID string)
+		if _, err := uuid.Parse(dataKey); err == nil {
+			normalized[dataKey] = value
+			continue
+		}
+		fmt.Printf("⚠️ SaveMyPortalSubmission: Data key '%s' not resolved, skipping\n", dataKey)
+	}
+
+	// Marshal raw_data JSONB
+	rawDataBytes, err := json.Marshal(normalized)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to serialize data"})
+		return
+	}
+
+	// Compute completion
+	completion := computeCompletion(normalized, dataFields)
+
+	// Begin transaction
 	tx := database.DB.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -205,38 +289,28 @@ func SaveMyPortalSubmission(c *gin.Context) {
 		}
 	}()
 
+	// Check for existing submission
+	var existingSubmission models.FormSubmission
+	err = database.DB.Where("form_id = ? AND user_id = ?", form.ID, userID).First(&existingSubmission).Error
+
 	var submissionID uuid.UUID
 
 	if err == nil {
-		// Update existing submission
-		fmt.Printf("🔄 SaveMyPortalSubmission: Updating existing submission %s\n", existingSubmission.ID)
-
+		// --- Update existing ---
 		submissionID = existingSubmission.ID
+
+		existingSubmission.RawData = datatypes.JSON(rawDataBytes)
+		existingSubmission.CompletionPercentage = completion
 		existingSubmission.LastSavedAt = time.Now()
 
 		if input.SaveDraft {
-			// Keep as draft or in_progress
 			if existingSubmission.Status != "submitted" {
 				existingSubmission.Status = "draft"
 			}
 		} else {
-			// Mark as submitted
 			existingSubmission.Status = "submitted"
 			now := time.Now()
 			existingSubmission.SubmittedAt = &now
-		}
-
-		// Calculate completion percentage (simple: count non-empty fields)
-		filledCount := 0
-		for key, value := range input.Data {
-			if value != nil && value != "" {
-				filledCount++
-			}
-			_ = key
-		}
-		totalFields := len(fields)
-		if totalFields > 0 {
-			existingSubmission.CompletionPercentage = (filledCount * 100) / totalFields
 		}
 
 		if err := tx.Save(&existingSubmission).Error; err != nil {
@@ -244,10 +318,9 @@ func SaveMyPortalSubmission(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update submission"})
 			return
 		}
+		fmt.Printf("🔄 Updated submission %s (completion=%d%%)\n", submissionID, completion)
 	} else {
-		// Create new submission
-		fmt.Printf("📝 SaveMyPortalSubmission: Creating new submission for user %s\n", userID)
-
+		// --- Create new ---
 		status := "draft"
 		var submittedAt *time.Time
 		if !input.SaveDraft {
@@ -256,25 +329,12 @@ func SaveMyPortalSubmission(c *gin.Context) {
 			submittedAt = &now
 		}
 
-		// Calculate completion percentage
-		filledCount := 0
-		for key, value := range input.Data {
-			if value != nil && value != "" {
-				filledCount++
-			}
-			_ = key
-		}
-		totalFields := len(fields)
-		completionPct := 0
-		if totalFields > 0 {
-			completionPct = (filledCount * 100) / totalFields
-		}
-
 		newSubmission := models.FormSubmission{
-			FormID:               actualFormID,
+			FormID:               form.ID,
 			UserID:               userID,
 			Status:               status,
-			CompletionPercentage: completionPct,
+			RawData:              datatypes.JSON(rawDataBytes),
+			CompletionPercentage: completion,
 			LastSavedAt:          time.Now(),
 			SubmittedAt:          submittedAt,
 		}
@@ -284,19 +344,23 @@ func SaveMyPortalSubmission(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create submission"})
 			return
 		}
-
 		submissionID = newSubmission.ID
+		fmt.Printf("📝 Created submission %s (completion=%d%%)\n", submissionID, completion)
 	}
 
-	// Now save/update all responses
-	for fieldKey, value := range input.Data {
-		fieldID, exists := fieldKeyToID[fieldKey]
-		if !exists {
-			fmt.Printf("⚠️ SaveMyPortalSubmission: Field key '%s' not found in form, skipping\n", fieldKey)
+	// --- Dual-write to form_responses (backward compat) ---
+	for fieldIDStr, value := range normalized {
+		fieldID, err := uuid.Parse(fieldIDStr)
+		if err != nil {
 			continue
 		}
 
-		// Determine value type and storage
+		field, exists := fieldIDToField[fieldID]
+		if !exists {
+			continue
+		}
+
+		// Determine value type and storage columns
 		var valueType string
 		var valueText *string
 		var valueNumber *float64
@@ -318,13 +382,13 @@ func SaveMyPortalSubmission(c *gin.Context) {
 			valueType = "boolean"
 			valueBoolean = &v
 		default:
-			// Store complex types as JSON
 			valueType = "json"
 			jsonBytes, _ := json.Marshal(value)
 			valueJSON = datatypes.JSON(jsonBytes)
 		}
 
-		// Upsert response
+		_ = field // field available for SetValue if needed later
+
 		response := models.FormResponse{
 			SubmissionID: submissionID,
 			FieldID:      fieldID,
@@ -335,7 +399,6 @@ func SaveMyPortalSubmission(c *gin.Context) {
 			ValueJSON:    valueJSON,
 		}
 
-		// Try to update, if not exists create
 		result := tx.Where("submission_id = ? AND field_id = ?", submissionID, fieldID).
 			Assign(models.FormResponse{
 				ValueType:    valueType,
@@ -359,7 +422,7 @@ func SaveMyPortalSubmission(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("✅ SaveMyPortalSubmission: Saved submission %s with %d responses\n", submissionID, len(input.Data))
+	fmt.Printf("✅ SaveMyPortalSubmission: Saved submission %s with %d fields\n", submissionID, len(normalized))
 	c.JSON(http.StatusOK, gin.H{
 		"id":         submissionID,
 		"updated_at": time.Now(),

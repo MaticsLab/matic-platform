@@ -1406,7 +1406,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   return (
     <TranslationProvider>
       <div 
-        className="h-screen flex overflow-hidden"
+        className="min-h-screen flex"
         style={{ 
           backgroundColor: backgroundColor,
           color: textColor,
@@ -1441,7 +1441,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         )}
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Top Header */}
           <PortalHeader
             form={form}
@@ -1559,7 +1559,7 @@ function PortalNavSidebar({
 
   return (
     <aside 
-      className="w-64 border-r flex flex-col h-full"
+      className="w-64 border-r flex flex-col"
       style={{ 
         backgroundColor: sidebarBgColor,
         borderColor: `${sidebarBgColor}33` // Add transparency to border
@@ -1872,6 +1872,317 @@ function PortalHeader({
         />
       )}
     </>
+  )
+}
+
+// Messages View Component
+interface MessagesViewProps {
+  formId: string
+  rowId?: string
+  email: string
+}
+
+function MessagesView({ formId, rowId, email }: MessagesViewProps) {
+  const [messages, setMessages] = useState<PortalActivity[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [newMessage, setNewMessage] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Load messages
+  useEffect(() => {
+    if (!rowId) {
+      setIsLoading(false)
+      return
+    }
+
+    const loadMessages = async () => {
+      try {
+        setIsLoading(true)
+        const activities = await portalDashboardClient.listActivities(rowId, 'both')
+        // Filter to only messages
+        const messageActivities = activities.filter(a => a.activity_type === 'message')
+        setMessages(messageActivities)
+      } catch (error: any) {
+        // Silently handle errors - don't show toast for 500s as they're backend issues
+        // Only log for debugging
+        if (error?.status !== 500) {
+          console.error('Failed to load messages:', error)
+          toast.error('Failed to load messages')
+        } else {
+          console.warn('Messages endpoint returned 500 - backend issue, continuing without messages')
+        }
+        // Set empty array on error so UI doesn't break
+        setMessages([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadMessages()
+    
+    // Refresh messages every 30 seconds
+    const interval = setInterval(loadMessages, 30000)
+    return () => clearInterval(interval)
+  }, [rowId])
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  // Send message
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !rowId || isSending) return
+
+    try {
+      setIsSending(true)
+      await portalDashboardClient.createActivity(rowId, {
+        activity_type: 'message',
+        content: newMessage.trim(),
+        visibility: 'both'
+      })
+      
+      setNewMessage('')
+      // Reload messages
+      const activities = await portalDashboardClient.listActivities(rowId, 'both')
+      const messageActivities = activities.filter(a => a.activity_type === 'message')
+      setMessages(messageActivities)
+    } catch (error) {
+      console.error('Failed to send message:', error)
+      toast.error('Failed to send message')
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  if (!rowId) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Messages</h1>
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <p className="text-gray-500">Please submit your application first to access messages.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto p-6 h-full flex flex-col">
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Messages</h1>
+      
+      <Card className="flex-1 flex flex-col">
+        <CardHeader>
+          <CardTitle className="text-lg">Conversation</CardTitle>
+        </CardHeader>
+        <CardContent className="flex-1 flex flex-col min-h-0">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            </div>
+          ) : (
+            <>
+              <ScrollArea className="flex-1 pr-4">
+                <div className="space-y-4">
+                  {messages.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                      <p>No messages yet. Start a conversation!</p>
+                    </div>
+                  ) : (
+                    messages.map((message) => {
+                      const isFromApplicant = message.sender_type === 'applicant'
+                      const time = new Date(message.created_at).toLocaleString()
+                      
+                      return (
+                        <div
+                          key={message.id}
+                          className={cn(
+                            "flex",
+                            isFromApplicant ? "justify-end" : "justify-start"
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "max-w-[70%] rounded-lg px-4 py-2",
+                              isFromApplicant
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-100 text-gray-900"
+                            )}
+                          >
+                            <div className="text-sm font-medium mb-1">
+                              {message.sender_name || (isFromApplicant ? 'You' : 'Staff')}
+                            </div>
+                            <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+                            <div className={cn(
+                              "text-xs mt-1",
+                              isFromApplicant ? "text-blue-100" : "text-gray-500"
+                            )}>
+                              {time}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+              </ScrollArea>
+              
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="flex gap-2">
+                  <Input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleSendMessage()
+                      }
+                    }}
+                    placeholder="Type your message..."
+                    disabled={isSending}
+                  />
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={!newMessage.trim() || isSending}
+                    style={{ backgroundColor: '#3B82F6' }}
+                  >
+                    {isSending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// Tasks View Component
+interface TasksViewProps {
+  formId: string
+  rowId?: string
+  email: string
+}
+
+function TasksView({ formId, rowId, email }: TasksViewProps) {
+  const [tasks, setTasks] = useState<PortalActivity[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Load tasks (file requests and other actionable activities)
+  useEffect(() => {
+    if (!rowId) {
+      setIsLoading(false)
+      return
+    }
+
+    const loadTasks = async () => {
+      try {
+        setIsLoading(true)
+        const activities = await portalDashboardClient.listActivities(rowId, 'both')
+        // Filter to actionable tasks (file requests, etc.)
+        const taskActivities = activities.filter(a => 
+          a.activity_type === 'file_request' || 
+          a.activity_type === 'note' ||
+          (a.activity_type === 'status_update' && a.metadata?.action_required)
+        )
+        setTasks(taskActivities)
+      } catch (error: any) {
+        // Silently handle errors - don't show toast for 500s as they're backend issues
+        // Only log for debugging
+        if (error?.status !== 500) {
+          console.error('Failed to load tasks:', error)
+          toast.error('Failed to load tasks')
+        } else {
+          console.warn('Tasks endpoint returned 500 - backend issue, continuing without tasks')
+        }
+        // Set empty array on error so UI doesn't break
+        setTasks([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadTasks()
+    
+    // Refresh tasks every 30 seconds
+    const interval = setInterval(loadTasks, 30000)
+    return () => clearInterval(interval)
+  }, [rowId])
+
+  if (!rowId) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Tasks</h1>
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <p className="text-gray-500">Please submit your application first to view tasks.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Tasks</h1>
+      
+      {isLoading ? (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
+      ) : tasks.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-gray-500">
+            <CheckSquare className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <p>No tasks at this time.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {tasks.map((task) => {
+            const time = new Date(task.created_at).toLocaleString()
+            const isFileRequest = task.activity_type === 'file_request'
+            
+            return (
+              <Card key={task.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className={cn(
+                      "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
+                      isFileRequest ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-600"
+                    )}>
+                      {isFileRequest ? <FileText className="w-5 h-5" /> : <CheckSquare className="w-5 h-5" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <h3 className="font-semibold text-gray-900">
+                          {isFileRequest ? 'Document Request' : 'Task'}
+                        </h3>
+                        <span className="text-xs text-gray-500 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {time}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 whitespace-pre-wrap">{task.content}</p>
+                      {task.metadata && Object.keys(task.metadata).length > 0 && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          {JSON.stringify(task.metadata, null, 2)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 

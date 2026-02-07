@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Lock, Eye as EyeIcon, ScrollText, BookOpen, CheckCircle,
-  ChevronRight, ChevronDown, Plus, GripVertical, Trash2, Settings,
-  Clock, MessageSquare, FileText, CheckCircle2, MoreVertical
+  ChevronDown, GripVertical, Trash2, Settings,
+  Clock, MessageSquare, FileText, CheckCircle2, MoreVertical, Plus
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -15,11 +15,6 @@ import { Label } from '@/ui-components/label'
 import { Textarea } from '@/ui-components/textarea'
 import { ScrollArea } from '@/ui-components/scroll-area'
 import { Separator } from '@/ui-components/separator'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/ui-components/collapsible'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -89,21 +84,8 @@ export function UnifiedSidebar({
   onAddSection,
   onUpdateSection,
 }: UnifiedSidebarProps) {
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['cover', 'form', 'after']))
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
-
-  const toggleGroup = (group: string) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev)
-      if (next.has(group)) {
-        next.delete(group)
-      } else {
-        next.add(group)
-      }
-      return next
-    })
-  }
 
   // Update collaboration awareness when active section changes
   useEffect(() => {
@@ -123,7 +105,6 @@ export function UnifiedSidebar({
 
   // Separate sections by type - covers and forms are combined in the Application Form group
   const applicationSections = Array.isArray(sections) ? sections.filter(s => s.sectionType === 'form' || s.sectionType === 'cover' || !s.sectionType) : []
-  const endingSections = Array.isArray(sections) ? sections.filter(s => s.sectionType === 'ending') : []
 
   // Drag handlers for form sections - use section ID to track dragged item
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null)
@@ -275,45 +256,41 @@ export function UnifiedSidebar({
         <h3 className="text-sm font-semibold text-gray-900">Portal Structure</h3>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="sm" className="h-8 text-xs gap-1">
+            <Button variant="ghost" size="sm" className="h-7 gap-1">
               <Plus className="w-3.5 h-3.5" />
-              Add
+              <span className="text-xs">Add</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onClick={() => onAddSection('cover')}>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                  <BookOpen className="w-4 h-4 text-blue-600" />
+          <DropdownMenuContent align="end" className="w-72 p-3">
+            <div className="mb-2">
+              <h4 className="text-base font-semibold text-gray-900">Choose a page type</h4>
+            </div>
+            <div className="space-y-1.5">
+              <button
+                onClick={() => onAddSection('form')}
+                className="w-full flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-gray-50 transition-colors text-left border border-transparent hover:border-gray-200"
+              >
+                <div className="w-10 h-10 shrink-0 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-amber-600" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium">Cover Page</p>
-                  <p className="text-xs text-gray-500">Welcome users to your form</p>
+                <div className="flex-1 pt-0.5">
+                  <div className="font-semibold text-sm text-gray-900 mb-0.5">Form</div>
+                  <div className="text-xs text-gray-500">Page to collect user input</div>
                 </div>
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onAddSection('form')}>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-                  <ScrollText className="w-4 h-4 text-amber-600" />
+              </button>
+              <button
+                onClick={() => onAddSection('cover')}
+                className="w-full flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-gray-50 transition-colors text-left border border-transparent hover:border-gray-200"
+              >
+                <div className="w-10 h-10 shrink-0 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <BookOpen className="w-5 h-5 text-blue-600" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium">Form Section</p>
-                  <p className="text-xs text-gray-500">Collect user input</p>
+                <div className="flex-1 pt-0.5">
+                  <div className="font-semibold text-sm text-gray-900 mb-0.5">Cover</div>
+                  <div className="text-xs text-gray-500">Welcome users to your form</div>
                 </div>
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onAddSection('ending')}>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-                  <CheckCircle className="w-4 h-4 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Ending Page</p>
-                  <p className="text-xs text-gray-500">Thank you / confirmation</p>
-                </div>
-              </div>
-            </DropdownMenuItem>
+              </button>
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -344,67 +321,30 @@ export function UnifiedSidebar({
           {/* ═══════════════════════════════════════════════════════════════════
               APPLICATION FORM SECTIONS (includes covers and forms)
           ═══════════════════════════════════════════════════════════════════ */}
-          <Collapsible open={expandedGroups.has('form')} onOpenChange={() => toggleGroup('form')}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-2 hover:bg-gray-50 rounded-lg transition-colors">
-              <ChevronRight className={cn(
-                "w-4 h-4 text-gray-400 transition-transform",
-                expandedGroups.has('form') && "rotate-90"
-              )} />
-              <ScrollText className="w-4 h-4 text-amber-600" />
-              <span className="text-sm font-semibold text-gray-700 flex-1 text-left">Application Form</span>
-              <span className="text-xs text-gray-400">{applicationSections.length}</span>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pl-4 pr-1 py-1 space-y-1">
-              <AnimatePresence mode="popLayout">
-                {applicationSections.map((section) => renderSectionItem(section, true))}
-              </AnimatePresence>
-              
-              {/* Review & Submit */}
-              <button
-                onClick={() => {
-                  onSelectSpecialPage('review')
-                  onSelectSection('')
-                }}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors text-left",
-                  activeSpecialPage === 'review' 
-                    ? "bg-purple-50 text-purple-900 border border-purple-200" 
-                    : "text-gray-700 hover:bg-gray-50"
-                )}
-              >
-                <div className="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center">
-                  <EyeIcon className="w-3.5 h-3.5 text-purple-600" />
-                </div>
-                <span className="font-medium">Review & Submit</span>
-              </button>
-            </CollapsibleContent>
-          </Collapsible>
-
-          <Separator className="my-2" />
-
-          {/* ═══════════════════════════════════════════════════════════════════
-              AFTER SUBMISSION GROUP - Ending Pages
-          ═══════════════════════════════════════════════════════════════════ */}
-          <Collapsible open={expandedGroups.has('after')} onOpenChange={() => toggleGroup('after')}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-2 hover:bg-gray-50 rounded-lg transition-colors">
-              <ChevronRight className={cn(
-                "w-4 h-4 text-gray-400 transition-transform",
-                expandedGroups.has('after') && "rotate-90"
-              )} />
-              <CheckCircle className="w-4 h-4 text-emerald-600" />
-              <span className="text-sm font-semibold text-gray-700 flex-1 text-left">Ending Pages</span>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pl-2 pr-2 py-1 space-y-1">
-              {/* Ending Pages */}
-              {endingSections.length > 0 && (
-                <div className="pl-2 space-y-1">
-                  <AnimatePresence mode="popLayout">
-                    {endingSections.map((section) => renderSectionItem(section, false))}
-                  </AnimatePresence>
-                </div>
+          <div className="space-y-1">
+            <AnimatePresence mode="popLayout">
+              {applicationSections.map((section) => renderSectionItem(section, true))}
+            </AnimatePresence>
+            
+            {/* Review & Submit */}
+            <button
+              onClick={() => {
+                onSelectSpecialPage('review')
+                onSelectSection('')
+              }}
+              className={cn(
+                "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors text-left",
+                activeSpecialPage === 'review' 
+                  ? "bg-purple-50 text-purple-900 border border-purple-200" 
+                  : "text-gray-700 hover:bg-gray-50"
               )}
-            </CollapsibleContent>
-          </Collapsible>
+            >
+              <div className="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center">
+                <EyeIcon className="w-3.5 h-3.5 text-purple-600" />
+              </div>
+              <span className="font-medium">Review & Submit</span>
+            </button>
+          </div>
         </div>
       </ScrollArea>
     </div>

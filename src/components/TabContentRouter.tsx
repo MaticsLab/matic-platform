@@ -332,7 +332,7 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
       case 'applications':
         tabManager.addTab({
           id: `applications-${workspaceId}-${Date.now()}`,
-          title: 'Portals',
+          title: 'Home',
           type: 'custom',
           url: `/workspace/${workspaceId}/applications`,
           workspaceId,
@@ -402,7 +402,7 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
   const hubs = [
     { 
       id: 'applications', 
-      name: 'Portals', 
+      name: 'Home', 
       icon: GraduationCap, 
       description: 'Manage scholarships, grants, and admissions.', 
       color: 'green',
