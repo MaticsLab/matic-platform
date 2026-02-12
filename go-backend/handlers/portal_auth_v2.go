@@ -524,6 +524,12 @@ func GetApplicantSubmissions(c *gin.Context) {
 // PortalAuthMiddlewareV2 validates Better Auth session token
 func PortalAuthMiddlewareV2() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Allow OPTIONS preflight requests to pass through without auth
+		if c.Request.Method == "OPTIONS" {
+			c.Next()
+			return
+		}
+
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.Next() // Allow unauthenticated requests to pass through
