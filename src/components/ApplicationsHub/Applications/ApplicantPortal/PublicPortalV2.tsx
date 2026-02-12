@@ -724,10 +724,28 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
 
         // Load existing submission data using portal API
         const baseUrl = getApiUrl()
+        console.log('[PublicPortalV2] Starting submission fetch, baseUrl:', baseUrl)
         try {
           // Get session token from the login result
+          console.log('[PublicPortalV2] Getting session token...')
           const session = await portalBetterAuthClient.getSession()
+          console.log('[PublicPortalV2] Session retrieved:', {
+            hasSession: !!session,
+            hasData: !!session?.data,
+            hasSessionData: !!session?.data?.session,
+            hasToken: !!session?.data?.session?.token
+          })
           const sessionToken = session?.data?.session?.token
+          
+          if (!sessionToken) {
+            console.warn('[PublicPortalV2] No session token found, skipping submission fetch')
+            setCurrentView('application')
+            toast.success('Logged in successfully')
+            setIsLoading(false)
+            return
+          }
+          
+          console.log('[PublicPortalV2] Fetching submission from:', `${baseUrl}/portal/forms/${form.id}/my-submission`)
           const dataRes = await fetch(
             `${baseUrl}/portal/forms/${form.id}/my-submission`,
             {
@@ -737,8 +755,18 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
             }
           )
           
+          console.log('[PublicPortalV2] Submission fetch response:', {
+            status: dataRes.status,
+            ok: dataRes.ok
+          })
+          
           if (dataRes.ok) {
             const submission = await dataRes.json()
+            console.log('[PublicPortalV2] Parsed submission:', {
+              hasId: !!submission.id,
+              hasData: !!submission.data,
+              dataKeys: submission.data ? Object.keys(submission.data) : []
+            })
             
             if (submission.id && submission.data) {
               const existingData = submission.data || {}
@@ -757,20 +785,37 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
                 setHasExistingSubmission(true)
                 
                 // Go to dashboard if we have data
+                console.log('[PublicPortalV2] Setting view to dashboard')
                 setCurrentView('dashboard')
+              } else {
+                // No data yet, show application form
+                console.log('[PublicPortalV2] No submission data, showing application form')
+                setCurrentView('application')
               }
+            } else {
+              // No submission yet, show application form
+              console.log('[PublicPortalV2] No submission found, showing application form')
+              setCurrentView('application')
             }
             
             if (submissionData && submissionData.status) {
               setApplicationStatus(submissionData.status)
             }
+          } else {
+            // Request failed but not critical
+            console.warn('[PublicPortalV2] Submission fetch failed with status:', dataRes.status)
+            // Still show application form
+            setCurrentView('application')
           }
         } catch (err) {
           // Non-critical - user can still access the form
           console.warn('[PublicPortalV2] Could not fetch submission:', err)
+          // Still show application form
+          setCurrentView('application')
         }
 
         toast.success('Logged in successfully')
+        setIsLoading(false)
       } else {
         // Signup: Use Better Auth SDK directly (Approach 1)
         const fullName: string = signupData.full_name || signupData.name || ''
