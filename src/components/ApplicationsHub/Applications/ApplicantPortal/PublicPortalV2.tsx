@@ -272,9 +272,46 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
 
 
   // Handle form data changes — state + localStorage only.
-  // Actual persistence happens through Go backend via handleFormSubmit.
-  const handleFormDataChange = useCallback((data: Record<string, any>) => {
+  // Handle form data changes and create initial draft submission if needed
+  const handleFormDataChange = useCallback(async (data: Record<string, any>) => {
     setCurrentFormData(data)
+    
+    // Also update submissionData so dashboard shows current data
+    setSubmissionData(data)
+    
+    // Create initial draft submission if none exists and user has started filling form
+    if (form?.id && email && !applicationRowId && Object.keys(data).length > 0) {
+      try {
+        const session = await portalBetterAuthClient.getSession()
+        const sessionToken = session?.data?.session?.token
+        
+        if (sessionToken) {
+          const baseUrl = getApiUrl()
+          const response = await fetch(`${baseUrl}/portal/forms/${form.id}/my-submission`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionToken}`
+            },
+            body: JSON.stringify({ 
+              data: {},  // Empty initial data
+              save_draft: true
+            })
+          })
+          
+          if (response.ok) {
+            const savedSubmission = await response.json()
+            if (savedSubmission.id) {
+              console.log('[PublicPortalV2] Initial draft submission created:', savedSubmission.id)
+              setApplicationRowId(savedSubmission.id)
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to create initial draft submission:', err)
+      }
+    }
+    
     // Save to localStorage as backup
     if (form?.id && email) {
       try {
@@ -284,7 +321,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         console.warn('Failed to save form data to localStorage:', err)
       }
     }
-  }, [form, email])
+  }, [form, email, applicationRowId])
 
   // Load form configuration and restore session
   useEffect(() => {
@@ -1018,6 +1055,13 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     // If we're leaving another view, save any pending data first
     if (currentView !== 'application' && Object.keys(currentFormData).length > 0) {
       await saveBeforeNavigation()
+    }
+    
+    // Update initialData with current form data when switching back to application
+    if (currentFormData && Object.keys(currentFormData).length > 0) {
+      setInitialData(currentFormData)
+    } else if (submissionData && Object.keys(submissionData).length > 0) {
+      setInitialData(submissionData)
     }
     
     setCurrentView('application')
@@ -2011,6 +2055,8 @@ function ApplicationView({
           initialSectionId={activeSectionId}
           initialData={initialData}
           email={email}
+          submissionId={applicationRowId || undefined}
+          useOptimisticSave={true}
         />
       </div>
     </div>
