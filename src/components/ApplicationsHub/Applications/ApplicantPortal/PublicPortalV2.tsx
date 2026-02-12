@@ -790,11 +790,13 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
               } else {
                 // No data yet, show application form
                 console.log('[PublicPortalV2] No submission data, showing application form')
+                setInitialData({}) // Initialize empty data for new applications
                 setCurrentView('application')
               }
             } else {
               // No submission yet, show application form
               console.log('[PublicPortalV2] No submission found, showing application form')
+              setInitialData({}) // Initialize empty data for new applications
               setCurrentView('application')
             }
             
@@ -805,12 +807,14 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
             // Request failed but not critical
             console.warn('[PublicPortalV2] Submission fetch failed with status:', dataRes.status)
             // Still show application form
+            setInitialData({}) // Initialize empty data for new applications
             setCurrentView('application')
           }
         } catch (err) {
           // Non-critical - user can still access the form
           console.warn('[PublicPortalV2] Could not fetch submission:', err)
           // Still show application form
+          setInitialData({}) // Initialize empty data for new applications
           setCurrentView('application')
         }
 
