@@ -97,6 +97,47 @@ func buildLegacyUUIDToFieldID(form *models.Form, fieldKeyToID map[string]uuid.UU
 	return mapping
 }
 
+// remapToLegacyKeys remaps raw_data keyed by V2 form_field UUIDs to V1 table_field UUIDs.
+// This is needed because GetFormBySlug returns V1 table_fields IDs in the config,
+// but form_submissions.raw_data uses V2 form_field UUIDs.
+func remapToLegacyKeys(form *models.Form, data map[string]interface{}) map[string]interface{} {
+	if form.LegacyTableID == nil {
+		return data
+	}
+
+	// Build V2 field UUID -> field_key map
+	var v2Fields []models.FormField
+	database.DB.Where("form_id = ?", form.ID).Find(&v2Fields)
+	v2UUIDToKey := make(map[string]string)
+	for _, f := range v2Fields {
+		v2UUIDToKey[f.ID.String()] = f.FieldKey
+	}
+
+	// Build field_key -> V1 field UUID map
+	var v1Fields []models.Field
+	database.DB.Where("table_id = ?", form.LegacyTableID).Find(&v1Fields)
+	keyToV1UUID := make(map[string]string)
+	for _, f := range v1Fields {
+		keyToV1UUID[f.Name] = f.ID.String()
+	}
+
+	// Remap: V2 UUID -> field_key -> V1 UUID
+	remapped := make(map[string]interface{})
+	for dataKey, value := range data {
+		if fieldKey, ok := v2UUIDToKey[dataKey]; ok {
+			if v1UUID, ok := keyToV1UUID[fieldKey]; ok {
+				remapped[v1UUID] = value
+				continue
+			}
+		}
+		// Keep unmapped keys as-is
+		remapped[dataKey] = value
+	}
+
+	fmt.Printf("🔄 remapToLegacyKeys: Remapped %d keys for legacy form %s\n", len(remapped), form.LegacyTableID)
+	return remapped
+}
+
 // GetMyPortalSubmission gets the authenticated user's submission for a form
 // GET /api/v1/portal/forms/:form_id/my-submission
 // Reads from raw_data JSONB first, falls back to form_responses for legacy data.
@@ -147,6 +188,9 @@ func GetMyPortalSubmission(c *gin.Context) {
 		if err := json.Unmarshal(submission.RawData, &data); err == nil && len(data) > 0 {
 			hasRawData = true
 			fmt.Printf("✅ GetMyPortalSubmission: Read %d fields from raw_data\n", len(data))
+			// Remap V2 field UUIDs to V1 table_field UUIDs for legacy forms
+			// so keys match the field IDs returned by GetFormBySlug
+			data = remapToLegacyKeys(form, data)
 		}
 	}
 

@@ -92,7 +92,7 @@ export function SearchPanel({ workspaceId, workspaceSlug, tabManager }: SearchPa
   }, [isPanelOpen, query])
 
   // Navigate using tab manager
-  const navigateTo = useCallback((url: string, title: string, type: 'table' | 'form' | 'custom' = 'custom') => {
+  const navigateTo = useCallback((url: string, title: string, type: 'form' | 'custom' = 'custom') => {
     if (tabManager && workspaceId) {
       tabManager.addTab({
         id: `${type}-${workspaceId}-${Date.now()}`,
@@ -123,22 +123,22 @@ export function SearchPanel({ workspaceId, workspaceSlug, tabManager }: SearchPa
     
     let url = ''
     let title = result.title
-    let type: 'table' | 'form' | 'custom' = 'custom'
+    let type: 'form' | 'custom' = 'custom'
     
     switch (result.entityType) {
       case 'table':
-        url = `/workspace/${workspaceSlug}/table/${result.entityId}`
-        type = 'table'
+        // Redirect table searches to workspace overview
+        url = `/workspace/${workspaceSlug}`
+        type = 'custom'
         break
       case 'form':
         url = `/workspace/${workspaceSlug}/forms/${result.entityId}`
         type = 'form'
         break
       case 'row':
-        if (result.tableId) {
-          url = `/workspace/${workspaceSlug}/table/${result.tableId}?row=${result.entityId}`
-          type = 'table'
-        }
+        // Redirect row searches to workspace overview
+        url = `/workspace/${workspaceSlug}`
+        type = 'custom'
         break
       case 'submission':
         url = `/workspace/${workspaceSlug}/forms/${result.tableId}/submissions/${result.entityId}`

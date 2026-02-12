@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -9,7 +9,6 @@ import { UserMenu } from './UserMenu'
 import { Input } from '@/ui-components/input'
 import { Textarea } from '@/ui-components/textarea'
 import { Label } from '@/ui-components/label'
-import { DynamicApplicationForm } from './DynamicApplicationForm'
 import { ApplicantDashboard } from './ApplicantDashboard'
 import { AuthPageRenderer } from '@/components/Portal/AuthPageRenderer'
 import { Form } from '@/types/forms'
@@ -28,7 +27,9 @@ import { Loader2, Send, Clock } from 'lucide-react'
 import { ScrollArea } from '@/ui-components/scroll-area'
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui-components/card'
 import { Progress } from '@/ui-components/progress'
-import { usePortalFormRealtime } from '@/hooks/usePortalFormRealtime'
+
+import { DynamicApplicationForm } from './DynamicApplicationForm'
+
 
 /**
  * Loads portal documents and merges them with form data
@@ -40,7 +41,6 @@ async function loadAndMergeDocuments(
   existingData: Record<string, any>
 ): Promise<Record<string, any>> {
   try {
-// ...existing code...
     const docsRes = await fetch(`${baseUrl}/portal/documents?row_id=${rowId}`)
     if (!docsRes.ok) return existingData
     
@@ -194,6 +194,8 @@ const getApiUrl = () => {
 
 export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+    // Saving state for UI
+    const [isSaving, setIsSaving] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [signupData, setSignupData] = useState<Record<string, any>>({})
@@ -268,95 +270,12 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     }
   }, [form, activeLanguage, defaultLanguage])
 
-  // Memoize the form initial data
-  const formInitialData = useMemo(() => {
-    console.log('[PublicPortalV2] Computing formInitialData:', {
-      hasInitialData: !!initialData,
-      initialDataKeys: initialData ? Object.keys(initialData) : [],
-      applicationRowId
-    })
-    if (!initialData) return null
-    if (applicationRowId) {
-      return { ...initialData, _submission_id: applicationRowId }
-    }
-    return initialData
-  }, [initialData, applicationRowId])
 
-  // Set up real-time form data synchronization (only when form and submission exist)
-  const realtimeHookEnabled = isAuthenticated && !!form?.id && !!applicationRowId && !!email
-  const { saveData: realtimeSaveData, isSaving: isRealtimeSaving } = usePortalFormRealtime({
-    formId: form?.id || '',
-    submissionId: applicationRowId,
-    email: email || '',
-    enabled: realtimeHookEnabled,
-    onDataUpdate: (updatedData) => {
-      // When data is updated via realtime, merge it with current form data
-      setCurrentFormData((prev) => ({ ...prev, ...updatedData }))
-      setInitialData((prev: any) => ({ ...prev, ...updatedData }))
-    },
-    onSave: async (data) => {
-      // Custom save handler that uses the existing API
-      if (!form?.id) {
-        throw new Error('Form ID not available')
-      }
-      const cleanedFormData = stripBlobUrls(data)
-      const baseUrl = getApiUrl()
-      
-      console.log('[PublicPortalV2] Saving form data:', { 
-        formId: form.id, 
-        email, 
-        dataKeys: Object.keys(cleanedFormData).length 
-      })
-      
-      const response = await fetch(`${baseUrl}/forms/${form.id}/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          data: cleanedFormData, 
-          email,
-          save_draft: true
-        })
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData.error || errorData.message || `Save failed (HTTP ${response.status})`
-        console.error('[PublicPortalV2] Save failed:', errorMessage)
-        throw new Error(errorMessage)
-      }
-      
-      const savedRow = await response.json()
-      console.log('[PublicPortalV2] Save successful:', { rowId: savedRow.id })
-      
-      if (savedRow.id && !applicationRowId) {
-        setApplicationRowId(savedRow.id)
-      }
-      if (applicationRowId || savedRow.id) {
-        setInitialData((prev: any) => ({ 
-          ...prev, 
-          ...cleanedFormData, 
-          _submission_id: applicationRowId || savedRow.id 
-        }))
-      } else {
-        setInitialData((prev: any) => ({ ...prev, ...cleanedFormData }))
-      }
-    },
-  })
-
-
-  // Handle form data changes - now uses real-time sync
+  // Handle form data changes — state + localStorage only.
+  // Actual persistence happens through Go backend via handleFormSubmit.
   const handleFormDataChange = useCallback((data: Record<string, any>) => {
     setCurrentFormData(data)
-    
-    // Save via real-time sync (debounced automatically)
-    if (applicationRowId && form?.id && email) {
-      realtimeSaveData(data).catch((err) => {
-        console.error('[PublicPortalV2] Realtime save failed in handleFormDataChange:', err)
-        // Error is logged but don't block form interaction
-      })
-    }
-    
-    // Also save to localStorage as backup
+    // Save to localStorage as backup
     if (form?.id && email) {
       try {
         const storageKey = `portal-form-data-${form.id}-${email}`
@@ -365,7 +284,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         console.warn('Failed to save form data to localStorage:', err)
       }
     }
-  }, [form?.id, email, applicationRowId, realtimeSaveData])
+  }, [form, email])
 
   // Load form configuration and restore session
   useEffect(() => {
@@ -589,10 +508,12 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
                         setSubmissionData(existingData)
                         setHasExistingSubmission(true)
                         setCurrentFormData(existingData)
-                      }
-                      
-                      if (rowId) {
                         setApplicationRowId(rowId)
+                        if (submission.metadata?.status) {
+                          setApplicationStatus(submission.metadata.status)
+                        }
+                        setIsAuthenticated(true)
+                        setCurrentView('dashboard')
                       }
                     }
                   }
@@ -854,7 +775,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
           email: betterAuthUser.email
         })
 
-// Try to load existing submission using portal API
+        // Try to load existing submission using portal API
         const baseUrl = getApiUrl()
         try {
           // Get session token after signup
@@ -1123,21 +1044,15 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       return
     }
 
-    // If we have a submission ID, use real-time save
+    // If we have a submission ID, save using handleFormSubmit
     if (applicationRowId && form?.id && email) {
       try {
-        console.log('[PublicPortalV2] Saving before navigation via real-time')
-        await realtimeSaveData(currentFormData)
-        console.log('[PublicPortalV2] Real-time save completed before navigation')
+        console.log('[PublicPortalV2] Saving before navigation')
+        await handleFormSubmit(currentFormData, { saveAndExit: true })
+        console.log('[PublicPortalV2] Save completed before navigation')
       } catch (error) {
-        console.warn('[PublicPortalV2] Real-time save failed, trying form submit:', error)
-        // Fallback to form submit if real-time fails
-        try {
-          await handleFormSubmit(currentFormData, { saveAndExit: true })
-        } catch (submitError) {
-          console.error('[PublicPortalV2] Form submit also failed:', submitError)
-          // Don't throw - allow navigation even if save fails
-        }
+        console.error('[PublicPortalV2] Save failed before navigation:', error)
+        // Don't throw - allow navigation even if save fails
       }
     } else if (form?.id && email && Object.keys(currentFormData).length > 0) {
       // No submission ID yet - create one via form submit
@@ -1307,6 +1222,37 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     return config
   }, [translatedForm])
 
+  // Memoize the form initial data
+  const formInitialData = useMemo(() => {
+    console.log('[PublicPortalV2] Computing formInitialData:', {
+      hasInitialData: !!initialData,
+      initialDataKeys: initialData ? Object.keys(initialData) : [],
+      applicationRowId
+    })
+    if (!initialData) return null
+    // Map initialData to both field.id and field.config.sourceKey for each field
+    let mappedData = { ...initialData }
+    if (typeof portalConfig !== 'undefined' && Array.isArray(portalConfig.sections)) {
+      portalConfig.sections.forEach(section => {
+        if (Array.isArray(section.fields)) {
+          section.fields.forEach(field => {
+            const altKey = field.config?.sourceKey
+            if (altKey && mappedData[field.id] !== undefined) {
+              mappedData[altKey] = mappedData[field.id]
+            }
+            if (altKey && mappedData[altKey] !== undefined) {
+              mappedData[field.id] = mappedData[altKey]
+            }
+          })
+        }
+      })
+    }
+    if (applicationRowId) {
+      mappedData._submission_id = applicationRowId
+    }
+    return mappedData
+  }, [initialData, applicationRowId, portalConfig])
+
   // Show loading state
   if (isFormLoading) {
     return (
@@ -1462,7 +1408,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
             navSidebarOpen={navSidebarOpen}
             onSaveAndExit={currentView === 'application' ? handleSaveAndDashboard : undefined}
             progress={currentView === 'application' ? applicationProgress : undefined}
-            isSaving={isRealtimeSaving}
+            isSaving={isSaving}
             isSettingsOpen={isSettingsOpen}
             onSettingsOpenChange={setIsSettingsOpen}
           />
@@ -1487,31 +1433,25 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
               />
             )}
 
-            {currentView === 'application' && (
+            {currentView === 'application' && initialData && (
               <ApplicationView
                 portalConfig={portalConfig}
-                form={translatedForm}
-                initialData={formInitialData}
+                form={form}
+                initialData={initialData}
                 currentFormData={currentFormData}
                 onFormDataChange={handleFormDataChange}
                 onSubmit={handleFormSubmit}
                 onSaveAndDashboard={handleSaveAndDashboard}
                 email={email}
                 activeSectionId={activeSectionId}
-                onSectionChange={(sectionId: string) => {
-                  // Change section immediately (don't block navigation)
-                  setActiveSectionId(sectionId)
-                  
-                  // Data is already saved via real-time sync in handleFormDataChange
-                  // No need for explicit save on section change
-                }}
-                applicationRowId={applicationRowId}
+                onSectionChange={setActiveSectionId}
                 sidebarOpen={sidebarOpen}
                 onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
                 supportedLanguages={supportedLanguages}
                 activeLanguage={activeLanguage}
                 onLanguageChange={setActiveLanguage}
                 onProgressChange={setApplicationProgress}
+                applicationRowId={applicationRowId}
               />
             )}
           </div>

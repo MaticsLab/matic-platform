@@ -10,22 +10,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui-components/tabs"
 import { SignInTab } from "./_components/sign-in-tab"
 import { EmailVerification } from "./_components/email-verification"
 import { ForgotPassword } from "./_components/forgot-password"
-import { useEffect, useState } from "react"
-import { authClient } from "@/lib/auth/auth-client"
-import { useRouter } from "next/navigation"
+import { useState } from "react"
 
 type Tab = "signin" | "signup" | "email-verification" | "forgot-password"
 
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState("")
   const [selectedTab, setSelectedTab] = useState<Tab>("signin")
 
-  useEffect(() => {
-    authClient.getSession().then(session => {
-      if (session.data != null) router.push("/")
-    })
-  }, [router])
+  // Don't check session on mount - this is the login page
+  // After successful login, sign-in-tab.tsx handles the redirect to /login
+  // which then redirects to the appropriate workspace/portal
 
   function openEmailVerificationTab(email: string) {
     setEmail(email)

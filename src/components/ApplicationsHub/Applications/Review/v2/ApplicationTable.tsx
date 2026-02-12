@@ -155,24 +155,6 @@ export function SubmissionTable({
     .filter(f => !isLayoutField(f))
     .filter(f => !hiddenFields.has(f.id));
   
-  // Debug: Log field keys and raw data keys for first submission
-  if (submissions.length > 0 && displayFields.length > 0) {
-    const firstSub = submissions[0];
-    console.log('🔍 Field structure:', displayFields.map(f => ({ id: f.id, field_key: f.field_key, label: f.label })));
-    console.log('🔍 Raw data keys:', Object.keys(firstSub.raw_data || {}));
-    console.log('🔍 First submission raw_data:', firstSub.raw_data);
-    console.log('🔍 Personal object:', firstSub.raw_data?.personal);
-    console.log('🔍 First submission full object:', firstSub);
-    
-    // Test lookup by field ID (actual data structure)
-    displayFields.slice(0, 5).forEach(field => {
-      const valueById = firstSub.raw_data?.[field.id];
-      const valueByKey = firstSub.raw_data?.[field.field_key];
-      const valueInPersonal = firstSub.raw_data?.personal?.[field.id];
-      console.log(`🔍 Field "${field.label}": root[id]=${valueById}, root[key]=${valueByKey}, personal[id]=${valueInPersonal}`);
-    });
-  }
-  
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -268,30 +250,39 @@ export function SubmissionTable({
                     // Try multiple key variations to find the value
                     // Primary: Try field.id (most common in actual data)
                     let value = submission.raw_data?.[field.id];
-                    
+
                     // Fallback: Try field_key if it exists
                     if ((value === null || value === undefined) && field.field_key) {
                       value = submission.raw_data?.[field.field_key];
                     }
-                    
+
+                    // Fallback: Try field.name (from legacy structure)
+                    if (value === null || value === undefined) {
+                      const fieldName = (field as any).name;
+                      if (fieldName) {
+                        value = submission.raw_data?.[fieldName];
+                      }
+                    }
+
                     // Fallback: Try nested structures (e.g., personal object)
                     if (value === null || value === undefined) {
                       // Check common nested structures
                       const personal = submission.raw_data?.personal;
                       if (personal && typeof personal === 'object') {
-                        value = personal[field.id] || personal[field.field_key];
+                        const fieldName = (field as any).name;
+                        value = personal[field.id] || personal[field.field_key] || (fieldName && personal[fieldName]);
                       }
                     }
-                    
+
                     // Fallback: Try label variations
                     if (value === null || value === undefined) {
                       const labelKey = field.label?.toLowerCase().replace(/\s+/g, '_');
                       const labelKeyNoSpace = field.label?.toLowerCase().replace(/\s+/g, '');
-                      
-                      value = submission.raw_data?.[labelKey] 
+
+                      value = submission.raw_data?.[labelKey]
                         || submission.raw_data?.[labelKeyNoSpace]
                         || submission.raw_data?.[field.label];
-                      
+
                       // Also check nested personal object with label variations
                       if ((value === null || value === undefined) && submission.raw_data?.personal) {
                         const personal = submission.raw_data.personal;

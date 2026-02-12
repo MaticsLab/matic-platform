@@ -10,7 +10,7 @@ import { Label } from '@/ui-components/label';
 import { cn } from '@/lib/utils';
 import type { FieldRendererProps } from '../types';
 import { safeFieldString } from '../types';
-import { AddressField, AddressValue } from '@/components/Tables/AddressField';
+import { AddressField, AddressValue } from '@/components/Fields/components/AddressField';
 import { MapPin } from 'lucide-react';
 
 const ADDRESS_SUBTYPES = [

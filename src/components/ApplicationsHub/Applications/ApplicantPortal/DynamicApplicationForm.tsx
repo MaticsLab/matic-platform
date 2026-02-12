@@ -18,6 +18,7 @@ import { generateHTML } from '@tiptap/html'
 import StarterKit from '@tiptap/starter-kit'
 import { useOptimisticAutosave } from '@/hooks/useOptimisticAutosave'
 import { submissionsClient } from '@/lib/api/submissions-client'
+import { submissionsV2Client } from '@/lib/api/forms-v2-client'
 
 /**
  * Recursively strips blob URLs from form data before saving.
@@ -96,6 +97,8 @@ export function DynamicApplicationForm({
       fieldsCount: s.fields?.length || 0
     }))
   })
+    // Debug: Log initialData before rendering
+    console.log('[DynamicApplicationForm] initialData:', initialData);
   
   const defaultLanguage = config.settings.language?.default || 'en'
   const supportedLanguages = Array.from(new Set([defaultLanguage, ...((Array.isArray(config.settings.language?.supported) ? config.settings.language?.supported : []) as string[])])).filter(lang => lang && lang.trim() !== '')
@@ -237,6 +240,21 @@ export function DynamicApplicationForm({
 
   const [activeSectionId, setActiveSectionId] = useState<string>(initialSectionId || (Array.isArray(translatedConfig.sections) && translatedConfig.sections[0]?.id) || '')
   const [legacyFormData, setLegacyFormData] = useState<Record<string, any>>(initialData || {})
+
+  // Sync initialData prop changes into local state (async data arrives after mount)
+  useEffect(() => {
+    if (initialData && Object.keys(initialData).length > 0) {
+      setLegacyFormData(prev => {
+        // Only update if we have new data and current state is empty or different
+        if (Object.keys(prev).length === 0) {
+          return initialData
+        }
+        // Merge: keep user edits, fill in missing fields from initialData
+        return { ...initialData, ...prev }
+      })
+    }
+  }, [initialData])
+
   const [isSaving, setIsSaving] = useState(false)
   const [isAutosaving, setIsAutosaving] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
@@ -300,24 +318,40 @@ export function DynamicApplicationForm({
 
   // Load initial data when provided - only on first mount
   useEffect(() => {
-    console.log('[DynamicApplicationForm] Initial data effect triggered:', {
-      hasInitialData: !!initialData,
-      initialDataKeys: initialData ? Object.keys(initialData) : [],
-      alreadyLoaded: initialDataLoadedRef.current,
-      sampleData: initialData ? Object.keys(initialData).slice(0, 3).reduce((acc, key) => {
-        acc[key] = initialData[key]
-        return acc
-      }, {} as any) : null
-    })
-    
-    if (initialData && Object.keys(initialData).length > 0 && !initialDataLoadedRef.current) {
-      console.log('[DynamicApplicationForm] Loading initial data into form:', Object.keys(initialData))
-      const initialDataString = JSON.stringify(initialData)
-      setFormData(initialData)
-      setLastSavedData(initialDataString)
-      initialDataLoadedRef.current = true
+    async function loadInitialData() {
+      if (!submissionId || initialDataLoadedRef.current) return
+      try {
+        const submission = await submissionsV2Client.get(submissionId)
+        // Map responses to both field.id and field_key
+        const formDataObj: Record<string, any> = {}
+        if (submission.responses) {
+          submission.responses.forEach(response => {
+            if (response.field) {
+              const value = (() => {
+                switch (response.value_type) {
+                  case 'text': return response.value_text;
+                  case 'number': return response.value_number;
+                  case 'boolean': return response.value_boolean;
+                  case 'date': return response.value_date;
+                  case 'datetime': return response.value_datetime;
+                  case 'json': return response.value_json;
+                  default: return response.value_text;
+                }
+              })();
+              formDataObj[response.field.id] = value;
+              formDataObj[response.field.field_key] = value;
+            }
+          });
+        }
+        setFormData(formDataObj)
+        setLastSavedData(JSON.stringify(formDataObj))
+        initialDataLoadedRef.current = true
+      } catch (error) {
+        console.warn('Failed to load form_responses:', error)
+      }
     }
-  }, [initialData])
+    loadInitialData()
+  }, [submissionId])
 
   // Notify parent when form data changes - but skip on initial mount to prevent loops
   const isFirstRender = useRef(true)
@@ -331,43 +365,28 @@ export function DynamicApplicationForm({
     }
   }, [formData, onFormDataChange])
   
-  // Autosave function - saves as draft without changing status
+  // Autosave function - saves as draft to form_responses (V2)
   const autosave = useCallback(async () => {
-    if (!formId || !email || isAutosavingRef.current) return
-    
+    if (!formId || !email || isAutosavingRef.current || !submissionId) return
     const currentData = formDataRef.current
-    // Strip blob URLs before saving - they are temporary and won't work when loaded
     const cleanedData = stripBlobUrls(currentData)
     const dataString = JSON.stringify(cleanedData)
-    
-    // Skip if no changes since last save (use ref for comparison to avoid stale closure)
     if (dataString === lastSavedDataRef.current || Object.keys(cleanedData).length === 0) return
-    
     isAutosavingRef.current = true
     setIsAutosaving(true)
-    
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'}/forms/${formId}/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: cleanedData, email, save_draft: true })
-      })
-      if (response.ok) {
-        const savedRow = await response.json()
-        // If this is the first save (new row created), store the submission ID
-        // so that features like letters of recommendation can work
-        if (savedRow.id && !currentData._submission_id) {
-          setFormData(prev => ({ ...prev, _submission_id: savedRow.id }))
-        }
-        setLastSavedData(dataString)
-      }
+      // Map to responses payload: { responses: { [field_key]: value } }
+      const responsesPayload = { responses: cleanedData }
+      const { submissionsV2Client } = require('@/lib/api/forms-v2-client')
+      await submissionsV2Client.saveResponses(submissionId, responsesPayload)
+      setLastSavedData(dataString)
     } catch (error) {
       console.warn('Autosave failed:', error)
     } finally {
       isAutosavingRef.current = false
       setIsAutosaving(false)
     }
-  }, [formId, email])
+  }, [formId, email, submissionId])
   
   // Debounced autosave - triggers 3 seconds after last change (legacy mode only)
   useEffect(() => {
@@ -847,6 +866,13 @@ export function DynamicApplicationForm({
                     )}
                     {/* Render form fields */}
                     <div className="grid grid-cols-12 gap-6">
+                      {/* Debug: Print field IDs for current section and initialData keys */}
+                      {(() => {
+                        const fieldIds = (activeSection.fields || []).map((field: Field) => field.id);
+                        console.log('[DynamicApplicationForm] Active section field IDs:', fieldIds);
+                        console.log('[DynamicApplicationForm] initialData keys:', Object.keys(formData));
+                        return null;
+                      })()}
                       {(activeSection.fields || []).map((field: Field) => (
                         <div key={field.id} className={cn(
                           field.width === 'half' ? 'col-span-12 sm:col-span-6' : 
@@ -856,7 +882,7 @@ export function DynamicApplicationForm({
                         )}>
                           <PortalFieldAdapter
                             field={field}
-                            value={formData[field.id]}
+                            value={formData[field.id] ?? (field.config?.sourceKey ? formData[field.config.sourceKey] : undefined)}
                             onChange={(val) => handleFieldChange(field.id, val)}
                             themeColor={config.settings.themeColor}
                             formId={formId}

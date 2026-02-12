@@ -30,13 +30,13 @@ function WorkspacePageContent() {
       setLoading(true)
       setError(null)
       const data = await workspacesSupabase.getWorkspaceBySlug(slug)
-      
+
       if (!data) {
         throw new Error('Workspace not found')
       }
-      
+
       setWorkspace(data)
-      
+
       // Save this as the last visited workspace
       saveLastWorkspace(slug)
     } catch (err: any) {
@@ -69,7 +69,7 @@ function WorkspacePageContent() {
 
   // Ensure workspace.id is a string
   const workspaceId = typeof workspace.id === 'string' ? workspace.id : String(workspace.id)
-  
+
   // Validate workspaceId before rendering
   if (!workspaceId || workspaceId === 'undefined' || workspaceId === 'null') {
     return (
@@ -84,46 +84,30 @@ function WorkspacePageContent() {
       </div>
     )
   }
-  
-  try {
-    return (
-      <BreadcrumbProvider workspaceSlug={slug}>
-        <NavigationLayout workspaceSlug={slug}>
-          <BreadcrumbBar />
-          <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-900">Welcome to {workspace.name}</h1>
-            <p className="text-gray-600 mt-2">
-              Select a section from the sidebar to get started
-            </p>
-          </div>
-        </NavigationLayout>
-      </BreadcrumbProvider>
-    )
-  } catch (renderError: any) {
-    console.error('Error rendering workspace page:', renderError)
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2 text-gray-900">Render Error</h1>
-          <p className="text-gray-600 mb-4">{renderError?.message || 'Failed to render workspace'}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="text-blue-600 hover:underline"
-          >
-            Reload Page
-          </button>
+
+  return (
+    <BreadcrumbProvider workspaceSlug={slug}>
+      <NavigationLayout workspaceSlug={slug}>
+        <BreadcrumbBar />
+        {/* This is where your page content goes */}
+        {/* Each child route will render here and set its own breadcrumbs */}
+        <div className="p-6">
+          <h1 className="text-2xl font-bold">Welcome to {workspace.name}</h1>
+          <p className="text-gray-600 mt-2">
+            Select a section from the sidebar to get started
+          </p>
         </div>
-      </div>
-    )
-  }
+      </NavigationLayout>
+    </BreadcrumbProvider>
+  )
 }
 
 export default function WorkspacePage() {
   return (
-    <Suspense fallback={<LoadingOverlay />}>
-      <ProtectedRoute>
+    <ProtectedRoute requireOrganization>
+      <Suspense fallback={<LoadingOverlay message="Loading..." />}>
         <WorkspacePageContent />
-      </ProtectedRoute>
-    </Suspense>
+      </Suspense>
+    </ProtectedRoute>
   )
 }

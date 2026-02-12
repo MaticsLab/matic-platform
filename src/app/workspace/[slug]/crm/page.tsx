@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
+import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
+import { BreadcrumbBar } from '@/components/BreadcrumbBar'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { crmClient } from '@/lib/api/crm-client'
 import type { Workspace } from '@/types/workspaces'
@@ -126,8 +128,10 @@ function CRMPageContent() {
   ).length
 
   return (
-    <NavigationLayout workspaceSlug={workspace.slug}>
-      <div className="p-6 space-y-6">
+    <BreadcrumbProvider workspaceSlug={slug}>
+      <NavigationLayout workspaceSlug={workspace.slug}>
+        <BreadcrumbBar />
+        <div className="p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -298,15 +302,18 @@ function CRMPageContent() {
             </CardContent>
           </Card>
         )}
-      </div>
-    </NavigationLayout>
+        </div>
+      </NavigationLayout>
+    </BreadcrumbProvider>
   )
 }
 
 export default function CRMPage() {
   return (
-    <ProtectedRoute>
-      <CRMPageContent />
-    </ProtectedRoute>
+    <Suspense fallback={<LoadingOverlay />}>
+      <ProtectedRoute>
+        <CRMPageContent />
+      </ProtectedRoute>
+    </Suspense>
   )
 }

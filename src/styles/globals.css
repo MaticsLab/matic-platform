@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@plugin "tailwindcss-animate";
 
 /* Import Novel editor prosemirror styles */
 @import './novel-prosemirror.css';

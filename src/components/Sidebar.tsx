@@ -55,13 +55,6 @@ export function Sidebar({
       type: 'custom'
     },
     {
-      id: 'data',
-      label: 'Database',
-      icon: BarChart3,
-      url: `/workspace/${workspaceId}/tables`,
-      type: 'table'
-    },
-    {
       id: 'crm',
       label: 'CRM',
       icon: ContactRound,

@@ -60,7 +60,7 @@ export function SignInTab({
       if (data.password && data.password.length > 0) {
         // Password login
         await authClient.signIn.email(
-          { email: data.email, password: data.password, callbackURL: "/" },
+          { email: data.email, password: data.password, callbackURL: "/login" },
           {
             onError: error => {
               if (error.error.code === "EMAIL_NOT_VERIFIED") {
@@ -68,15 +68,17 @@ export function SignInTab({
               }
               toast.error(error.error.message || "Failed to sign in")
             },
-            onSuccess: () => {
-              router.push("/")
+            onSuccess: (data) => {
+              // Redirect to /login which handles proper routing based on user type
+              console.log('[Sign-in] Login successful, redirecting to /login', data)
+              router.push("/login")
             },
           }
         )
       } else {
         // Magic link login
         await authClient.signIn.magicLink(
-          { email: data.email, callbackURL: "/" },
+          { email: data.email, callbackURL: "/login" },
           {
             onError: error => {
               toast.error(error.error.message || "Failed to send magic link")

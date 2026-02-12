@@ -22,7 +22,6 @@ import { supabase } from '@/lib/supabase'
 export interface DirectSubmission {
   id: string
   form_id: string
-  data: Record<string, any>
   metadata: Record<string, any>
   created_at: string
   submitted_at: string
@@ -35,24 +34,19 @@ export interface DirectSubmission {
  */
 export async function fetchSubmissionsDirect(formId: string): Promise<DirectSubmission[]> {
   console.time('⚡ Direct submissions fetch')
-  
   const { data, error } = await supabase
     .from('form_submissions')
-    .select('id, form_id, data, metadata, created_at, submitted_at, updated_at')
+    .select('id, form_id, metadata, created_at, submitted_at, updated_at')
     .eq('form_id', formId)
     .order('submitted_at', { ascending: false })
-  
   console.timeEnd('⚡ Direct submissions fetch')
-  
   if (error) {
     console.error('Direct submissions fetch error:', error)
     throw error
   }
-  
   return (data || []).map(row => ({
     id: row.id,
     form_id: row.form_id,
-    data: typeof row.data === 'string' ? JSON.parse(row.data) : (row.data || {}),
     metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata || {}),
     created_at: row.created_at,
     submitted_at: row.submitted_at || row.created_at,
@@ -66,26 +60,37 @@ export async function fetchSubmissionsDirect(formId: string): Promise<DirectSubm
 export async function fetchSubmissionByIdDirect(submissionId: string): Promise<DirectSubmission | null> {
   const { data, error } = await supabase
     .from('form_submissions')
-    .select('id, form_id, data, metadata, created_at, submitted_at, updated_at')
+    .select('id, form_id, metadata, created_at, submitted_at, updated_at')
     .eq('id', submissionId)
     .single()
-  
   if (error) {
     if (error.code === 'PGRST116') return null // Not found
     throw error
   }
-  
   if (!data) return null
-  
   return {
     id: data.id,
     form_id: data.form_id,
-    data: typeof data.data === 'string' ? JSON.parse(data.data) : (data.data || {}),
     metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : (data.metadata || {}),
     created_at: data.created_at,
     submitted_at: data.submitted_at || data.created_at,
     updated_at: data.updated_at,
   }
+}
+
+// Fetch all field responses for a submission
+export async function fetchFormResponsesBySubmissionId(submissionId: string): Promise<Record<string, any>> {
+  const { data, error } = await supabase
+    .from('form_responses')
+    .select('field_id, value_text, value_number, value_date, value_json')
+    .eq('submission_id', submissionId)
+  if (error) throw error
+  const responses: Record<string, any> = {}
+  for (const row of data || []) {
+    // Prefer value_text, then number, date, json
+    responses[row.field_id] = row.value_text ?? row.value_number ?? row.value_date ?? row.value_json ?? null
+  }
+  return responses
 }
 
 /**

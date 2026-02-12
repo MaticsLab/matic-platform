@@ -67,7 +67,7 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Navigate using tab manager
-  const navigateTo = useCallback((url: string, title: string, type: 'table' | 'form' | 'custom' = 'custom') => {
+  const navigateTo = useCallback((url: string, title: string, type: 'form' | 'custom' = 'custom') => {
     if (tabManager && workspaceId) {
       tabManager.addTab({
         id: `${type}-${workspaceId}-${Date.now()}`,
@@ -110,15 +110,6 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
 
     return [
       {
-        id: 'create-table',
-        title: 'Create new table',
-        subtitle: 'Add a data table to your workspace',
-        icon: Plus,
-        type: 'action',
-        category: 'Quick Actions',
-        action: () => navigateTo(`/workspace/${workspaceSlug}/tables?action=create`, 'New Table', 'custom')
-      },
-      {
         id: 'create-form',
         title: 'Create new form',
         subtitle: 'Build a form to collect data',
@@ -126,15 +117,6 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
         type: 'action',
         category: 'Quick Actions',
         action: () => navigateTo(`/workspace/${workspaceSlug}/forms?action=create`, 'New Form', 'custom')
-      },
-      {
-        id: 'nav-tables',
-        title: 'Database',
-        subtitle: 'View all tables',
-        icon: Table2,
-        type: 'navigation',
-        category: 'Navigate',
-        action: () => navigateTo(`/workspace/${workspaceSlug}/tables`, 'Database', 'custom')
       },
       {
         id: 'nav-activities',
@@ -198,19 +180,6 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
   const detectAIAction = useCallback((q: string): SearchResult | null => {
     const lowerQuery = q.toLowerCase()
     
-    if (/^(create|add|new|make)\s+(a\s+)?(table|data\s*table)/i.test(lowerQuery)) {
-      return {
-        id: 'ai-create-table',
-        title: 'Create a new table',
-        subtitle: 'I\'ll help you set up a table',
-        icon: Zap,
-        type: 'ai-action',
-        category: 'AI Suggestion',
-        isAI: true,
-        action: () => navigateTo(`/workspace/${workspaceSlug}/tables?action=create`, 'New Table', 'custom')
-      }
-    }
-    
     if (/^(create|add|new|make|build)\s+(a\s+)?(form|survey)/i.test(lowerQuery)) {
       return {
         id: 'ai-create-form',
@@ -233,7 +202,7 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
     
     let url = ''
     let title = result.title
-    let type: 'table' | 'form' | 'custom' = 'custom'
+    let type: 'form' | 'custom' = 'custom'
     
     // Route based on hub type first, then entity type
     if (result.hubType === 'applications') {
@@ -268,18 +237,18 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
       // Default routing based on entity type
       switch (result.entityType) {
         case 'table':
-          url = `/workspace/${workspaceSlug}/table/${result.entityId}`
-          type = 'table'
+          // Redirect table searches to workspace overview
+          url = `/workspace/${workspaceSlug}`
+          type = 'custom'
           break
         case 'form':
           url = `/workspace/${workspaceSlug}/forms/${result.entityId}`
           type = 'form'
           break
         case 'row':
-          if (result.tableId) {
-            url = `/workspace/${workspaceSlug}/table/${result.tableId}?row=${result.entityId}`
-            type = 'table'
-          }
+          // Redirect row searches to workspace overview
+          url = `/workspace/${workspaceSlug}`
+          type = 'custom'
           break
         case 'submission':
           url = `/workspace/${workspaceSlug}/forms/${result.tableId}/submissions/${result.entityId}`

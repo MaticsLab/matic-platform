@@ -1,10 +1,10 @@
 'use client'
 
 import * as React from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import {
   Building2,
   Code2,
-  Database,
   Globe,
   Home,
   Users,
@@ -45,7 +45,6 @@ import {
   useSidebar,
 } from '@/ui-components/sidebar'
 import { Switch } from '@/ui-components/switch'
-import { useTabContext } from './WorkspaceTabProvider'
 import ModeToggle from '@/components/mode-toggle'
 import { OrganizationMenu } from './OrganizationMenu'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
@@ -83,40 +82,18 @@ export function AppSidebar({
   setDevMode,
   ...props
 }: AppSidebarProps) {
-  const { tabManager, activeTab } = useTabContext()
+  const router = useRouter()
+  const pathname = usePathname()
   const { state } = useSidebar()
 
   const navItems = [
-    { title: 'Home', icon: Home, slug: 'applications' },
-    { title: 'Database', icon: Database, slug: 'tables' },
-    { title: 'CRM', icon: Users, slug: 'crm' },
+    { title: 'Forms', icon: Home, slug: 'applications', path: '/applications' },
+    { title: 'CRM', icon: Users, slug: 'crm', path: '/crm' },
   ]
 
-  const handleTabClick = (slug: string) => {
-    if (!tabManager) return
-    
+  const handleNavClick = (path: string) => {
     const workspace = currentWorkspace || { slug: workspaceId }
-    
-    // Special handling for Home/Applications hub
-    if (slug === 'applications') {
-      tabManager.openPortalsHub()
-      return
-    }
-    
-    // For other tabs (tables, crm, etc.)
-    const tabTitles: Record<string, string> = {
-      tables: 'Database',
-      crm: 'CRM'
-    }
-    
-    tabManager.addTab({
-      id: `${workspace.slug}-${slug}`,
-      title: tabTitles[slug] || slug.charAt(0).toUpperCase() + slug.slice(1),
-      type: 'custom',
-      url: `/workspace/${workspace.slug}`,
-      workspaceId: workspace.slug,
-      metadata: { view: slug }
-    })
+    router.push(`/workspace/${workspace.slug}${path}`)
   }
 
   const getUserInitials = (user: any) => {
@@ -169,11 +146,11 @@ export function AppSidebar({
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
-                const isActive = activeTab?.type === item.slug
+                const isActive = pathname?.includes(item.path) || false
                 return (
                   <SidebarMenuItem key={item.slug}>
                     <SidebarMenuButton
-                      onClick={() => handleTabClick(item.slug)}
+                      onClick={() => handleNavClick(item.path)}
                       isActive={isActive}
                       tooltip={item.title}
                     >
@@ -197,7 +174,10 @@ export function AppSidebar({
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    onClick={() => handleTabClick('workspace')}
+                    onClick={() => {
+                      const workspace = currentWorkspace || { slug: workspaceId }
+                      router.push(`/workspace/${workspace.slug}`)
+                    }}
                     tooltip="Workspace Overview"
                   >
                     <Code2 />

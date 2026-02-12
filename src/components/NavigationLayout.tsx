@@ -7,7 +7,6 @@ import { useWorkspaceDiscovery } from '@/hooks/useWorkspaceDiscovery'
 import { useOrganizationDiscovery } from '@/hooks/useOrganizationDiscovery'
 import { useSession, signOut as betterAuthSignOut } from '@/auth/client/main'
 import { AppSidebar } from './AppSidebar'  // Explicit capitalized import
-import { TabNavigation } from './TabNavigation'
 import { WorkspaceSettingsSidebar } from './WorkspaceSettingsSidebar'
 import { ProfileSidebar } from './ProfileSidebar'
 import { InviteToWorkspaceSidebarV2 } from './InviteToWorkspaceSidebarV2'
@@ -130,17 +129,6 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
 
           {/* Main content - proper SidebarInset as direct sibling */}
           <SidebarInset className="flex-1 flex flex-col overflow-hidden min-w-0">
-            {/* Tab Bar */}
-            {currentWorkspace && (
-              <div className="px-4 pt-2 pb-2 border-b bg-background/95 backdrop-blur flex items-center gap-2 shrink-0">
-                <SidebarTrigger />
-                <TabNavigation 
-                  workspaceId={currentWorkspace.id}
-                  setShowInviteSidebar={setShowInviteSidebar}
-                />
-              </div>
-            )}
-            
             {/* Page Content - scrollable area */}
             <div className="flex-1 overflow-hidden">
               <div className="h-full overflow-y-auto">

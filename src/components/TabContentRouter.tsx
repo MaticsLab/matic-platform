@@ -3,8 +3,6 @@
 import { TabData } from '@/lib/tab-manager'
 import { useTabContext } from './WorkspaceTabProvider'
 import { FileText, Calendar, Users, Search, Plus, BarChart3, Folder, Clock, Layout, Inbox, Activity as ActivityIcon, LayoutGrid, GraduationCap, FileInput, Database, Settings, Filter, MoreHorizontal, ArrowRight, Pin, Eye, EyeOff } from 'lucide-react'
-import { TablesListPage } from './Tables/TablesListPage'
-import { TableGridView } from './Tables/TableGridView'
 import { FormsListPage as FormsListComponent } from './Forms/FormsListPage'
 import { ApplicationsHub } from './ApplicationsHub/ApplicationsHub'
 import { ApplicantCRMPage } from './CRM/ApplicantCRMPage'
@@ -40,48 +38,10 @@ export function TabContentRouter({ tab: propTab, workspaceId }: TabContentRouter
       // Always show forms list
       return <FormsListComponent workspaceId={workspaceId} />
       
-    case 'table':
-      // Check if it's the tables list page or a specific table
-      if (tab.url?.includes('/tables') && !tab.url?.includes('/tables/')) {
-        return <TablesListPage workspaceId={workspaceId} />
-      }
-      // Individual table view - extract tableId from URL or metadata
-      const tableId = tab.metadata?.tableId || tab.url?.split('/tables/')[1]
-      if (tableId) {
-        return (
-          <TableGridView 
-            tableId={tableId} 
-            workspaceId={workspaceId} 
-            onTableNameChange={(newName) => {
-              if (tabManager && tab.id) {
-                tabManager.updateTab(tab.id, { title: newName })
-              }
-            }}
-          />
-        )
-      }
-      // Fallback
-      return (
-        <div className="h-full p-6 bg-gray-50">
-          <div className="h-full bg-white rounded-lg border border-gray-200 flex items-center justify-center">
-            <div className="text-center text-gray-500">
-              <BarChart3 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-              <p className="font-medium mb-2">Table Not Found</p>
-              <p className="text-sm">Unable to load table data</p>
-            </div>
-          </div>
-        </div>
-      )
-      
     case 'custom':
       // Handle Applications Hub (either by metadata or URL)
       if (tab.metadata?.view === 'applications' || tab.url?.includes('/applications')) {
         return <ApplicationsHub workspaceId={workspaceId} />
-      }
-
-      // Handle Database/Tables hub
-      if (tab.metadata?.view === 'tables' || (tab.url?.includes('/tables') && !tab.url?.includes('/tables/'))) {
-        return <TablesListPage workspaceId={workspaceId} />
       }
 
       // Handle CRM - Applicant management
@@ -337,16 +297,6 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
           url: `/workspace/${workspaceId}/applications`,
           workspaceId,
           metadata: { hub: 'applications' }
-        })
-        break
-      case 'data':
-        tabManager.addTab({
-          id: `data-${workspaceId}-${Date.now()}`,
-          title: 'Database',
-          type: 'table',
-          url: `/workspace/${workspaceId}/tables`,
-          workspaceId,
-          metadata: { hub: 'data' }
         })
         break
       case 'people':

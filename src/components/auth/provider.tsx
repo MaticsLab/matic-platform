@@ -16,19 +16,25 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const { data, isPending } = useBetterAuthSession();
   const [hasMounted, setHasMounted] = useState(false);
-  
-  // Automatically refresh session before expiration
-  useSessionRefresh();
-  
-  const session = data?.session || null;
-  const user = data?.user || null;
 
-  // Handle mount state
+  // Handle mount state - prevents hydration mismatch and duplicate requests
+  // See: https://github.com/better-auth/better-auth/issues/4609
   useEffect(() => {
     setHasMounted(true);
   }, []);
+
+  // Only call useSession after mount to prevent duplicate requests during hydration
+  // This is a workaround for Better Auth's known issue with SSR/hydration
+  const { data, isPending } = useBetterAuthSession();
+
+  // Automatically refresh session before expiration
+  useSessionRefresh();
+
+  // Return loading state until mounted to prevent hydration issues
+  const session = hasMounted ? (data?.session || null) : null;
+  const user = hasMounted ? (data?.user || null) : null;
+  const finalIsPending = !hasMounted || isPending;
 
   const signOut = async () => {
     await betterAuthSignOut({
@@ -44,7 +50,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const isEmbedded = typeof window !== 'undefined' && window.parent !== window;
 
   return (
-    <AuthContext.Provider value={{ session, user, isPending, signOut, isEmbedded, hasMounted }}>
+    <AuthContext.Provider value={{
+      session,
+      user,
+      isPending: finalIsPending,
+      signOut,
+      isEmbedded,
+      hasMounted
+    }}>
       {children}
     </AuthContext.Provider>
   );
