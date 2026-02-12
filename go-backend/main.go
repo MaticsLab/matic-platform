@@ -1,5 +1,7 @@
 package main
 
+// Portal submission routes updated - force rebuild 2026-02-12
+
 import (
 	"context"
 	"log"
