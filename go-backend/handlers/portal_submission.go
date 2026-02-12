@@ -168,7 +168,7 @@ func GetMyPortalSubmission(c *gin.Context) {
 	var submission models.FormSubmission
 	err := database.DB.Where("form_id = ? AND user_id = ?", form.ID, userID).First(&submission).Error
 	if err != nil {
-		fmt.Printf("ℹ️ GetMyPortalSubmission: No submission found for user %s\n", userID)
+		fmt.Printf("ℹ️ GetMyPortalSubmission: No submission found for user %s and form %s\n", userID, form.ID)
 		c.JSON(http.StatusOK, gin.H{
 			"id":         nil,
 			"data":       map[string]interface{}{},
