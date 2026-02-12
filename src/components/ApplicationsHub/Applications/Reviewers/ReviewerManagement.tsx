@@ -51,9 +51,10 @@ interface Submission {
 interface ReviewerManagementProps {
   formId: string | null
   workspaceId?: string
+  onClose?: () => void
 }
 
-export function ReviewerManagement({ formId, workspaceId }: ReviewerManagementProps) {
+export function ReviewerManagement({ formId, workspaceId, onClose }: ReviewerManagementProps) {
   const [reviewerTypes, setReviewerTypes] = useState<WorkflowReviewerType[]>([])
   const [stages, setStages] = useState<ApplicationStage[]>([])
   const [reviewers, setReviewers] = useState<Reviewer[]>([])

@@ -1082,9 +1082,9 @@ export function ApplicationDetail({
                            field.label?.toLowerCase().includes('attachment');
         
         if (isFileField) {
-          // Try field.id first (UUID key), then fallback to field_key/label
+          // Try field.id first (UUID key), then fallback to field name/label
           const value = application.raw_data?.[field.id] || 
-                       application.raw_data?.[field.field_key] ||
+                       (field.name && application.raw_data?.[field.name]) ||
                        application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
                        application.raw_data?.[field.label];
           const parsedValue = parseValueIfNeeded(value);

@@ -131,7 +131,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
   // Filter forms list
   const filteredForms = forms.filter(form => {
     if (filterStatus === 'all') return true
-    if (filterStatus === 'active') return form.status === 'active'
+    if (filterStatus === 'active') return form.status === 'published'
     if (filterStatus === 'draft') return form.status === 'draft'
     return true
   })
@@ -168,7 +168,7 @@ export function ApplicationsHub({ workspaceId }: ApplicationsHubProps) {
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span className={cn(
                   "px-2 py-1 rounded-full font-medium",
-                  form.status === 'active' ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"
+                  form.status === 'published' ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"
                 )}>
                   {form.status}
                 </span>

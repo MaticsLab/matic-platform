@@ -155,10 +155,11 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
       {/* Settings Modal */}
       {isAppSettingsModalOpen && form && (
         <ApplicationSettingsModal
-          form={form}
-          onClose={() => setIsAppSettingsModalOpen(false)}
-          onUpdate={(updatedForm) => {
-            setForm(updatedForm)
+          open={isAppSettingsModalOpen}
+          onOpenChange={setIsAppSettingsModalOpen}
+          formId={form.id}
+          onSave={() => {
+            // Optionally refresh the form data after save
             setIsAppSettingsModalOpen(false)
           }}
         />

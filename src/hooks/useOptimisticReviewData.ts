@@ -159,7 +159,6 @@ export function useOptimisticReviewData({
       const newSubmission: DirectSubmission = {
         id: app.id,
         form_id: formId || '',
-        data: app.data,
         metadata: app.metadata,
         created_at: app.created_at,
         submitted_at: app.submitted_at,
