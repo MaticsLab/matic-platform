@@ -8,7 +8,7 @@ import {
   CheckCircle2, ArrowRight, AlertCircle, Users, Send,
   Paperclip, Sparkles, AtSign, Tag, Loader2, FileEdit, Settings,
   Play, Archive, XCircle, Clock, Folder, ChevronUp, Download, ExternalLink,
-  Image, File, FileImage, Bell, Upload, Eye, Search, Link, Smile, PenTool, MoreVertical, Maximize2, Square, PanelRight, UserPlus, Clock3, FileSignature
+  Image, File, FileImage, Bell, Upload, Eye, Search, Link, Smile, PenTool, MoreVertical, Maximize2, Square, PanelRight, UserPlus, Clock3, FileSignature, KeyRound, Copy
 } from 'lucide-react';
 import { cn, getApplicantDisplayName } from '@/lib/utils';
 import { NOT_PROVIDED, UNKNOWN, NO_NAME_PROVIDED } from '@/constants/fallbacks';
@@ -21,6 +21,14 @@ import { Button } from '@/ui-components/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui-components/tooltip';
 import { emailClient, SendEmailRequest, EmailAttachment, EmailSignature } from '@/lib/api/email-client';
 import { dashboardClient } from '@/lib/api/dashboard-client';
+import { crmClient } from '@/lib/api/crm-client';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogHeader, 
+  DialogTitle 
+} from '@/ui-components/dialog';
 import {
   Popover,
   PopoverContent,
@@ -477,6 +485,12 @@ export function ApplicationDetail({
   const [activeCommentTab, setActiveCommentTab] = useState<'comment' | 'email'>('comment');
   const [comment, setComment] = useState('');
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
+  
+  // Reset password state
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+  
   const [emailTo, setEmailTo] = useState(application.email || '');
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
@@ -643,6 +657,44 @@ export function ApplicationDetail({
       setShowSignatureDropdown(false);
       toast.success('Signature added');
     }
+  };
+
+  // Handle password reset
+  const handleResetPassword = async () => {
+    if (!workspaceId) {
+      toast.error('Workspace ID not found');
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const result = await crmClient.resetPassword(application.id, workspaceId);
+      if (result.success) {
+        setTemporaryPassword(result.temporary_password);
+        toast.success('Password reset successfully');
+      } else {
+        toast.error(result.message || 'Failed to reset password');
+        setShowResetPasswordModal(false);
+      }
+    } catch (error) {
+      console.error('Failed to reset password:', error);
+      toast.error('Failed to reset password');
+      setShowResetPasswordModal(false);
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
+  const handleCopyPassword = () => {
+    if (temporaryPassword) {
+      navigator.clipboard.writeText(temporaryPassword);
+      toast.success('Password copied to clipboard');
+    }
+  };
+
+  const handleCloseResetModal = () => {
+    setShowResetPasswordModal(false);
+    setTemporaryPassword(null);
   };
 
 
@@ -1427,9 +1479,26 @@ export function ApplicationDetail({
               <div className="p-4">
               {/* Name & Status Header */}
               <div className="flex items-start justify-between gap-3 mb-4">
-                <h1 className="text-lg font-semibold text-gray-900 leading-tight">
-                  {application.name || UNKNOWN}
-                </h1>
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-lg font-semibold text-gray-900 leading-tight">
+                    {application.name || UNKNOWN}
+                  </h1>
+                  {application.email && (
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">{application.email}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setShowResetPasswordModal(true)}
+                        className="h-6 px-2 text-xs hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        <KeyRound className="h-3 w-3 mr-1" />
+                        Reset Password
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {/* Status Badge (read-only) */}
                   <Badge 
@@ -3006,6 +3075,79 @@ export function ApplicationDetail({
           }
         }}
       />
+
+      {/* Reset Password Dialog */}
+      <Dialog open={showResetPasswordModal} onOpenChange={setShowResetPasswordModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              {!temporaryPassword 
+                ? `Reset the password for ${application.name || application.email}`
+                : 'Password has been reset successfully'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {!temporaryPassword ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                This will generate a new temporary password for {application.email}. 
+                The user will need to use this password to log in.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleCloseResetModal}
+                  disabled={isResettingPassword}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleResetPassword}
+                  disabled={isResettingPassword}
+                >
+                  {isResettingPassword ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Resetting...
+                    </>
+                  ) : (
+                    'Reset Password'
+                  )}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted p-4">
+                <p className="text-sm font-medium mb-2">Temporary Password:</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 p-3 bg-background rounded border font-mono text-sm">
+                    {temporaryPassword}
+                  </code>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={handleCopyPassword}
+                    className="shrink-0"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Share this temporary password with {application.email}. 
+                They should change it after their first login.
+              </p>
+              <div className="flex justify-end">
+                <Button onClick={handleCloseResetModal}>
+                  Done
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 
