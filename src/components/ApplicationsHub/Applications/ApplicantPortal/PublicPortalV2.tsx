@@ -779,20 +779,19 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
               }
               
               if (existingData && Object.keys(existingData).length > 0) {
+                // User has existing data - load it into the form
                 setInitialData(existingData)
                 setSubmissionData(existingData)
                 setCurrentFormData(existingData)
                 setHasExistingSubmission(true)
-                
-                // Go to dashboard if we have data
-                console.log('[PublicPortalV2] Setting view to dashboard')
-                setCurrentView('dashboard')
+                console.log('[PublicPortalV2] Loaded existing data with', Object.keys(existingData).length, 'fields')
               } else {
-                // No data yet, show application form
-                console.log('[PublicPortalV2] No submission data, showing application form')
-                setInitialData({}) // Initialize empty data for new applications
-                setCurrentView('application')
+                // No data yet - initialize empty
+                setInitialData({})
               }
+              
+              // Always show application form after login
+              setCurrentView('application')
             } else {
               // No submission yet, show application form
               console.log('[PublicPortalV2] No submission found, showing application form')
