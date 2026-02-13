@@ -76,12 +76,20 @@ export async function goFetch<T>(
     const error = await response.json().catch(() => ({ error: 'Unknown error' }))
     
     // Handle 401 Unauthorized - redirect to login if in browser
+    // IMPORTANT: Do NOT redirect on portal/applicant pages — portal uses its own auth
+    // (Better Auth cookies via portalBetterAuthClient, not staff session cookies)
     if (response.status === 401 && typeof window !== 'undefined') {
-      console.warn('[GoClient] Authentication required, redirecting to login...')
-      // Use window.location to force a full page reload and clear any stale state
       const currentPath = window.location.pathname + window.location.search
-      window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`
-      // Throw error anyway to stop execution
+      const isPortalPage = currentPath.startsWith('/apply/') || currentPath.startsWith('/portal')
+      
+      if (isPortalPage) {
+        console.warn('[GoClient] 401 on portal page — skipping redirect (portal uses separate auth)')
+      } else {
+        console.warn('[GoClient] Authentication required, redirecting to login...')
+        // Use window.location to force a full page reload and clear any stale state
+        window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`
+        // Throw error anyway to stop execution
+      }
     }
     
     throw new GoAPIError(

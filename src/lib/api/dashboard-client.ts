@@ -51,9 +51,16 @@ export const dashboardClient = {
   
   /**
    * Get the dashboard layout configuration for a form
+   * This endpoint is public (no auth required) - uses plain fetch to avoid goFetch redirect behavior
    */
   getLayout: async (formId: string): Promise<DashboardLayout> => {
-    const layout = await goFetch<DashboardLayout>(`/forms/${formId}/dashboard`)
+    const response = await fetch(`${BASE_URL}/forms/${formId}/dashboard`, {
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to fetch dashboard layout: ${response.status}`)
+    }
+    const layout = await response.json() as DashboardLayout
     // Normalize settings to include both snake_case and camelCase
     return {
       ...layout,
