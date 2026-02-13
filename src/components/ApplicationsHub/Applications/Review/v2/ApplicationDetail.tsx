@@ -37,6 +37,9 @@ import {
 import { Checkbox } from '@/ui-components/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui-components/collapsible';
 import { Progress } from '@/ui-components/progress';
+import { RadioGroup, RadioGroupItem } from '@/ui-components/radio-group';
+import { Input } from '@/ui-components/input';
+import { Label } from '@/ui-components/label';
 import { useEmailConnection } from '@/hooks/useEmailConnection';
 import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
 import { filesClient, rowFilesClient } from '@/lib/api/files-client';
@@ -490,6 +493,9 @@ export function ApplicationDetail({
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+  const [passwordMode, setPasswordMode] = useState<'generate' | 'custom'>('generate');
+  const [customPassword, setCustomPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   
   const [emailTo, setEmailTo] = useState(application.email || '');
   const [emailSubject, setEmailSubject] = useState('');
@@ -666,15 +672,34 @@ export function ApplicationDetail({
       return;
     }
 
+    // Validate custom password if in custom mode
+    if (passwordMode === 'custom') {
+      if (!customPassword || customPassword.length < 8) {
+        toast.error('Password must be at least 8 characters long');
+        return;
+      }
+    }
+
     setIsResettingPassword(true);
     try {
-      const result = await crmClient.resetPassword(application.id, workspaceId);
-      if (result.success) {
-        setTemporaryPassword(result.temporary_password);
-        toast.success('Password reset successfully');
+      if (passwordMode === 'generate') {
+        const result = await crmClient.resetPassword(application.id, workspaceId);
+        if (result.success) {
+          setTemporaryPassword(result.temporary_password);
+          toast.success('Password reset successfully');
+        } else {
+          toast.error(result.message || 'Failed to reset password');
+          setShowResetPasswordModal(false);
+        }
       } else {
-        toast.error(result.message || 'Failed to reset password');
-        setShowResetPasswordModal(false);
+        const result = await crmClient.setPassword(application.id, workspaceId, customPassword);
+        if (result.success) {
+          setTemporaryPassword(customPassword);
+          toast.success('Password set successfully');
+        } else {
+          toast.error(result.message || 'Failed to set password');
+          setShowResetPasswordModal(false);
+        }
       }
     } catch (error) {
       console.error('Failed to reset password:', error);
@@ -695,6 +720,9 @@ export function ApplicationDetail({
   const handleCloseResetModal = () => {
     setShowResetPasswordModal(false);
     setTemporaryPassword(null);
+    setPasswordMode('generate');
+    setCustomPassword('');
+    setShowPassword(false);
   };
 
 
@@ -3090,10 +3118,54 @@ export function ApplicationDetail({
           
           {!temporaryPassword ? (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                This will generate a new temporary password for {application.email}. 
-                The user will need to use this password to log in.
-              </p>
+              <RadioGroup value={passwordMode} onValueChange={(value: 'generate' | 'custom') => setPasswordMode(value)}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="generate" id="generate" />
+                  <Label htmlFor="generate" className="font-normal cursor-pointer">
+                    Generate random password
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="custom" id="custom" />
+                  <Label htmlFor="custom" className="font-normal cursor-pointer">
+                    Set custom password
+                  </Label>
+                </div>
+              </RadioGroup>
+
+              {passwordMode === 'generate' ? (
+                <p className="text-sm text-muted-foreground">
+                  A secure random password will be generated for {application.email}.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="custom-password">Password (min. 8 characters)</Label>
+                  <div className="relative">
+                    <Input
+                      id="custom-password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={customPassword}
+                      onChange={(e) => setCustomPassword(e.target.value)}
+                      placeholder="Enter password"
+                      className="pr-10"
+                      autoComplete="new-password"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Password will be set for {application.email}
+                  </p>
+                </div>
+              )}
+
               <div className="flex justify-end gap-2">
                 <Button
                   variant="outline"
@@ -3104,41 +3176,58 @@ export function ApplicationDetail({
                 </Button>
                 <Button
                   onClick={handleResetPassword}
-                  disabled={isResettingPassword}
+                  disabled={isResettingPassword || (passwordMode === 'custom' && customPassword.length < 8)}
                 >
                   {isResettingPassword ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Resetting...
+                      {passwordMode === 'generate' ? 'Generating...' : 'Setting...'}
                     </>
                   ) : (
-                    'Reset Password'
+                    <>
+                      {passwordMode === 'generate' ? 'Generate Password' : 'Set Password'}
+                    </>
                   )}
                 </Button>
               </div>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="rounded-lg bg-muted p-4">
-                <p className="text-sm font-medium mb-2">Temporary Password:</p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 p-3 bg-background rounded border font-mono text-sm">
-                    {temporaryPassword}
-                  </code>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={handleCopyPassword}
-                    className="shrink-0"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
+              <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4">
+                <div className="flex items-start gap-2 mb-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-green-900 dark:text-green-100">Password has been set successfully</p>
+                    <p className="text-xs text-green-700 dark:text-green-300 mt-1">Make sure to save this password securely before closing this dialog</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-green-800 dark:text-green-200">New Password for {application.email}</Label>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 p-3 bg-background rounded border font-mono text-sm select-all">
+                      {temporaryPassword}
+                    </code>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={handleCopyPassword}
+                      className="shrink-0"
+                      title="Copy to clipboard"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Share this temporary password with {application.email}. 
-                They should change it after their first login.
-              </p>
+              <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                  <p className="text-xs text-amber-800 dark:text-amber-200">
+                    <strong>Important:</strong> This password will only be shown once. Save it now in a secure location. 
+                    Share it with the user through a secure channel.
+                  </p>
+                </div>
+              </div>
               <div className="flex justify-end">
                 <Button onClick={handleCloseResetModal}>
                   Done
