@@ -953,6 +953,43 @@ func ListFormSubmissions(c *gin.Context) {
 		tableID = parsedID
 	}
 
+	// Get the table to verify workspace membership
+	var table models.Table
+	if err := database.DB.First(&table, "id = ?", tableID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
+		return
+	}
+
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	// Verify user is a member of this workspace
+	member, memberExists := checkWorkspaceMembership(table.WorkspaceID, userID)
+	if !memberExists {
+		c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
+		return
+	}
+
+	// If user has hub_access restrictions (non-empty array), verify they have access to this specific table
+	if len(member.HubAccess) > 0 {
+		hasAccess := false
+		tableIDStr := tableID.String()
+		for _, hubID := range member.HubAccess {
+			if hubID == tableIDStr {
+				hasAccess = true
+				break
+			}
+		}
+		if !hasAccess {
+			c.JSON(http.StatusForbidden, gin.H{"error": "User does not have access to this form"})
+			return
+		}
+	}
+
 	// Parse pagination parameters
 	limit := 100 // Default limit
 	if limitParam := c.Query("limit"); limitParam != "" {
@@ -1207,6 +1244,51 @@ func ListFormSubmissions(c *gin.Context) {
 // listFormSubmissionsNewSchema serves submissions from the new form_submissions table with raw_data JSONB.
 // Returns a response shape compatible with the frontend's expected format.
 func listFormSubmissionsNewSchema(c *gin.Context, form models.Form, includeUser bool) {
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	// Get the table to verify workspace membership
+	var table models.Table
+	var tableID uuid.UUID
+	if form.LegacyTableID != nil {
+		tableID = *form.LegacyTableID
+	} else {
+		// If no legacy table ID, try to get from forms table
+		tableID = form.ID
+	}
+
+	if err := database.DB.First(&table, "id = ?", tableID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
+		return
+	}
+
+	// Verify user is a member of this workspace
+	member, memberExists := checkWorkspaceMembership(table.WorkspaceID, userID)
+	if !memberExists {
+		c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
+		return
+	}
+
+	// If user has hub_access restrictions (non-empty array), verify they have access to this specific table
+	if len(member.HubAccess) > 0 {
+		hasAccess := false
+		tableIDStr := tableID.String()
+		for _, hubID := range member.HubAccess {
+			if hubID == tableIDStr {
+				hasAccess = true
+				break
+			}
+		}
+		if !hasAccess {
+			c.JSON(http.StatusForbidden, gin.H{"error": "User does not have access to this form"})
+			return
+		}
+	}
+
 	// Parse pagination
 	limit := 100
 	if limitParam := c.Query("limit"); limitParam != "" {
