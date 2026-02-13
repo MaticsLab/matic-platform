@@ -51,17 +51,35 @@ func ListFormsV2(c *gin.Context) {
 func GetFormV2(c *gin.Context) {
 	formID := c.Param("id")
 
+	// Try to find form by ID first
 	var form models.Form
-	if err := database.DB.
+	err := database.DB.
 		Preload("Sections", func(db *gorm.DB) *gorm.DB {
 			return db.Order("sort_order ASC")
 		}).
 		Preload("Fields", func(db *gorm.DB) *gorm.DB {
 			return db.Order("sort_order ASC")
 		}).
-		First(&form, "id = ?", formID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
-		return
+		First(&form, "id = ?", formID).Error
+
+	// If not found, try to find by legacy_table_id
+	if err != nil {
+		log.Printf("📝 GetFormV2: Form not found by ID %s, trying legacy_table_id lookup", formID)
+		err = database.DB.
+			Preload("Sections", func(db *gorm.DB) *gorm.DB {
+				return db.Order("sort_order ASC")
+			}).
+			Preload("Fields", func(db *gorm.DB) *gorm.DB {
+				return db.Order("sort_order ASC")
+			}).
+			First(&form, "legacy_table_id = ?", formID).Error
+		
+		if err != nil {
+			log.Printf("❌ GetFormV2: Form not found by legacy_table_id either: %s", formID)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
+			return
+		}
+		log.Printf("✅ GetFormV2: Resolved legacy table ID %s -> new form ID %s", formID, form.ID)
 	}
 
 	c.JSON(http.StatusOK, form)
