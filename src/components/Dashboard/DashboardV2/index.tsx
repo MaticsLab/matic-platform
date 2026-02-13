@@ -83,6 +83,7 @@ export function DashboardV2({
               formId={formId}
               rowId={rowId}
               isPreview={isPreview}
+              onContinueApplication={onContinueApplication}
             />
           </div>
 

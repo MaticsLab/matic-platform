@@ -20,6 +20,7 @@ interface PriorityActionsProps {
   onTaskAction?: (taskId: string, action: string) => void
   onTaskComplete?: (taskId: string) => void
   completedTaskIds?: string[]
+  onContinueApplication?: () => void
 }
 
 export function PriorityActions({
@@ -31,7 +32,8 @@ export function PriorityActions({
   applicationStatus = 'draft',
   onTaskAction,
   onTaskComplete,
-  completedTaskIds = []
+  completedTaskIds = [],
+  onContinueApplication
 }: PriorityActionsProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [selectedFiles, setSelectedFiles] = useState<Record<string, File>>({})
@@ -125,7 +127,12 @@ export function PriorityActions({
     
     // Handle specific action types
     if (action.type === 'navigate' && action.targetUrl) {
-      window.location.href = action.targetUrl
+      // If navigating to application and we have the callback, use it (avoids full page reload)
+      if ((action.targetUrl === '/application' || task.type === 'complete_application') && onContinueApplication) {
+        onContinueApplication()
+      } else {
+        window.location.href = action.targetUrl
+      }
     } else if (action.type === 'external_link' && action.targetUrl) {
       window.open(action.targetUrl, '_blank')
     }
