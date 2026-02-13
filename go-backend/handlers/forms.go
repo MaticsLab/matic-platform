@@ -27,6 +27,17 @@ const rowSelectColumns = "id, table_id, data, metadata, is_archived, position, s
 func GetForm(c *gin.Context) {
 	id := c.Param("id")
 
+	// NEW SCHEMA SUPPORT: Check if this ID exists in the forms table (new schema)
+	// If so, use its legacy_table_id to query data_tables
+	var newForm models.Form
+	if err := database.DB.Select("legacy_table_id").First(&newForm, "id = ?", id).Error; err == nil {
+		// Found in new forms table - use legacy_table_id to query data_tables
+		if newForm.LegacyTableID != nil {
+			fmt.Printf("📝 GetForm: Resolved new form ID %s -> legacy table ID %s\n", id, *newForm.LegacyTableID)
+			id = newForm.LegacyTableID.String()
+		}
+	}
+
 	// Optimized: Load table with view in single query using Preload
 	var table models.Table
 	if err := database.DB.Preload("Views", "type = ?", "form").First(&table, "id = ?", id).Error; err != nil {

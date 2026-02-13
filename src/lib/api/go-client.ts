@@ -50,7 +50,11 @@ export async function goFetch<T>(
   const { params, ...fetchOptions } = options
 
   // Build URL with query params
-  let url = `${GO_API_URL}${endpoint}`
+  // If endpoint starts with /api/, treat it as a full path (for v2 endpoints)
+  const baseUrl = endpoint.startsWith('/api/') 
+    ? GO_API_URL.replace(/\/api\/v\d+$/, '') // Remove /api/v1 suffix
+    : GO_API_URL
+  let url = `${baseUrl}${endpoint}`
   if (params) {
     const searchParams = new URLSearchParams(params)
     url += `?${searchParams.toString()}`
