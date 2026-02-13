@@ -76,9 +76,21 @@ export function ViewContainer({
       const transformedSubmissions: Submission[] = (
         (submissionsData as any[]) || []
       ).map((sub: any) => {
-        const dataField = sub.data || sub.Data || {};
+        // Backend returns 'Data' (capital D) from form_submissions.raw_data
+        const dataField = sub.Data || sub.data || {};
         const rawData =
           typeof dataField === 'string' ? JSON.parse(dataField) : dataField || {};
+
+        // Debug: Log the first submission to see data structure
+        if (sub === (submissionsData as any[])[0]) {
+          console.log('🔍 First submission raw structure:', {
+            hasData: !!sub.Data,
+            hasdata: !!sub.data,
+            dataFieldType: typeof dataField,
+            dataFieldKeys: Object.keys(rawData).slice(0, 10),
+            dataFieldSample: Object.fromEntries(Object.entries(rawData).slice(0, 3))
+          });
+        }
 
         let firstName = '';
         let lastName = '';
@@ -138,27 +150,32 @@ export function ViewContainer({
       });
 
       console.log('🔍 First transformed submission:', transformedSubmissions[0]);
-      console.log('🔍 First submission raw_data keys:', transformedSubmissions[0] ? Object.keys(transformedSubmissions[0].raw_data) : []);
-      console.log('🔍 Field IDs:', transformedFields.slice(0, 5).map(f => ({ id: f.id, label: f.label })));
+      console.log('🔍 First submission raw_data keys:', transformedSubmissions[0] ? Object.keys(transformedSubmissions[0].raw_data).slice(0, 10) : []);
+      console.log('🔍 Form fields:', transformedFields.slice(0, 5).map(f => ({ 
+        id: f.id, 
+        field_key: f.field_key,
+        label: f.label 
+      })));
       
-      // Create a comparison table to see field ID vs data key matching
+      // Create a comparison to see all possible key matching scenarios
       if (transformedSubmissions[0] && transformedFields.length > 0) {
         const firstSub = transformedSubmissions[0];
         const dataKeys = Object.keys(firstSub.raw_data);
-        const fieldIds = transformedFields.slice(0, 10).map(f => f.id);
         
-        console.log('🔍 DATA KEYS vs FIELD IDs comparison:');
-        console.log('Sample data keys:', dataKeys.slice(0, 5));
-        console.log('Sample field IDs:', fieldIds.slice(0, 5));
-        console.log('Do any match?', fieldIds.some(id => dataKeys.includes(id)));
+        console.log('🔍 FIELD MATCHING ANALYSIS:');
+        console.log('Data keys in submission:', dataKeys.slice(0, 10));
         
-        // Try to find a match
-        const matchTest = transformedFields.slice(0, 3).map(f => ({
-          fieldLabel: f.label,
-          fieldId: f.id,
-          fieldIdType: typeof f.id,
-          hasInData: dataKeys.includes(f.id),
-          valueIfExists: firstSub.raw_data[f.id]
+        // Test first 5 fields to see what matches
+        const matchTest = transformedFields.slice(0, 5).map(f => ({
+          label: f.label,
+          field_id: f.id,
+          field_key: f.field_key,
+          id_matches: dataKeys.includes(f.id),
+          key_matches: dataKeys.includes(f.field_key),
+          label_matches: dataKeys.includes(f.label),
+          value_by_id: firstSub.raw_data[f.id],
+          value_by_key: firstSub.raw_data[f.field_key],
+          value_by_label: firstSub.raw_data[f.label]
         }));
         console.table(matchTest);
       }

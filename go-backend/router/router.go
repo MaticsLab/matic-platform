@@ -213,7 +213,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 		// Portal Dashboard Routes (Public with Portal Token)
 		// Note: These routes use portal auth (applicant token) not main auth
-		portalDashboard := api.Group("/portal")
+		portalDashboard := api.Group("/portal/dashboard")
 		// TODO: Add portal auth middleware for proper security
 		{
 			// TODO: Implement these handlers

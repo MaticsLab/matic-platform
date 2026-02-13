@@ -101,10 +101,28 @@ export function GridView({
   };
 
   const renderCellValue = (submission: Submission, field: FormField) => {
-    // Use field.id to access raw_data since submissions store data with UUID keys
+    // Try multiple ways to find the value:
+    // 1. By field.id (UUID)
+    // 2. By field.field_key (string key like "first_name")
+    // 3. By field.label (as fallback)
     const valueById = submission.raw_data?.[field.id];
     const valueByKey = submission.raw_data?.[field.field_key];
-    const value = valueById || valueByKey;
+    const valueByLabel = submission.raw_data?.[field.label];
+    const value = valueById || valueByKey || valueByLabel;
+    
+    // Debug: Log first time for each field to see what's happening
+    if (submission === submissions[0]) {
+      const allKeys = Object.keys(submission.raw_data || {});
+      console.log(`🔍 Field "${field.label}":`, {
+        fieldId: field.id,
+        fieldKey: field.field_key,
+        hasValueById: !!valueById,
+        hasValueByKey: !!valueByKey,
+        hasValueByLabel: !!valueByLabel,
+        finalValue: value,
+        sampleDataKeys: allKeys.slice(0, 10)
+      });
+    }
     
     if (value === null || value === undefined || value === '') {
       return <span className="text-gray-400">—</span>;
@@ -261,18 +279,7 @@ export function GridView({
             </TableHead>
 
             {/* Dynamic fields */}
-            {visibleFields.map((field) => {
-              // Debug: log field-data matching for first submission
-              if (submissions[0]) {
-                const testValue = submissions[0].raw_data?.[field.id];
-                console.log(`🔍 Field "${field.label}" (${field.id}):`, {
-                  hasValue: !!testValue,
-                  value: testValue,
-                  allDataKeys: Object.keys(submissions[0].raw_data || {}).slice(0, 5)
-                });
-              }
-              
-              return (
+            {visibleFields.map((field) => (
                 <TableHead key={field.id} className="min-w-[150px]">
                   <Button
                     variant="ghost"
@@ -291,7 +298,7 @@ export function GridView({
                   </Button>
                 </TableHead>
               );
-            })}
+            ))}
 
             <TableHead className="w-12" />
           </TableRow>

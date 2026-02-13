@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { FileCheck, Settings, Users, Layers } from 'lucide-react'
+import { FileCheck, Settings, Layers } from 'lucide-react'
 import { ReviewWorkspaceV2 } from './Review/v2'
-import { ReviewerManagement } from './Reviewers/ReviewerManagement'
 import { ApplicationSettingsModal } from './Configuration/ApplicationSettingsModal'
 import { useBreadcrumbs } from '@/hooks/useBreadcrumbs'
 import { Button } from '@/ui-components/button'
@@ -31,7 +30,6 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
   const [form, setForm] = useState<Form | null>(null)
   const [workspaceSlug, setWorkspaceSlug] = useState<string>('')
   const [isAppSettingsModalOpen, setIsAppSettingsModalOpen] = useState(false)
-  const [showReviewersPanel, setShowReviewersPanel] = useState(false)
   const [stats, setStats] = useState<Stats>({
     totalSubmissions: 0,
     pendingReview: 0,
@@ -93,14 +91,6 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
     () => (
       <>
         <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowReviewersPanel(!showReviewersPanel)}
-        >
-          <Users className="w-4 h-4 mr-2" />
-          Team
-        </Button>
-        <Button
           variant="ghost"
           size="sm"
           onClick={() => setIsAppSettingsModalOpen(true)}
@@ -110,7 +100,7 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
         </Button>
       </>
     ),
-    [showReviewersPanel]
+    []
   )
 
   // Memoize options object to prevent infinite loop
@@ -140,17 +130,6 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
         workspaceSlug={workspaceSlug}
         formId={formId}
       />
-
-      {/* Reviewers Panel Overlay */}
-      {showReviewersPanel && (
-        <div className="absolute inset-y-0 right-0 w-96 bg-white border-l border-gray-200 shadow-lg z-10">
-          <ReviewerManagement
-            workspaceId={workspaceId}
-            formId={formId || ''}
-            onClose={() => setShowReviewersPanel(false)}
-          />
-        </div>
-      )}
 
       {/* Settings Modal */}
       {isAppSettingsModalOpen && form && (
