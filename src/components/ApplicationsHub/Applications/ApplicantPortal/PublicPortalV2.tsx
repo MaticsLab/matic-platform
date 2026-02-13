@@ -19,9 +19,6 @@ import { portalBetterAuthClient } from '@/auth/client/portal'
 import { toast } from 'sonner'
 import { TranslationProvider } from '@/lib/i18n/TranslationProvider'
 import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector'
-import { endingPagesClient } from '@/lib/api/ending-pages-client'
-import { EndingPageRenderer } from '@/components/EndingPages/BlockRenderer'
-import type { EndingPageConfig } from '@/types/ending-blocks'
 import { portalDashboardClient, type PortalActivity } from '@/lib/api/portal-dashboard-client'
 import { Loader2, Send, Clock } from 'lucide-react'
 import { ScrollArea } from '@/ui-components/scroll-area'
@@ -209,7 +206,6 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   const [initialData, setInitialData] = useState<any>(null)
   const [submissionData, setSubmissionData] = useState<Record<string, any> | null>(null)
   const [applicationStatus, setApplicationStatus] = useState<string>('draft')
-  const [endingPage, setEndingPage] = useState<EndingPageConfig | null>(null)
   const [applicationRowId, setApplicationRowId] = useState<string | null>(null)
   const [currentView, setCurrentView] = useState<PortalView>('dashboard')
   const [currentFormData, setCurrentFormData] = useState<Record<string, any>>({})
@@ -1027,17 +1023,6 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         return
       }
       
-      if (form?.id) {
-        try {
-          const matching = await endingPagesClient.findMatching(form.id, formData)
-          if (matching) {
-            setEndingPage(matching)
-          }
-        } catch (error) {
-          console.warn('Failed to fetch ending page:', error)
-        }
-      }
-      
       toast.success('Application submitted successfully!')
       setIsSubmitted(true)
     } catch (error) {
@@ -1354,16 +1339,8 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     )
   }
 
-  // Show ending page if submitted
+  // Show success page if submitted
   if (isSubmitted) {
-    if (endingPage) {
-      return (
-        <div className="min-h-screen bg-white">
-          <EndingPageRenderer config={endingPage} submissionData={submissionData || {}} />
-        </div>
-      )
-    }
-
     return (
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }} 
