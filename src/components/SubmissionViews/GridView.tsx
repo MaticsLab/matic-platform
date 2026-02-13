@@ -297,7 +297,6 @@ export function GridView({
                     )}
                   </Button>
                 </TableHead>
-              );
             ))}
 
             <TableHead className="w-12" />

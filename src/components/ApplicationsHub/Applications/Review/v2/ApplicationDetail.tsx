@@ -551,10 +551,10 @@ export function ApplicationDetail({
   };
 
   // Toggle section open/closed
-  const toggleSection = (sectionName: string) => {
+  const toggleSection = (sectionName: string, open?: boolean) => {
     setOpenSections(prev => ({
       ...prev,
-      [sectionName]: !prev[sectionName]
+      [sectionName]: open !== undefined ? open : !prev[sectionName]
     }));
   };
   const [storageFiles, setStorageFiles] = useState<TableFileResponse[]>([]);
@@ -1714,7 +1714,7 @@ export function ApplicationDetail({
                         <Card key={sectionIdx} className="shadow-none border-gray-100">
                           <Collapsible 
                             open={isOpen} 
-                            onOpenChange={() => toggleSection(section.name)}
+                            onOpenChange={(open) => toggleSection(section.name, open)}
                           >
                             <CollapsibleTrigger asChild>
                               <CardHeader className="p-4 pb-3 cursor-pointer hover:bg-gray-50/50 transition-colors">
@@ -1760,6 +1760,7 @@ export function ApplicationDetail({
                                 <div className="space-y-4">
                                   {section.fields.map((field) => {
                                     const value = application.raw_data?.[field.id] || 
+                                                 application.raw_data?.[(field as any).field_key] ||
                                                  application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
                                                  application.raw_data?.[field.label];
                                     
