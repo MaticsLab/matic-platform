@@ -1253,7 +1253,11 @@ func listFormSubmissionsNewSchema(c *gin.Context, form models.Form, includeUser 
 			// Parse raw_data JSONB into map
 			data := make(map[string]interface{})
 			if row.RawData != nil && len(row.RawData) > 2 {
-				json.Unmarshal(row.RawData, &data)
+				if err := json.Unmarshal(row.RawData, &data); err != nil {
+					fmt.Printf("⚠️ listFormSubmissionsNewSchema: Error unmarshaling raw_data for submission %s: %v\n", row.ID, err)
+					fmt.Printf("   Raw data length: %d bytes\n", len(row.RawData))
+					fmt.Printf("   Raw data preview: %s\n", string(row.RawData[:min(100, len(row.RawData))]))
+				}
 			}
 
 			result := SubmissionResult{
@@ -1293,7 +1297,10 @@ func listFormSubmissionsNewSchema(c *gin.Context, form models.Form, includeUser 
 		for _, sub := range submissions {
 			data := make(map[string]interface{})
 			if sub.RawData != nil && len(sub.RawData) > 2 {
-				json.Unmarshal(sub.RawData, &data)
+				if err := json.Unmarshal(sub.RawData, &data); err != nil {
+					fmt.Printf("⚠️ listFormSubmissionsNewSchema: Error unmarshaling raw_data for submission %s: %v\n", sub.ID, err)
+					fmt.Printf("   Raw data length: %d bytes\n", len(sub.RawData))
+				}
 			}
 			results = append(results, SubmissionResult{
 				ID:          sub.ID,
