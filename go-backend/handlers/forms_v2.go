@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Jsanchez767/matic-platform/database"
+	"github.com/Jsanchez767/matic-platform/middleware"
 	"github.com/Jsanchez767/matic-platform/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -52,6 +53,13 @@ func ListFormsV2(c *gin.Context) {
 func GetFormV2(c *gin.Context) {
 	formID := c.Param("id")
 
+	// Get authenticated user ID
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	// Try to find form by ID first
 	var form models.Form
 	err := database.DB.
@@ -74,13 +82,41 @@ func GetFormV2(c *gin.Context) {
 				return db.Order("sort_order ASC")
 			}).
 			First(&form, "legacy_table_id = ?", formID).Error
-		
+
 		if err != nil {
 			log.Printf("❌ GetFormV2: Form not found by legacy_table_id either: %s", formID)
 			c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
 			return
 		}
 		log.Printf("✅ GetFormV2: Resolved legacy table ID %s -> new form ID %s", formID, form.ID)
+	}
+
+	// Verify user is a member of this workspace
+	member, memberExists := checkWorkspaceMembership(form.WorkspaceID, userID)
+	if !memberExists {
+		c.JSON(http.StatusForbidden, gin.H{"error": "User is not a member of this workspace"})
+		return
+	}
+
+	// If user has hub_access restrictions, verify they have access to this form
+	// Note: For forms, check if legacy_table_id is in hub_access
+	if len(member.HubAccess) > 0 {
+		hasAccess := false
+		formTableID := form.ID.String()
+		if form.LegacyTableID != nil {
+			formTableID = form.LegacyTableID.String()
+		}
+
+		for _, hubID := range member.HubAccess {
+			if hubID == form.ID.String() || hubID == formTableID {
+				hasAccess = true
+				break
+			}
+		}
+		if !hasAccess {
+			c.JSON(http.StatusForbidden, gin.H{"error": "User does not have access to this form"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, form)

@@ -45,7 +45,7 @@ export function ViewContainer({
     try {
       // Load form and submissions in parallel
       const [formData, submissionsData] = await Promise.all([
-        goClient.get(`/api/v2/forms/${formId}`), // V2: Returns form_fields matching submission data keys
+        goClient.get(`/forms/${formId}`), // V1: Handles both legacy and new schema
         goClient.get(
           `/forms/${formId}/submissions?workspace_id=${workspaceId}&include_user=true`
         ),
