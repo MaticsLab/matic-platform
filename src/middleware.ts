@@ -66,7 +66,15 @@ export async function middleware(request: NextRequest) {
   // e.g., bpnc.maticsapp.com -> subdomain = "bpnc"
   if (hostname.endsWith('.maticsapp.com')) {
     const subdomain = hostname.replace('.maticsapp.com', '')
-    const slug = url.pathname.slice(1) // Remove leading slash
+    const pathname = url.pathname
+    
+    // Don't rewrite system routes - preserve them as-is
+    const systemRoutes = ['/login', '/auth', '/portal', '/api', '/forgot-password', '/privacy', '/terms']
+    if (systemRoutes.some(route => pathname.startsWith(route))) {
+      return NextResponse.next()
+    }
+    
+    const slug = pathname.slice(1) // Remove leading slash
     
     if (!subdomain || !slug) {
       return NextResponse.next()
