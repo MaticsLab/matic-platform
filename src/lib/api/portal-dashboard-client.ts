@@ -1,9 +1,64 @@
 /**
  * Portal Dashboard API Client
  * Client for applicant dashboard operations - activities, timeline, messaging
+ * 
+ * NOTE: This client is for PORTAL (applicant) usage, NOT staff.
+ * It uses plain fetch with credentials to avoid the automatic /login redirects
+ * that goFetch does for staff authentication.
  */
 
-import { goFetch } from './go-client'
+import { getPortalSessionToken } from '@/auth/client/portal'
+
+// Get API URL (same logic as goFetch but without the redirect behavior)
+const getApiUrl = () => {
+  if (process.env.NEXT_PUBLIC_GO_API_URL) {
+    return process.env.NEXT_PUBLIC_GO_API_URL
+  }
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:8080/api/v1'
+    }
+  }
+  return 'https://api.maticsapp.com/api/v1'
+}
+
+/**
+ * Portal-safe fetch wrapper that doesn't auto-redirect to /login on 401
+ * Uses Better Auth portal session tokens
+ */
+async function portalFetch<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const apiUrl = getApiUrl()
+  const url = `${apiUrl}${endpoint}`
+
+  // Get portal session token
+  const sessionToken = await getPortalSessionToken()
+
+  const response = await fetch(url, {
+    ...options,
+    credentials: 'include', // Include Better Auth cookies
+    headers: {
+      'Content-Type': 'application/json',
+      ...(sessionToken && { 'Authorization': `Bearer ${sessionToken}` }),
+      ...options.headers,
+    },
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+    
+    // DON'T auto-redirect on 401 like goFetch does - let the portal component handle it    
+    throw new Error(error.error || `Request failed with status ${response.status}`)
+  }
+
+  if (response.status === 204) {
+    return null as T
+  }
+
+  return response.json()
+}
 
 // Types
 export interface ApplicationInfo {
@@ -92,22 +147,22 @@ export const portalDashboardClient = {
    * Includes application info, layout, activities, and timeline
    */
   getDashboard: (applicationId: string) =>
-    goFetch<ApplicationDashboard>(`/portal/applications/${applicationId}`),
+    portalFetch<ApplicationDashboard>(`/portal/dashboard/applications/${applicationId}`),
 
   /**
    * List activities for an application
    * @param visibility - Filter by visibility: 'applicant', 'internal', 'both', 'all'
    */
   listActivities: (applicationId: string, visibility?: string) => {
-    const params = visibility ? { visibility } : undefined
-    return goFetch<PortalActivity[]>(`/portal/applications/${applicationId}/activities`, { params })
+    const params = visibility ? `?visibility=${visibility}` : ''
+    return portalFetch<PortalActivity[]>(`/portal/dashboard/applications/${applicationId}/activities${params}`)
   },
 
   /**
    * Create a new activity (message, note, etc.)
    */
   createActivity: (applicationId: string, input: CreateActivityInput) =>
-    goFetch<PortalActivity>(`/portal/applications/${applicationId}/activities`, {
+    portalFetch<PortalActivity>(`/portal/dashboard/applications/${applicationId}/activities`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
@@ -122,7 +177,7 @@ export const portalDashboardClient = {
     readerType: 'applicant' | 'staff',
     activityIds?: string[]
   ) =>
-    goFetch<{ message: string }>(`/portal/applications/${applicationId}/activities/read`, {
+    portalFetch<{ message: string }>(`/portal/dashboard/applications/${applicationId}/activities/read`, {
       method: 'POST',
       body: JSON.stringify({
         activity_ids: activityIds || [],

@@ -30,16 +30,18 @@ function LoginContent() {
 
     if (session && user) {
       console.log('[Login] User logged in:', { userType: (user as any)?.userType || (user as any)?.user_type })
-      // If we have a redirect path, use it
+      
+      // Get user type from session
+      const userType = (user as any)?.userType || (user as any)?.user_type
+
+      // If we have a redirect path, use it (for both staff and applicants)
       if (redirectPath) {
+        console.log('[Login] Using redirect path:', redirectPath)
         router.replace(redirectPath)
         return
       }
 
-      // Get user type from session
-      const userType = (user as any)?.userType || (user as any)?.user_type
-
-      // Redirect based on user type
+      // Redirect based on user type only if no redirect path specified
       if (userType === 'staff') {
         // Try to get last workspace
         const lastWorkspace = localStorage.getItem('lastWorkspace')
@@ -57,7 +59,10 @@ function LoginContent() {
         router.replace('/')
         return
       } else if (userType === 'applicant') {
-        router.replace('/portal')
+        // For applicants without a redirect path, go to root
+        // The subdomain routing will handle showing the correct application
+        console.log('[Login] Applicant without redirect path, going to root')
+        router.replace('/')
         return
       }
 
