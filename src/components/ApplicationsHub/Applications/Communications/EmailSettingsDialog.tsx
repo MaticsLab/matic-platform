@@ -182,11 +182,15 @@ export function EmailSettingsDialog({ workspaceId, open, onOpenChange, onAccount
   const handleSaveSignature = async () => {
     if (!selectedSignature) return
     try {
+      const isHTML = signatureEditMode === 'html'
+      const content = isHTML ? editingSignatureHTML : editingSignatureContent
+      const contentHTML = isHTML ? editingSignatureHTML : editingSignatureContent
+
       await emailClient.updateSignature(selectedSignature.id, {
         name: editingSignatureName,
-        content: signatureEditMode === 'html' ? editingSignatureHTML : editingSignatureContent,
-        content_html: signatureEditMode === 'html' ? editingSignatureHTML : undefined,
-        is_html: signatureEditMode === 'html',
+        content,
+        content_html: contentHTML,
+        is_html: isHTML,
       })
       loadSignatures()
     } catch (error) {

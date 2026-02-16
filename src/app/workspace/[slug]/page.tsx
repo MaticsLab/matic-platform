@@ -40,6 +40,9 @@ function WorkspacePageContent() {
       
       // Save this as the last visited workspace
       saveLastWorkspace(slug)
+
+      // Redirect to Forms (applications) page by default
+      router.replace(`/workspace/${slug}/applications`)
     } catch (err: any) {
       console.error('Failed to load workspace:', err)
       const errorMessage = err?.message || err?.error || 'Failed to load workspace'
@@ -86,34 +89,7 @@ function WorkspacePageContent() {
     )
   }
   
-  // Redirect to Forms (applications) page by default
-  useEffect(() => {
-    if (workspace && slug) {
-      router.replace(`/workspace/${slug}/applications`)
-    }
-  }, [workspace, slug, router])
-
-  try {
-    return (
-      <LoadingOverlay message="Loading workspace..." />
-    )
-  } catch (renderError: any) {
-    console.error('Error rendering workspace page:', renderError)
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2 text-gray-900">Render Error</h1>
-          <p className="text-gray-600 mb-4">{renderError?.message || 'Failed to render workspace'}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="text-blue-600 hover:underline"
-          >
-            Reload Page
-          </button>
-        </div>
-      </div>
-    )
-  }
+  return <LoadingOverlay message="Loading workspace..." />
 }
 
 export default function WorkspacePage() {

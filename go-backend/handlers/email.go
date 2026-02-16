@@ -1628,11 +1628,11 @@ func UpdateSignature(c *gin.Context) {
 	}
 
 	var updates struct {
-		Name        string `json:"name"`
-		Content     string `json:"content"`
-		ContentHTML string `json:"content_html"`
-		IsHTML      bool   `json:"is_html"`
-		IsDefault   bool   `json:"is_default"`
+		Name        *string `json:"name"`
+		Content     *string `json:"content"`
+		ContentHTML *string `json:"content_html"`
+		IsHTML      *bool   `json:"is_html"`
+		IsDefault   *bool   `json:"is_default"`
 	}
 
 	if err := c.ShouldBindJSON(&updates); err != nil {
@@ -1640,20 +1640,33 @@ func UpdateSignature(c *gin.Context) {
 		return
 	}
 
-	// If setting as default, unset other defaults
-	if updates.IsDefault && !signature.IsDefault {
-		database.DB.Model(&models.EmailSignature{}).
-			Where("workspace_id = ? AND user_id = ? AND id != ?", signature.WorkspaceID, signature.UserID, signature.ID).
-			Update("is_default", false)
+	// Only update fields that were actually sent in the request
+	if updates.Name != nil {
+		signature.Name = *updates.Name
+	}
+	if updates.Content != nil {
+		signature.Content = *updates.Content
+	}
+	if updates.ContentHTML != nil {
+		signature.ContentHTML = *updates.ContentHTML
+	}
+	if updates.IsHTML != nil {
+		signature.IsHTML = *updates.IsHTML
+	}
+	if updates.IsDefault != nil {
+		// If setting as default, unset other defaults
+		if *updates.IsDefault && !signature.IsDefault {
+			database.DB.Model(&models.EmailSignature{}).
+				Where("workspace_id = ? AND user_id = ? AND id != ?", signature.WorkspaceID, signature.UserID, signature.ID).
+				Update("is_default", false)
+		}
+		signature.IsDefault = *updates.IsDefault
 	}
 
-	signature.Name = updates.Name
-	signature.Content = updates.Content
-	signature.ContentHTML = updates.ContentHTML
-	signature.IsHTML = updates.IsHTML
-	signature.IsDefault = updates.IsDefault
-
-	database.DB.Save(&signature)
+	if err := database.DB.Save(&signature).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save signature"})
+		return
+	}
 	c.JSON(http.StatusOK, signature)
 }
 
