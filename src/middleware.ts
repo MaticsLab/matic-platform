@@ -12,7 +12,7 @@ const MAIN_DOMAINS = [
   'localhost',
 ]
 
-// Public routes that don't require staff access (auth, public portal, etc.)
+// Public routes that don't require staff access (auth, public portal, legal pages, etc.)
 const PUBLIC_ROUTES = [
   '/auth',
   '/apply',
@@ -20,6 +20,9 @@ const PUBLIC_ROUTES = [
   '/api/auth',
   '/_next',
   '/static',
+  '/privacy',
+  '/terms',
+  '/pricing',
 ]
 
 // Check if hostname is a Vercel preview deployment
