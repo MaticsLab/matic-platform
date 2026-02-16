@@ -9,6 +9,7 @@ import { CalendarView } from './CalendarView';
 import { GalleryView } from './GalleryView';
 import { ViewType, Submission, FormField, FilterConfig } from './types';
 import { goClient } from '@/lib/api/go-client';
+import { reviewExportClient } from '@/lib/api/review-export-client';
 
 interface ViewContainerProps {
   workspaceId: string;
@@ -53,6 +54,7 @@ export function ViewContainer({
 
       console.log('🔍 API Response - Form Data:', formData);
       console.log('🔍 API Response - Submissions Data:', submissionsData);
+      console.log('🔍 Submissions count:', Array.isArray(submissionsData) ? submissionsData.length : 0);
       console.log('🔍 First submission raw structure:', (submissionsData as any[])?.[0]);
 
       // Extract fields from form
@@ -83,12 +85,15 @@ export function ViewContainer({
 
         // Debug: Log the first submission to see data structure
         if (sub === (submissionsData as any[])[0]) {
-          console.log('🔍 First submission raw structure:', {
+          console.log('🔍 First submission structure:', {
+            id: sub.id,
             hasData: !!sub.Data,
             hasdata: !!sub.data,
             dataFieldType: typeof dataField,
+            isEmptyObject: Object.keys(rawData).length === 0,
             dataFieldKeys: Object.keys(rawData).slice(0, 10),
-            dataFieldSample: Object.fromEntries(Object.entries(rawData).slice(0, 3))
+            dataFieldSample: Object.fromEntries(Object.entries(rawData).slice(0, 3)),
+            fullDataFieldSample: dataField  // Show full structure for first one
           });
         }
 
@@ -290,36 +295,26 @@ export function ViewContainer({
     setHiddenFields(newHidden);
   };
 
-  const handleExport = () => {
-    // Generate CSV export
-    const headers = ['Name', 'Email', 'Status', 'Submitted Date'];
-    const visibleFieldKeys = fields
-      .filter((f) => !hiddenFields.has(f.field_key))
-      .map((f) => f.field_key);
-    headers.push(...fields.filter((f) => !hiddenFields.has(f.field_key)).map((f) => f.label));
+  const handleExport = async () => {
+    try {
+      // Use new review export API with comprehensive data
+      const timestamp = new Date().toISOString().split('T')[0];
+      const filename = `review-export-${formId}-${timestamp}.csv`;
 
-    const rows = filteredAndSortedSubmissions.map((sub) => {
-      const row = [
-        sub.name || '',
-        sub.email || '',
-        sub.status || '',
-        sub.submittedDate || '',
-      ];
-      visibleFieldKeys.forEach((key) => {
-        row.push(String(sub.raw_data?.[key] || ''));
-      });
-      return row;
-    });
+      await reviewExportClient.downloadCSV(
+        {
+          workspace_id: workspaceId,
+          form_id: formId,
+        },
+        filename
+      );
 
-    const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `submissions-${formId}-${new Date().toISOString()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Exported to CSV');
+      toast.success('Successfully exported to CSV');
+    } catch (error) {
+      console.error('Export failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Export failed: ${errorMessage}`);
+    }
   };
 
   const handleStatusChange = async (submissionId: string, newStatus: string) => {

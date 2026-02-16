@@ -66,14 +66,6 @@ export function GridView({
 }: GridViewProps) {
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
-  // Debug: Check data on mount
-  console.log('🔍 GridView received:', {
-    submissionsCount: submissions.length,
-    fieldsCount: fields.length,
-    firstSubmissionKeys: submissions[0] ? Object.keys(submissions[0].raw_data) : [],
-    firstThreeFieldIds: fields.slice(0, 3).map(f => ({ id: f.id, field_key: f.field_key, label: f.label }))
-  });
-
   const visibleFields = useMemo(
     () => fields.filter(f => !hiddenFields.has(f.field_key)),
     [fields, hiddenFields]
@@ -110,17 +102,18 @@ export function GridView({
     const valueByLabel = submission.raw_data?.[field.label];
     const value = valueById || valueByKey || valueByLabel;
     
-    // Debug: Log first time for each field to see what's happening
-    if (submission === submissions[0]) {
-      const allKeys = Object.keys(submission.raw_data || {});
-      console.log(`🔍 Field "${field.label}":`, {
+    // Debug logging for first field of first submission only
+    if (submissions[0]?.id === submission.id && visibleFields[0]?.field_key === field.field_key) {
+      console.log('🐛 GridView cell debug:', {
         fieldId: field.id,
         fieldKey: field.field_key,
-        hasValueById: !!valueById,
-        hasValueByKey: !!valueByKey,
-        hasValueByLabel: !!valueByLabel,
-        finalValue: value,
-        sampleDataKeys: allKeys.slice(0, 10)
+        fieldLabel: field.label,
+        rawDataKeys: Object.keys(submission.raw_data || {}).slice(0, 10),
+        rawDataSample: Object.fromEntries(Object.entries(submission.raw_data || {}).slice(0, 3)),
+        valueById,
+        valueByKey,
+        valueByLabel,
+        finalValue: value
       });
     }
     

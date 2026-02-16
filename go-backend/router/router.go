@@ -496,6 +496,13 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			protected.GET("/form-submissions/:id", handlers.GetFormSubmissionByID)
 			protected.GET("/form-fields", handlers.ListFormFields)
 
+			// Review & Export (for review workspace)
+			reviewExport := protected.Group("/review-export")
+			{
+				reviewExport.GET("", handlers.GetReviewExportData)    // Get comprehensive submission data
+				reviewExport.GET("/csv", handlers.GetReviewExportCSV) // CSV format (placeholder for future server-side generation)
+			}
+
 			// Ending Pages
 			endingPages := protected.Group("/ending-pages")
 			{

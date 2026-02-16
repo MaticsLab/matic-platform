@@ -728,13 +728,13 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
                 setCurrentFormData(existingData)
                 setHasExistingSubmission(true)
                 console.log('[PublicPortalV2] Loaded existing data with', Object.keys(existingData).length, 'fields')
+                // Show dashboard if user has submitted data
+                setCurrentView('dashboard')
               } else {
-                // No data yet - initialize empty
+                // No data yet - initialize empty and show application form
                 setInitialData({})
+                setCurrentView('application')
               }
-              
-              // Always show application form after login
-              setCurrentView('application')
             } else {
               // No submission yet, show application form
               console.log('[PublicPortalV2] No submission found, showing application form')
@@ -748,15 +748,15 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
           } else {
             // Request failed but not critical
             console.warn('[PublicPortalV2] Submission fetch failed with status:', dataRes.status)
-            // Still show application form
-            setInitialData({}) // Initialize empty data for new applications
+            // Show application form for new applications
+            setInitialData({})
             setCurrentView('application')
           }
         } catch (err) {
           // Non-critical - user can still access the form
           console.warn('[PublicPortalV2] Could not fetch submission:', err)
-          // Still show application form
-          setInitialData({}) // Initialize empty data for new applications
+          // Show application form for new applications
+          setInitialData({})
           setCurrentView('application')
         }
 
