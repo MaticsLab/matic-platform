@@ -17,7 +17,7 @@ function LoginContent() {
   const { data, isPending } = useSession()
 
   useEffect(() => {
-    console.log('[Login] Session check:', { isPending, hasSession: !!data?.session, hasUser: !!data?.user, data })
+    console.log('[Login] Session check:', { isPending, hasSession: !!data?.session, hasUser: !!data?.user, data, redirectPath })
 
     // Wait for session to load
     if (isPending) {
@@ -27,6 +27,15 @@ function LoginContent() {
 
     const session = data?.session
     const user = data?.user
+
+    // CRITICAL: If redirect path is provided and no staff session exists,
+    // redirect back to the original page to handle its own auth
+    // This prevents redirect loops for portal pages that have their own auth
+    if (redirectPath && !session) {
+      console.log('[Login] No staff session with redirect path, going back to:', redirectPath)
+      router.replace(redirectPath)
+      return
+    }
 
     if (session && user) {
       console.log('[Login] User logged in:', { userType: (user as any)?.userType || (user as any)?.user_type })
@@ -70,12 +79,9 @@ function LoginContent() {
       console.log('[Login] No user type, going home')
       router.replace('/')
     } else {
-      // No session - go to auth page
-      console.log('[Login] No session found, redirecting to auth')
-      const authUrl = redirectPath
-        ? `/auth?mode=login&redirect=${encodeURIComponent(redirectPath)}`
-        : '/auth?mode=login'
-      router.replace(authUrl)
+      // No session AND no redirect path - go to auth page
+      console.log('[Login] No session and no redirect path, redirecting to auth')
+      router.replace('/auth?mode=login')
     }
   }, [data, isPending, router, redirectPath])
 
