@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/ui-components/button'
 import { Download, Loader2 } from 'lucide-react'
 import { reviewExportClient, ReviewExportFilters } from '@/lib/api/review-export-client'
-import { useToast } from '@/ui-components/use-toast'
+import { toast } from 'sonner'
 
 interface ReviewExportButtonProps {
   workspaceId: string
@@ -26,7 +26,6 @@ export function ReviewExportButton({
   className,
 }: ReviewExportButtonProps) {
   const [isExporting, setIsExporting] = useState(false)
-  const { toast } = useToast()
 
   const handleExport = async () => {
     try {
@@ -43,10 +42,8 @@ export function ReviewExportButton({
       const response = await reviewExportClient.getExportData(filters)
 
       if (response.count === 0) {
-        toast({
-          title: 'No data to export',
+        toast.info('No data to export', {
           description: 'No submissions match the current filters.',
-          variant: 'default',
         })
         return
       }
@@ -60,17 +57,13 @@ export function ReviewExportButton({
       // Download CSV
       await reviewExportClient.downloadCSV(filters, filename)
 
-      toast({
-        title: 'Export successful',
+      toast.success('Export successful', {
         description: `Exported ${response.count} submissions to CSV.`,
-        variant: 'default',
       })
     } catch (error) {
       console.error('Export failed:', error)
-      toast({
-        title: 'Export failed',
+      toast.error('Export failed', {
         description: error instanceof Error ? error.message : 'Failed to export data',
-        variant: 'destructive',
       })
     } finally {
       setIsExporting(false)
