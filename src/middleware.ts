@@ -54,7 +54,14 @@ export async function middleware(request: NextRequest) {
   // Handle forms.maticsapp.com - rewrite to /apply/{slug}
   if (hostname === 'forms.maticsapp.com' && url.pathname !== '/' && !url.pathname.startsWith('/apply')) {
     const slug = url.pathname.slice(1) // Remove leading slash
-    return NextResponse.rewrite(new URL(`/apply/${slug}`, request.url))
+    const newUrl = new URL(`/apply/${slug}`, request.url)
+    
+    // Preserve existing query parameters (especially _rsc for Next.js navigation)
+    url.searchParams.forEach((value, key) => {
+      newUrl.searchParams.set(key, value)
+    })
+    
+    return NextResponse.rewrite(newUrl)
   }
   
   // If it's a main domain, proceed normally
@@ -83,6 +90,13 @@ export async function middleware(request: NextRequest) {
     // Rewrite to the portal page with subdomain and slug as query params
     const newUrl = new URL(`/apply/${slug}`, request.url)
     newUrl.searchParams.set('subdomain', subdomain)
+    
+    // Preserve existing query parameters (especially _rsc for Next.js navigation)
+    url.searchParams.forEach((value, key) => {
+      if (key !== 'subdomain') { // Don't duplicate subdomain param
+        newUrl.searchParams.set(key, value)
+      }
+    })
     
     return NextResponse.rewrite(newUrl)
   }
