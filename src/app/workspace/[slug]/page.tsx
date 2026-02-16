@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, Suspense } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
 import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
@@ -14,6 +14,7 @@ import { LoadingOverlay } from '@/components/LoadingOverlay'
 
 function WorkspacePageContent() {
   const params = useParams()
+  const router = useRouter()
   const slug = params.slug as string
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [loading, setLoading] = useState(true)
@@ -85,19 +86,16 @@ function WorkspacePageContent() {
     )
   }
   
+  // Redirect to Forms (applications) page by default
+  useEffect(() => {
+    if (workspace && slug) {
+      router.replace(`/workspace/${slug}/applications`)
+    }
+  }, [workspace, slug, router])
+
   try {
     return (
-      <BreadcrumbProvider workspaceSlug={slug}>
-        <NavigationLayout workspaceSlug={slug}>
-          <BreadcrumbBar />
-          <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-900">Welcome to {workspace.name}</h1>
-            <p className="text-gray-600 mt-2">
-              Select a section from the sidebar to get started
-            </p>
-          </div>
-        </NavigationLayout>
-      </BreadcrumbProvider>
+      <LoadingOverlay message="Loading workspace..." />
     )
   } catch (renderError: any) {
     console.error('Error rendering workspace page:', renderError)

@@ -44,7 +44,7 @@ export function Navigation() {
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center gap-3">
             {isAuthenticated ? (
-              <Link href="/workspaces">
+              <Link href="/login">
                 <Button>Go to Workspace <ArrowRight className="ml-2 w-4 h-4" /></Button>
               </Link>
             ) : (
@@ -79,7 +79,7 @@ export function Navigation() {
             </Link>
             <div className="pt-4 border-t space-y-2">
               {isAuthenticated ? (
-                <Link href="/workspaces" className="block">
+                <Link href="/login" className="block">
                   <Button className="w-full">Go to Workspace</Button>
                 </Link>
               ) : (

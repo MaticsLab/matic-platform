@@ -57,10 +57,10 @@ function LoginContent() {
         if (lastWorkspace) {
           try {
             const workspace = JSON.parse(lastWorkspace)
-            router.replace(`/workspace/${workspace.slug}`)
+            router.replace(`/workspace/${workspace.slug}/applications`)
             return
           } catch (e) {
-            router.replace(`/workspace/${lastWorkspace}`)
+            router.replace(`/workspace/${lastWorkspace}/applications`)
             return
           }
         }
