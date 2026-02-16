@@ -102,21 +102,6 @@ export function GridView({
     const valueByLabel = submission.raw_data?.[field.label];
     const value = valueById || valueByKey || valueByLabel;
     
-    // Debug logging for first field of first submission only
-    if (submissions[0]?.id === submission.id && visibleFields[0]?.field_key === field.field_key) {
-      console.log('🐛 GridView cell debug:', {
-        fieldId: field.id,
-        fieldKey: field.field_key,
-        fieldLabel: field.label,
-        rawDataKeys: Object.keys(submission.raw_data || {}).slice(0, 10),
-        rawDataSample: Object.fromEntries(Object.entries(submission.raw_data || {}).slice(0, 3)),
-        valueById,
-        valueByKey,
-        valueByLabel,
-        finalValue: value
-      });
-    }
-    
     if (value === null || value === undefined || value === '') {
       return <span className="text-gray-400">—</span>;
     }

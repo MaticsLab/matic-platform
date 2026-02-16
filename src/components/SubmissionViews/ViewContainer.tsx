@@ -52,17 +52,15 @@ export function ViewContainer({
         ),
       ]);
 
-      console.log('🔍 API Response - Form Data:', formData);
-      console.log('🔍 Form ID used in query:', formId);
-      console.log('🔍 Actual Form ID from response:', (formData as any)?.id);
-      console.log('🔍 API Response - Submissions Data:', submissionsData);
-      console.log('🔍 Submissions count:', (submissionsData as any[])?.length || 0);
-      console.log('🔍 First submission FULL:', JSON.stringify((submissionsData as any[])?.[0], null, 2));
-      console.log('🔍 First submission raw structure:', (submissionsData as any[])?.[0]);
+      console.log('✅ Loaded form and submissions:', {
+        formName: (formData as any)?.name,
+        formId: (formData as any)?.id,
+        fieldsCount: ((formData as any).fields || []).length,
+        submissionsCount: (submissionsData as any[])?.length || 0
+      });
 
       // Extract fields from form
       const formFields = (formData as any).fields || [];
-      console.log('🔍 Form fields extracted:', formFields.slice(0, 3));
       
       const transformedFields: FormField[] = formFields.map((field: any) => ({
         id: field.id,
@@ -81,19 +79,18 @@ export function ViewContainer({
       const transformedSubmissions: Submission[] = (
         (submissionsData as any[]) || []
       ).map((sub: any, index: number) => {
-        // Backend returns 'Data' (capital D) from form_submissions.raw_data
-        const dataField = sub.Data || sub.data || {};
+        // Backend returns 'data' (lowercase) from form_submissions.raw_data
+        // Note: Go JSON serialization uses the json:"data" tag, so it's always lowercase
+        const dataField = sub.data || sub.Data || {};
         const rawData =
           typeof dataField === 'string' ? JSON.parse(dataField) : dataField || {};
         
         // Enhanced debug for first submission
         if (index === 0) {
-          console.log('🔴 CRITICAL DEBUG - First Submission:');
-          console.log('  sub.Data exists?', !!sub.Data);
-          console.log('  sub.Data type:', typeof sub.Data);
-          console.log('  sub.Data keys:', sub.Data ? Object.keys(sub.Data).length : 0);
+          console.log('✅ FIXED - First Submission:');
           console.log('  sub.data exists?', !!sub.data);
-          console.log('  dataField:', dataField);
+          console.log('  sub.data type:', typeof sub.data);
+          console.log('  sub.data keys:', sub.data ? Object.keys(sub.data).length : 0);
           console.log('  rawData keys:', Object.keys(rawData));
           console.log('  rawData sample:', Object.fromEntries(Object.entries(rawData).slice(0, 5)));
         }
@@ -169,36 +166,11 @@ export function ViewContainer({
         };
       });
 
-      console.log('🔍 First transformed submission:', transformedSubmissions[0]);
-      console.log('🔍 First submission raw_data keys:', transformedSubmissions[0] ? Object.keys(transformedSubmissions[0].raw_data).slice(0, 10) : []);
-      console.log('🔍 Form fields:', transformedFields.slice(0, 5).map(f => ({ 
-        id: f.id, 
-        field_key: f.field_key,
-        label: f.label 
-      })));
-      
-      // Create a comparison to see all possible key matching scenarios
-      if (transformedSubmissions[0] && transformedFields.length > 0) {
-        const firstSub = transformedSubmissions[0];
-        const dataKeys = Object.keys(firstSub.raw_data);
-        
-        console.log('🔍 FIELD MATCHING ANALYSIS:');
-        console.log('Data keys in submission:', dataKeys.slice(0, 10));
-        
-        // Test first 5 fields to see what matches
-        const matchTest = transformedFields.slice(0, 5).map(f => ({
-          label: f.label,
-          field_id: f.id,
-          field_key: f.field_key,
-          id_matches: dataKeys.includes(f.id),
-          key_matches: dataKeys.includes(f.field_key),
-          label_matches: dataKeys.includes(f.label),
-          value_by_id: firstSub.raw_data[f.id],
-          value_by_key: firstSub.raw_data[f.field_key],
-          value_by_label: firstSub.raw_data[f.label]
-        }));
-        console.table(matchTest);
-      }
+      console.log('✅ Transformed submissions:', {
+        total: transformedSubmissions.length,
+        firstHasData: transformedSubmissions[0] ? Object.keys(transformedSubmissions[0].raw_data).length > 0 : false,
+        dataKeyCount: transformedSubmissions[0] ? Object.keys(transformedSubmissions[0].raw_data).length : 0
+      });
 
       setSubmissions(transformedSubmissions);
     } catch (error) {
