@@ -80,10 +80,28 @@ export async function goFetch<T>(
     // (Better Auth cookies via portalBetterAuthClient, not staff session cookies)
     if (response.status === 401 && typeof window !== 'undefined') {
       const currentPath = window.location.pathname + window.location.search
-      const isPortalPage = currentPath.startsWith('/apply/') || currentPath.startsWith('/portal')
+      const hostname = window.location.hostname
+      
+      // Check if this is a portal/applicant page
+      // 1. URL starts with /apply/ or /portal
+      // 2. OR accessed via subdomain (e.g., bpnc.maticsapp.com)
+      // 3. OR accessed via forms.maticsapp.com
+      const isSubdomain = hostname.endsWith('.maticsapp.com') && 
+                         hostname !== 'www.maticsapp.com' && 
+                         hostname !== 'maticsapp.com' &&
+                         hostname !== 'api.maticsapp.com'
+      const isFormsSubdomain = hostname === 'forms.maticsapp.com'
+      const isApplyRoute = currentPath.startsWith('/apply/') || currentPath.startsWith('/portal')
+      const isPortalPage = isApplyRoute || isSubdomain || isFormsSubdomain
       
       if (isPortalPage) {
-        console.warn('[GoClient] 401 on portal page — skipping redirect (portal uses separate auth)')
+        console.warn('[GoClient] 401 on portal page — skipping redirect (portal uses separate auth)', {
+          hostname,
+          currentPath,
+          isSubdomain,
+          isFormsSubdomain,
+          isApplyRoute
+        })
       } else {
         console.warn('[GoClient] Authentication required, redirecting to login...')
         // Use window.location to force a full page reload and clear any stale state

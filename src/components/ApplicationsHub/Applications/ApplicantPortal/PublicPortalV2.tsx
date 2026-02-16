@@ -421,6 +421,12 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         // Check for Better Auth session and magic link verification
         const checkBetterAuthSession = async () => {
           try {
+            console.log('[PublicPortalV2] Starting auth check...', {
+              hostname: typeof window !== 'undefined' ? window.location.hostname : 'server',
+              pathname: typeof window !== 'undefined' ? window.location.pathname : 'server',
+              formId: formData.id
+            })
+            
             // Check if we're returning from magic link verification
             const urlParams = new URLSearchParams(window.location.search)
             const verified = urlParams.get('verified')
