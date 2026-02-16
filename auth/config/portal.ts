@@ -100,7 +100,16 @@ export function createPortalAuthConfig() {
     // Advanced cookie configuration - uses custom cookie name
     advanced: {
       cookies: {
-        sessionToken: getCookieConfig("matic-portal.session_token"),
+        sessionToken: {
+          name: "matic-portal.session_token",
+          attributes: {
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+            domain: process.env.NODE_ENV === "production" ? ".maticsapp.com" : undefined,
+            path: "/",
+            httpOnly: true,
+          },
+        },
       },
       crossSubdomainCookies: {
         enabled: true,

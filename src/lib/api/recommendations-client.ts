@@ -115,7 +115,7 @@ export const recommendationsClient = {
    */
   createFromPortal: async (data: CreateRecommendationInput): Promise<RecommendationRequest> => {
     const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
-    const response = await fetch(`${API_BASE}/portal/recommendations`, {
+    const response = await fetch(`${API_BASE}/portal/dashboard/recommendations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),

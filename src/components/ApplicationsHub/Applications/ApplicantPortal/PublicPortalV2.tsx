@@ -191,6 +191,7 @@ const getApiUrl = () => {
 
 export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true) // Add loading state for auth check
     // Saving state for UI
     const [isSaving, setIsSaving] = useState(false)
   const [email, setEmail] = useState('')
@@ -391,32 +392,31 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
               // Check if session is not too old (e.g., 7 days)
               const maxAge = 7 * 24 * 60 * 60 * 1000 // 7 days
               if (Date.now() - authData.timestamp < maxAge) {
-                // Restore authentication state immediately from localStorage
-                setEmail(authData.email)
-                setApplicantId(authData.applicantId)
-                setApplicantName(authData.applicantName || '')
-                if (authData.applicationRowId) {
-                  setApplicationRowId(authData.applicationRowId)
-                }
-                if (authData.applicationStatus) {
-                  setApplicationStatus(authData.applicationStatus)
-                }
-                
-                // Try to restore from localStorage backup first (instant)
+                // DO NOT restore authentication state from localStorage
+                // Better Auth session cookie is the single source of truth
+                // Only restore form data for convenience
                 const formDataKey = `portal-form-data-${formData.id}-${authData.email}`
                 const savedFormData = localStorage.getItem(formDataKey)
                 if (savedFormData) {
                   try {
                     const parsed = JSON.parse(savedFormData)
                     setCurrentFormData(parsed)
-                    setInitialData(parsed)
                   } catch (err) {
                     console.warn('Failed to parse saved form data:', err)
                   }
                 }
-                
-                setIsAuthenticated(true)
-                setCurrentView('dashboard')
+              } else {
+                // Session expired, clear it
+                localStorage.removeItem(authKey)
+              }
+            }
+          } catch (err) {
+            console.warn('Failed to restore session:', err)
+          }
+        }
+        
+        // Run session restoration in background (non-blocking)
+        restoreSession()
                 
                 // Fetch latest submission data using Better Auth user ID
                 // This ensures we get the same data shown in the CRM
@@ -563,10 +563,19 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
               }
             } else {
               // Check for existing Better Auth session (portal-specific)
+              console.log('[PublicPortalV2] Checking for existing Better Auth session...')
               const session = await portalBetterAuthClient.getSession()
+              console.log('[PublicPortalV2] Session check result:', { 
+                hasSession: !!session?.data?.session,
+                hasUser: !!session?.data?.user,
+                userId: session?.data?.user?.id 
+              })
+              
               if (session?.data?.session && session?.data?.user?.id) {
                 const betterAuthUserId = session.data.user.id
                 const userEmail = session.data.user.email
+                
+                console.log('[PublicPortalV2] Found valid session for user:', userEmail)
                 
                 // Query by Better Auth user ID
                 try {
@@ -597,14 +606,31 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
                         setCurrentView('dashboard')
                       }
                     }
+                  } else {
+                    console.log('[PublicPortalV2] No submission found for user, staying on login')
                   }
-                } catch (err) {
-                  console.warn('Failed to check Better Auth session:', err)
+                } catch (fetchError) {
+                  console.warn('Failed to fetch user submission:', fetchError)
                 }
+              } else {
+                console.log('[PublicPortalV2] No valid session found, user needs to log in')
+                // Clear any stale localStorage auth if Better Auth session is invalid
+                const authKey = `portal-auth-${formData.id}`
+                if (localStorage.getItem(authKey)) {
+                  console.log('[Public PortalV2] Clearing stale localStorage auth')
+                  localStorage.removeItem(authKey)
+                }
+                // Ensure auth state is false
+                setIsAuthenticated(false)
               }
             }
           } catch (err) {
             console.warn('Failed to check Better Auth session:', err)
+            // On error, clear auth state to be safe
+            setIsAuthenticated(false)
+          } finally {
+            // Always set isCheckingAuth to false when done
+            setIsCheckingAuth(false)
           }
         }
         
@@ -1358,6 +1384,15 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
           Return to Home
         </Button>
       </motion.div>
+    )
+  }
+
+  // Show loading spinner while checking auth
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
     )
   }
 
