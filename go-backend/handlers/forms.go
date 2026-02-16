@@ -1350,7 +1350,23 @@ func listFormSubmissionsNewSchema(c *gin.Context, form models.Form, includeUser 
 					fmt.Printf("⚠️ listFormSubmissionsNewSchema: Error unmarshaling raw_data for submission %s: %v\n", row.ID, err)
 					fmt.Printf("   Raw data length: %d bytes\n", len(row.RawData))
 					fmt.Printf("   Raw data preview: %s\n", string(row.RawData[:min(100, len(row.RawData))]))
+				} else {
+					fmt.Printf("✅ listFormSubmissionsNewSchema: Successfully unmarshaled submission %s with %d keys\n", row.ID, len(data))
+					if len(data) > 0 {
+						// Show first 3 keys for debugging
+						count := 0
+						for k, v := range data {
+							if count < 3 {
+								fmt.Printf("   Key: %s, Value: %v\n", k, v)
+								count++
+							}
+						}
+					} else {
+						fmt.Printf("   ⚠️ WARNING: Unmarshaled data is EMPTY for submission %s\n", row.ID)
+					}
 				}
+			} else {
+				fmt.Printf("⚠️ listFormSubmissionsNewSchema: Submission %s has no raw_data (nil=%v, len=%d)\n", row.ID, row.RawData == nil, len(row.RawData))
 			}
 
 			result := SubmissionResult{

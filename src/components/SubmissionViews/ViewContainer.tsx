@@ -53,8 +53,11 @@ export function ViewContainer({
       ]);
 
       console.log('🔍 API Response - Form Data:', formData);
+      console.log('🔍 Form ID used in query:', formId);
+      console.log('🔍 Actual Form ID from response:', (formData as any)?.id);
       console.log('🔍 API Response - Submissions Data:', submissionsData);
-      console.log('🔍 Submissions count:', Array.isArray(submissionsData) ? submissionsData.length : 0);
+      console.log('🔍 Submissions count:', (submissionsData as any[])?.length || 0);
+      console.log('🔍 First submission FULL:', JSON.stringify((submissionsData as any[])?.[0], null, 2));
       console.log('🔍 First submission raw structure:', (submissionsData as any[])?.[0]);
 
       // Extract fields from form
@@ -77,11 +80,23 @@ export function ViewContainer({
       // Transform submissions
       const transformedSubmissions: Submission[] = (
         (submissionsData as any[]) || []
-      ).map((sub: any) => {
+      ).map((sub: any, index: number) => {
         // Backend returns 'Data' (capital D) from form_submissions.raw_data
         const dataField = sub.Data || sub.data || {};
         const rawData =
           typeof dataField === 'string' ? JSON.parse(dataField) : dataField || {};
+        
+        // Enhanced debug for first submission
+        if (index === 0) {
+          console.log('🔴 CRITICAL DEBUG - First Submission:');
+          console.log('  sub.Data exists?', !!sub.Data);
+          console.log('  sub.Data type:', typeof sub.Data);
+          console.log('  sub.Data keys:', sub.Data ? Object.keys(sub.Data).length : 0);
+          console.log('  sub.data exists?', !!sub.data);
+          console.log('  dataField:', dataField);
+          console.log('  rawData keys:', Object.keys(rawData));
+          console.log('  rawData sample:', Object.fromEntries(Object.entries(rawData).slice(0, 5)));
+        }
 
         // Debug: Log the first submission to see data structure
         if (sub === (submissionsData as any[])[0]) {
