@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -230,20 +231,20 @@ func (b *EmailTemplateBuilder) buildFooter() string {
 
 // sanitizeHTML cleans up user-provided HTML for email compatibility
 func (b *EmailTemplateBuilder) sanitizeHTML(html string) string {
-	// Remove dangerous tags and attributes
+	// Remove dangerous tags and their content using regex
 	// This is a basic sanitizer - in production, use a proper HTML sanitizer library
 
-	// Remove script tags
-	html = strings.ReplaceAll(html, "<script", "")
-	html = strings.ReplaceAll(html, "</script>", "")
+	// Remove script tags and their content
+	reScript := regexp.MustCompile(`(?i)<script[^>]*>[\s\S]*?</script>`)
+	html = reScript.ReplaceAllString(html, "")
 
-	// Remove style tags (inline styles are okay)
-	html = strings.ReplaceAll(html, "<style", "")
-	html = strings.ReplaceAll(html, "</style>", "")
+	// Remove onclick/onerror/on* event handlers from tags
+	reEvents := regexp.MustCompile(`(?i)\s+on\w+\s*=\s*"[^"]*"`)
+	html = reEvents.ReplaceAllString(html, "")
+	reEvents2 := regexp.MustCompile(`(?i)\s+on\w+\s*=\s*'[^']*'`)
+	html = reEvents2.ReplaceAllString(html, "")
 
-	// Ensure images have proper attributes for email
-	// Add display:block to prevent spacing issues
-	html = strings.ReplaceAll(html, "<img ", `<img style="display: block; max-width: 100%; height: auto;" `)
+	// Note: <style> blocks are preserved for HTML email signatures that rely on them
 
 	return html
 }

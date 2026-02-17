@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/quotedprintable"
 	"net/http"
 	"os"
 	"regexp"
@@ -1230,7 +1232,7 @@ func createMIMEMessageWithOptions(from, to, toName, subject, textBody, htmlBody 
 		sb.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
 		sb.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 		sb.WriteString("\r\n")
-		sb.WriteString(textBody)
+		sb.WriteString(encodeQuotedPrintable(textBody))
 		sb.WriteString("\r\n\r\n")
 
 		// HTML part
@@ -1239,7 +1241,7 @@ func createMIMEMessageWithOptions(from, to, toName, subject, textBody, htmlBody 
 			sb.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 			sb.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 			sb.WriteString("\r\n")
-			sb.WriteString(htmlBody)
+			sb.WriteString(encodeQuotedPrintable(htmlBody))
 			sb.WriteString("\r\n\r\n")
 		}
 
@@ -1272,7 +1274,7 @@ func createMIMEMessageWithOptions(from, to, toName, subject, textBody, htmlBody 
 		sb.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
 		sb.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 		sb.WriteString("\r\n")
-		sb.WriteString(textBody)
+		sb.WriteString(encodeQuotedPrintable(textBody))
 		sb.WriteString("\r\n\r\n")
 
 		// HTML part
@@ -1281,7 +1283,7 @@ func createMIMEMessageWithOptions(from, to, toName, subject, textBody, htmlBody 
 			sb.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 			sb.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 			sb.WriteString("\r\n")
-			sb.WriteString(htmlBody)
+			sb.WriteString(encodeQuotedPrintable(htmlBody))
 			sb.WriteString("\r\n\r\n")
 		}
 
@@ -1289,6 +1291,15 @@ func createMIMEMessageWithOptions(from, to, toName, subject, textBody, htmlBody 
 	}
 
 	return sb.String()
+}
+
+// encodeQuotedPrintable properly encodes content using quoted-printable encoding
+func encodeQuotedPrintable(s string) string {
+	var buf bytes.Buffer
+	w := quotedprintable.NewWriter(&buf)
+	w.Write([]byte(s))
+	w.Close()
+	return buf.String()
 }
 
 // extractDomain extracts domain from email address
