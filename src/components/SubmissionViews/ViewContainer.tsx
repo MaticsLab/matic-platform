@@ -10,6 +10,7 @@ import { GalleryView } from './GalleryView';
 import { ViewType, Submission, FormField, FilterConfig } from './types';
 import { goClient } from '@/lib/api/go-client';
 import { reviewExportClient } from '@/lib/api/review-export-client';
+import { fetchFormBasicDirect, fetchSubmissionsWithResponsesDirect } from '@/lib/api/supabase-direct';
 
 interface ViewContainerProps {
   workspaceId: string;
@@ -44,23 +45,29 @@ export function ViewContainer({
   const loadData = async () => {
     setIsLoading(true);
     try {
-      // Load form and submissions in parallel
+      console.log('🔥 Using DIRECT SUPABASE queries for Review Workspace')
+      
+      // Load form and submissions in parallel - DIRECTLY from Supabase
       const [formData, submissionsData] = await Promise.all([
-        goClient.get(`/forms/${formId}`), // V1: Handles both legacy and new schema
-        goClient.get(
-          `/forms/${formId}/submissions?workspace_id=${workspaceId}&include_user=true`
-        ),
+        fetchFormBasicDirect(formId),
+        fetchSubmissionsWithResponsesDirect(formId),
       ]);
 
-      console.log('✅ Loaded form and submissions:', {
-        formName: (formData as any)?.name,
-        formId: (formData as any)?.id,
-        fieldsCount: ((formData as any).fields || []).length,
-        submissionsCount: (submissionsData as any[])?.length || 0
+      console.log('✅ Loaded form and submissions (DIRECT):', {
+        formName: formData?.name,
+        formId: formData?.id,
+        fieldsCount: (formData?.fields || []).length,
+        submissionsCount: submissionsData?.length || 0
       });
 
+      if (!formData) {
+        toast.error('Form not found');
+        setIsLoading(false);
+        return;
+      }
+
       // Extract fields from form
-      const formFields = (formData as any).fields || [];
+      const formFields = formData.fields || [];
       
       const transformedFields: FormField[] = formFields.map((field: any) => ({
         id: field.id,
@@ -78,54 +85,23 @@ export function ViewContainer({
       // Transform submissions
       const transformedSubmissions: Submission[] = (
         (submissionsData as any[]) || []
-      ).map((sub: any, index: number) => {
-        // Backend returns 'data' (lowercase) from form_submissions.raw_data
-        // Note: Go JSON serialization uses the json:"data" tag, so it's always lowercase
-        const dataField = sub.data || sub.Data || {};
-        const rawData =
-          typeof dataField === 'string' ? JSON.parse(dataField) : dataField || {};
-        
-        // Enhanced debug for first submission
-        if (index === 0) {
-          console.log('✅ FIXED - First Submission:');
-          console.log('  sub.data exists?', !!sub.data);
-          console.log('  sub.data type:', typeof sub.data);
-          console.log('  sub.data keys:', sub.data ? Object.keys(sub.data).length : 0);
-          console.log('  rawData keys:', Object.keys(rawData));
-          console.log('  rawData sample:', Object.fromEntries(Object.entries(rawData).slice(0, 5)));
-        }
+      ).map((sub: any) => {
+        // Direct Supabase query returns 'data' as an object with field IDs as keys
+        const rawData = sub.data || {};
 
-        // Debug: Log the first submission to see data structure
-        if (sub === (submissionsData as any[])[0]) {
-          console.log('🔍 First submission structure:', {
-            id: sub.id,
-            hasData: !!sub.Data,
-            hasdata: !!sub.data,
-            dataFieldType: typeof dataField,
-            isEmptyObject: Object.keys(rawData).length === 0,
-            dataFieldKeys: Object.keys(rawData).slice(0, 10),
-            dataFieldSample: Object.fromEntries(Object.entries(rawData).slice(0, 3)),
-            fullDataFieldSample: dataField  // Show full structure for first one
-          });
-        }
-
+        // Use applicant info from query (already extracted from ba_user)
+        let name = sub.applicant_name || '';
+        let email = sub.applicant_email || '';
         let firstName = '';
         let lastName = '';
-        let name = '';
-        let email = '';
 
-        // Get user info from ba_user
-        if (sub.ba_user?.name) {
-          name = sub.ba_user.name;
+        if (name) {
           const nameParts = name.split(' ');
           firstName = nameParts[0] || '';
           lastName = nameParts.slice(1).join(' ') || '';
         }
-        if (sub.ba_user?.email) {
-          email = sub.ba_user.email;
-        }
 
-        // Fallback to form data
+        // Fallback to form data if not provided by query
         if (!name) {
           firstName =
             rawData.first_name || rawData.firstName || rawData.fname || '';
@@ -139,12 +115,7 @@ export function ViewContainer({
           name = email || 'Unknown User';
         }
 
-        const metadataField = sub.metadata || sub.Metadata || {};
-        const metadata =
-          typeof metadataField === 'string'
-            ? JSON.parse(metadataField)
-            : metadataField || {};
-        const status = sub.status || metadata.status || 'Submitted';
+        const status = sub.status || 'draft';
 
         return {
           id: sub.id,
@@ -160,7 +131,7 @@ export function ViewContainer({
           totalReviewers: 1,
           applicant_name: name,
           applicant_email: email,
-          form_name: (formData as any).name || 'Unknown Form',
+          form_name: formData.name || 'Unknown Form',
           submitted_at: sub.submitted_at || sub.created_at,
           documents: rawData.documents || [],
         };
@@ -173,9 +144,13 @@ export function ViewContainer({
       });
 
       setSubmissions(transformedSubmissions);
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      toast.error('Failed to load submissions');
+    } catch (error: any) {
+      console.error('❌ Failed to load review workspace data:', {
+        message: error.message,
+        stack: error.stack,
+        error,
+      });
+      toast.error(`Failed to load submissions: ${error.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
