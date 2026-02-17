@@ -171,6 +171,57 @@ func GetMyPortalSubmission(c *gin.Context) {
 	var submission models.FormSubmission
 	err := database.DB.Where("form_id = ? AND user_id = ?", form.ID, userID).First(&submission).Error
 	if err != nil {
+		// Fallback: check legacy table_rows if form has legacy_table_id
+		if form.LegacyTableID != nil {
+			var tableRow models.Row
+			err = database.DB.Where("table_id = ? AND ba_created_by = ?", form.LegacyTableID, userID).First(&tableRow).Error
+			if err == nil {
+				// Found legacy data - remap NEW field UUIDs back to LEGACY for form compatibility
+				var rawData map[string]interface{}
+				if err := json.Unmarshal(tableRow.Data, &rawData); err == nil {
+					// Build mapping: NEW UUID -> field_key -> LEGACY UUID
+					var newFields []models.FormField
+					database.DB.Where("form_id = ?", form.ID).Find(&newFields)
+					newUUIDToFieldKey := make(map[string]string)
+					for _, f := range newFields {
+						newUUIDToFieldKey[f.ID.String()] = f.FieldKey
+					}
+
+					var legacyFields []models.Field
+					database.DB.Where("table_id = ?", form.LegacyTableID).Find(&legacyFields)
+					fieldKeyToLegacyUUID := make(map[string]string)
+					for _, f := range legacyFields {
+						fieldKeyToLegacyUUID[f.Name] = f.ID.String()
+					}
+
+					// Remap data keys: NEW UUID -> field_key -> LEGACY UUID
+					remappedData := make(map[string]interface{})
+					for dataKey, value := range rawData {
+						// Try to map NEW UUID to LEGACY UUID
+						if fieldKey, exists := newUUIDToFieldKey[dataKey]; exists {
+							if legacyUUID, exists := fieldKeyToLegacyUUID[fieldKey]; exists {
+								remappedData[legacyUUID] = value
+								continue
+							}
+						}
+						// Keep unmapped keys as-is (metadata, etc.)
+						remappedData[dataKey] = value
+					}
+
+					fmt.Printf("✅ GetMyPortalSubmission: Remapped %d fields to legacy UUIDs\n", len(remappedData))
+
+					c.JSON(http.StatusOK, gin.H{
+						"id":         tableRow.ID,
+						"data":       remappedData,
+						"metadata":   map[string]interface{}{"status": "draft"},
+						"created_at": tableRow.CreatedAt,
+						"updated_at": tableRow.UpdatedAt,
+					})
+					return
+				}
+			}
+		}
+
 		fmt.Printf("ℹ️ GetMyPortalSubmission: No submission found for user %s and form %s (error: %v)\n", userID, form.ID, err)
 		c.JSON(http.StatusOK, gin.H{
 			"id":         nil,
@@ -182,50 +233,45 @@ func GetMyPortalSubmission(c *gin.Context) {
 		return
 	}
 
-	// --- Read data: prefer raw_data JSONB, fall back to form_responses ---
+	// --- Read data: always return keys as new form_field UUIDs ---
 	data := make(map[string]interface{})
 
 	// Try raw_data first
 	hasRawData := false
-	if submission.RawData != nil && len(submission.RawData) > 2 { // > 2 means more than '{}'
+	if submission.RawData != nil && len(submission.RawData) > 2 {
 		if err := json.Unmarshal(submission.RawData, &data); err == nil && len(data) > 0 {
 			hasRawData = true
 			fmt.Printf("✅ GetMyPortalSubmission: Read %d fields from raw_data\n", len(data))
-			// Remap V2 field UUIDs to V1 table_field UUIDs for legacy forms
-			// so keys match the field IDs returned by GetFormBySlug
-			data = remapToLegacyKeys(form, data)
+			// Ensure keys are new form_field UUIDs (if not, remap)
+			// If keys are legacy, remap to new UUIDs
+			var v2Fields []models.FormField
+			database.DB.Where("form_id = ?", form.ID).Find(&v2Fields)
+			legacyUUIDToV2 := make(map[string]string)
+			for _, f := range v2Fields {
+				if f.LegacyFieldID != nil {
+					legacyUUIDToV2[f.LegacyFieldID.String()] = f.ID.String()
+				}
+			}
+			remapped := make(map[string]interface{})
+			for k, v := range data {
+				if newUUID, ok := legacyUUIDToV2[k]; ok {
+					remapped[newUUID] = v
+				} else {
+					remapped[k] = v
+				}
+			}
+			data = remapped
 		}
 	}
 
-	// Fallback: build from form_responses (legacy path)
+	// Fallback: build from form_responses
 	if !hasRawData {
 		var responses []models.FormResponse
 		database.DB.Where("submission_id = ?", submission.ID).Find(&responses)
-
-		legacyKeyMap := buildLegacyKeyMap(form, nil)
-
 		for _, resp := range responses {
-			var field models.FormField
-			if err := database.DB.First(&field, "id = ?", resp.FieldID).Error; err != nil {
-				continue
-			}
-
-			value := resp.GetValue()
-
-			// Determine data key (legacy UUID or field_key)
-			var dataKey string
-			if legacyKeyMap != nil {
-				if legacyUUID, exists := legacyKeyMap[field.FieldKey]; exists {
-					dataKey = legacyUUID
-				} else {
-					dataKey = field.FieldKey
-				}
-			} else {
-				dataKey = field.FieldKey
-			}
-			data[dataKey] = value
+			data[resp.FieldID.String()] = resp.GetValue()
 		}
-		fmt.Printf("✅ GetMyPortalSubmission: Built %d fields from form_responses (legacy)\n", len(data))
+		fmt.Printf("✅ GetMyPortalSubmission: Built %d fields from form_responses (UUID keys)\n", len(data))
 	}
 
 	// Build metadata
@@ -278,6 +324,85 @@ func SaveMyPortalSubmission(c *gin.Context) {
 	form, ok := resolveForm(c, formID)
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
+		return
+	}
+
+	// If form has legacy_table_id, write directly to table_rows
+	if form.LegacyTableID != nil {
+		fmt.Printf("📝 SaveMyPortalSubmission: Writing to legacy table_rows\n")
+
+		// Build mapping: LEGACY UUID -> field_key -> NEW UUID
+		var legacyFields []models.Field
+		database.DB.Where("table_id = ?", form.LegacyTableID).Find(&legacyFields)
+		legacyUUIDToFieldKey := make(map[string]string)
+		for _, f := range legacyFields {
+			legacyUUIDToFieldKey[f.ID.String()] = f.Name
+		}
+
+		var newFields []models.FormField
+		database.DB.Where("form_id = ?", form.ID).Find(&newFields)
+		fieldKeyToNewUUID := make(map[string]string)
+		for _, f := range newFields {
+			fieldKeyToNewUUID[f.FieldKey] = f.ID.String()
+		}
+
+		// Remap incoming data: LEGACY UUID -> field_key -> NEW UUID
+		remappedInput := make(map[string]interface{})
+		for dataKey, value := range input.Data {
+			// Try to map LEGACY UUID to NEW UUID
+			if fieldKey, exists := legacyUUIDToFieldKey[dataKey]; exists {
+				if newUUID, exists := fieldKeyToNewUUID[fieldKey]; exists {
+					remappedInput[newUUID] = value
+					continue
+				}
+			}
+			// Keep unmapped keys as-is
+			remappedInput[dataKey] = value
+		}
+
+		var existingRow models.Row
+		err := database.DB.Where("table_id = ? AND ba_created_by = ?", form.LegacyTableID, userID).First(&existingRow).Error
+
+		if err == nil {
+			// Update existing row - merge data
+			var existingData map[string]interface{}
+			if err := json.Unmarshal(existingRow.Data, &existingData); err != nil {
+				existingData = make(map[string]interface{})
+			}
+
+			// Merge new data (using NEW UUIDs)
+			for k, v := range remappedInput {
+				existingData[k] = v
+			}
+
+			dataBytes, _ := json.Marshal(existingData)
+			existingRow.Data = datatypes.JSON(dataBytes)
+
+			if err := database.DB.Save(&existingRow).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update submission"})
+				return
+			}
+
+			fmt.Printf("✅ Updated table_row with %d fields (remapped to NEW UUIDs)\n", len(existingData))
+			c.JSON(http.StatusOK, gin.H{"id": existingRow.ID, "updated_at": time.Now()})
+			return
+		}
+
+		// Create new row
+		dataBytes, _ := json.Marshal(remappedInput)
+		newRow := models.Row{
+			TableID:     *form.LegacyTableID,
+			Data:        datatypes.JSON(dataBytes),
+			BACreatedBy: &userID,
+		}
+
+		if err := database.DB.Create(&newRow).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create submission"})
+			return
+		}
+
+		fmt.Printf("✅ Created table_row with %d fields (remapped to NEW UUIDs)\n", len(remappedInput))
+		c.JSON(http.StatusOK, gin.H{"id": newRow.ID, "updated_at": time.Now()})
 		return
 	}
 
