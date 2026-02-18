@@ -88,7 +88,7 @@ export function AISelector({ onOpenChange }: AISelectorProps) {
                   }).then(() => setInputValue(""));
 
                 const slice = editor.state.selection.content();
-                const text = editor.storage.markdown.serializer.serialize(slice.content);
+                const text = (editor.storage as any).markdown?.serializer?.serialize(slice.content) ?? slice.content.textBetween(0, slice.content.size);
 
                 complete(text, {
                   body: { option: "zap", command: inputValue },

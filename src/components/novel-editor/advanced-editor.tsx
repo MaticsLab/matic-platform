@@ -58,10 +58,10 @@ const TailwindAdvancedEditor = () => {
 
   const debouncedUpdates = useDebouncedCallback(async (editor: EditorInstance) => {
     const json = editor.getJSON();
-    setCharsCount(editor.storage.characterCount.words());
+    setCharsCount(editor.storage.characterCount?.words?.());
     window.localStorage.setItem("html-content", highlightCodeblocks(editor.getHTML()));
     window.localStorage.setItem("novel-content", JSON.stringify(json));
-    window.localStorage.setItem("markdown", editor.storage.markdown.getMarkdown());
+    window.localStorage.setItem("markdown", (editor.storage as any).markdown?.getMarkdown?.() ?? "");
     setSaveStatus("Saved");
   }, 500);
 

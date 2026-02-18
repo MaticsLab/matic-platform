@@ -42,7 +42,7 @@ const AISelectorCommands = ({ onSelect }: AISelectorCommandsProps) => {
             onSelect={(value) => {
               if (!editor) return;
               const slice = editor.state.selection.content();
-              const text = editor.storage.markdown.serializer.serialize(slice.content);
+              const text = (editor.storage as any).markdown?.serializer?.serialize(slice.content) ?? slice.content.textBetween(0, slice.content.size);
               
               // Debug logging (check browser console)
               if (typeof window !== 'undefined' && (window as any).__AI_DEBUG__) {
