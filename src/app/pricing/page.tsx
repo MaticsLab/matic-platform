@@ -83,8 +83,8 @@ export default function PricingPage() {
   const [isYearly, setIsYearly] = useState(false)
 
   return (
-    <div className="min-h-screen bg-white">
-      <Navigation />
+    <div className="min-h-screen bg-[#FEFFFC]">
+      <Navigation variant="light" />
 
       {/* Hero */}
       <section className="pt-32 pb-4 px-6">
@@ -286,7 +286,7 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <Footer />
+      <Footer variant="light" />
     </div>
   )
 }

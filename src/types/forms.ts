@@ -43,16 +43,19 @@ export interface Form {
   legacy_table_id?: string | null
   name: string
   slug: string
+  custom_slug?: string | null
   description?: string | null
   settings: FormSettings
   layout: Array<Record<string, any>>
   status: 'draft' | 'published' | 'archived' | 'closed'
+  is_published?: boolean
   published_at?: string | null
   closes_at?: string | null
   max_submissions?: number | null
   allow_multiple_submissions: boolean
   require_auth: boolean
   version: number
+  submission_count?: number
   created_at: string
   updated_at: string
   created_by?: string | null

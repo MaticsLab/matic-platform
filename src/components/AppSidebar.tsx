@@ -48,6 +48,7 @@ import { Switch } from '@/ui-components/switch'
 import ModeToggle from '@/components/mode-toggle'
 import { OrganizationMenu } from './OrganizationMenu'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
+import { useActiveOrganization } from '@/auth/client/main'
 import { cn } from '@/lib/utils'
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -85,6 +86,33 @@ export function AppSidebar({
   const router = useRouter()
   const pathname = usePathname()
   const { state } = useSidebar()
+  const { data: activeOrg } = useActiveOrganization()
+
+  // Resolve display name from any user object shape
+  const getDisplayName = (user: any): string => {
+    return (
+      user?.name ||
+      user?.display_name ||
+      user?.user_metadata?.full_name ||
+      user?.user_metadata?.name ||
+      (user?.email ? user.email.split('@')[0] : null) ||
+      'User'
+    )
+  }
+
+  const getUserInitials = (user: any): string => {
+    const name = getDisplayName(user)
+    if (name && name !== 'User') {
+      return name
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    }
+    if (user?.email) return user.email.slice(0, 2).toUpperCase()
+    return 'U'
+  }
 
   const navItems = [
     { title: 'Forms', icon: Home, slug: 'applications', path: '/applications' },
@@ -94,21 +122,6 @@ export function AppSidebar({
   const handleNavClick = (path: string) => {
     const workspace = currentWorkspace || { slug: workspaceId }
     router.push(`/workspace/${workspace.slug}${path}`)
-  }
-
-  const getUserInitials = (user: any) => {
-    if (user?.display_name) {
-      return user.display_name
-        .split(' ')
-        .map((n: string) => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
-    }
-    if (user?.email) {
-      return user.email.slice(0, 2).toUpperCase()
-    }
-    return 'U'
   }
 
   return (
@@ -215,8 +228,8 @@ export function AppSidebar({
                 >
                   <Avatar className="h-8 w-8 rounded-lg">
                     <AvatarImage
-                      src={user?.avatar_url}
-                      alt={user?.display_name || user?.email}
+                      src={user?.avatar_url || user?.user_metadata?.avatar_url || user?.image}
+                      alt={getDisplayName(user)}
                     />
                     <AvatarFallback className="rounded-lg">
                       {getUserInitials(user)}
@@ -227,7 +240,7 @@ export function AppSidebar({
                     state === "collapsed" && "sr-only"
                   )}>
                     <span className="truncate font-semibold">
-                      {user?.display_name || 'User'}
+                      {getDisplayName(user)}
                     </span>
                     <span className="truncate text-xs">
                       {user?.email}
@@ -248,14 +261,14 @@ export function AppSidebar({
                 <DropdownMenuLabel className="p-0 font-normal">
                   <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                     <Avatar className="h-8 w-8 rounded-lg">
-                      <AvatarImage src={user?.avatar_url} />
+                      <AvatarImage src={user?.avatar_url || user?.user_metadata?.avatar_url || user?.image} />
                       <AvatarFallback className="rounded-lg">
                         {getUserInitials(user)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="grid flex-1 text-left text-sm leading-tight">
                       <span className="truncate font-semibold">
-                        {user?.display_name || 'User'}
+                        {getDisplayName(user)}
                       </span>
                       <span className="truncate text-xs">
                         {user?.email}
@@ -268,8 +281,9 @@ export function AppSidebar({
                 
                 {/* Organization Section */}
                 <div className="p-1">
-                  <div className="text-xs font-medium text-gray-500 px-2 py-1.5">
-                    Organization
+                  <div className="text-xs font-medium text-gray-500 px-2 py-1.5 flex items-center gap-1.5">
+                    <Building2 className="h-3 w-3" />
+                    {activeOrg?.name || 'Organization'}
                   </div>
                   <OrganizationMenu />
                 </div>

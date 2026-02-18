@@ -2,98 +2,212 @@
 
 import Link from 'next/link'
 
-export function Footer() {
-  return (
-    <footer className="bg-gray-950 text-white">
-      <div className="max-w-7xl mx-auto px-6 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-14">
-          {/* Brand */}
-          <div className="lg:col-span-1">
-            <Link href="/" className="inline-block mb-4">
-              <span className="text-2xl font-black tracking-tight text-white">MaticsApp</span>
-            </Link>
-            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">
-              The all-in-one platform for forms, data tables, and review workflows. Built by Matics Lab INC.
-            </p>
-          </div>
+interface FooterProps {
+  variant?: 'dark' | 'light'
+}
 
-          {/* Product */}
+export function Footer({ variant = 'dark' }: FooterProps) {
+  const isDark = variant === 'dark'
+
+  return (
+    <footer
+      className={`border-t ${
+        isDark
+          ? 'border-white/[0.06] bg-[#0a0a0a] text-white'
+          : 'border-gray-100 bg-[#FEFFFC] text-gray-900'
+      }`}
+    >
+      <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-20 py-20">
+        {/* Top — statement + CTA */}
+        <div className="mb-16">
+          <h3
+            className={`text-2xl md:text-3xl font-bold tracking-tight leading-snug max-w-lg ${
+              isDark ? '' : 'text-gray-900'
+            }`}
+          >
+            You&apos;re doing important work.
+            <br />
+            We built this for you.
+          </h3>
+          <p className={`mt-4 text-sm max-w-md leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+            If that sounds like you,{' '}
+            <Link
+              href="/auth"
+              className={`transition-colors ${
+                isDark
+                  ? 'text-amber-400 hover:text-amber-300'
+                  : 'text-gray-900 border-b border-gray-900 hover:text-gray-600 hover:border-gray-600'
+              }`}
+            >
+              try MaticsApp for free
+            </Link>
+            {' →'}
+          </p>
+        </div>
+
+        {/* Links row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-16">
           <div>
-            <h4 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-5">Product</h4>
+            <h4
+              className={`text-xs font-semibold uppercase tracking-[0.2em] mb-5 ${
+                isDark ? 'text-gray-600' : 'text-gray-400'
+              }`}
+            >
+              Product
+            </h4>
             <ul className="space-y-3 text-sm">
               <li>
-                <Link href="/#features" className="text-gray-300 hover:text-white transition-colors">
+                <Link
+                  href="/#features"
+                  className={`transition-colors ${
+                    isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
                   Features
                 </Link>
               </li>
               <li>
-                <Link href="/pricing" className="text-gray-300 hover:text-white transition-colors">
+                <Link
+                  href="/pricing"
+                  className={`transition-colors ${
+                    isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
                   Pricing
                 </Link>
               </li>
               <li>
-                <Link href="/auth" className="text-gray-300 hover:text-white transition-colors">
-                  Get Started
+                <Link
+                  href="/auth"
+                  className={`transition-colors ${
+                    isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  Start Free
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Legal */}
           <div>
-            <h4 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-5">Legal</h4>
+            <h4
+              className={`text-xs font-semibold uppercase tracking-[0.2em] mb-5 ${
+                isDark ? 'text-gray-600' : 'text-gray-400'
+              }`}
+            >
+              Company
+            </h4>
             <ul className="space-y-3 text-sm">
               <li>
-                <Link href="/privacy" className="text-gray-300 hover:text-white transition-colors">
+                <Link
+                  href="/company"
+                  className={`transition-colors ${
+                    isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  About
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/company#story"
+                  className={`transition-colors ${
+                    isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  Our Story
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h4
+              className={`text-xs font-semibold uppercase tracking-[0.2em] mb-5 ${
+                isDark ? 'text-gray-600' : 'text-gray-400'
+              }`}
+            >
+              Legal
+            </h4>
+            <ul className="space-y-3 text-sm">
+              <li>
+                <Link
+                  href="/privacy"
+                  className={`transition-colors ${
+                    isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="/terms" className="text-gray-300 hover:text-white transition-colors">
+                <Link
+                  href="/terms"
+                  className={`transition-colors ${
+                    isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
                   Terms of Service
                 </Link>
+              </li>
+              <li>
+                <a
+                  href="mailto:legal@maticsapp.com"
+                  className={`transition-colors ${
+                    isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  legal@maticsapp.com
+                </a>
               </li>
             </ul>
           </div>
 
-          {/* Contact */}
           <div>
-            <h4 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-5">Contact</h4>
+            <h4
+              className={`text-xs font-semibold uppercase tracking-[0.2em] mb-5 ${
+                isDark ? 'text-gray-600' : 'text-gray-400'
+              }`}
+            >
+              Contact
+            </h4>
             <ul className="space-y-3 text-sm">
               <li>
-                <a href="mailto:support@maticsapp.com" className="text-gray-300 hover:text-white transition-colors">
+                <a
+                  href="mailto:support@maticsapp.com"
+                  className={`transition-colors ${
+                    isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
                   support@maticsapp.com
-                </a>
-              </li>
-              <li>
-                <a href="mailto:legal@maticsapp.com" className="text-gray-300 hover:text-white transition-colors">
-                  legal@maticsapp.com
                 </a>
               </li>
             </ul>
           </div>
         </div>
 
-        {/* Divider + Bottom row */}
-        <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800/80 rounded-full text-xs text-gray-300">
-              <svg className="w-3.5 h-3.5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <span>256-bit encryption</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800/80 rounded-full text-xs text-gray-300">
-              <svg className="w-3.5 h-3.5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <span>99.9% uptime</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-6 text-xs text-gray-500">
-            <Link href="/privacy" className="hover:text-gray-300 transition-colors">Privacy</Link>
-            <Link href="/terms" className="hover:text-gray-300 transition-colors">Terms</Link>
-            <span>&copy; {new Date().getFullYear()} Matics Lab INC</span>
+        {/* Bottom bar */}
+        <div
+          className={`border-t pt-8 flex flex-col md:flex-row justify-between items-center gap-4 ${
+            isDark ? 'border-white/[0.06]' : 'border-gray-100'
+          }`}
+        >
+          <span className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-300'}`}>
+            &copy; {new Date().getFullYear()} Matics Lab &mdash; Built for the work that matters.
+          </span>
+          <div className={`flex items-center gap-6 text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+            <Link
+              href="/privacy"
+              className={`transition-colors ${isDark ? 'hover:text-gray-400' : 'hover:text-gray-900'}`}
+            >
+              Privacy
+            </Link>
+            <Link
+              href="/terms"
+              className={`transition-colors ${isDark ? 'hover:text-gray-400' : 'hover:text-gray-900'}`}
+            >
+              Terms
+            </Link>
           </div>
         </div>
       </div>

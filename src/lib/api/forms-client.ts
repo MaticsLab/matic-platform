@@ -24,6 +24,7 @@ function normalizeFormResponse(form: any): Form {
     version: form.version || 1,
     created_by: form.created_by || '',
     submit_settings: form.submit_settings || {},
+    submission_count: form.submission_count ?? 0,
   }
 }
 

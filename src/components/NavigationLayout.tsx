@@ -104,9 +104,17 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
     }
   } : null
 
+  // Read persisted sidebar state from cookie (written by SidebarProvider on toggle)
+  const sidebarDefaultOpen = React.useMemo(() => {
+    if (typeof document === 'undefined') return true
+    const match = document.cookie.match(/(?:^|;\s*)sidebar_state=([^;]*)/)
+    if (!match) return true
+    return match[1] === 'true'
+  }, [])
+
   return (
     <SearchProvider>
-      <SidebarProvider defaultOpen={true}>
+      <SidebarProvider defaultOpen={sidebarDefaultOpen}>
         <div className="h-screen w-full overflow-hidden flex">
           {/* Sidebar */}
           {currentWorkspace && (

@@ -398,7 +398,7 @@ func ListFormsOptimized(c *gin.Context) {
 		}
 	}
 
-	// Fetch submission counts in batch using raw SQL for performance
+	// Fetch submission counts from legacy table_rows
 	var counts []countResult
 	if len(tableIDs) > 0 {
 		database.DB.Raw(`
@@ -409,10 +409,49 @@ func ListFormsOptimized(c *gin.Context) {
 		`, tableIDs).Scan(&counts)
 	}
 
-	// Build count map
+	// Build count map from legacy rows
 	countMap := make(map[uuid.UUID]int)
 	for _, count := range counts {
 		countMap[count.TableID] = count.Count
+	}
+
+	// Also fetch submission counts from new form_submissions table.
+	// form_submissions links via form_id which matches the new forms.id (not legacy table_id).
+	// We need to map: new forms.id -> legacy table.id via legacy_table_id.
+	type newCountResult struct {
+		FormID uuid.UUID
+		Count  int
+	}
+	var newCounts []newCountResult
+	database.DB.Raw(`
+		SELECT fs.form_id, COUNT(*) as count
+		FROM form_submissions fs
+		JOIN forms f ON f.id = fs.form_id
+		WHERE f.legacy_table_id IN ?
+		GROUP BY fs.form_id
+	`, tableIDs).Scan(&newCounts)
+
+	// Build a lookup: new form_id -> legacy table_id, then add to countMap
+	// We need the reverse: legacy_table_id -> form.id from the forms table
+	type formIDMapping struct {
+		ID            uuid.UUID
+		LegacyTableID uuid.UUID
+	}
+	var formMappings []formIDMapping
+	if len(tableIDs) > 0 {
+		database.DB.Table("forms").
+			Select("id, legacy_table_id").
+			Where("legacy_table_id IN ?", tableIDs).
+			Find(&formMappings)
+	}
+	formIDToLegacy := make(map[uuid.UUID]uuid.UUID)
+	for _, m := range formMappings {
+		formIDToLegacy[m.ID] = m.LegacyTableID
+	}
+	for _, nc := range newCounts {
+		if legacyID, ok := formIDToLegacy[nc.FormID]; ok {
+			countMap[legacyID] += nc.Count
+		}
 	}
 
 	// Convert to DTO format

@@ -53,7 +53,7 @@ function ApplicationsPageContent() {
       <NavigationLayout workspaceSlug={workspace.slug}>
         <div className="flex flex-col h-full">
           <BreadcrumbBar />
-          <ApplicationsHub workspaceId={workspace.id} />
+          <ApplicationsHub workspaceId={workspace.id} workspaceSlug={slug} />
         </div>
       </NavigationLayout>
     </BreadcrumbProvider>
