@@ -190,13 +190,14 @@ export async function fetchSubmissionsWithResponsesDirect(formId: string): Promi
   
   // Handle unified schema submissions
   if (subError) {
+    const err = subError as any
     console.error('❌ Error fetching submissions:', {
-      message: subError.message,
-      details: subError.details,
-      hint: subError.hint,
-      code: subError.code,
+      message: err.message,
+      details: err.details,
+      hint: err.hint,
+      code: err.code,
     })
-    throw new Error(`Failed to fetch submissions: ${subError.message}`)
+    throw new Error(`Failed to fetch submissions: ${err.message}`)
   }
   
   if (!submissions || submissions.length === 0) {

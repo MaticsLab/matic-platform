@@ -19,7 +19,7 @@ import {
   handleImageDrop,
   handleImagePaste,
 } from "novel"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useDebouncedCallback } from "use-debounce"
 import { defaultExtensions } from "./extensions"
 import { ColorSelector } from "./selectors/color-selector"
@@ -58,6 +58,7 @@ export function NovelCoverEditor({
   const [openColor, setOpenColor] = useState(false)
   const [openLink, setOpenLink] = useState(false)
   const [openAI, setOpenAI] = useState(false)
+  const [, setSelectionTick] = useState(0)
 
   // Apply Codeblock Highlighting on the HTML from editor.getHTML()
   const highlightCodeblocks = (htmlContent: string) => {
@@ -133,6 +134,9 @@ export function NovelCoverEditor({
           onUpdate={({ editor }) => {
             debouncedUpdates(editor)
             setSaveStatus("Unsaved")
+          }}
+          onSelectionUpdate={() => {
+            setSelectionTick((t) => t + 1)
           }}
           slotAfter={<ImageResizer />}
         >

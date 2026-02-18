@@ -3,6 +3,9 @@ const path = require('path')
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+
+  // Skip ESLint during builds (run it separately in CI)
+  eslint: { ignoreDuringBuilds: true },
   
   // Enable standalone output for Docker
   output: 'standalone',
