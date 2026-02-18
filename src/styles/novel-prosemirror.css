@@ -28,6 +28,40 @@
   margin-bottom: 0.5rem;
 }
 
+/* List indentation and bullet/number markers — override Tailwind preflight reset */
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 1.625rem;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.ProseMirror ul {
+  list-style-type: disc;
+}
+
+.ProseMirror ol {
+  list-style-type: decimal;
+}
+
+.ProseMirror li {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.75;
+}
+
+.ProseMirror li > p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Paragraph line height */
+.ProseMirror p {
+  line-height: 1.75;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
 .ProseMirror .is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
