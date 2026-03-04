@@ -17,7 +17,7 @@ type BetterAuthUser struct {
 	MigratedFromSupabase bool      `json:"migratedFromSupabase" gorm:"column:migrated_from_supabase;default:false"`
 	FullName             *string   `json:"fullName" gorm:"column:full_name"`
 	AvatarURL            *string   `json:"avatarUrl" gorm:"column:avatar_url"`
-	UserType             string    `json:"userType" gorm:"column:user_type;default:'staff'"` // staff, applicant, reviewer
+	UserType             string    `json:"userType" gorm:"column:user_type;default:'applicant'"`              // staff, applicant, reviewer
 	Metadata             []byte    `json:"metadata,omitempty" gorm:"column:metadata;type:jsonb;default:'{}'"` // JSONB metadata
 }
 
@@ -68,13 +68,13 @@ func (s *BetterAuthSession) IsExpired() bool {
 //   - account_id: Provider's user ID
 type BetterAuthAccount struct {
 	ID                    string     `json:"id" gorm:"primaryKey;column:id"`
-	AccountID            string     `json:"accountId" gorm:"column:account_id"` // Provider's account ID or Supabase user ID for migrated users
+	AccountID             string     `json:"accountId" gorm:"column:account_id"`   // Provider's account ID or Supabase user ID for migrated users
 	ProviderID            string     `json:"providerId" gorm:"column:provider_id"` // "credential", "google", "github", etc.
 	UserID                string     `json:"userId" gorm:"column:user_id"`
-	Password              *string    `json:"password,omitempty" gorm:"column:password"` // Scrypt-hashed password for credential auth
-	AccessToken           *string    `json:"accessToken,omitempty" gorm:"column:access_token"` // OAuth access token (NULL for credential)
+	Password              *string    `json:"password,omitempty" gorm:"column:password"`          // Scrypt-hashed password for credential auth
+	AccessToken           *string    `json:"accessToken,omitempty" gorm:"column:access_token"`   // OAuth access token (NULL for credential)
 	RefreshToken          *string    `json:"refreshToken,omitempty" gorm:"column:refresh_token"` // OAuth refresh token (NULL for credential)
-	IDToken               *string    `json:"idToken,omitempty" gorm:"column:id_token"` // OAuth ID token (NULL for credential)
+	IDToken               *string    `json:"idToken,omitempty" gorm:"column:id_token"`           // OAuth ID token (NULL for credential)
 	AccessTokenExpiresAt  *time.Time `json:"accessTokenExpiresAt,omitempty" gorm:"column:access_token_expires_at"`
 	RefreshTokenExpiresAt *time.Time `json:"refreshTokenExpiresAt,omitempty" gorm:"column:refresh_token_expires_at"`
 	Scope                 *string    `json:"scope,omitempty" gorm:"column:scope"` // OAuth scope (NULL for credential)
