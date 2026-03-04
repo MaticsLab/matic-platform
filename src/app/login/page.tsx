@@ -53,23 +53,17 @@ function LoginContent() {
 
       // Redirect based on user type only if no redirect path specified
       if (userType === 'staff' || userType === 'owner' || userType === 'admin' || userType === 'member') {
-        // Try to get last workspace from localStorage first
-        const lastWorkspace = localStorage.getItem('lastWorkspace')
+        // Try to get last workspace from localStorage first (key: 'matic_last_workspace', plain slug string)
+        const lastWorkspace = localStorage.getItem('matic_last_workspace')
         if (lastWorkspace) {
-          try {
-            const workspace = JSON.parse(lastWorkspace)
-            window.location.href = `https://www.maticsapp.com/workspace/${workspace.slug}/applications`
-            return
-          } catch (e) {
-            window.location.href = `https://www.maticsapp.com/workspace/${lastWorkspace}/applications`
-            return
-          }
+          window.location.href = `https://www.maticsapp.com/workspace/${lastWorkspace}/applications`
+          return
         }
         // No last workspace - fetch first available from API
         workspacesSupabase.getWorkspacesForUser(user.id).then(workspaces => {
           if (workspaces && workspaces.length > 0) {
             const first = workspaces[0]
-            localStorage.setItem('lastWorkspace', JSON.stringify({ id: first.id, slug: first.slug, name: first.name }))
+            localStorage.setItem('matic_last_workspace', first.slug)
             window.location.href = `https://www.maticsapp.com/workspace/${first.slug}/applications`
           } else {
             // No workspaces found - go to auth to set up
@@ -92,7 +86,7 @@ function LoginContent() {
       workspacesSupabase.getWorkspacesForUser(user.id).then(workspaces => {
         if (workspaces && workspaces.length > 0) {
           const first = workspaces[0]
-          localStorage.setItem('lastWorkspace', JSON.stringify({ id: first.id, slug: first.slug, name: first.name }))
+          localStorage.setItem('matic_last_workspace', first.slug)
           window.location.href = `https://www.maticsapp.com/workspace/${first.slug}/applications`
         } else {
           router.replace('/auth')
