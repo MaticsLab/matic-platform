@@ -150,9 +150,10 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
   const files = normalizeFileValue(value);
   const isImage = fieldTypeId === FIELD_TYPES.IMAGE || fieldTypeId === 'image';
   const isSignature = fieldTypeId === FIELD_TYPES.SIGNATURE || fieldTypeId === 'signature';
-  const allowMultiple = config?.multiple ?? false;
-  const acceptTypes = config?.accept || (isImage ? 'image/*' : undefined);
-  const maxSize = config?.maxSize || 10 * 1024 * 1024; // 10MB default
+  const maxFiles = config?.maxFiles ?? 1;
+  const allowMultiple = config?.multiple === true || maxFiles > 1;
+  const acceptTypes = config?.accept || config?.acceptedTypes || (isImage ? 'image/*' : undefined);
+  const maxSize = config?.maxSize || (config?.maxSizeMB ? config.maxSizeMB * 1024 * 1024 : 10 * 1024 * 1024); // 10MB default
   
   // Get storage configuration from viewConfig or use defaults
   const storageBucket = viewConfig?.storageBucket || 'workspace-assets';
@@ -235,7 +236,10 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
 
     if (processedFiles.length > 0) {
       if (allowMultiple) {
-        onChange?.([...files, ...processedFiles]);
+        const combined = [...files, ...processedFiles];
+        // Enforce maxFiles limit
+        const capped = maxFiles > 1 ? combined.slice(-maxFiles) : combined;
+        onChange?.(capped);
       } else {
         onChange?.(processedFiles[0]);
       }
@@ -433,6 +437,17 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
                 onRemove={disabled ? undefined : () => handleRemove(i)}
               />
             ))}
+            {allowMultiple && !disabled && files.length < maxFiles && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => inputRef.current?.click()}
+              >
+                <Upload size={14} className="mr-1" />
+                Add more files
+              </Button>
+            )}
           </div>
         )}
         
