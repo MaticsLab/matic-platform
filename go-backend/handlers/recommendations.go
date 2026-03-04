@@ -442,11 +442,9 @@ func CreateRecommendationRequest(c *gin.Context) {
 				"is_reminder": true,
 			})
 			return
-		} else {
-			// Request exists but already submitted
-			c.JSON(http.StatusBadRequest, gin.H{"error": "A recommendation has already been submitted by this email"})
-			return
 		}
+		// If already submitted, fall through and create a new request
+		// (same recommender may submit multiple letters)
 	}
 
 	// Calculate expiry date - support both fixed and relative deadlines
