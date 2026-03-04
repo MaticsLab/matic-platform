@@ -1,4 +1,5 @@
 import { goFetch } from './go-client'
+import { portalBetterAuthClient } from '@/auth/client/portal'
 
 // ==================== TYPES ====================
 
@@ -125,11 +126,24 @@ export const submissionsClient = {
    */
   autosaveFromPortal: async (submissionId: string, data: AutosaveRequest): Promise<AutosaveResponse> => {
     const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
+
+    // Get portal session token from Better Auth
+    let authHeader: Record<string, string> = {}
+    try {
+      const session = await portalBetterAuthClient.getSession()
+      const token = session?.data?.session?.token
+      if (token) {
+        authHeader = { 'Authorization': `Bearer ${token}` }
+      }
+    } catch {
+      // proceed without token — server will return 401
+    }
+
     const response = await fetch(`${API_BASE}/submissions/${submissionId}/autosave`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeader },
       body: JSON.stringify(data),
-      credentials: 'include', // Include portal auth cookie
+      credentials: 'include',
     })
     
     if (!response.ok) {
