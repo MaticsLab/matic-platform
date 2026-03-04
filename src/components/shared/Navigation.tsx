@@ -5,12 +5,45 @@ import Link from 'next/link'
 import { Button } from '@/ui-components/button'
 import { useSession } from '@/auth/client/main'
 import { ArrowRight, Menu, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 
 export function Navigation() {
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isNavigating, setIsNavigating] = useState(false)
   const { data } = useSession()
   const isAuthenticated = !!data?.user
+  const router = useRouter()
+
+  async function handleGoToWorkspace() {
+    setIsNavigating(true)
+    try {
+      // Try localStorage first
+      const stored = localStorage.getItem('lastWorkspace')
+      if (stored) {
+        try {
+          const workspace = JSON.parse(stored)
+          if (workspace?.slug) {
+            router.push(`/workspace/${workspace.slug}/applications`)
+            return
+          }
+        } catch {}
+      }
+      // Fetch from API
+      const workspaces = await workspacesSupabase.getWorkspacesForUser(data?.user?.id || '')
+      if (workspaces && workspaces.length > 0) {
+        const first = workspaces[0]
+        localStorage.setItem('lastWorkspace', JSON.stringify({ id: first.id, slug: first.slug, name: first.name }))
+        router.push(`/workspace/${first.slug}/applications`)
+      }
+    } catch {
+      // Fallback to login page which handles workspace resolution
+      router.push('/login')
+    } finally {
+      setIsNavigating(false)
+    }
+  }
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20)
@@ -44,9 +77,9 @@ export function Navigation() {
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center gap-3">
             {isAuthenticated ? (
-              <Link href="/login">
-                <Button>Go to Workspace <ArrowRight className="ml-2 w-4 h-4" /></Button>
-              </Link>
+              <Button onClick={handleGoToWorkspace} disabled={isNavigating}>
+                {isNavigating ? 'Loading...' : 'Go to Workspace'} <ArrowRight className="ml-2 w-4 h-4" />
+              </Button>
             ) : (
               <>
                 <Link href="/auth?mode=login">
@@ -79,9 +112,9 @@ export function Navigation() {
             </Link>
             <div className="pt-4 border-t space-y-2">
               {isAuthenticated ? (
-                <Link href="/login" className="block">
-                  <Button className="w-full">Go to Workspace</Button>
-                </Link>
+                <Button className="w-full" onClick={handleGoToWorkspace} disabled={isNavigating}>
+                  {isNavigating ? 'Loading...' : 'Go to Workspace'}
+                </Button>
               ) : (
                 <>
                   <Link href="/auth?mode=login" className="block">

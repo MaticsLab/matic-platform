@@ -92,15 +92,17 @@ export async function goFetch<T>(
                          hostname !== 'api.maticsapp.com'
       const isFormsSubdomain = hostname === 'forms.maticsapp.com'
       const isApplyRoute = currentPath.startsWith('/apply/') || currentPath.startsWith('/portal')
+      const isLandingPage = currentPath === '/' || currentPath.startsWith('/?')
       const isPortalPage = isApplyRoute || isSubdomain || isFormsSubdomain
       
-      if (isPortalPage) {
-        console.warn('[GoClient] 401 on portal page — skipping redirect (portal uses separate auth)', {
+      if (isPortalPage || isLandingPage) {
+        console.warn('[GoClient] 401 on portal/landing page — skipping redirect', {
           hostname,
           currentPath,
           isSubdomain,
           isFormsSubdomain,
-          isApplyRoute
+          isApplyRoute,
+          isLandingPage
         })
       } else {
         console.warn('[GoClient] Authentication required, redirecting to login...')

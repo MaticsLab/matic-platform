@@ -4,6 +4,7 @@ import { Suspense, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { useSession } from '@/components/auth/provider'
+import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 
 /**
  * Redirect page for /login route
@@ -51,8 +52,8 @@ function LoginContent() {
       }
 
       // Redirect based on user type only if no redirect path specified
-      if (userType === 'staff') {
-        // Try to get last workspace
+      if (userType === 'staff' || userType === 'owner' || userType === 'admin' || userType === 'member') {
+        // Try to get last workspace from localStorage first
         const lastWorkspace = localStorage.getItem('lastWorkspace')
         if (lastWorkspace) {
           try {
@@ -64,8 +65,19 @@ function LoginContent() {
             return
           }
         }
-        // No last workspace - go to home which will handle discovery
-        router.replace('/')
+        // No last workspace - fetch first available from API
+        workspacesSupabase.getWorkspacesForUser(user.id).then(workspaces => {
+          if (workspaces && workspaces.length > 0) {
+            const first = workspaces[0]
+            localStorage.setItem('lastWorkspace', JSON.stringify({ id: first.id, slug: first.slug, name: first.name }))
+            router.replace(`/workspace/${first.slug}/applications`)
+          } else {
+            // No workspaces found - go to auth to set up
+            router.replace('/auth')
+          }
+        }).catch(() => {
+          router.replace('/auth')
+        })
         return
       } else if (userType === 'applicant') {
         // For applicants without a redirect path, go to root
@@ -75,9 +87,17 @@ function LoginContent() {
         return
       }
 
-      // Default: if we have a session but no user type, go home
-      console.log('[Login] No user type, going home')
-      router.replace('/')
+      // Default: authenticated but unknown user type — try workspace resolution
+      console.log('[Login] Unknown user type, attempting workspace resolution:', userType)
+      workspacesSupabase.getWorkspacesForUser(user.id).then(workspaces => {
+        if (workspaces && workspaces.length > 0) {
+          const first = workspaces[0]
+          localStorage.setItem('lastWorkspace', JSON.stringify({ id: first.id, slug: first.slug, name: first.name }))
+          router.replace(`/workspace/${first.slug}/applications`)
+        } else {
+          router.replace('/auth')
+        }
+      }).catch(() => router.replace('/auth'))
     } else {
       // No session AND no redirect path - go to auth page
       console.log('[Login] No session and no redirect path, redirecting to auth')
