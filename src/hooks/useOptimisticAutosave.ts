@@ -11,6 +11,7 @@ interface UseOptimisticAutosaveOptions {
   onSaveSuccess?: (version: number) => void
   onSaveError?: (error: Error) => void
   enabled?: boolean
+  usePortalAuth?: boolean // Use portal authentication instead of main app auth
 }
 
 interface UseOptimisticAutosaveReturn {
@@ -43,6 +44,7 @@ export function useOptimisticAutosave({
   onSaveSuccess,
   onSaveError,
   enabled = true,
+  usePortalAuth = false,
 }: UseOptimisticAutosaveOptions): UseOptimisticAutosaveReturn {
   // State
   const [formData, setFormData] = useState<Record<string, any>>(initialData)
@@ -86,7 +88,12 @@ export function useOptimisticAutosave({
     setIsSaving(true)
 
     try {
-      const response = await submissionsClient.autosave(submissionId, {
+      // Use portal auth method if enabled, otherwise use main app auth
+      const autosaveMethod = usePortalAuth 
+        ? submissionsClient.autosaveFromPortal 
+        : submissionsClient.autosave
+      
+      const response = await autosaveMethod(submissionId, {
         changes,
         base_version: versionRef.current,
       })

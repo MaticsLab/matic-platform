@@ -95,7 +95,7 @@ export function RollupRenderer(props: FieldRendererProps): React.ReactElement | 
     return (
       <div className={cn('flex items-center gap-1.5', className)}>
         <Calculator size={12} className="text-purple-500 flex-shrink-0" />
-        <span className="text-gray-900 font-medium tabular-nums">{displayValue}</span>
+        <span className="text-gray-900 dark:text-white font-medium tabular-nums">{displayValue}</span>
       </div>
     );
   }
@@ -117,7 +117,7 @@ export function RollupRenderer(props: FieldRendererProps): React.ReactElement | 
         
         <div className="px-3 py-2 bg-purple-50 border border-purple-100 rounded-md">
           {value !== null && value !== undefined ? (
-            <span className="text-gray-900 font-medium tabular-nums">{displayValue}</span>
+            <span className="text-gray-900 dark:text-white font-medium tabular-nums">{displayValue}</span>
           ) : (
             <span className="text-gray-400 italic">
               Computed from linked records

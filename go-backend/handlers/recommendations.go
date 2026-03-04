@@ -294,12 +294,18 @@ func CreateRecommendationRequest(c *gin.Context) {
 		return
 	}
 
-	// Validate submission exists
-	var submission models.Row
-	if err := database.DB.First(&submission, "id = ?", input.SubmissionID).Error; err != nil {
+	// Validate submission exists in form_submissions
+	var formSubmission models.FormSubmission
+	if err := database.DB.First(&formSubmission, "id = ?", input.SubmissionID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
 	}
+
+	// Build a synthetic Row for compatibility with the email function
+	submission := models.Row{
+		Data: formSubmission.RawData,
+	}
+	submission.ID = formSubmission.ID
 
 	// Validate form exists
 	var form models.Table

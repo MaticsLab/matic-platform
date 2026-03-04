@@ -156,7 +156,7 @@ export function RankRenderer(props: FieldRendererProps): React.ReactElement | nu
             >
               {idx + 1}
             </span>
-            <span className="text-sm text-gray-900">{val}</span>
+            <span className="text-sm text-gray-900 dark:text-white">{val}</span>
           </div>
         ))}
       </div>
@@ -193,7 +193,7 @@ export function RankRenderer(props: FieldRendererProps): React.ReactElement | nu
                 {index + 1}
               </div>
               
-              <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 pt-5 group-hover:border-gray-300 transition-colors">
+              <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-700 pt-5 group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
                 <div className="flex items-center justify-between mb-2">
                   <Label className="text-xs text-gray-500 uppercase font-semibold">
                     Choice #{index + 1}
@@ -202,7 +202,7 @@ export function RankRenderer(props: FieldRendererProps): React.ReactElement | nu
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 text-xs text-gray-500 hover:text-gray-900"
+                      className="h-6 px-2 text-xs text-gray-500 hover:text-gray-900 dark:hover:text-white"
                       onClick={() => handleClear(index)}
                       disabled={disabled}
                     >
@@ -216,7 +216,7 @@ export function RankRenderer(props: FieldRendererProps): React.ReactElement | nu
                   onValueChange={(v) => handleChange(index, v)}
                   disabled={disabled}
                 >
-                  <SelectTrigger className="bg-white border-gray-200">
+                  <SelectTrigger className="bg-background dark:bg-gray-900 border-gray-200 dark:border-gray-700">
                     <SelectValue placeholder="Select option" />
                   </SelectTrigger>
                   <SelectContent>
@@ -289,7 +289,7 @@ export function RankRenderer(props: FieldRendererProps): React.ReactElement | nu
               >
                 {idx + 1}
               </div>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 pt-4">
+              <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3 pt-4">
                 <div className="text-xs text-gray-400">Choice #{idx + 1}</div>
               </div>
             </div>

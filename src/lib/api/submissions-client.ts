@@ -118,6 +118,27 @@ export const submissionsClient = {
     goFetch<ApplicationSubmission>(`/submissions/${submissionId}/withdraw`, {
       method: 'POST',
     }),
+
+  /**
+   * Autosave from portal (uses portal authentication)
+   * Only sends changed fields, detects conflicts
+   */
+  autosaveFromPortal: async (submissionId: string, data: AutosaveRequest): Promise<AutosaveResponse> => {
+    const API_BASE = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
+    const response = await fetch(`${API_BASE}/submissions/${submissionId}/autosave`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      credentials: 'include', // Include portal auth cookie
+    })
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Autosave failed' }))
+      throw new Error(error.error || 'Autosave failed')
+    }
+    
+    return response.json()
+  },
 }
 
 // ==================== PORTAL AUTH V2 ====================

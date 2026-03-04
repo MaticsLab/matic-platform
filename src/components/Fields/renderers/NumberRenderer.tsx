@@ -157,7 +157,7 @@ export function NumberRenderer(props: FieldRendererProps): React.ReactElement | 
     }
 
     return (
-      <span className={cn('text-gray-900 tabular-nums', className)}>
+      <span className={cn('text-gray-900 dark:text-white tabular-nums', className)}>
         {formatValue(value, fieldTypeId, config)}
       </span>
     );

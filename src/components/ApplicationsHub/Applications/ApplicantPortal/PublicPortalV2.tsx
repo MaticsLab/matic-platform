@@ -320,6 +320,59 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     }
   }, [form, email, applicationRowId])
 
+  // Helper function to reload submission data from backend
+  const reloadSubmissionData = useCallback(async (): Promise<boolean> => {
+    if (!form?.id) return false
+    
+    try {
+      const session = await portalBetterAuthClient.getSession()
+      const sessionToken = session?.data?.session?.token
+      
+      if (!sessionToken) {
+        console.warn('[PublicPortalV2] No session token, cannot reload submission')
+        return false
+      }
+      
+      const baseUrl = getApiUrl()
+      const response = await fetch(
+        `${baseUrl}/portal/forms/${form.id}/my-submission`,
+        {
+          headers: {
+            'Authorization': `Bearer ${sessionToken}`
+          }
+        }
+      )
+      
+      if (response.ok) {
+        const submission = await response.json()
+        
+        if (submission.id && submission.data) {
+          console.log('[PublicPortalV2] Reloaded submission from backend:', {
+            id: submission.id,
+            dataKeys: Object.keys(submission.data)
+          })
+          
+          // Update all the relevant state
+          setApplicationRowId(submission.id)
+          setInitialData(submission.data)
+          setSubmissionData(submission.data)
+          setCurrentFormData(submission.data)
+          
+          if (submission.metadata?.status) {
+            setApplicationStatus(submission.metadata.status)
+          }
+          
+          return true
+        }
+      }
+      
+      return false
+    } catch (error) {
+      console.warn('[PublicPortalV2] Failed to reload submission:', error)
+      return false
+    }
+  }, [form])
+
   // Load form configuration and restore session
   useEffect(() => {
     const loadForm = async () => {
@@ -848,6 +901,14 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         setIsAuthenticated(true)
         setApplicantName(displayName || betterAuthUser.name || betterAuthUser.email)
 
+        // Initialize empty form data for new signups if no existing submission
+        if (!hasExistingSubmission) {
+          setInitialData({})
+        }
+        
+        // Set view to application so user can start filling the form
+        setCurrentView('application')
+
         // Save to localStorage
         try {
           const authData = {
@@ -1037,11 +1098,17 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       await saveBeforeNavigation()
     }
     
-    // Update initialData with current form data when switching back to application
-    if (currentFormData && Object.keys(currentFormData).length > 0) {
-      setInitialData(currentFormData)
-    } else if (submissionData && Object.keys(submissionData).length > 0) {
-      setInitialData(submissionData)
+    // Try to reload from backend first
+    const reloaded = await reloadSubmissionData()
+    
+    // If reload failed, fall back to local data
+    if (!reloaded) {
+      // Update initialData with current form data when switching back to application
+      if (currentFormData && Object.keys(currentFormData).length > 0) {
+        setInitialData(currentFormData)
+      } else if (submissionData && Object.keys(submissionData).length > 0) {
+        setInitialData(submissionData)
+      }
     }
     
     setCurrentView('application')
@@ -1292,12 +1359,12 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }} 
         animate={{ opacity: 1, scale: 1 }} 
-        className="min-h-screen bg-white flex flex-col items-center justify-center p-4 text-center"
+        className="min-h-screen bg-background dark:bg-gray-950 flex flex-col items-center justify-center p-4 text-center"
       >
-        <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6">
+        <div className="w-20 h-20 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mb-6">
           <CheckCircle2 className="w-10 h-10" />
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Application Submitted!</h1>
+        <h1 className="text-3xl font-bold text-foreground dark:text-gray-100 mb-2">Application Submitted!</h1>
         <p className="text-gray-500 max-w-md mb-8">
           Thank you for applying. We have received your application and will review it shortly.
         </p>
@@ -1311,7 +1378,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   // Show loading spinner while checking auth
   if (isCheckingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-background dark:bg-gray-950">
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     )
@@ -1321,7 +1388,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   if (!isAuthenticated) {
     return (
       <TranslationProvider>
-        <div className="min-h-screen bg-white">
+        <div className="min-h-screen bg-background dark:bg-gray-950">
           {translatedForm && (
             <>
               {/* Language Selector - Top Right */}
@@ -1377,10 +1444,8 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   return (
     <TranslationProvider>
       <div 
-        className="h-screen flex overflow-hidden"
+        className="h-screen flex overflow-hidden bg-white dark:bg-gray-950 text-gray-900 dark:text-white"
         style={{ 
-          backgroundColor: backgroundColor,
-          color: textColor,
           fontFamily: fontMap[fontFamily]
         }}
       >
@@ -1392,6 +1457,36 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
               // If navigating away from application view, save data first
               if (currentView === 'application' && view !== 'application') {
                 await saveBeforeNavigation()
+              }
+              
+              // If navigating TO application view, reload the latest data from backend
+              if (view === 'application') {
+                // Try to reload from backend first
+                const reloaded = await reloadSubmissionData()
+                
+                // If reload failed, fall back to local data
+                if (!reloaded) {
+                  // Update initialData with current form data when switching back to application
+                  if (currentFormData && Object.keys(currentFormData).length > 0) {
+                    setInitialData(currentFormData)
+                  } else if (submissionData && Object.keys(submissionData).length > 0) {
+                    setInitialData(submissionData)
+                  }
+                }
+                
+                // Set first section as active
+                if (portalConfig.sections && portalConfig.sections.length > 0) {
+                  const firstSection = portalConfig.sections.find((s: any) => 
+                    s.sectionType === 'form' || 
+                    s.sectionType === 'cover' || 
+                    s.sectionType === 'review'
+                  )
+                  if (firstSection) {
+                    setActiveSectionId(firstSection.id)
+                  } else if (portalConfig.sections[0]) {
+                    setActiveSectionId(portalConfig.sections[0].id)
+                  }
+                }
               }
               
               // Change view after save completes
@@ -1693,11 +1788,7 @@ function PortalHeader({
   return (
     <>
       <header 
-        className="border-b"
-        style={{ 
-          backgroundColor: backgroundColor,
-          borderColor: `${textColor}20`
-        }}
+        className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950"
       >
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
@@ -1707,10 +1798,7 @@ function PortalHeader({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-9 w-9"
-                  style={{ 
-                    color: textColor,
-                  }}
+                  className="h-9 w-9 text-gray-900 dark:text-white"
                   onClick={onToggleNavSidebar}
                   aria-label={navSidebarOpen ? "Close sidebar" : "Open sidebar"}
                 >
@@ -1733,8 +1821,7 @@ function PortalHeader({
                 </div>
               )}
               <span 
-                className="font-semibold"
-                style={{ color: textColor }}
+                className="font-semibold text-gray-900 dark:text-white"
               >
                 {portalConfig.settings.name || form?.name}
               </span>
@@ -1768,7 +1855,7 @@ function PortalHeader({
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="hover:bg-gray-100 h-9 w-9"
+                  className="hover:bg-gray-100 dark:hover:bg-gray-800 h-9 w-9"
                   onClick={() => onSettingsOpenChange(true)}
                   data-settings-trigger
                 >
@@ -1984,7 +2071,7 @@ function ApplicationView({
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
       {/* Application Sections Sidebar - Separate container with full height */}
-      <aside className="hidden lg:block w-64 shrink-0 bg-white border-r border-gray-200 h-full overflow-y-auto">
+      <aside className="hidden lg:block w-64 shrink-0 bg-background dark:bg-gray-900 border-r border-border dark:border-gray-800 h-full overflow-y-auto">
         <div className="p-4 space-y-2">
           {formSections.map((section: Section, idx: number) => {
             const isActive = section.id === activeSectionId

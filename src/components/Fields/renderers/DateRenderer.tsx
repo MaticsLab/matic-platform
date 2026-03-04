@@ -131,7 +131,7 @@ export function DateRenderer(props: FieldRendererProps): React.ReactElement | nu
     }
 
     return (
-      <span className={cn('text-gray-900 flex items-center gap-1.5', className)}>
+      <span className={cn('text-gray-900 dark:text-white flex items-center gap-1.5', className)}>
         {!isTimeOnly && <Calendar size={14} className="text-gray-400" />}
         {isTimeOnly && <Clock size={14} className="text-gray-400" />}
         {formatDate(value, fieldTypeId, config)}

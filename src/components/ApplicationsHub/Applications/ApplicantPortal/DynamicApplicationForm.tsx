@@ -147,7 +147,7 @@ export function DynamicApplicationForm({
         return (
           <div className="space-y-3">
             {value.map((item, idx) => (
-              <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <div key={idx} className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div className="text-xs font-medium text-gray-500 mb-2">Entry {idx + 1}</div>
                 <div className="space-y-1.5">
                   {Object.entries(item)
@@ -155,7 +155,7 @@ export function DynamicApplicationForm({
                     .map(([k, v]) => (
                     <div key={k} className="flex gap-2 text-sm">
                       <span className="text-gray-500 min-w-[120px]">{getChildFieldLabel(k)}:</span>
-                      <span className="text-gray-900 flex-1">{v ? String(v) : <span className="text-gray-400 italic">-</span>}</span>
+                      <span className="text-gray-900 dark:text-gray-100 flex-1">{v ? String(v) : <span className="text-gray-400 italic">-</span>}</span>
                     </div>
                   ))}
                 </div>
@@ -205,11 +205,11 @@ export function DynamicApplicationForm({
       
       // For other objects, show as formatted data
       return (
-        <div className="bg-gray-50 p-2 rounded border border-gray-200 text-xs">
+        <div className="bg-gray-50 dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 text-xs">
           {Object.entries(value).map(([k, v]) => (
             <div key={k} className="flex gap-2">
               <span className="text-gray-500 capitalize">{k.replace(/_/g, ' ')}:</span>
-              <span className="text-gray-900">{v ? String(v) : '-'}</span>
+              <span className="text-gray-900 dark:text-gray-100">{v ? String(v) : '-'}</span>
             </div>
           ))}
         </div>
@@ -268,6 +268,7 @@ export function DynamicApplicationForm({
     initialVersion: initialVersion,
     debounceMs: 2000,
     enabled: useOptimisticSave && !!submissionId,
+    usePortalAuth: isExternal, // Use portal auth when in external/portal context
     onConflict: (serverData, serverVersion) => {
       console.log('Conflict detected, server version:', serverVersion)
     },
@@ -543,12 +544,12 @@ export function DynamicApplicationForm({
   }, [translatedConfig.sections])
 
   return (
-    <div className={cn("flex flex-col", isExternal ? "min-h-screen bg-white" : "bg-gray-50")}>
+    <div className={cn("flex flex-col", isExternal ? "min-h-screen bg-background dark:bg-gray-950" : "bg-gray-50 dark:bg-gray-900")}>
       {/* Top Bar - Removed per user request when isExternal is true */}
       {!isExternal && (
         <div className={cn(
           "transition-all",
-          "bg-white border-b border-gray-200"
+          "bg-background dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700"
         )}>
           <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -570,7 +571,7 @@ export function DynamicApplicationForm({
                     {config.settings.name.charAt(0)}
                   </div>
                 )}
-                <span className="font-semibold text-gray-900">{translatedConfig.settings.name}</span>
+                <span className="font-semibold text-gray-900 dark:text-gray-100">{translatedConfig.settings.name}</span>
               </div>
             </div>
             
@@ -667,9 +668,9 @@ export function DynamicApplicationForm({
 
                     {/* Review Sections */}
                     {(Array.isArray(translatedConfig.sections) ? translatedConfig.sections : []).filter((s: Section) => s.sectionType === 'form').map((section: Section) => (
-                      <div key={section.id} className="border border-gray-200 rounded-lg p-6">
-                        <div className="flex items-center justify-between mb-4 pb-2 border-b">
-                          <h3 className="font-medium text-gray-900">{safeFieldString(section.title)}</h3>
+                      <div key={section.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+                        <div className="flex items-center justify-between mb-4 pb-2 border-b dark:border-gray-700">
+                          <h3 className="font-medium text-gray-900 dark:text-gray-100">{safeFieldString(section.title)}</h3>
                           <Button 
                             variant="ghost" 
                             size="sm"
@@ -686,8 +687,8 @@ export function DynamicApplicationForm({
                             
                             return (
                               <div key={field.id} className="grid grid-cols-3 gap-4 text-sm">
-                                <dt className="text-gray-600">{getFieldLabel(field)}</dt>
-                                <dd className="col-span-2 text-gray-900 break-words">{renderFieldValue(value, field)}</dd>
+                                <dt className="text-gray-600 dark:text-gray-400">{getFieldLabel(field)}</dt>
+                                <dd className="col-span-2 text-gray-900 dark:text-gray-100 break-words">{renderFieldValue(value, field)}</dd>
                               </div>
                             )
                           })}
@@ -696,8 +697,8 @@ export function DynamicApplicationForm({
                     ))}
                     
                     {/* Certifications */}
-                    <div className="border border-gray-200 rounded-lg p-6 space-y-4">
-                      <h3 className="font-medium text-gray-900">Certification</h3>
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6 space-y-4">
+                      <h3 className="font-medium text-gray-900 dark:text-gray-100">Certification</h3>
                       
                       <div className="space-y-3">
                         <div className="flex items-start gap-3">
@@ -885,8 +886,7 @@ export function DynamicApplicationForm({
                             value={formData[field.id] ?? (field.config?.sourceKey ? formData[field.config.sourceKey] : undefined)}
                             onChange={(val) => handleFieldChange(field.id, val)}
                             themeColor={config.settings.themeColor}
-                            formId={formId}
-                            allFields={allFields}
+                            formId={formId}                            submissionId={submissionId}                            allFields={allFields}
                             formData={formData}
                           />
                         </div>
@@ -901,7 +901,7 @@ export function DynamicApplicationForm({
 
         {/* Navigation - hide on review page since it has its own submit button */}
         {activeSection?.sectionType !== 'review' && (
-          <div className="flex justify-between pt-8 mt-8 border-t border-gray-100">
+          <div className="flex justify-between pt-8 mt-8 border-t border-gray-100 dark:border-gray-800">
             <Button 
               variant="ghost" 
               onClick={handlePrevious}

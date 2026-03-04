@@ -69,7 +69,7 @@ export function ApplicationSidebar({
       {/* Sidebar */}
       <aside
         className={cn(
-          "w-72 min-w-[18rem] max-w-[20rem] bg-white border-r border-gray-200 flex flex-col fixed lg:static inset-y-0 left-0 z-40 transition-transform duration-300",
+          "w-72 min-w-[18rem] max-w-[20rem] bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col fixed lg:static inset-y-0 left-0 z-40 transition-transform duration-300",
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
@@ -82,7 +82,7 @@ export function ApplicationSidebar({
               </div>
             )}
             <div>
-              <h2 className="font-semibold text-gray-900 truncate">
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100 truncate">
                 {formName}
               </h2>
               {formDescription && (
@@ -109,9 +109,9 @@ export function ApplicationSidebar({
                       "w-full text-left px-4 py-3 rounded-lg transition-all duration-200 flex items-center gap-3 group min-w-0",
                       isCurrent
                         ? isExternal 
-                          ? "bg-gray-100 text-gray-900" 
-                          : "bg-blue-50 text-blue-700"
-                        : "hover:bg-gray-50 text-gray-700"
+                          ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100" 
+                          : "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                        : "hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
                     )}
                     aria-current={isCurrent ? "step" : undefined}
                   >
@@ -170,7 +170,7 @@ export function ApplicationSidebar({
                     {isCurrent && (
                       <ChevronRight className={cn(
                         "h-4 w-4 flex-shrink-0",
-                        isExternal ? "text-gray-900" : "text-blue-700"
+                        isExternal ? "text-gray-900 dark:text-gray-100" : "text-blue-700 dark:text-blue-300"
                       )} />
                     )}
                   </button>
@@ -181,8 +181,8 @@ export function ApplicationSidebar({
         </nav>
 
         {/* Help Section */}
-        <div className="p-4 border-t bg-gray-50">
-          <div className="flex items-center gap-2 text-gray-900 font-medium mb-1">
+        <div className="p-4 border-t bg-gray-50 dark:bg-gray-900">
+          <div className="flex items-center gap-2 text-gray-900 dark:text-gray-100 font-medium mb-1">
             <HelpCircle className="h-4 w-4" />
             <span>{ui.needHelp || 'Need Help?'}</span>
           </div>

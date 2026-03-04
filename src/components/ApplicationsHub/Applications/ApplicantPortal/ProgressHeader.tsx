@@ -81,7 +81,7 @@ export function ProgressHeader({
       
       <header className={cn(
         "border-b px-4 sm:px-6 lg:px-8 py-3 mt-1",
-        isExternal ? "bg-white/80 backdrop-blur-md border-gray-100" : "bg-white border-gray-200"
+        isExternal ? "bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-gray-100 dark:border-gray-800" : "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"
       )}>
         <div className="flex items-center justify-between gap-6">
           {/* Progress Section */}

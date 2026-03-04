@@ -195,7 +195,7 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
       );
     }
 
-    return <span className={cn('text-gray-900', className)}>{value}</span>;
+    return <span className={cn('text-gray-900 dark:text-white', className)}>{value}</span>;
   }
 
   // Edit mode - inline editing
@@ -205,7 +205,7 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
         <div className={cn('relative', className)}>
           <div
             className={cn(
-              'min-h-[32px] px-2 py-1 border rounded-md cursor-pointer bg-white',
+              'min-h-[32px] px-2 py-1 border rounded-md cursor-pointer bg-background dark:bg-gray-900',
               'flex flex-wrap gap-1 items-center',
               disabled && 'opacity-50 cursor-not-allowed'
             )}
@@ -229,7 +229,7 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
           </div>
           
           {isOpen && !disabled && (
-            <div className="absolute z-50 mt-1 w-full bg-white border rounded-md shadow-lg max-h-48 overflow-auto">
+            <div className="absolute z-50 mt-1 w-full bg-background dark:bg-gray-900 border rounded-md shadow-lg max-h-48 overflow-auto">
               {options.map((opt) => {
                 const isSelected = normalizedValue.includes(opt.value);
                 return (
