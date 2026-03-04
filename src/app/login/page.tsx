@@ -58,10 +58,10 @@ function LoginContent() {
         if (lastWorkspace) {
           try {
             const workspace = JSON.parse(lastWorkspace)
-            router.replace(`/workspace/${workspace.slug}/applications`)
+            window.location.href = `https://www.maticsapp.com/workspace/${workspace.slug}/applications`
             return
           } catch (e) {
-            router.replace(`/workspace/${lastWorkspace}/applications`)
+            window.location.href = `https://www.maticsapp.com/workspace/${lastWorkspace}/applications`
             return
           }
         }
@@ -70,7 +70,7 @@ function LoginContent() {
           if (workspaces && workspaces.length > 0) {
             const first = workspaces[0]
             localStorage.setItem('lastWorkspace', JSON.stringify({ id: first.id, slug: first.slug, name: first.name }))
-            router.replace(`/workspace/${first.slug}/applications`)
+            window.location.href = `https://www.maticsapp.com/workspace/${first.slug}/applications`
           } else {
             // No workspaces found - go to auth to set up
             router.replace('/auth')
@@ -93,7 +93,7 @@ function LoginContent() {
         if (workspaces && workspaces.length > 0) {
           const first = workspaces[0]
           localStorage.setItem('lastWorkspace', JSON.stringify({ id: first.id, slug: first.slug, name: first.name }))
-          router.replace(`/workspace/${first.slug}/applications`)
+          window.location.href = `https://www.maticsapp.com/workspace/${first.slug}/applications`
         } else {
           router.replace('/auth')
         }

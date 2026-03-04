@@ -25,7 +25,7 @@ export function Navigation() {
         try {
           const workspace = JSON.parse(stored)
           if (workspace?.slug) {
-            router.push(`/workspace/${workspace.slug}/applications`)
+            window.location.href = `https://www.maticsapp.com/workspace/${workspace.slug}/applications`
             return
           }
         } catch {}
@@ -35,10 +35,9 @@ export function Navigation() {
       if (workspaces && workspaces.length > 0) {
         const first = workspaces[0]
         localStorage.setItem('lastWorkspace', JSON.stringify({ id: first.id, slug: first.slug, name: first.name }))
-        router.push(`/workspace/${first.slug}/applications`)
+        window.location.href = `https://www.maticsapp.com/workspace/${first.slug}/applications`
       }
     } catch {
-      // Fallback to login page which handles workspace resolution
       router.push('/login')
     } finally {
       setIsNavigating(false)
