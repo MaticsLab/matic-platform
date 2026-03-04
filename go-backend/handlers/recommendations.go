@@ -30,6 +30,42 @@ func generateRecommendationToken() string {
 	return hex.EncodeToString(bytes)
 }
 
+// uploadRecommendationToSupabase uploads a file to Supabase Storage and returns the public URL
+func uploadRecommendationToSupabase(fileData io.Reader, storagePath string, contentType string) (string, error) {
+	supabaseURL := os.Getenv("NEXT_PUBLIC_SUPABASE_URL")
+	serviceRoleKey := os.Getenv("SUPABASE_SERVICE_ROLE_KEY")
+	if supabaseURL == "" || serviceRoleKey == "" {
+		return "", fmt.Errorf("Supabase credentials not configured")
+	}
+
+	bucket := "workspace-assets"
+	uploadURL := fmt.Sprintf("%s/storage/v1/object/%s/%s", supabaseURL, bucket, storagePath)
+
+	req, err := http.NewRequest("POST", uploadURL, fileData)
+	if err != nil {
+		return "", fmt.Errorf("failed to create upload request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+serviceRoleKey)
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("x-upsert", "false")
+
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("upload request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return "", fmt.Errorf("Supabase upload failed (%d): %s", resp.StatusCode, string(body))
+	}
+
+	// Return the public URL
+	publicURL := fmt.Sprintf("%s/storage/v1/object/public/%s/%s", supabaseURL, bucket, storagePath)
+	return publicURL, nil
+}
+
 // rewriteLocalhostURLs fixes old localhost URLs in recommendation response JSONB
 func rewriteLocalhostURLs(response []byte) ([]byte, error) {
 	if len(response) == 0 {
@@ -846,46 +882,13 @@ func SubmitRecommendation(c *gin.Context) {
 			ext := filepath.Ext(header.Filename)
 			filename := fmt.Sprintf("%s_%s%s", uuid.New().String()[:8], strings.TrimSuffix(header.Filename, ext), ext)
 
-			// Create uploads directory if it doesn't exist
-			uploadDir := filepath.Join("uploads", "recommendations", request.ID.String())
-			if err := os.MkdirAll(uploadDir, 0755); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
-				return
-			}
-
-			// Save the file
-			filePath := filepath.Join(uploadDir, filename)
-			dst, err := os.Create(filePath)
+			// Upload to Supabase Storage (persistent, survives redeploys)
+			storagePath := fmt.Sprintf("uploads/recommendations/%s/%s", request.ID.String(), filename)
+			documentURL, err := uploadRecommendationToSupabase(file, storagePath, fileContentType)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to upload file: %s", err.Error())})
 				return
 			}
-			defer dst.Close()
-
-			if _, err := io.Copy(dst, file); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write file"})
-				return
-			}
-
-			// Generate URL - use request host for production, fallback to env or localhost
-			baseURL := os.Getenv("BASE_URL")
-			if baseURL == "" {
-				// Try to get from request
-				scheme := "https"
-				if c.GetHeader("X-Forwarded-Proto") == "http" || strings.HasPrefix(c.Request.Host, "localhost") {
-					scheme = "http"
-				}
-				host := c.GetHeader("X-Forwarded-Host")
-				if host == "" {
-					host = c.Request.Host
-				}
-				if host != "" {
-					baseURL = fmt.Sprintf("%s://%s", scheme, host)
-				} else {
-					baseURL = "https://api.maticsapp.com" // Production default
-				}
-			}
-			documentURL := fmt.Sprintf("%s/uploads/recommendations/%s/%s", baseURL, request.ID.String(), filename)
 
 			responseData["uploaded_document"] = map[string]interface{}{
 				"url":      documentURL,
