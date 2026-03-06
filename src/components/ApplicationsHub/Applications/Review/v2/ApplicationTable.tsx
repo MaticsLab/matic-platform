@@ -2,6 +2,7 @@
 
 import { FileText, AlertCircle, Calendar, Mail, Download, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { NO_APPLICATIONS_FOUND } from '@/constants/fallbacks';
 import {
   Table,
   TableBody,
@@ -13,6 +14,7 @@ import {
 import { Button } from '@/ui-components/button';
 import { Badge } from '@/ui-components/badge';
 import { Checkbox } from '@/ui-components/checkbox';
+import { isLayoutField } from '@/types/forms';
 
 interface Submission {
   id: string;
@@ -34,6 +36,14 @@ interface Submission {
   documents?: { name: string; url: string; type: string }[];
 }
 
+interface FormField {
+  id: string;
+  field_key: string;
+  field_type: string;
+  label: string;
+  required: boolean;
+}
+
 interface SubmissionTableProps {
   submissions: Submission[];
   selectedId?: string;
@@ -43,6 +53,8 @@ interface SubmissionTableProps {
   selectedRows: Set<string>;
   onToggleRow: (id: string) => void;
   onToggleAll: () => void;
+  fields?: FormField[];
+  hiddenFields?: Set<string>;
 }
 
 const getStatusColor = (status: string) => {
@@ -131,9 +143,17 @@ export function SubmissionTable({
   selectedRows,
   onToggleRow,
   onToggleAll,
+  fields = [],
+  hiddenFields = new Set()
 }: SubmissionTableProps) {
   const allSelected = submissions.length > 0 && submissions.every(s => selectedRows.has(s.id));
   const someSelected = submissions.some(s => selectedRows.has(s.id)) && !allSelected;
+  
+  // Show all fields except hidden ones, file uploads, and layout fields
+  const displayFields = fields
+    .filter(f => f.field_type !== 'file_upload' && f.field_type !== 'document')
+    .filter(f => !isLayoutField(f))
+    .filter(f => !hiddenFields.has(f.id));
   
   if (isLoading) {
     return (
@@ -172,6 +192,9 @@ export function SubmissionTable({
                 </TableHead>
                 <TableHead>User</TableHead>
                 <TableHead>Email</TableHead>
+                {displayFields.map(field => (
+                  <TableHead key={field.id}>{field.label}</TableHead>
+                ))}
                 <TableHead>Status</TableHead>
                 <TableHead>Documents</TableHead>
                 <TableHead>Submitted</TableHead>
@@ -222,6 +245,72 @@ export function SubmissionTable({
                       {submission.email}
                     </div>
                   </TableCell>
+                  
+                  {displayFields.map(field => {
+                    // Try multiple key variations to find the value
+                    // Primary: Try field.id (most common in actual data)
+                    let value = submission.raw_data?.[field.id];
+
+                    // Fallback: Try field_key if it exists
+                    if ((value === null || value === undefined) && field.field_key) {
+                      value = submission.raw_data?.[field.field_key];
+                    }
+
+                    // Fallback: Try field.name (from legacy structure)
+                    if (value === null || value === undefined) {
+                      const fieldName = (field as any).name;
+                      if (fieldName) {
+                        value = submission.raw_data?.[fieldName];
+                      }
+                    }
+
+                    // Fallback: Try nested structures (e.g., personal object)
+                    if (value === null || value === undefined) {
+                      // Check common nested structures
+                      const personal = submission.raw_data?.personal;
+                      if (personal && typeof personal === 'object') {
+                        const fieldName = (field as any).name;
+                        value = personal[field.id] || personal[field.field_key] || (fieldName && personal[fieldName]);
+                      }
+                    }
+
+                    // Fallback: Try label variations
+                    if (value === null || value === undefined) {
+                      const labelKey = field.label?.toLowerCase().replace(/\s+/g, '_');
+                      const labelKeyNoSpace = field.label?.toLowerCase().replace(/\s+/g, '');
+
+                      value = submission.raw_data?.[labelKey]
+                        || submission.raw_data?.[labelKeyNoSpace]
+                        || submission.raw_data?.[field.label];
+
+                      // Also check nested personal object with label variations
+                      if ((value === null || value === undefined) && submission.raw_data?.personal) {
+                        const personal = submission.raw_data.personal;
+                        value = personal[labelKey] || personal[labelKeyNoSpace] || personal[field.label];
+                      }
+                    }
+                    
+                    let displayValue = '';
+                    
+                    if (value === null || value === undefined) {
+                      displayValue = '-';
+                    } else if (typeof value === 'object' && !Array.isArray(value)) {
+                      // Handle object values (like file uploads)
+                      displayValue = value.name || value.label || JSON.stringify(value);
+                    } else if (Array.isArray(value)) {
+                      displayValue = value.join(', ');
+                    } else {
+                      displayValue = String(value);
+                    }
+                    
+                    return (
+                      <TableCell key={field.id}>
+                        <span className="text-sm text-gray-900 truncate max-w-[200px] block" title={displayValue}>
+                          {displayValue}
+                        </span>
+                      </TableCell>
+                    );
+                  })}
                   
                   <TableCell>
                     {getStatusBadge(submission.status)}
