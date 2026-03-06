@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { FileCheck, Settings, Layers } from 'lucide-react'
+import { FileCheck, Settings, Layers, BarChart2, PencilLine } from 'lucide-react'
 import { ReviewWorkspaceV2 } from './Review/v2'
 import { ApplicationSettingsModal } from './Configuration/ApplicationSettingsModal'
 import { useBreadcrumbs } from '@/hooks/useBreadcrumbs'
@@ -9,7 +9,7 @@ import { Button } from '@/ui-components/button'
 import { goClient } from '@/lib/api/go-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { Form } from '@/types/forms'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 
 interface ApplicationManagerProps {
   workspaceId: string
@@ -25,6 +25,7 @@ interface Stats {
 
 export function ApplicationManager({ workspaceId, formId }: ApplicationManagerProps) {
   const params = useParams()
+  const router = useRouter()
   const slugFromUrl = params?.slug as string
 
   const [form, setForm] = useState<Form | null>(null)
@@ -93,6 +94,30 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
         <Button
           variant="ghost"
           size="sm"
+          onClick={() => {
+            if (workspaceSlug && formId) {
+              router.push(`/workspace/${workspaceSlug}/applications/${formId}/analytics`)
+            }
+          }}
+          title="View Analytics"
+        >
+          <BarChart2 className="w-4 h-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            if (workspaceSlug && formId) {
+              router.push(`/workspace/${workspaceSlug}/portal-editor?formId=${formId}`)
+            }
+          }}
+          title="Form Editor"
+        >
+          <PencilLine className="w-4 h-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => setIsAppSettingsModalOpen(true)}
           title="Form Settings"
         >
@@ -100,7 +125,7 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
         </Button>
       </>
     ),
-    []
+    [workspaceSlug, formId, router]
   )
 
   // Memoize options object to prevent infinite loop

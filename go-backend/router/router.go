@@ -480,8 +480,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 				// Form submissions
 				forms.GET("/:id/submissions", handlers.ListFormSubmissions)
+				forms.GET("/:id/fields", handlers.ListFormFieldsV2)
 				forms.DELETE("/:id/submissions/:submission_id", handlers.DeleteFormSubmission)
 				forms.POST("/:id/submissions/bulk-delete", handlers.BulkDeleteFormSubmissions)
+
+				// Form analytics
+				forms.GET("/:id/analytics", handlers.GetFormAnalytics)
 
 				// Form search
 				forms.GET("/:id/search", handlers.SearchFormSubmissions)

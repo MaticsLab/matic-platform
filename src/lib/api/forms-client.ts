@@ -97,6 +97,9 @@ export const formsClient = {
   getSubmissions: (id: string) => 
     goClient.get(`/forms/${id}/submissions`),
 
+  getAnalytics: (id: string) =>
+    goClient.get<import('@/types/form-analytics').FormAnalyticsResponse>(`/forms/${id}/analytics`),
+
   deleteSubmission: (formId: string, submissionId: string) =>
     goClient.delete(`/forms/${formId}/submissions/${submissionId}`),
 }

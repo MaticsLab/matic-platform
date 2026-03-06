@@ -423,10 +423,25 @@ function renderFieldValue(value: any, depth: number = 0, fieldLabel?: string, fi
   
   // Handle objects
   if (typeof parsedValue === 'object') {
+    // Address field — render as a single clean string
+    if ('full_address' in parsedValue || 'city' in parsedValue) {
+      const address =
+        parsedValue.full_address ||
+        [parsedValue.street_address, parsedValue.city, parsedValue.state, parsedValue.postal_code]
+          .filter(Boolean)
+          .join(', ');
+      return <span className="text-gray-900">{address}</span>;
+    }
+
     const entries = Object.entries(parsedValue).filter(([k]) => !k.startsWith('_')); // Skip internal fields
-    
+
     if (entries.length === 0) {
       return <span className="text-gray-400 italic">Empty</span>;
+    }
+
+    // Unwrap single-value groups (e.g. {"field-1766110112708-zg4hskrds": "11"} → "11")
+    if (entries.length === 1) {
+      return renderFieldValue(entries[0][1], depth, fieldLabel, fieldMap);
     }
     
     // Check if all values are simple (no nested objects)
@@ -971,6 +986,11 @@ export function ApplicationDetail({
         map.set(fieldLabel, f);
         map.set(fieldLabel.toLowerCase().replace(/\s+/g, '_'), f);
         map.set(fieldLabel.replace(/\s+/g, '_'), f);
+      }
+      // Also index by field_key / name so repeater sub-field keys resolve to labels
+      const fieldName = (f as any).name;
+      if (fieldName && fieldName !== fieldLabel) {
+        map.set(fieldName, f);
       }
       // Map child fields for repeater/group fields
       const children = (f as any).children || (f as any).child_fields || [];
@@ -1759,13 +1779,14 @@ export function ApplicationDetail({
                               <CardContent className="p-4 pt-0">
                                 <div className="space-y-4">
                                   {section.fields.map((field) => {
-                                    const value = application.raw_data?.[field.id] || 
+                                    const value = application.raw_data?.[field.id] ||
+                                                 application.raw_data?.[(field as any).name] ||
                                                  application.raw_data?.[(field as any).field_key] ||
                                                  application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
                                                  application.raw_data?.[field.label];
                                     
-                                    // Use field.label directly, fallback to formatFieldLabel if not available
-                                    const displayLabel = field.label || formatFieldLabel(field.id, fieldMap);
+                                    // Strip HTML from rich-text labels
+                                    const displayLabel = (field.label || formatFieldLabel(field.id, fieldMap)).replace(/<[^>]+>/g, '').trim();
                                     const isRequired = (field as any).required;
                                     const isEmpty = value === null || value === undefined || value === '';
 
