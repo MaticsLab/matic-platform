@@ -22,7 +22,7 @@ import recommendationsClient, {
   RecommendationByTokenResponse, 
   RecommendationQuestion 
 } from '@/lib/api/recommendations-client'
-import { createClient } from '@/lib/supabase
+import { createClient } from '@/lib/supabase'
 
 // File Upload Component
 function FileUpload({ value, onChange }: { value?: File | null; onChange: (file: File | null) => void }) {
