@@ -83,7 +83,7 @@ function FileUpload({ value, onChange }: { value?: File | null; onChange: (file:
   if (value) {
     return (
       <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-        <FileText className="h-8 w-8 text-purple-600" />
+        <FileText className="h-8 w-8 text-slate-500" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-slate-900 truncate">{value.name}</p>
           <p className="text-xs text-slate-500">{formatFileSize(value.size)}</p>
@@ -105,7 +105,7 @@ function FileUpload({ value, onChange }: { value?: File | null; onChange: (file:
     <div
       className={cn(
         "border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
-        dragActive ? "border-purple-500 bg-purple-50" : "border-slate-300 hover:border-purple-400"
+        dragActive ? "border-slate-500 bg-slate-50" : "border-slate-300 hover:border-slate-400"
       )}
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}
@@ -122,7 +122,7 @@ function FileUpload({ value, onChange }: { value?: File | null; onChange: (file:
       />
       <Upload className="h-8 w-8 text-slate-400 mx-auto mb-2" />
       <p className="text-sm text-slate-600">
-        <span className="text-purple-600 font-medium">Click to upload</span> or drag and drop
+        <span className="text-slate-800 font-medium">Click to upload</span> or drag and drop
       </p>
       <p className="text-xs text-slate-400 mt-1">PDF or Word documents (max 10MB)</p>
     </div>
@@ -237,10 +237,10 @@ export default function RecommendPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-purple-50 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-purple-600 mx-auto" />
-          <p className="mt-4 text-slate-600">Loading recommendation request...</p>
+          <Loader2 className="h-6 w-6 animate-spin text-slate-400 mx-auto" />
+          <p className="mt-3 text-sm text-slate-500">Loading recommendation request...</p>
         </div>
       </div>
     )
@@ -249,15 +249,17 @@ export default function RecommendPage() {
   // Error state (invalid/expired link)
   if (error && !data) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-red-50 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
+      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+        <Card className="max-w-md w-full border-slate-200">
           <CardContent className="pt-6">
             <div className="text-center">
-              <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-50 border border-red-200 mb-4">
+                <XCircle className="h-6 w-6 text-red-500" />
+              </div>
               <h2 className="text-xl font-semibold text-slate-900 mb-2">Unable to Load</h2>
               <p className="text-slate-600 mb-2">{error}</p>
               {errorDetails && (
-                <p className="text-sm text-slate-500 mt-4 p-3 bg-slate-100 rounded-lg">
+                <p className="text-sm text-slate-500 mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
                   {errorDetails}
                 </p>
               )}
@@ -268,22 +270,86 @@ export default function RecommendPage() {
     )
   }
 
-  // Success state
+  // Already submitted - show read-only view of what they submitted
+  if (data?.already_submitted) {
+    const request = data.request
+    const submittedResponse = request?.response || {}
+    const uploadedDoc = submittedResponse['uploaded_document'] as { url?: string; filename?: string } | undefined
+    const submittedAt = request?.submitted_at ? new Date(request.submitted_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : ''
+    return (
+      <div className="min-h-screen bg-white py-8 px-4">
+        <div className="max-w-2xl mx-auto">
+          {data.logo_url && (
+            <div className="flex justify-center mb-8">
+              <img src={data.logo_url} alt={data.form_title} className="max-h-16 max-w-[200px] object-contain" />
+            </div>
+          )}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 mb-4">
+              <CheckCircle className="h-6 w-6 text-emerald-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 mb-1">Recommendation Submitted</h1>
+            {submittedAt && <p className="text-sm text-slate-500">Submitted on {submittedAt}</p>}
+            <p className="text-slate-600 mt-2">Thank you, <strong>{request?.recommender_name}</strong>. Your recommendation for <strong>{data.form_title}</strong> has been received.</p>
+          </div>
+          {(data.questions?.length > 0 || uploadedDoc) && (
+            <Card className="border-slate-200">
+              <CardHeader className="pb-3 border-b border-slate-100">
+                <CardTitle className="text-base font-semibold text-slate-800">Your Submission</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                {data.questions?.map((q) => {
+                  const val = submittedResponse[q.id]
+                  if (val === undefined || val === '' || val === false) return null
+                  return (
+                    <div key={q.id}>
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{q.label}</p>
+                      <p className="text-sm text-slate-800 whitespace-pre-wrap">{String(val)}</p>
+                    </div>
+                  )
+                })}
+                {uploadedDoc?.url && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Uploaded Document</p>
+                    <a href={uploadedDoc.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900 underline">
+                      <FileText className="h-4 w-4" />
+                      {uploadedDoc.filename || 'View Document'}
+                    </a>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Success state (just submitted in this session)
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-green-50 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-slate-900 mb-2">Thank You!</h2>
-              <p className="text-slate-600">
-                Your recommendation has been submitted successfully. 
-                The applicant will be notified.
-              </p>
+      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          {data?.logo_url && (
+            <div className="flex justify-center mb-6">
+              <img src={data.logo_url} alt={data.form_title} className="max-h-14 max-w-[180px] object-contain" />
             </div>
-          </CardContent>
-        </Card>
+          )}
+          <Card className="border-slate-200">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 mb-4">
+                  <CheckCircle className="h-6 w-6 text-emerald-600" />
+                </div>
+                <h2 className="text-xl font-semibold text-slate-900 mb-2">Thank You!</h2>
+                <p className="text-slate-600">
+                  Your recommendation has been submitted successfully.
+                  The applicant will be notified.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
@@ -293,8 +359,15 @@ export default function RecommendPage() {
   const isExpiringSoon = deadline && (deadline.getTime() - Date.now()) < 3 * 24 * 60 * 60 * 1000
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-purple-50 py-8 px-4">
+    <div className="min-h-screen bg-[#fafafa] py-8 px-4">
       <div className="max-w-2xl mx-auto">
+        {/* Form logo */}
+        {data?.logo_url && (
+          <div className="flex justify-center mb-6">
+            <img src={data.logo_url} alt={data.form_title} className="max-h-16 max-w-[220px] object-contain" />
+          </div>
+        )}
+
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-slate-900 mb-2">

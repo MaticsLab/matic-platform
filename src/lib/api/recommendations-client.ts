@@ -56,10 +56,12 @@ export interface RecommendationByTokenResponse {
   applicant_name: string
   applicant_email: string
   form_title: string
+  logo_url?: string
   questions: RecommendationQuestion[]
   instructions?: string
   require_relationship?: boolean
   show_file_upload?: boolean
+  already_submitted?: boolean
 }
 
 // Client

@@ -253,8 +253,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.POST("/email/resend/webhook", handlers.HandleResendWebhook)
 
 		// Recommendation Routes (Public with Token - for recommenders)
-		api.GET("/recommend/:token", handlers.GetRecommendationByToken)     // Get recommendation request details
-		api.POST("/recommend/:token/submit", handlers.SubmitRecommendation) // Submit recommendation
+		api.GET("/recommend/:token", handlers.GetRecommendationByToken)               // Get recommendation request details
+		api.POST("/recommend/:token/submit", handlers.SubmitRecommendation)           // Submit recommendation
+		api.POST("/recommendations/test-email", handlers.SendTestRecommendationEmail) // Send test email
 
 		// Public Ending Pages Routes (for portal form submissions)
 		// This endpoint is public because it's called after form submission by applicants

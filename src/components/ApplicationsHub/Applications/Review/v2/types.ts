@@ -48,6 +48,7 @@ export interface Application {
   comments?: string;
   flagged?: boolean;
   reviewHistory?: ReviewHistoryEntry[];
+  applicant_id?: string; // ba_users.id — the auth account ID for this applicant
 }
 
 export interface Reviewer {

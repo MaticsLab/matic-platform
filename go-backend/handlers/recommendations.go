@@ -94,6 +94,117 @@ func rewriteLocalhostURLs(response []byte) ([]byte, error) {
 	return json.Marshal(responseData)
 }
 
+// getFormLogoURL extracts the logo URL from form settings
+func getFormLogoURL(form *models.Table) string {
+	if form.Settings == nil {
+		return ""
+	}
+	var settings map[string]interface{}
+	if err := json.Unmarshal(form.Settings, &settings); err != nil {
+		return ""
+	}
+	// 1. Check emailSettings overrride (snake_case or camelCase)
+	if es, ok := settings["emailSettings"].(map[string]interface{}); ok {
+		for _, k := range []string{"logo_url", "logoUrl"} {
+			if lu, ok := es[k].(string); ok && lu != "" {
+				return lu
+			}
+		}
+	}
+	// 2. Top-level logoUrl / logo_url (form theme editor stores it here)
+	for _, k := range []string{"logoUrl", "logo_url"} {
+		if lu, ok := settings[k].(string); ok && lu != "" {
+			return lu
+		}
+	}
+	// 3. portal_theme fallback
+	if pt, ok := settings["portal_theme"].(map[string]interface{}); ok {
+		for _, k := range []string{"logo_url", "logoUrl"} {
+			if lu, ok := pt[k].(string); ok && lu != "" {
+				return lu
+			}
+		}
+	}
+	return ""
+}
+
+// buildRecommendationEmailHTML generates a clean, white Vercel-style email for recommendation requests
+func buildRecommendationEmailHTML(recommenderName, mainText, formTitle, logoURL, link, deadline string, isReminder bool) string {
+	heading := "Recommendation Request"
+	ctaText := "Submit Recommendation →"
+	if isReminder {
+		heading = "Reminder: Recommendation Request"
+	}
+	logoHTML := ""
+	if logoURL != "" {
+		logoHTML = fmt.Sprintf(`<img src="%s" alt="" style="max-height:40px;max-width:160px;object-fit:contain;display:block;margin:0 0 20px 0;" />`, logoURL)
+	}
+	return fmt.Sprintf(`<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>%s</title>
+</head>
+<body style="margin:0;padding:0;background-color:#fafafa;-webkit-font-smoothing:antialiased;">
+<table width="100%%" cellpadding="0" cellspacing="0" role="presentation" style="background:#fafafa;padding:40px 16px;">
+  <tr><td align="center">
+  <table width="560" cellpadding="0" cellspacing="0" role="presentation" style="max-width:560px;width:100%%">
+    <tr>
+      <td style="background:#ffffff;border-radius:8px;border:1px solid #e5e5e5;overflow:hidden;">
+        <table width="100%%" cellpadding="0" cellspacing="0" role="presentation">
+          <tr><td height="3" style="background:#09090b;font-size:0;line-height:0;">&nbsp;</td></tr>
+        </table>
+        <table width="100%%" cellpadding="0" cellspacing="0" role="presentation" style="padding:36px 40px 32px;">
+          <tr><td>
+            %s
+            <p style="margin:0 0 2px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#a3a3a3;">%s</p>
+            <h1 style="margin:0 0 24px;font-size:22px;font-weight:700;line-height:1.25;color:#09090b;">%s</h1>
+            <p style="margin:0 0 14px;font-size:15px;line-height:1.5;color:#3f3f46;">Dear <strong>%s</strong>,</p>
+            <p style="margin:0 0 28px;font-size:15px;line-height:1.65;color:#52525b;">%s</p>
+            <table cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom:28px;">
+              <tr>
+                <td style="border-radius:6px;background:#09090b;">
+                  <a href="%s" style="display:inline-block;padding:11px 22px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;letter-spacing:.01em;">%s</a>
+                </td>
+              </tr>
+            </table>
+            <table width="100%%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid #e5e5e5;border-radius:6px;margin-bottom:24px;">
+              <tr>
+                <td style="padding:14px 16px;">
+                  <p style="margin:0 0 2px;font-size:11px;font-weight:600;color:#a3a3a3;text-transform:uppercase;letter-spacing:.08em;">Deadline</p>
+                  <p style="margin:0;font-size:14px;font-weight:500;color:#09090b;">%s</p>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0;font-size:12px;color:#a3a3a3;line-height:1.6;">Or copy this link:<br><a href="%s" style="color:#737373;word-break:break-all;">%s</a></p>
+          </td></tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:20px 0 0;text-align:center;">
+        <p style="margin:0;font-size:12px;color:#a3a3a3;">Thank you for supporting this application. Reply to this email with any questions.</p>
+      </td>
+    </tr>
+  </table>
+  </td></tr>
+</table>
+</body>
+</html>`,
+		heading,
+		logoHTML,
+		formTitle,
+		heading,
+		recommenderName,
+		mainText,
+		link,
+		ctaText,
+		deadline,
+		link,
+		link,
+	)
+}
+
 // GetRecommendationRequests returns all recommendation requests for a submission
 func GetRecommendationRequests(c *gin.Context) {
 	submissionID := c.Query("submission_id")
@@ -150,6 +261,25 @@ func GetRecommendationByToken(c *gin.Context) {
 
 	fmt.Printf("[Recommendations] GetByToken called with token: %s\n", token)
 
+	// Special preview token used in test emails
+	if token == "sample-token-preview" {
+		c.JSON(http.StatusOK, gin.H{
+			"request": gin.H{
+				"id":               "00000000-0000-0000-0000-000000000000",
+				"recommender_name": "Preview Recommender",
+				"status":           "pending",
+			},
+			"applicant_name":       "Sample Applicant",
+			"applicant_email":      "applicant@example.com",
+			"form_title":           "Sample Application Form",
+			"questions":            []interface{}{},
+			"show_file_upload":     true,
+			"require_relationship": false,
+			"logo_url":             "",
+		})
+		return
+	}
+
 	var request models.RecommendationRequest
 	if err := database.DB.First(&request, "token = ?", token).Error; err != nil {
 		fmt.Printf("[Recommendations] Token not found in database: %s\n", token)
@@ -166,39 +296,32 @@ func GetRecommendationByToken(c *gin.Context) {
 		return
 	}
 
-	// Check if already submitted - but provide helpful context
+	// If already submitted, return the full data so the recommender can view their submission
 	if request.Status == "submitted" {
-		// Get applicant info to help user understand which submission this was for
-		var submission models.Row
-		database.DB.First(&submission, "id = ?", request.SubmissionID)
+		var submittedForm models.Table
+		database.DB.First(&submittedForm, "id = ?", request.FormID)
 
-		applicantName := "the applicant"
-		if submission.Data != nil {
-			var data map[string]interface{}
-			json.Unmarshal(submission.Data, &data)
-
-			// Try to get applicant name from common fields
-			for key, value := range data {
-				keyLower := strings.ToLower(key)
-				if str, ok := value.(string); ok && str != "" {
-					if keyLower == "full_name" || keyLower == "fullname" || keyLower == "name" ||
-						keyLower == "first_name" || keyLower == "firstname" {
-						applicantName = str
-						break
-					}
-				}
+		var fieldConfig models.RecommendationFieldConfig
+		var field models.Field
+		if err := database.DB.Where("table_id = ? AND id = ?", request.FormID, request.FieldID).First(&field).Error; err == nil {
+			if field.Config != nil {
+				json.Unmarshal(field.Config, &fieldConfig)
 			}
 		}
 
-		submittedAt := ""
-		if request.SubmittedAt != nil {
-			submittedAt = request.SubmittedAt.Format("January 2, 2006")
+		if len(request.Response) > 0 {
+			if rewritten, err := rewriteLocalhostURLs(request.Response); err == nil {
+				request.Response = rewritten
+			}
 		}
 
-		fmt.Printf("[Recommendations] Request already submitted for applicant: %s on %s\n", applicantName, submittedAt)
-		c.JSON(http.StatusGone, gin.H{
-			"error":   "This recommendation has already been submitted",
-			"details": fmt.Sprintf("You submitted a recommendation for %s on %s. If you received a new request for a different applicant, please check your email for the correct link.", applicantName, submittedAt),
+		c.JSON(http.StatusOK, gin.H{
+			"request":           request,
+			"form_title":        submittedForm.Name,
+			"questions":         fieldConfig.Questions,
+			"instructions":      fieldConfig.Instructions,
+			"already_submitted": true,
+			"logo_url":          getFormLogoURL(&submittedForm),
 		})
 		return
 	}
@@ -317,6 +440,7 @@ func GetRecommendationByToken(c *gin.Context) {
 		"instructions":         fieldConfig.Instructions,
 		"require_relationship": fieldConfig.RequireRelationship,
 		"show_file_upload":     fieldConfig.ShowFileUpload,
+		"logo_url":             getFormLogoURL(&form),
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -517,19 +641,9 @@ func CreateRecommendationRequest(c *gin.Context) {
 	c.JSON(http.StatusCreated, request)
 }
 
-// sendRecommendationRequestEmail sends the recommendation request email via Resend
+// sendRecommendationRequestEmail sends the recommendation request email via Gmail (or Resend fallback)
 func sendRecommendationRequestEmail(request *models.RecommendationRequest, submission *models.Row, form *models.Table, config *models.RecommendationFieldConfig) error {
 	fmt.Printf("[Recommendations] Starting to send email to: %s\n", request.RecommenderEmail)
-
-	apiKey := os.Getenv("RESEND_API_KEY")
-	if apiKey == "" {
-		fmt.Println("[Recommendations] ERROR: RESEND_API_KEY not configured, skipping email")
-		return fmt.Errorf("RESEND_API_KEY not configured")
-	}
-
-	fmt.Printf("[Recommendations] RESEND_API_KEY found (length: %d)\n", len(apiKey))
-
-	client := resend.NewClient(apiKey)
 
 	// Get applicant info using configured field mappings or auto-detection
 	applicantName := ""
@@ -696,34 +810,10 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 			})
 		}
 
-		// Wrap plain text in HTML if it doesn't contain HTML tags
+		// Wrap plain text in clean HTML if it doesn't contain HTML tags
 		if !strings.Contains(body, "<") {
-			body = fmt.Sprintf(`
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">Recommendation Request</h1>
-    </div>
-    <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-        <p style="font-size: 16px;">Dear %s,</p>
-        <p>%s</p>
-        <div style="text-align: center; margin: 30px 0;">
-            <a href="%s" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Submit Recommendation</a>
-        </div>
-        <p style="font-size: 14px; color: #6b7280;">Or copy this link: <a href="%s" style="color: #667eea;">%s</a></p>
-        <div style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; margin-top: 20px;">
-            <p style="margin: 0; font-size: 14px;"><strong>Deadline:</strong> %s</p>
-        </div>
-        <p style="margin-top: 30px; color: #6b7280; font-size: 14px;">Thank you for taking the time to support this applicant.</p>
-    </div>
-</body>
-</html>
-`, request.RecommenderName, body, recommendationLink, recommendationLink, recommendationLink, deadline)
+			logoURL := getFormLogoURL(form)
+			body = buildRecommendationEmailHTML(request.RecommenderName, body, form.Name, logoURL, recommendationLink, deadline, false)
 		}
 
 		// Also process subject merge tags
@@ -733,33 +823,9 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 		subject = strings.ReplaceAll(subject, "{{form_title}}", form.Name)
 	} else {
 		// Default template
-		body = fmt.Sprintf(`
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">Recommendation Request</h1>
-    </div>
-    <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-        <p style="font-size: 16px;">Dear %s,</p>
-        <p><strong>%s</strong> has listed you as a recommender for their application to <strong>%s</strong>.</p>
-        <p>Please click the button below to submit your recommendation:</p>
-        <div style="text-align: center; margin: 30px 0;">
-            <a href="%s" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Submit Recommendation</a>
-        </div>
-        <p style="font-size: 14px; color: #6b7280;">Or copy this link: <a href="%s" style="color: #667eea;">%s</a></p>
-        <div style="background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; margin-top: 20px;">
-            <p style="margin: 0; font-size: 14px;"><strong>Deadline:</strong> %s</p>
-        </div>
-        <p style="margin-top: 30px; color: #6b7280; font-size: 14px;">Thank you for taking the time to support this applicant.</p>
-    </div>
-</body>
-</html>
-`, request.RecommenderName, applicantName, form.Name, recommendationLink, recommendationLink, recommendationLink, deadline)
+		logoURL := getFormLogoURL(form)
+		mainText := fmt.Sprintf("<strong>%s</strong> has listed you as a recommender for their application to <strong>%s</strong>. Please click the button below to submit your recommendation.", applicantName, form.Name)
+		body = buildRecommendationEmailHTML(request.RecommenderName, mainText, form.Name, logoURL, recommendationLink, deadline, false)
 	}
 
 	// Build sender name - check for custom emailSettings first
@@ -791,26 +857,34 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 
 	fmt.Printf("[Recommendations] Sending email from: %s to: %s, subject: %s\n", fromEmail, request.RecommenderEmail, subject)
 
-	params := &resend.SendEmailRequest{
-		From:    fromEmail,
-		To:      []string{request.RecommenderEmail},
-		Subject: subject,
-		Html:    body,
+	emailReq := services.EmailSendRequest{
+		WorkspaceID: form.WorkspaceID,
+		To:          request.RecommenderEmail,
+		ToName:      request.RecommenderName,
+		From:        fromEmail,
+		FromName:    senderName,
+		Subject:     subject,
+		Body:        subject, // plain text fallback
+		BodyHTML:    body,
+		ReplyTo:     replyTo,
+		FormID:      &request.FormID,
+		ServiceType: services.ServiceTypeGmail, // Prefer Gmail
+		TrackOpens:  true,
 	}
 
-	// Add reply-to if configured
-	if replyTo != "" {
-		params.ReplyTo = replyTo
-	}
-
-	fmt.Printf("[Recommendations] Calling Resend API...\n")
-	sent, err := client.Emails.Send(params)
+	fmt.Printf("[Recommendations] Sending via EmailRouter (Gmail preferred)...\n")
+	router := services.NewEmailRouter()
+	result, err := router.SendEmail(context.Background(), emailReq)
 	if err != nil {
-		fmt.Printf("[Recommendations] ERROR: Failed to send email via Resend: %v\n", err)
+		fmt.Printf("[Recommendations] ERROR: Failed to send email: %v\n", err)
 		return err
 	}
+	if !result.Success {
+		fmt.Printf("[Recommendations] ERROR: Email sending failed: %s\n", result.ErrorMessage)
+		return fmt.Errorf("email sending failed: %s", result.ErrorMessage)
+	}
 
-	fmt.Printf("[Recommendations] SUCCESS: Email sent to %s, Resend ID: %s\n", request.RecommenderEmail, sent.Id)
+	fmt.Printf("[Recommendations] SUCCESS: Email sent to %s via %s\n", request.RecommenderEmail, result.ServiceType)
 	return nil
 }
 
@@ -1050,32 +1124,9 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 
 	body := config.EmailTemplate.ReminderBody
 	if body == "" {
-		body = fmt.Sprintf(`
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background: linear-gradient(135deg, #f59e0b 0%%, #d97706 100%%); padding: 30px; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">⏰ Reminder: Recommendation Request</h1>
-    </div>
-    <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-        <p style="font-size: 16px;">Dear %s,</p>
-        <p>This is a friendly reminder that <strong>%s</strong> is waiting for your recommendation for their application to <strong>%s</strong>.</p>
-        <p>Please click the button below to submit your recommendation:</p>
-        <div style="text-align: center; margin: 30px 0;">
-            <a href="%s" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #f59e0b 0%%, #d97706 100%%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Submit Recommendation</a>
-        </div>
-        <div style="background: #fef3c7; padding: 15px; border-radius: 8px; border: 1px solid #fcd34d; margin-top: 20px;">
-            <p style="margin: 0; font-size: 14px; color: #92400e;"><strong>⚠️ Deadline:</strong> %s</p>
-        </div>
-        <p style="margin-top: 30px; color: #6b7280; font-size: 14px;">Thank you for your time.</p>
-    </div>
-</body>
-</html>
-`, request.RecommenderName, applicantName, form.Name, recommendationLink, deadline)
+		logoURL := getFormLogoURL(form)
+		mainText := fmt.Sprintf("This is a friendly reminder that <strong>%s</strong> is waiting for your recommendation for their application to <strong>%s</strong>. Your support means a great deal to them.", applicantName, form.Name)
+		body = buildRecommendationEmailHTML(request.RecommenderName, mainText, form.Name, logoURL, recommendationLink, deadline, true)
 	} else {
 		body = strings.ReplaceAll(body, "{{recommender_name}}", request.RecommenderName)
 		body = strings.ReplaceAll(body, "{{applicant_name}}", applicantName)
@@ -1206,4 +1257,122 @@ func GetRecommendationsForReview(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, requests)
+}
+
+// SendTestRecommendationEmail sends a test recommendation email without needing a real submission
+func SendTestRecommendationEmail(c *gin.Context) {
+	var input struct {
+		ToEmail       string `json:"to_email" binding:"required"`
+		ToName        string `json:"to_name" binding:"required"`
+		ApplicantName string `json:"applicant_name"`
+		FormTitle     string `json:"form_title"`
+		LogoURL       string `json:"logo_url"`
+		WorkspaceID   string `json:"workspace_id"`
+		FormID        string `json:"form_id"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if input.ApplicantName == "" {
+		input.ApplicantName = "the applicant"
+	}
+
+	// If form_id is provided, look up the real form name and logo
+	if input.FormID != "" {
+		var form models.Table
+		if err := database.DB.First(&form, "id = ?", input.FormID).Error; err == nil {
+			if input.FormTitle == "" {
+				input.FormTitle = form.Name
+			}
+			if input.LogoURL == "" {
+				input.LogoURL = getFormLogoURL(&form)
+			}
+			if input.WorkspaceID == "" {
+				input.WorkspaceID = form.WorkspaceID.String()
+			}
+		}
+	}
+
+	if input.FormTitle == "" {
+		input.FormTitle = "the application"
+	}
+
+	baseURL := os.Getenv("APP_URL")
+	if baseURL == "" {
+		baseURL = "https://www.maticsapp.com"
+	}
+	sampleLink := fmt.Sprintf("%s/recommend/sample-token-preview", baseURL)
+	deadline := "April 15, 2026 at 5:00 PM"
+
+	mainText := fmt.Sprintf("<strong>%s</strong> has listed you as a recommender for their application to <strong>%s</strong>. Please click the button below to submit your recommendation.", input.ApplicantName, input.FormTitle)
+	body := buildRecommendationEmailHTML(input.ToName, mainText, input.FormTitle, input.LogoURL, sampleLink, deadline, false)
+	subject := fmt.Sprintf("Recommendation Request for %s", input.ApplicantName)
+
+	// If a workspace_id is provided, use EmailRouter (Gmail preferred) - otherwise fall back to default Resend
+	if input.WorkspaceID != "" {
+		workspaceUUID, err := uuid.Parse(input.WorkspaceID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid workspace_id"})
+			return
+		}
+		emailReq := services.EmailSendRequest{
+			WorkspaceID: workspaceUUID,
+			To:          input.ToEmail,
+			ToName:      input.ToName,
+			From:        "hello@notifications.maticsapp.com",
+			FromName:    "Matic",
+			Subject:     subject,
+			Body:        subject,
+			BodyHTML:    body,
+			ReplyTo:     "support@maticsapp.com",
+			ServiceType: services.ServiceTypeGmail,
+			TrackOpens:  false,
+		}
+		router := services.NewEmailRouter()
+		result, err := router.SendEmail(context.Background(), emailReq)
+		if err != nil || !result.Success {
+			errMsg := ""
+			if err != nil {
+				errMsg = err.Error()
+			} else {
+				errMsg = result.ErrorMessage
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to send email: %s", errMsg)})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"message":      "Test email sent successfully",
+			"message_id":   result.MessageID,
+			"service_used": result.ServiceType,
+			"to":           input.ToEmail,
+		})
+		return
+	}
+
+	// Fallback: no workspace_id — use Resend directly
+	apiKey := os.Getenv("RESEND_API_KEY")
+	if apiKey == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "RESEND_API_KEY not configured and no workspace_id provided"})
+		return
+	}
+	client := resend.NewClient(apiKey)
+	params := &resend.SendEmailRequest{
+		From:    "Matic <hello@notifications.maticsapp.com>",
+		To:      []string{input.ToEmail},
+		Subject: subject,
+		Html:    body,
+		ReplyTo: "support@maticsapp.com",
+	}
+	sent, err := client.Emails.Send(params)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to send email: %v", err)})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "Test email sent successfully",
+		"resend_id":    sent.Id,
+		"service_used": "resend",
+		"to":           input.ToEmail,
+	})
 }
