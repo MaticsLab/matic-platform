@@ -6,7 +6,7 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
 import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
 import { BreadcrumbBar } from '@/components/BreadcrumbBar'
-import { ApplicationManager } from '@/components/ApplicationsHub/Applications/ApplicationManager'
+import { FormAnalyticsPage } from '@/components/FormAnalytics/FormAnalyticsPage'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import type { Workspace } from '@/types/workspaces'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
@@ -18,18 +18,14 @@ function ApplicationDetailPageContent() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [loading, setLoading] = useState(true)
 
-  console.log('[ApplicationDetailPage] Rendering with slug:', slug, 'formId:', formId)
-
   useEffect(() => {
     async function loadWorkspace() {
       if (!slug) return
 
       try {
         setLoading(true)
-        console.log('[ApplicationDetailPage] Loading workspace for slug:', slug)
         const ws = await workspacesSupabase.getWorkspaceBySlug(slug)
         if (!ws) throw new Error('Workspace not found')
-        console.log('[ApplicationDetailPage] Workspace loaded:', ws.id, ws.name)
         setWorkspace(ws)
       } catch (error) {
         console.error('[ApplicationDetailPage] Failed to load workspace:', error)
@@ -42,7 +38,7 @@ function ApplicationDetailPageContent() {
   }, [slug])
 
   if (loading) {
-    return <LoadingOverlay message="Loading application..." />
+    return <LoadingOverlay message="Loading analytics..." />
   }
 
   if (!workspace) {
@@ -58,7 +54,7 @@ function ApplicationDetailPageContent() {
       <NavigationLayout workspaceSlug={workspace.slug}>
         <div className="flex flex-col h-full">
           <BreadcrumbBar />
-          <ApplicationManager
+          <FormAnalyticsPage
             workspaceId={workspace.id}
             formId={formId}
           />

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { FileCheck, Settings, Layers, BarChart2, PencilLine } from 'lucide-react'
+import { FileCheck, Settings, Layers, BarChart2, PencilLine, List } from 'lucide-react'
 import { ReviewWorkspaceV2 } from './Review/v2'
 import { ApplicationSettingsModal } from './Configuration/ApplicationSettingsModal'
 import { useBreadcrumbs } from '@/hooks/useBreadcrumbs'
@@ -81,7 +81,12 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
       {
         label: form?.name || 'Loading...',
         href: `/workspace/${workspaceSlug}/applications/${formId}`,
-        icon: FileCheck
+        icon: BarChart2
+      },
+      {
+        label: 'Submissions',
+        href: `/workspace/${workspaceSlug}/applications/${formId}/analytics`,
+        icon: List
       }
     ],
     [workspaceSlug, form?.name, formId]
@@ -96,7 +101,7 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
           size="sm"
           onClick={() => {
             if (workspaceSlug && formId) {
-              router.push(`/workspace/${workspaceSlug}/applications/${formId}/analytics`)
+              router.push(`/workspace/${workspaceSlug}/applications/${formId}`)
             }
           }}
           title="View Analytics"

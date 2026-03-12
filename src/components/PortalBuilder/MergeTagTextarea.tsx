@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
@@ -14,11 +14,17 @@ interface Field {
   type: string
 }
 
+interface StandardTag {
+  id: string
+  label: string
+}
+
 interface MergeTagTextareaProps {
   value: string
   onChange: (value: string) => void
   placeholder?: string
   fields: Field[]
+  standardTags?: StandardTag[]
   className?: string
   disabled?: boolean
   rows?: number
@@ -28,330 +34,260 @@ interface MergeTagTextareaProps {
 function getFieldIcon(type: string) {
   switch (type) {
     case 'email':
-      return <Mail className="h-4 w-4 text-teal-500" />
+      return <Mail className="h-3.5 w-3.5 text-teal-500" />
     case 'text':
     case 'textarea':
-      return <Type className="h-4 w-4 text-blue-500" />
+      return <Type className="h-3.5 w-3.5 text-blue-500" />
     case 'number':
-      return <Hash className="h-4 w-4 text-purple-500" />
+      return <Hash className="h-3.5 w-3.5 text-purple-500" />
     case 'select':
     case 'multiselect':
     case 'checkbox':
     case 'radio':
-      return <List className="h-4 w-4 text-orange-500" />
+      return <List className="h-3.5 w-3.5 text-orange-500" />
     case 'date':
-      return <Calendar className="h-4 w-4 text-green-500" />
+      return <Calendar className="h-3.5 w-3.5 text-green-500" />
     case 'file':
     case 'upload':
-      return <FileText className="h-4 w-4 text-red-500" />
+      return <FileText className="h-3.5 w-3.5 text-red-500" />
     case 'recommendation':
-      return <User className="h-4 w-4 text-indigo-500" />
+      return <User className="h-3.5 w-3.5 text-indigo-500" />
     case 'link':
-      return <Link2 className="h-4 w-4 text-cyan-500" />
+      return <Link2 className="h-3.5 w-3.5 text-cyan-500" />
     default:
-      return <Type className="h-4 w-4 text-gray-500" />
+      return <Type className="h-3.5 w-3.5 text-gray-400" />
   }
 }
 
-// Badge component for displaying field tags
-function FieldBadge({ 
-  field, 
-  onRemove 
-}: { 
-  field: Field
-  onRemove: () => void 
-}) {
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-sm border border-blue-200">
-      {field.label}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          onRemove()
-        }}
-        className="hover:bg-blue-200 rounded-full p-0.5 -mr-1"
-      >
-        <X className="h-3 w-3" />
-      </button>
-    </span>
-  )
-}
+// Inline styles for chips injected via innerHTML — can't use Tailwind here
+const CHIP_STYLE =
+  'display:inline-flex;align-items:center;gap:2px;padding:1px 4px;border-radius:4px;' +
+  'background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;font-size:11px;font-weight:500;' +
+  'vertical-align:middle;cursor:default;user-select:none;white-space:nowrap;line-height:1.6;margin:0 1px'
 
-// Parse value into segments (text and field references)
-interface Segment {
-  type: 'text' | 'field'
-  value: string
-  fieldId?: string
-}
-
-function parseValue(value: string, fields: Field[]): Segment[] {
-  const segments: Segment[] = []
-  const regex = /\{\{([^}]+)\}\}/g
-  let lastIndex = 0
-  let match
-
-  while ((match = regex.exec(value)) !== null) {
-    // Add text before the match
-    if (match.index > lastIndex) {
-      segments.push({
-        type: 'text',
-        value: value.slice(lastIndex, match.index)
-      })
-    }
-
-    // Add the field reference
-    const fieldId = match[1]
-    const field = fields.find(f => f.id === fieldId)
-    segments.push({
-      type: 'field',
-      value: field?.label || fieldId,
-      fieldId
-    })
-
-    lastIndex = match.index + match[0].length
-  }
-
-  // Add remaining text
-  if (lastIndex < value.length) {
-    segments.push({
-      type: 'text',
-      value: value.slice(lastIndex)
-    })
-  }
-
-  return segments
-}
-
-// Convert segments back to string value
-function segmentsToValue(segments: Segment[]): string {
-  return segments.map(seg => 
-    seg.type === 'field' ? `{{${seg.fieldId}}}` : seg.value
-  ).join('')
-}
+const CHIP_BTN_STYLE =
+  'display:inline-flex;align-items:center;justify-content:center;width:11px;height:11px;' +
+  'border-radius:50%;background:transparent;border:none;cursor:pointer;color:#a5b4fc;' +
+  'font-size:10px;padding:0;line-height:1;flex-shrink:0'
 
 export function MergeTagTextarea({
   value,
   onChange,
   placeholder = 'Enter text...',
   fields,
+  standardTags,
   className,
   disabled,
-  rows = 3
+  rows = 3,
 }: MergeTagTextareaProps) {
+  const editorRef = useRef<HTMLDivElement>(null)
+  const lastValueRef = useRef(value)
+  const [isEmpty, setIsEmpty] = useState(!value)
+  const [isFieldOpen, setIsFieldOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [isOpen, setIsOpen] = useState(false)
-  const contentRef = useRef<HTMLDivElement>(null)
-  const [isFocused, setIsFocused] = useState(false)
 
-  const segments = parseValue(value, fields)
+  const allTags = useMemo(
+    () => [...(standardTags || []), ...fields.map(f => ({ id: f.id, label: f.label }))],
+    [standardTags, fields]
+  )
 
-  // Group fields by type for better organization
-  const groupedFields = fields.reduce((acc, field) => {
-    const category = field.type === 'email' ? 'Email' : 
-                    ['text', 'textarea'].includes(field.type) ? 'Text' :
-                    ['select', 'multiselect', 'checkbox', 'radio'].includes(field.type) ? 'Selection' :
-                    'Other'
-    if (!acc[category]) acc[category] = []
-    acc[category].push(field)
-    return acc
-  }, {} as Record<string, Field[]>)
-
-  const filteredFields = searchQuery
-    ? fields.filter(f => 
-        f.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        f.id.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : fields
-
-  const handleRemoveField = (index: number) => {
-    const newSegments = [...segments]
-    newSegments.splice(index, 1)
-    onChange(segmentsToValue(newSegments))
+  const buildChip = (fieldId: string): string => {
+    const tag = allTags.find(t => t.id === fieldId)
+    const label = tag?.label || fieldId
+    return (
+      `<span style="${CHIP_STYLE}" data-field-id="${fieldId}" contenteditable="false">` +
+      `${label}<button style="${CHIP_BTN_STYLE}" data-remove="${fieldId}" type="button">&#215;</button></span>`
+    )
   }
 
-  const handleInsertField = (field: Field) => {
-    // Insert at end for now
-    const newValue = value + `{{${field.id}}}`
-    onChange(newValue)
-    setIsOpen(false)
-    setSearchQuery('')
-  }
+  const valueToHTML = (text: string): string =>
+    text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>')
+      .replace(/\{\{([^}]+)\}\}/g, (_, id) => buildChip(id))
 
-  const handleTextChange = (index: number, newText: string) => {
-    const newSegments = [...segments]
-    if (newSegments[index]) {
-      newSegments[index] = { type: 'text', value: newText }
-    }
-    onChange(segmentsToValue(newSegments))
-  }
-
-  // Handle direct input for adding text
-  const handleContentInput = (e: React.FormEvent<HTMLDivElement>) => {
-    if (disabled) return
-    
-    const target = e.target as HTMLElement
-    // Only handle direct text input, not badge changes
-    if (target.getAttribute('data-badge')) return
-    
-    // Get plain text content, but preserve our badge placeholders
-    const content = contentRef.current
-    if (!content) return
-
-    // Build new value from DOM
-    let newValue = ''
-    content.childNodes.forEach(node => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        newValue += node.textContent || ''
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const el = node as HTMLElement
-        const fieldId = el.getAttribute('data-field-id')
-        if (fieldId) {
-          newValue += `{{${fieldId}}}`
+  const htmlToValue = (el: HTMLElement): string => {
+    let out = ''
+    const walk = (n: Node) => {
+      if (n.nodeType === Node.TEXT_NODE) {
+        out += (n.textContent || '').replace(/\u200B/g, '')
+      } else if (n.nodeType === Node.ELEMENT_NODE) {
+        const e = n as HTMLElement
+        const fid = e.getAttribute('data-field-id')
+        if (fid) {
+          out += `{{${fid}}}`
+        } else if (e.tagName === 'BR') {
+          out += '\n'
         } else {
-          newValue += el.textContent || ''
+          e.childNodes.forEach(walk)
+          if (e.tagName === 'DIV' || e.tagName === 'P') out += '\n'
         }
       }
-    })
-
-    onChange(newValue)
+    }
+    el.childNodes.forEach(walk)
+    return out.replace(/\n+$/, '')
   }
 
-  // Render content with badges
-  const renderContent = () => {
-    if (segments.length === 0 && !isFocused) {
-      return <span className="text-gray-400">{placeholder}</span>
+  // Set initial HTML on mount only
+  useEffect(() => {
+    if (!editorRef.current) return
+    editorRef.current.innerHTML = valueToHTML(value)
+    setIsEmpty(!value)
+    lastValueRef.current = value
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync when value changes externally (skip when it came from our own typing)
+  useEffect(() => {
+    if (!editorRef.current || value === lastValueRef.current) return
+    editorRef.current.innerHTML = valueToHTML(value)
+    setIsEmpty(!value)
+    lastValueRef.current = value
+  }, [value, allTags]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleInput = () => {
+    if (!editorRef.current) return
+    const v = htmlToValue(editorRef.current)
+    lastValueRef.current = v
+    setIsEmpty(!v)
+    onChange(v)
+  }
+
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const btn = (e.target as HTMLElement).closest('[data-remove]') as HTMLElement | null
+    if (!btn) return
+    e.preventDefault()
+    const chip = btn.closest('[data-field-id]') as HTMLElement | null
+    if (chip && editorRef.current?.contains(chip)) {
+      chip.remove()
+      handleInput()
+    }
+  }
+
+  const insertTag = (fieldId: string) => {
+    const editor = editorRef.current
+    if (!editor || disabled) return
+    editor.focus()
+
+    const tag = allTags.find(t => t.id === fieldId)
+    const label = tag?.label || fieldId
+    const chip = document.createElement('span')
+    chip.setAttribute('style', CHIP_STYLE)
+    chip.setAttribute('data-field-id', fieldId)
+    chip.setAttribute('contenteditable', 'false')
+    chip.innerHTML = `${label}<button style="${CHIP_BTN_STYLE}" data-remove="${fieldId}" type="button">&#215;</button>`
+
+    const sel = window.getSelection()
+    if (sel && sel.rangeCount > 0 && editor.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+      const range = sel.getRangeAt(0)
+      range.deleteContents()
+      const frag = document.createDocumentFragment()
+      frag.appendChild(chip)
+      const space = document.createTextNode('\u200B')
+      frag.appendChild(space)
+      range.insertNode(frag)
+      range.setStartAfter(space)
+      range.collapse(true)
+      sel.removeAllRanges()
+      sel.addRange(range)
+    } else {
+      editor.appendChild(chip)
+      editor.appendChild(document.createTextNode('\u200B'))
     }
 
-    return segments.map((seg, i) => {
-      if (seg.type === 'field') {
-        const field = fields.find(f => f.id === seg.fieldId)
-        return (
-          <span
-            key={`field-${i}`}
-            data-field-id={seg.fieldId}
-            data-badge="true"
-            contentEditable={false}
-            className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-sm border border-blue-200 mx-0.5 cursor-default select-none"
-          >
-            {seg.value}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                handleRemoveField(i)
-              }}
-              className="hover:bg-blue-200 rounded-full p-0.5 -mr-1"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </span>
-        )
-      }
-      return <span key={`text-${i}`}>{seg.value}</span>
-    })
+    handleInput()
   }
 
+  const filteredFields = searchQuery
+    ? fields.filter(f => f.label.toLowerCase().includes(searchQuery.toLowerCase()))
+    : fields
+
   return (
-    <div className={cn("relative", className)}>
-      <div className="flex items-start gap-2">
+    <div className={cn('space-y-1.5', className)}>
+      {/* Editable area */}
+      <div className="relative">
         <div
-          ref={contentRef}
+          ref={editorRef}
           contentEditable={!disabled}
           suppressContentEditableWarning
-          onInput={handleContentInput}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          onInput={handleInput}
+          onClick={handleClick}
           className={cn(
-            "flex-1 min-h-[80px] p-3 rounded-md border bg-gray-50/50 text-sm",
-            "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-            "whitespace-pre-wrap break-words",
-            disabled && "opacity-50 cursor-not-allowed",
-            isFocused ? "border-blue-500" : "border-gray-200"
+            'px-3 py-2.5 rounded-md border border-gray-200 bg-white text-sm leading-relaxed',
+            'focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-colors',
+            'break-words overflow-wrap-anywhere',
+            disabled && 'opacity-50 cursor-not-allowed bg-gray-50'
           )}
-          style={{ minHeight: `${rows * 24 + 24}px` }}
-        >
-          {renderContent()}
-        </div>
+          style={{ minHeight: `${rows * 1.5 + 1.25}rem` }}
+        />
+        {isEmpty && (
+          <div className="pointer-events-none absolute top-2.5 left-3 text-sm text-gray-400 select-none">
+            {placeholder}
+          </div>
+        )}
+      </div>
 
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              size="sm"
-              variant="default"
-              disabled={disabled}
-              className="h-8 w-8 p-0 shrink-0"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent 
-            className="w-64 p-0" 
-            align="end"
-            side="left"
+      {/* Quick-insert strip */}
+      <div className="flex flex-wrap gap-1 items-center">
+        <span className="text-[10px] text-gray-400 shrink-0">Insert:</span>
+        {(standardTags || []).map(tag => (
+          <button
+            key={tag.id}
+            type="button"
+            onClick={() => insertTag(tag.id)}
+            disabled={disabled}
+            className="px-1.5 py-0.5 text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded transition-colors leading-tight whitespace-nowrap"
           >
-            <div className="p-2 border-b">
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search..."
-                  className="pl-8 h-8 text-sm"
-                  autoFocus
-                />
+            {tag.label}
+          </button>
+        ))}
+        {fields.length > 0 && (
+          <Popover open={isFieldOpen} onOpenChange={setIsFieldOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                disabled={disabled}
+                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[11px] bg-gray-100 hover:bg-gray-200 text-gray-500 border border-gray-200 rounded transition-colors leading-tight"
+              >
+                <Plus className="h-2.5 w-2.5" />
+                field
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-0" align="start" side="top" sideOffset={4}>
+              <div className="p-1.5 border-b">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
+                  <Input
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search..."
+                    className="pl-6 h-7 text-xs"
+                    autoFocus
+                  />
+                </div>
               </div>
-            </div>
-            <ScrollArea className="h-64">
-              <div className="p-2">
-                {searchQuery ? (
-                  // Show flat filtered list when searching
-                  <div className="space-y-1">
-                    {filteredFields.map(field => (
-                      <button
-                        key={field.id}
-                        type="button"
-                        onClick={() => handleInsertField(field)}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-gray-100 text-left"
-                      >
-                        {getFieldIcon(field.type)}
-                        <span className="truncate">{field.label}</span>
-                      </button>
-                    ))}
-                    {filteredFields.length === 0 && (
-                      <p className="text-sm text-gray-500 text-center py-4">No fields found</p>
-                    )}
-                  </div>
-                ) : (
-                  // Show grouped list when not searching
-                  <div className="space-y-3">
-                    {Object.entries(groupedFields).map(([category, categoryFields]) => (
-                      <div key={category}>
-                        <p className="text-xs font-medium text-gray-500 px-2 mb-1">{category}</p>
-                        <div className="space-y-0.5">
-                          {categoryFields.map(field => (
-                            <button
-                              key={field.id}
-                              type="button"
-                              onClick={() => handleInsertField(field)}
-                              className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-gray-100 text-left"
-                            >
-                              {getFieldIcon(field.type)}
-                              <span className="truncate">{field.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-          </PopoverContent>
-        </Popover>
+              <ScrollArea className="h-40">
+                <div className="p-1">
+                  {filteredFields.map(f => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => { insertTag(f.id); setIsFieldOpen(false); setSearchQuery('') }}
+                      className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs rounded hover:bg-gray-100 text-left"
+                    >
+                      {getFieldIcon(f.type)}
+                      <span className="truncate">{f.label}</span>
+                    </button>
+                  ))}
+                  {filteredFields.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-3">No fields found</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
     </div>
   )

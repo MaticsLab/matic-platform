@@ -10,7 +10,7 @@ import {
 import {
   Users, CheckCircle2, Clock, FileText, TrendingUp,
   AlertCircle, Mail, Download, RefreshCw, ChevronRight,
-  Calendar, Activity, BarChart2, Zap, Layers
+  Calendar, Activity, BarChart2, Zap, Layers, PencilLine, Settings
 } from 'lucide-react'
 import { formsClient } from '@/lib/api/forms-client'
 import { goClient } from '@/lib/api/go-client'
@@ -18,7 +18,9 @@ import { buildLabelMap, normalizeValueToString, stripHtml } from '@/lib/form-dat
 import { FullEmailComposer } from '@/components/ApplicationsHub/Applications/Review/FullEmailComposer'
 import { ApplicationDetailSheet } from '@/components/ApplicationsHub/Applications/Review/v2/ApplicationDetailSheet'
 import { useBreadcrumbs } from '@/hooks/useBreadcrumbs'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
+import { Button } from '@/ui-components/button'
+import { ApplicationSettingsModal } from '@/components/ApplicationsHub/Applications/Configuration/ApplicationSettingsModal'
 import type { Application } from '@/components/ApplicationsHub/Applications/Review/v2/types'
 import type {
   FormAnalyticsResponse,
@@ -286,17 +288,59 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
   const [submissionsLoading, setSubmissionsLoading] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailApp, setDetailApp] = useState<Application | null>(null)
+  const [isAppSettingsModalOpen, setIsAppSettingsModalOpen] = useState(false)
   const params = useParams()
+  const router = useRouter()
   const workspaceSlug = params?.slug as string
 
+  // Breadcrumb items
+  const breadcrumbItems = useMemo(() => [
+    { label: 'Forms', href: `/workspace/${workspaceSlug}/applications`, icon: Layers },
+    { label: formName || 'Form', href: `/workspace/${workspaceSlug}/applications/${formId}`, icon: BarChart2 },
+  ], [workspaceSlug, formId, formName])
+
+  // Breadcrumb action buttons
+  const breadcrumbActions = useMemo(() => (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => {
+          if (workspaceSlug && formId) {
+            router.push(`/workspace/${workspaceSlug}/applications/${formId}/analytics`)
+          }
+        }}
+        title="Review Submissions"
+      >
+        <FileText className="w-4 h-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => {
+          if (workspaceSlug && formId) {
+            router.push(`/workspace/${workspaceSlug}/portal-editor?formId=${formId}`)
+          }
+        }}
+        title="Form Editor"
+      >
+        <PencilLine className="w-4 h-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setIsAppSettingsModalOpen(true)}
+        title="Form Settings"
+      >
+        <Settings className="w-4 h-4" />
+      </Button>
+    </>
+  ), [workspaceSlug, formId, router])
+
+  const breadcrumbOptions = useMemo(() => ({ actions: breadcrumbActions }), [breadcrumbActions])
+
   // Breadcrumbs
-  useBreadcrumbs(
-    useMemo(() => [
-      { label: 'Forms', href: `/workspace/${workspaceSlug}/applications`, icon: Layers },
-      { label: formName || 'Form', href: `/workspace/${workspaceSlug}/applications/${formId}`, icon: FileText },
-      { label: 'Analytics', href: `/workspace/${workspaceSlug}/applications/${formId}/analytics`, icon: BarChart2 },
-    ], [workspaceSlug, formId, formName])
-  )
+  useBreadcrumbs(breadcrumbItems, breadcrumbOptions)
 
   const load = useCallback(async () => {
     try {
@@ -915,6 +959,16 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
           }}
           sections={formSections}
           fields={formFields.map(f => ({ id: f.id, label: f.label, type: f.type || 'text', name: f.name, section_id: f.section_id }))}
+        />
+      )}
+
+      {/* App Settings Modal */}
+      {isAppSettingsModalOpen && (
+        <ApplicationSettingsModal
+          open={isAppSettingsModalOpen}
+          onOpenChange={setIsAppSettingsModalOpen}
+          formId={formId}
+          onSave={() => setIsAppSettingsModalOpen(false)}
         />
       )}
     </div>

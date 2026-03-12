@@ -6,7 +6,7 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
 import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
 import { BreadcrumbBar } from '@/components/BreadcrumbBar'
-import { FormAnalyticsPage } from '@/components/FormAnalytics/FormAnalyticsPage'
+import { ApplicationManager } from '@/components/ApplicationsHub/Applications/ApplicationManager'
 import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import type { Workspace } from '@/types/workspaces'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
@@ -27,7 +27,7 @@ function FormAnalyticsPageContent() {
         if (!ws) throw new Error('Workspace not found')
         setWorkspace(ws)
       } catch (error) {
-        console.error('[FormAnalyticsPage] Failed to load workspace:', error)
+        console.error('[ReviewWorkspacePage] Failed to load workspace:', error)
       } finally {
         setLoading(false)
       }
@@ -35,7 +35,7 @@ function FormAnalyticsPageContent() {
     loadWorkspace()
   }, [slug])
 
-  if (loading) return <LoadingOverlay message="Loading analytics..." />
+  if (loading) return <LoadingOverlay message="Loading submissions..." />
 
   if (!workspace) {
     return (
@@ -50,7 +50,7 @@ function FormAnalyticsPageContent() {
       <NavigationLayout workspaceSlug={workspace.slug}>
         <div className="flex flex-col h-full">
           <BreadcrumbBar />
-          <FormAnalyticsPage formId={formId} workspaceId={workspace.id} />
+          <ApplicationManager formId={formId} workspaceId={workspace.id} />
         </div>
       </NavigationLayout>
     </BreadcrumbProvider>

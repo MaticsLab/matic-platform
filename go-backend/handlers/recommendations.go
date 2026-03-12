@@ -824,7 +824,12 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 	} else {
 		// Default template
 		logoURL := getFormLogoURL(form)
-		mainText := fmt.Sprintf("<strong>%s</strong> has listed you as a recommender for their application to <strong>%s</strong>. Please click the button below to submit your recommendation.", applicantName, form.Name)
+		var mainText string
+		if applicantEmail != "" {
+			mainText = fmt.Sprintf("You have been requested to provide a letter of recommendation for <strong>%s</strong> (%s). Please click the button below to submit your recommendation.", applicantName, applicantEmail)
+		} else {
+			mainText = fmt.Sprintf("You have been requested to provide a letter of recommendation for <strong>%s</strong>. Please click the button below to submit your recommendation.", applicantName)
+		}
 		body = buildRecommendationEmailHTML(request.RecommenderName, mainText, form.Name, logoURL, recommendationLink, deadline, false)
 	}
 
