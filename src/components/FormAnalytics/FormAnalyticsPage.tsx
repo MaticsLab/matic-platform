@@ -10,7 +10,9 @@ import {
 import {
   Users, CheckCircle2, Clock, FileText, TrendingUp,
   AlertCircle, Mail, Download, RefreshCw, ChevronRight,
-  Calendar, Activity, BarChart2, Zap, Layers, PencilLine, Settings
+  Calendar, Activity, BarChart2, Zap, Layers, PencilLine, Settings,
+  ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown,
+  List, LayoutGrid, CalendarDays, X
 } from 'lucide-react'
 import { formsClient } from '@/lib/api/forms-client'
 import { goClient } from '@/lib/api/go-client'
@@ -121,6 +123,175 @@ function SectionHeader({ icon, title, action }: { icon: React.ReactNode; title: 
         <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
       </div>
       {action}
+    </div>
+  )
+}
+
+// ── Collapsible Section ───────────────────────────────────────────────────────
+
+function CollapsibleSection({
+  icon, title, action, children, collapsed, onToggle
+}: {
+  icon: React.ReactNode
+  title: string
+  action?: React.ReactNode
+  children: React.ReactNode
+  collapsed: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <button className="flex items-center gap-2 group" onClick={onToggle}>
+          <span className="text-gray-400">{icon}</span>
+          <h3 className="text-sm font-semibold text-gray-800 group-hover:text-gray-900">{title}</h3>
+          <ChevronDown className={cn('w-3.5 h-3.5 text-gray-400 transition-transform duration-200', collapsed && '-rotate-90')} />
+        </button>
+        {action && <div className="flex items-center gap-2">{action}</div>}
+      </div>
+      {!collapsed && children}
+    </div>
+  )
+}
+
+// ── Sort Table Header ─────────────────────────────────────────────────────────
+
+type SortKey = 'name' | 'completion_pct' | 'last_seen' | 'started_at'
+
+function SortTh({ label, sortK, currentSort, dir, onSort, className }: {
+  label: string; sortK: SortKey; currentSort: SortKey; dir: 'asc' | 'desc'
+  onSort: (k: SortKey) => void; className?: string
+}) {
+  const active = currentSort === sortK
+  return (
+    <th className={cn('text-left text-xs font-medium px-4 py-3', className)}>
+      <button
+        className={cn('flex items-center gap-1 group transition-colors', active ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700')}
+        onClick={() => onSort(sortK)}
+      >
+        {label}
+        {active
+          ? (dir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)
+          : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-40 transition-opacity" />}
+      </button>
+    </th>
+  )
+}
+
+// ── Kanban View ───────────────────────────────────────────────────────────────
+
+function KanbanView({ submissions, onUserClick }: { submissions: IncompleteSubmission[], onUserClick: (id: string) => void }) {
+  const columns = [
+    { key: 'draft',       label: 'Draft',       badge: 'bg-slate-200 text-slate-600' },
+    { key: 'in_progress', label: 'In Progress', badge: 'bg-blue-100 text-blue-700' },
+    { key: 'submitted',   label: 'Submitted',   badge: 'bg-green-100 text-green-700' },
+  ]
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {columns.map(col => {
+        const items = submissions.filter(s => s.status === col.key)
+        return (
+          <div key={col.key} className="bg-gray-50 rounded-xl p-3 border border-gray-200 min-h-[120px]">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-gray-600">{col.label}</span>
+              <span className={cn('text-xs font-bold px-2 py-0.5 rounded-full', col.badge)}>{items.length}</span>
+            </div>
+            <div className="space-y-2">
+              {items.map(s => (
+                <div
+                  key={s.submission_id}
+                  className="bg-white rounded-lg border border-gray-200 p-3 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all"
+                  onClick={() => onUserClick(s.submission_id)}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-semibold text-slate-600 flex-shrink-0">
+                      {initials(s.name, s.email)}
+                    </div>
+                    <p className="text-xs text-gray-800 font-medium truncate flex-1">{displayName(s.name, s.email)}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <CompletionRing pct={s.completion_pct} size={18} />
+                      <span className="text-[10px] text-gray-500">{s.completion_pct}%</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400">{relativeTime(s.last_seen)}</span>
+                  </div>
+                </div>
+              ))}
+              {items.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-6">No submissions</p>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Calendar View ─────────────────────────────────────────────────────────────
+
+function CalendarView({ submissions, onUserClick }: { submissions: IncompleteSubmission[], onUserClick: (id: string) => void }) {
+  const [currentMonth, setCurrentMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1) })
+  const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate()
+  const firstDayOfWeek = currentMonth.getDay()
+  const byDate = useMemo(() => {
+    const map: Record<string, IncompleteSubmission[]> = {}
+    submissions.forEach(s => {
+      const key = (s.last_seen || s.started_at)?.split('T')[0]
+      if (key) { if (!map[key]) map[key] = []; map[key].push(s) }
+    })
+    return map
+  }, [submissions])
+  const todayStr = new Date().toISOString().split('T')[0]
+  const monthStr = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })
+  const cells: (number | null)[] = [...Array(firstDayOfWeek).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
+  while (cells.length % 7 !== 0) cells.push(null)
+  return (
+    <div className="bg-white rounded-xl">
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+          <ChevronDown className="w-4 h-4 rotate-90 text-gray-500" />
+        </button>
+        <span className="text-sm font-semibold text-gray-800">{monthStr}</span>
+        <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+          <ChevronDown className="w-4 h-4 -rotate-90 text-gray-500" />
+        </button>
+      </div>
+      <div className="grid grid-cols-7 mb-1">
+        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
+          <div key={d} className="text-center text-[10px] font-medium text-gray-400 py-1">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((day, i) => {
+          if (!day) return <div key={`e-${i}`} className="min-h-[56px]" />
+          const y = currentMonth.getFullYear()
+          const m = String(currentMonth.getMonth() + 1).padStart(2, '0')
+          const dateKey = `${y}-${m}-${String(day).padStart(2, '0')}`
+          const items = byDate[dateKey] || []
+          const isToday = dateKey === todayStr
+          return (
+            <div key={day} className={cn(
+              'min-h-[56px] rounded-lg p-1 border transition-colors',
+              isToday ? 'border-blue-400 bg-blue-50' : items.length > 0 ? 'border-blue-100 bg-blue-50/30' : 'border-gray-100 hover:bg-gray-50'
+            )}>
+              <div className={cn('text-[11px] font-medium text-center mb-0.5', isToday ? 'text-blue-600' : 'text-gray-500')}>{day}</div>
+              {items.slice(0, 2).map(s => (
+                <div
+                  key={s.submission_id}
+                  className="truncate cursor-pointer text-[9px] bg-blue-100 text-blue-700 rounded px-1 mb-0.5 hover:bg-blue-200 transition-colors"
+                  onClick={() => onUserClick(s.submission_id)}
+                  title={displayName(s.name, s.email)}
+                >
+                  {displayName(s.name, s.email)}
+                </div>
+              ))}
+              {items.length > 2 && <div className="text-[9px] text-gray-400 text-center">+{items.length - 2}</div>}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -289,6 +460,24 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailApp, setDetailApp] = useState<Application | null>(null)
   const [isAppSettingsModalOpen, setIsAppSettingsModalOpen] = useState(false)
+
+  // ── Section collapse state ─────────────────────────────────────────────────
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
+  const toggleSection = useCallback((id: string) => {
+    setCollapsedSections(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }, [])
+
+  // ── Submission list controls ───────────────────────────────────────────────
+  const [submissionSearch, setSubmissionSearch] = useState('')
+  const [sortKey, setSortKey] = useState<SortKey>('last_seen')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [submissionView, setSubmissionView] = useState<'list' | 'kanban' | 'calendar'>('list')
+  const handleSort = useCallback((key: SortKey) => {
+    setSortDir(prev => key === sortKey ? (prev === 'asc' ? 'desc' : 'asc') : 'asc')
+    setSortKey(key)
+  }, [sortKey])
+
   const params = useParams()
   const router = useRouter()
   const workspaceSlug = params?.slug as string
@@ -467,6 +656,27 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
     return m
   }, [data?.heatmap])
 
+  const filteredSubmissions = useMemo(() => {
+    const list = data?.incomplete_submissions ?? []
+    let filtered = statusFilter !== 'all' ? list.filter(s => s.status === statusFilter) : list
+    if (submissionSearch) {
+      const q = submissionSearch.toLowerCase()
+      filtered = filtered.filter(s =>
+        (s.name || '').toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q)
+      )
+    }
+    return [...filtered].sort((a, b) => {
+      let av: any, bv: any
+      if (sortKey === 'name') { av = (a.name || a.email || '').toLowerCase(); bv = (b.name || b.email || '').toLowerCase() }
+      else if (sortKey === 'completion_pct') { av = a.completion_pct; bv = b.completion_pct }
+      else if (sortKey === 'started_at') { av = a.started_at || ''; bv = b.started_at || '' }
+      else { av = a.last_seen || ''; bv = b.last_seen || '' }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1
+      if (av > bv) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [data?.incomplete_submissions, submissionSearch, statusFilter, sortKey, sortDir])
+
   // ── Loading / Error states ────────────────────────────────────────────────
 
   if (loading) {
@@ -491,8 +701,8 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
   const { overview, daily_volume, completion_buckets, funnel, last_active_users,
     check_ins, field_breakdowns, incomplete_submissions } = data
 
-  const incompleteIds = incomplete_submissions.map(s => s.submission_id)
-  const selectedEmails = incomplete_submissions
+  const incompleteIds = filteredSubmissions.map(s => s.submission_id)
+  const selectedEmails = filteredSubmissions
     .filter(s => selectedRows.has(s.submission_id))
     .map(s => s.email)
     .filter(Boolean)
@@ -531,23 +741,24 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
 
       <div className="px-6 py-6 space-y-8">
 
-        {/* ── Overview KPIs ─────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-3">
-          <StatCard label="Total Submissions" value={overview.total} icon={<FileText className="w-4 h-4" />} color="blue" />
-          <StatCard label="Submitted" value={overview.submitted}
-            icon={<CheckCircle2 className="w-4 h-4" />} color="green"
-            sub={overview.total > 0 ? `${Math.round(overview.submitted / overview.total * 100)}% of total` : undefined} />
-          <StatCard label="In Progress" value={overview.in_progress} icon={<Clock className="w-4 h-4" />} color="amber" />
-          <StatCard label="Draft / Not Started" value={overview.draft} icon={<FileText className="w-4 h-4" />} color="slate" />
-          <StatCard label="Avg Completion" value={`${overview.avg_completion_pct}%`}
-            icon={<TrendingUp className="w-4 h-4" />} color="purple" />
-          <StatCard label="Active Last 24h" value={overview.active_last_24_hours} icon={<Activity className="w-4 h-4" />} color="blue" />
-          <StatCard label="New Last 7 Days" value={overview.new_last_7_days} icon={<Calendar className="w-4 h-4" />} color="purple" />
-          <StatCard label="Completed Today" value={overview.completed_today}
-            icon={<Zap className="w-4 h-4" />} color="green" />
-        </div>
+        <CollapsibleSection icon={<BarChart2 className="w-4 h-4" />} title="Overview" collapsed={collapsedSections.has('overview')} onToggle={() => toggleSection('overview')}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-3">
+            <StatCard label="Total Submissions" value={overview.total} icon={<FileText className="w-4 h-4" />} color="blue" />
+            <StatCard label="Submitted" value={overview.submitted}
+              icon={<CheckCircle2 className="w-4 h-4" />} color="green"
+              sub={overview.total > 0 ? `${Math.round(overview.submitted / overview.total * 100)}% of total` : undefined} />
+            <StatCard label="In Progress" value={overview.in_progress} icon={<Clock className="w-4 h-4" />} color="amber" />
+            <StatCard label="Draft / Not Started" value={overview.draft} icon={<FileText className="w-4 h-4" />} color="slate" />
+            <StatCard label="Avg Completion" value={`${overview.avg_completion_pct}%`}
+              icon={<TrendingUp className="w-4 h-4" />} color="purple" />
+            <StatCard label="Active Last 24h" value={overview.active_last_24_hours} icon={<Activity className="w-4 h-4" />} color="blue" />
+            <StatCard label="New Last 7 Days" value={overview.new_last_7_days} icon={<Calendar className="w-4 h-4" />} color="purple" />
+            <StatCard label="Completed Today" value={overview.completed_today}
+              icon={<Zap className="w-4 h-4" />} color="green" />
+          </div>
+        </CollapsibleSection>
 
-        {/* ── Charts row: volume + funnel ───────────────────────────────── */}
+        <CollapsibleSection icon={<BarChart2 className="w-4 h-4" />} title="Volume & Funnel" collapsed={collapsedSections.has('charts')} onToggle={() => toggleSection('charts')}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
           {/* Daily Volume */}
@@ -598,7 +809,9 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
             </div>
           </div>
         </div>
+        </CollapsibleSection>
 
+        <CollapsibleSection icon={<Activity className="w-4 h-4" />} title="Distributions & Activity" collapsed={collapsedSections.has('distributions')} onToggle={() => toggleSection('distributions')}>
         {/* ── Second row: completion buckets + heatmap ───────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
@@ -666,11 +879,11 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
             </div>
           </div>
         </div>
+        </CollapsibleSection>
 
         {/* ── Field Answer Breakdowns ────────────────────────────────────── */}
         {field_breakdowns.length > 0 && (
-          <div>
-            <SectionHeader icon={<BarChart2 className="w-4 h-4" />} title="Field Answer Breakdown" />
+          <CollapsibleSection icon={<BarChart2 className="w-4 h-4" />} title="Field Answer Breakdown" collapsed={collapsedSections.has('fields')} onToggle={() => toggleSection('fields')}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {field_breakdowns.map((f: FieldAnswerBreakdown) => (
                 <div key={f.field_id} className="bg-white border border-gray-200 rounded-xl p-4">
@@ -695,25 +908,26 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                 </div>
               ))}
             </div>
-          </div>
+          </CollapsibleSection>
         )}
 
         {/* ── Recommended Check-ins ──────────────────────────────────────── */}
         {check_ins.length > 0 && (
-          <div>
-            <SectionHeader
-              icon={<AlertCircle className="w-4 h-4 text-amber-400" />}
-              title={`Recommended Check-ins (${check_ins.length})`}
-              action={
-                <button
-                  onClick={() => openEmailComposer(check_ins.map(c => c.email).filter(Boolean))}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors"
-                >
-                  <Mail className="w-3.5 h-3.5" />
-                  Email All
-                </button>
-              }
-            />
+          <CollapsibleSection
+            icon={<AlertCircle className="w-4 h-4 text-amber-400" />}
+            title={`Recommended Check-ins (${check_ins.length})`}
+            collapsed={collapsedSections.has('checkins')}
+            onToggle={() => toggleSection('checkins')}
+            action={
+              <button
+                onClick={() => openEmailComposer(check_ins.map(c => c.email).filter(Boolean))}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                Email All
+              </button>
+            }
+          >
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
@@ -776,28 +990,27 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                 </tbody>
               </table>
             </div>
-          </div>
+          </CollapsibleSection>
         )}
 
-        {/* ── Incomplete Submissions Table ───────────────────────────────── */}
-        <div>
-          <SectionHeader
-            icon={<Users className="w-4 h-4" />}
-            title={`Incomplete Submissions (${incomplete_submissions.length})`}
-            action={
-              <div className="flex items-center gap-2">
-                {selectedRows.size > 0 && (
-                  <button
-                    onClick={() => openEmailComposer(selectedEmails)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
-                  >
-                    <Mail className="w-3.5 h-3.5" />
-                    Email Selected ({selectedRows.size})
-                  </button>
-                )}
-              </div>
-            }
-          />
+        {/* ── Submissions ──────────────────────────────────────────────────── */}
+        <CollapsibleSection
+          icon={<Users className="w-4 h-4" />}
+          title={`Submissions (${incomplete_submissions.length})`}
+          collapsed={collapsedSections.has('incomplete')}
+          onToggle={() => toggleSection('incomplete')}
+          action={
+            selectedRows.size > 0 ? (
+              <button
+                onClick={() => openEmailComposer(selectedEmails)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                Email Selected ({selectedRows.size})
+              </button>
+            ) : undefined
+          }
+        >
           {incomplete_submissions.length === 0 ? (
             <div className="bg-white border border-gray-200 rounded-xl p-8 flex flex-col items-center gap-2">
               <CheckCircle2 className="w-8 h-8 text-green-500" />
@@ -806,94 +1019,154 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
             </div>
           ) : (
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="px-4 py-3 w-10">
-                      <input
-                        type="checkbox"
-                        checked={selectedRows.size === incompleteIds.length && incompleteIds.length > 0}
-                        onChange={() => selectAll(incompleteIds)}
-                        className="rounded border-gray-300 bg-white text-blue-600 cursor-pointer"
-                      />
-                    </th>
-                    <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">User</th>
-                    <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Status</th>
-                    <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Completion</th>
-                    <th className="text-left text-xs text-gray-500 font-medium px-4 py-3 hidden md:table-cell">Started</th>
-                    <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Last Active</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {incomplete_submissions.map((s: IncompleteSubmission) => (
-                    <tr key={s.submission_id} className={cn(
-                      'border-b border-gray-100 hover:bg-gray-50 transition-colors',
-                      selectedRows.has(s.submission_id) && 'bg-blue-50'
-                    )}>
-                      <td className="px-4 py-3 w-10" onClick={e => e.stopPropagation()}>
+              {/* Toolbar */}
+              <div className="flex flex-wrap items-center gap-2 p-3 border-b border-gray-100 bg-gray-50/60">
+                <div className="relative flex-1 min-w-[180px]">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                  <input
+                    value={submissionSearch}
+                    onChange={e => setSubmissionSearch(e.target.value)}
+                    placeholder="Search by name or email…"
+                    className="w-full pl-8 pr-8 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                  {submissionSearch && (
+                    <button onClick={() => setSubmissionSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+                <select
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="draft">Draft</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="submitted">Submitted</option>
+                </select>
+                <div className="flex items-center rounded-lg border border-gray-200 bg-white overflow-hidden">
+                  {(['list', 'kanban', 'calendar'] as const).map(v => (
+                    <button
+                      key={v}
+                      onClick={() => setSubmissionView(v)}
+                      className={cn('p-1.5 transition-colors', submissionView === v ? 'bg-blue-50 text-blue-600' : 'text-gray-400 hover:bg-gray-50')}
+                      title={v.charAt(0).toUpperCase() + v.slice(1)}
+                    >
+                      {v === 'list'     && <List className="w-3.5 h-3.5" />}
+                      {v === 'kanban'   && <LayoutGrid className="w-3.5 h-3.5" />}
+                      {v === 'calendar' && <CalendarDays className="w-3.5 h-3.5" />}
+                    </button>
+                  ))}
+                </div>
+                {filteredSubmissions.length !== incomplete_submissions.length && (
+                  <span className="text-xs text-gray-400">{filteredSubmissions.length} of {incomplete_submissions.length}</span>
+                )}
+              </div>
+
+              {/* Kanban / Calendar / List views */}
+              {submissionView === 'kanban' ? (
+                <div className="p-4">
+                  <KanbanView submissions={filteredSubmissions} onUserClick={handleUserClick} />
+                </div>
+              ) : submissionView === 'calendar' ? (
+                <div className="p-4">
+                  <CalendarView submissions={filteredSubmissions} onUserClick={handleUserClick} />
+                </div>
+              ) : filteredSubmissions.length === 0 ? (
+                <div className="p-8 flex flex-col items-center gap-2 text-center">
+                  <Search className="w-6 h-6 text-gray-300" />
+                  <p className="text-sm text-gray-500">No submissions match your filters</p>
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50">
+                      <th className="px-4 py-3 w-10">
                         <input
                           type="checkbox"
-                          checked={selectedRows.has(s.submission_id)}
-                          onChange={() => toggleRow(s.submission_id)}
+                          checked={selectedRows.size === incompleteIds.length && incompleteIds.length > 0}
+                          onChange={() => selectAll(incompleteIds)}
                           className="rounded border-gray-300 bg-white text-blue-600 cursor-pointer"
                         />
-                      </td>
-                      <td
-                        className="px-4 py-3 cursor-pointer group"
-                        onClick={() => handleUserClick(s.submission_id)}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-semibold text-slate-600 flex-shrink-0">
-                            {initials(s.name, s.email)}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs text-gray-800 truncate">{displayName(s.name, s.email)}</p>
-                            {s.name && <p className="text-[10px] text-gray-400 truncate">{s.email}</p>}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <CompletionRing pct={s.completion_pct} size={24} />
-                          <span className="text-xs text-gray-600">{s.completion_pct}%</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 hidden md:table-cell">
-                        <span className="text-xs text-gray-400">{relativeTime(s.started_at)}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={cn(
-                          'text-xs',
-                          s.days_inactive >= 14 ? 'text-rose-500' : s.days_inactive >= 7 ? 'text-amber-600' : 'text-gray-400'
-                        )}>
-                          {relativeTime(s.last_seen)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {s.email && (
-                          <button
-                            onClick={() => openEmailComposer([s.email])}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                            title={`Send email to ${s.email}`}
-                          >
-                            <Mail className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </td>
+                      </th>
+                      <SortTh label="User" sortK="name" currentSort={sortKey} dir={sortDir} onSort={handleSort} />
+                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Status</th>
+                      <SortTh label="Completion" sortK="completion_pct" currentSort={sortKey} dir={sortDir} onSort={handleSort} />
+                      <SortTh label="Started" sortK="started_at" currentSort={sortKey} dir={sortDir} onSort={handleSort} className="hidden md:table-cell" />
+                      <SortTh label="Last Active" sortK="last_seen" currentSort={sortKey} dir={sortDir} onSort={handleSort} />
+                      <th className="px-4 py-3" />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredSubmissions.map((s: IncompleteSubmission) => (
+                      <tr key={s.submission_id} className={cn(
+                        'border-b border-gray-100 hover:bg-gray-50 transition-colors',
+                        selectedRows.has(s.submission_id) && 'bg-blue-50'
+                      )}>
+                        <td className="px-4 py-3 w-10" onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedRows.has(s.submission_id)}
+                            onChange={() => toggleRow(s.submission_id)}
+                            className="rounded border-gray-300 bg-white text-blue-600 cursor-pointer"
+                          />
+                        </td>
+                        <td
+                          className="px-4 py-3 cursor-pointer group"
+                          onClick={() => handleUserClick(s.submission_id)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-semibold text-slate-600 flex-shrink-0">
+                              {initials(s.name, s.email)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs text-gray-800 truncate">{displayName(s.name, s.email)}</p>
+                              {s.name && <p className="text-[10px] text-gray-400 truncate">{s.email}</p>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <CompletionRing pct={s.completion_pct} size={24} />
+                            <span className="text-xs text-gray-600">{s.completion_pct}%</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 hidden md:table-cell">
+                          <span className="text-xs text-gray-400">{relativeTime(s.started_at)}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={cn(
+                            'text-xs',
+                            s.days_inactive >= 14 ? 'text-rose-500' : s.days_inactive >= 7 ? 'text-amber-600' : 'text-gray-400'
+                          )}>
+                            {relativeTime(s.last_seen)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          {s.email && (
+                            <button
+                              onClick={() => openEmailComposer([s.email])}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                              title={`Send email to ${s.email}`}
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
-        </div>
+        </CollapsibleSection>
 
         {/* ── Last Active Users ──────────────────────────────────────────── */}
         {last_active_users.length > 0 && (
-          <div>
-            <SectionHeader icon={<Users className="w-4 h-4" />} title="Recent Activity" />
+          <CollapsibleSection icon={<Users className="w-4 h-4" />} title="Recent Activity" collapsed={collapsedSections.has('recent')} onToggle={() => toggleSection('recent')}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {last_active_users.slice(0, 8).map(u => (
                 <div
@@ -920,7 +1193,7 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                 </div>
               ))}
             </div>
-          </div>
+          </CollapsibleSection>
         )}
 
         {/* Bottom padding */}

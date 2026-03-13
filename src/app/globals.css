@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../styles/novel-prosemirror.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -43,6 +44,7 @@
 
 :root {
   --font-size: 16px;
+  @import "../styles/novel-prosemirror.css";
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -87,6 +89,17 @@
   --overlay: 0 0% 0%;
   --modal-background: 0 0% 100%;
   --modal-foreground: 222.2 47.4% 11.2%;
+
+  /* Novel editor highlight colors */
+  --novel-highlight-default: #ffffff;
+  --novel-highlight-purple: #f6f3f8;
+  --novel-highlight-red: #fdebeb;
+  --novel-highlight-yellow: #fbf4a2;
+  --novel-highlight-blue: #c1ecf9;
+  --novel-highlight-green: #acf79f;
+  --novel-highlight-orange: #faebdd;
+  --novel-highlight-pink: #faf1f5;
+  --novel-highlight-gray: #f1f1ef;
 }
 
 .dark {
@@ -127,6 +140,17 @@
   --overlay: 0 0% 0%;
   --modal-background: oklch(0.145 0 0);
   --modal-foreground: oklch(0.985 0 0);
+
+  /* Novel editor highlight colors (dark mode) */
+  --novel-highlight-default: #000000;
+  --novel-highlight-purple: #3f2c4b;
+  --novel-highlight-red: #5c1a1a;
+  --novel-highlight-yellow: #5c4b1a;
+  --novel-highlight-blue: #1a3d5c;
+  --novel-highlight-green: #1a5c20;
+  --novel-highlight-orange: #5c3a1a;
+  --novel-highlight-pink: #5c1a3a;
+  --novel-highlight-gray: #3a3a3a;
 }
 
 * {

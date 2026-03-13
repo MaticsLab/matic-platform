@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Check, LayoutDashboard, Save, Printer, Send, CheckCircle, AlertTriangle, Cloud, CloudOff } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, LayoutDashboard, Save, Printer, Send, CheckCircle, AlertTriangle, Cloud, CloudOff, AlertCircle, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/ui-components/card'
@@ -259,6 +259,8 @@ export function DynamicApplicationForm({
   const [isAutosaving, setIsAutosaving] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [agreedToAccuracy, setAgreedToAccuracy] = useState(false)
+  const [missingFieldsInfo, setMissingFieldsInfo] = useState<{ label: string; fieldId: string; sectionId: string }[]>([])
+  const [highlightedFieldId, setHighlightedFieldId] = useState<string | null>(null)
   const [lastSavedData, setLastSavedData] = useState<string>('')
   
   // Optimistic autosave hook (when enabled)
@@ -436,18 +438,24 @@ export function DynamicApplicationForm({
     return requiredFields;
   };
 
-  // Validate required fields before submit
-  const validateRequiredFields = (): string[] => {
-    const missing: string[] = [];
-    const requiredFields = getAllRequiredFields(Array.isArray(translatedConfig.sections) ? translatedConfig.sections : []);
-    requiredFields.forEach(field => {
-      const value = formData[field.id];
-      // For repeaters/groups, check array length or nested required
-      if (Array.isArray(value)) {
-        if (value.length === 0) missing.push(field.label || field.id);
-      } else if (value === undefined || value === null || value === '') {
-        missing.push(field.label || field.id);
-      }
+  // Validate required fields before submit - returns detailed info including section
+  const validateRequiredFields = (): { label: string; fieldId: string; sectionId: string }[] => {
+    const missing: { label: string; fieldId: string; sectionId: string }[] = [];
+    const sectionsArr = Array.isArray(translatedConfig.sections) ? translatedConfig.sections : [];
+    sectionsArr.forEach(section => {
+      const traverse = (fields: Field[]) => {
+        (Array.isArray(fields) ? fields : []).forEach(field => {
+          if (field.required) {
+            const value = formData[field.id];
+            const isEmpty = Array.isArray(value) ? value.length === 0 : (value === undefined || value === null || value === '');
+            if (isEmpty) {
+              missing.push({ label: String(field.label || field.id), fieldId: field.id, sectionId: section.id });
+            }
+          }
+          if (Array.isArray(field.children) && field.children.length > 0) traverse(field.children);
+        });
+      };
+      if (Array.isArray(section.fields)) traverse(section.fields);
     });
     return missing;
   };
@@ -460,11 +468,13 @@ export function DynamicApplicationForm({
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (activeSectionIndex === sectionsLength - 1) {
       // Last section - submit the form
-      const missingFields = validateRequiredFields();
-      if (missingFields.length > 0) {
-        alert('Please complete all required fields before submitting.\nMissing: ' + missingFields.join(', '));
+      const missing = validateRequiredFields();
+      if (missing.length > 0) {
+        setMissingFieldsInfo(missing);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
+      setMissingFieldsInfo([]);
       if (onSubmit) {
         setIsSaving(true);
         onSubmit(formData).finally(() => setIsSaving(false));
@@ -653,7 +663,51 @@ export function DynamicApplicationForm({
                     )}
                   </CardHeader>
                   <CardContent className={cn("space-y-6", isExternal ? "px-0" : "")}>
+                    {/* Missing Fields Callbox */}
+                    {missingFieldsInfo.length > 0 && (
+                      <div className="border border-yellow-300 bg-yellow-50 rounded-lg p-4">
+                        <div className="flex items-start gap-3">
+                          <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <h3 className="font-semibold text-yellow-900">Please complete all required fields before submitting</h3>
+                              <button
+                                onClick={() => setMissingFieldsInfo([])}
+                                className="text-yellow-600 hover:text-yellow-800 ml-2"
+                                aria-label="Dismiss"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                            <p className="text-sm text-yellow-700 mt-1 mb-2">Missing:</p>
+                            <ul className="space-y-1">
+                              {missingFieldsInfo.map((item) => (
+                                <li key={item.fieldId}>
+                                  <button
+                                    className="text-sm text-yellow-800 underline hover:text-yellow-900 text-left"
+                                    onClick={() => {
+                                      setActiveSectionId(item.sectionId);
+                                      setHighlightedFieldId(item.fieldId);
+                                      setTimeout(() => {
+                                        const el = document.getElementById(`field-${item.fieldId}`);
+                                        if (el) {
+                                          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        }
+                                        setTimeout(() => setHighlightedFieldId(null), 3000);
+                                      }, 300);
+                                    }}
+                                  >
+                                    {item.label}
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {/* Completion Status */}
+                    {missingFieldsInfo.length === 0 && (
                     <div className={cn("border rounded-lg p-4", "bg-green-50 border-green-200")}>
                       <div className="flex items-start gap-3">
                         <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
@@ -665,6 +719,7 @@ export function DynamicApplicationForm({
                         </div>
                       </div>
                     </div>
+                    )}
 
                     {/* Review Sections */}
                     {(Array.isArray(translatedConfig.sections) ? translatedConfig.sections : []).filter((s: Section) => s.sectionType === 'form').map((section: Section) => (
@@ -875,11 +930,12 @@ export function DynamicApplicationForm({
                         return null;
                       })()}
                       {(activeSection.fields || []).map((field: Field) => (
-                        <div key={field.id} className={cn(
+                        <div key={field.id} id={`field-${field.id}`} className={cn(
                           field.width === 'half' ? 'col-span-12 sm:col-span-6' : 
                           field.width === 'third' ? 'col-span-12 sm:col-span-4' :
                           field.width === 'quarter' ? 'col-span-12 sm:col-span-3' :
-                          'col-span-12'
+                          'col-span-12',
+                          highlightedFieldId === field.id && 'ring-2 ring-yellow-400 rounded-lg bg-yellow-50 p-2 transition-all duration-500'
                         )}>
                           <PortalFieldAdapter
                             field={field}

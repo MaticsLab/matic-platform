@@ -1093,20 +1093,81 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 	// Get workspace ID from form
 	workspaceID := form.WorkspaceID
 
-	// Get applicant info
-	applicantName := "the applicant"
+	// Get applicant info using configured field mappings or auto-detection (mirrors initial email logic)
+	applicantName := ""
+	applicantEmail := ""
+
 	if submission.Data != nil {
 		var data map[string]interface{}
 		json.Unmarshal(submission.Data, &data)
-		for key, value := range data {
-			keyLower := strings.ToLower(key)
-			if strings.Contains(keyLower, "name") {
-				if str, ok := value.(string); ok && str != "" {
+
+		// Check for configured field mappings first
+		if config.MergeTagFields.ApplicantName != "" {
+			if val, ok := data[config.MergeTagFields.ApplicantName]; ok {
+				if str, ok := val.(string); ok && str != "" {
 					applicantName = str
-					break
 				}
 			}
 		}
+		if config.MergeTagFields.ApplicantEmail != "" {
+			if val, ok := data[config.MergeTagFields.ApplicantEmail]; ok {
+				if str, ok := val.(string); ok && str != "" {
+					applicantEmail = str
+				}
+			}
+		}
+
+		// Fall back to auto-detection for name
+		if applicantName == "" {
+			firstName := ""
+			lastName := ""
+			for key, value := range data {
+				keyLower := strings.ToLower(key)
+				if str, ok := value.(string); ok && str != "" {
+					if keyLower == "full_name" || keyLower == "fullname" || keyLower == "applicant_name" || keyLower == "name" {
+						applicantName = str
+						break
+					}
+					if keyLower == "first_name" || keyLower == "firstname" {
+						firstName = str
+					}
+					if keyLower == "last_name" || keyLower == "lastname" {
+						lastName = str
+					}
+				}
+			}
+			if applicantName == "" && (firstName != "" || lastName != "") {
+				applicantName = strings.TrimSpace(firstName + " " + lastName)
+			}
+			if applicantName == "" {
+				for key, value := range data {
+					keyLower := strings.ToLower(key)
+					if strings.Contains(keyLower, "name") && !strings.Contains(keyLower, "recommender") {
+						if str, ok := value.(string); ok && str != "" {
+							applicantName = str
+							break
+						}
+					}
+				}
+			}
+		}
+
+		// Fall back to auto-detection for email
+		if applicantEmail == "" {
+			for key, value := range data {
+				keyLower := strings.ToLower(key)
+				if strings.Contains(keyLower, "email") && !strings.Contains(keyLower, "recommender") {
+					if str, ok := value.(string); ok && str != "" {
+						applicantEmail = str
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if applicantName == "" {
+		applicantName = "the applicant"
 	}
 
 	// Build the recommendation link
@@ -1119,7 +1180,7 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 	// Format deadline
 	deadline := "No deadline"
 	if request.ExpiresAt != nil {
-		deadline = request.ExpiresAt.Format("January 2, 2006")
+		deadline = request.ExpiresAt.Format("January 2, 2006 at 3:04 PM")
 	}
 
 	subject := config.EmailTemplate.ReminderSubject
@@ -1130,17 +1191,24 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 	body := config.EmailTemplate.ReminderBody
 	if body == "" {
 		logoURL := getFormLogoURL(form)
-		mainText := fmt.Sprintf("This is a friendly reminder that <strong>%s</strong> is waiting for your recommendation for their application to <strong>%s</strong>. Your support means a great deal to them.", applicantName, form.Name)
+		var mainText string
+		if applicantEmail != "" {
+			mainText = fmt.Sprintf("This is a friendly reminder that <strong>%s</strong> (%s) is waiting for your recommendation for their application to <strong>%s</strong>. Your support means a great deal to them.", applicantName, applicantEmail, form.Name)
+		} else {
+			mainText = fmt.Sprintf("This is a friendly reminder that <strong>%s</strong> is waiting for your recommendation for their application to <strong>%s</strong>. Your support means a great deal to them.", applicantName, form.Name)
+		}
 		body = buildRecommendationEmailHTML(request.RecommenderName, mainText, form.Name, logoURL, recommendationLink, deadline, true)
 	} else {
 		body = strings.ReplaceAll(body, "{{recommender_name}}", request.RecommenderName)
 		body = strings.ReplaceAll(body, "{{applicant_name}}", applicantName)
+		body = strings.ReplaceAll(body, "{{applicant_email}}", applicantEmail)
 		body = strings.ReplaceAll(body, "{{form_title}}", form.Name)
 		body = strings.ReplaceAll(body, "{{link}}", recommendationLink)
 		body = strings.ReplaceAll(body, "{{deadline}}", deadline)
 
 		subject = strings.ReplaceAll(subject, "{{recommender_name}}", request.RecommenderName)
 		subject = strings.ReplaceAll(subject, "{{applicant_name}}", applicantName)
+		subject = strings.ReplaceAll(subject, "{{applicant_email}}", applicantEmail)
 		subject = strings.ReplaceAll(subject, "{{form_title}}", form.Name)
 	}
 

@@ -126,14 +126,8 @@ ul[data-type="taskList"] li[data-checked="true"] > div > p {
   z-index: 9999 !important;
 }
 
-/* Ensure bubble menu is not clipped by overflow containers */
 [data-tippy-root] {
   z-index: 9999 !important;
-}
-
-/* Ensure bubble menu toolbar appears above editor */
-.ProseMirror .tippy-box {
-  position: fixed !important;
 }
 
 .ProseMirror:not(.dragging) .ProseMirror-selectednode {
@@ -226,8 +220,7 @@ mark[style] > strong {
   color: inherit;
 }
 
-/* Code block syntax highlighting */
-pre {
+.ProseMirror pre {
   background: #0d0d0d;
   border-radius: 0.5rem;
   color: #fff;
