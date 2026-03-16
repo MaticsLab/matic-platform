@@ -109,6 +109,7 @@ type FormAnalyticsResponse struct {
 	CheckIns              []CheckInRecommendation `json:"check_ins"`
 	Heatmap               []HeatmapCell           `json:"heatmap"`
 	FieldBreakdowns       []FieldAnswerBreakdown  `json:"field_breakdowns"`
+	Submissions           []IncompleteSubmission  `json:"submissions"`
 	IncompleteSubmissions []IncompleteSubmission  `json:"incomplete_submissions"`
 }
 
@@ -572,12 +573,10 @@ func buildResponse(rows []analyticsRow, formUUID uuid.UUID) FormAnalyticsRespons
 		heatmapSlice = append(heatmapSlice, HeatmapCell{Day: k[0], Hour: k[1], Count: v})
 	}
 
-	// ── Incomplete Submissions (not submitted) ────────────────────────────────
+	// ── Submissions (all) + Incomplete Submissions (not submitted) ───────────
+	allSubmissions := make([]IncompleteSubmission, 0, len(rows))
 	incompletes := make([]IncompleteSubmission, 0)
 	for _, r := range rows {
-		if r.Status == "submitted" {
-			continue
-		}
 		email := ""
 		name := ""
 		if r.Email != nil {
@@ -587,7 +586,7 @@ func buildResponse(rows []analyticsRow, formUUID uuid.UUID) FormAnalyticsRespons
 			name = *r.UserName
 		}
 		days := int(now.Sub(r.UpdatedAt).Hours() / 24)
-		incompletes = append(incompletes, IncompleteSubmission{
+		submission := IncompleteSubmission{
 			SubmissionID:  r.ID.String(),
 			UserID:        r.UserID,
 			Email:         email,
@@ -597,7 +596,11 @@ func buildResponse(rows []analyticsRow, formUUID uuid.UUID) FormAnalyticsRespons
 			LastSeen:      r.UpdatedAt.Format(time.RFC3339),
 			StartedAt:     r.StartedAt.Format(time.RFC3339),
 			DaysInactive:  days,
-		})
+		}
+		allSubmissions = append(allSubmissions, submission)
+		if r.Status != "submitted" {
+			incompletes = append(incompletes, submission)
+		}
 	}
 
 	// ── Field Breakdowns (new schema) ─────────────────────────────────────────
@@ -612,6 +615,7 @@ func buildResponse(rows []analyticsRow, formUUID uuid.UUID) FormAnalyticsRespons
 		CheckIns:              checkIns,
 		Heatmap:               heatmapSlice,
 		FieldBreakdowns:       fieldBreakdowns,
+		Submissions:           allSubmissions,
 		IncompleteSubmissions: incompletes,
 	}
 }

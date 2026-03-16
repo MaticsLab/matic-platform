@@ -93,5 +93,6 @@ export interface FormAnalyticsResponse {
   check_ins: CheckInRecommendation[]
   heatmap: HeatmapCell[]
   field_breakdowns: FieldAnswerBreakdown[]
+  submissions: IncompleteSubmission[]
   incomplete_submissions: IncompleteSubmission[]
 }

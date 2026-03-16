@@ -157,6 +157,7 @@ function CollapsibleSection({
 // ── Sort Table Header ─────────────────────────────────────────────────────────
 
 type SortKey = 'name' | 'completion_pct' | 'last_seen' | 'started_at'
+type AnalyticsTabId = 'overview' | 'charts' | 'distributions' | 'fields' | 'checkins'
 
 function SortTh({ label, sortK, currentSort, dir, onSort, className }: {
   label: string; sortK: SortKey; currentSort: SortKey; dir: 'asc' | 'desc'
@@ -461,7 +462,8 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
   const [detailApp, setDetailApp] = useState<Application | null>(null)
   const [isAppSettingsModalOpen, setIsAppSettingsModalOpen] = useState(false)
 
-  // ── Section collapse state ─────────────────────────────────────────────────
+  // ── Section state ──────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<AnalyticsTabId>('overview')
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
   const toggleSection = useCallback((id: string) => {
     setCollapsedSections(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -657,7 +659,7 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
   }, [data?.heatmap])
 
   const filteredSubmissions = useMemo(() => {
-    const list = data?.incomplete_submissions ?? []
+    const list = data?.submissions ?? data?.incomplete_submissions ?? []
     let filtered = statusFilter !== 'all' ? list.filter(s => s.status === statusFilter) : list
     if (submissionSearch) {
       const q = submissionSearch.toLowerCase()
@@ -675,7 +677,34 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
       if (av > bv) return sortDir === 'asc' ? 1 : -1
       return 0
     })
-  }, [data?.incomplete_submissions, submissionSearch, statusFilter, sortKey, sortDir])
+  }, [data?.submissions, data?.incomplete_submissions, submissionSearch, statusFilter, sortKey, sortDir])
+
+  const analyticsTabs = useMemo(() => {
+    const fieldBreakdowns = data?.field_breakdowns ?? []
+    const checkIns = data?.check_ins ?? []
+
+    const tabs: Array<{ id: AnalyticsTabId; label: string; count?: number }> = [
+      { id: 'overview', label: 'Overview' },
+      { id: 'charts', label: 'Volume & Funnel' },
+      { id: 'distributions', label: 'Distributions & Activity' },
+    ]
+
+    if (fieldBreakdowns.length > 0) {
+      tabs.push({ id: 'fields', label: 'Field Answer Breakdown', count: fieldBreakdowns.length })
+    }
+
+    if (checkIns.length > 0) {
+      tabs.push({ id: 'checkins', label: 'Recommended Check-ins', count: checkIns.length })
+    }
+
+    return tabs
+  }, [data?.check_ins, data?.field_breakdowns])
+
+  useEffect(() => {
+    if (!analyticsTabs.some(tab => tab.id === activeTab)) {
+      setActiveTab('overview')
+    }
+  }, [activeTab, analyticsTabs])
 
   // ── Loading / Error states ────────────────────────────────────────────────
 
@@ -699,9 +728,11 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
   }
 
   const { overview, daily_volume, completion_buckets, funnel, last_active_users,
-    check_ins, field_breakdowns, incomplete_submissions } = data
+    check_ins, field_breakdowns, incomplete_submissions, submissions: analyticsSubmissions } = data
 
-  const incompleteIds = filteredSubmissions.map(s => s.submission_id)
+  const allSubmissions = analyticsSubmissions ?? incomplete_submissions
+
+  const submissionIds = filteredSubmissions.map(s => s.submission_id)
   const selectedEmails = filteredSubmissions
     .filter(s => selectedRows.has(s.submission_id))
     .map(s => s.email)
@@ -741,7 +772,32 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
 
       <div className="px-6 py-6 space-y-8">
 
-        <CollapsibleSection icon={<BarChart2 className="w-4 h-4" />} title="Overview" collapsed={collapsedSections.has('overview')} onToggle={() => toggleSection('overview')}>
+        <div className="flex flex-wrap items-center gap-2">
+          {analyticsTabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                activeTab === tab.id
+                  ? 'border-blue-200 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              )}
+            >
+              <span>{tab.label}</span>
+              {typeof tab.count === 'number' && (
+                <span className={cn(
+                  'rounded-full px-1.5 py-0.5 text-[10px]',
+                  activeTab === tab.id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                )}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'overview' && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-3">
             <StatCard label="Total Submissions" value={overview.total} icon={<FileText className="w-4 h-4" />} color="blue" />
             <StatCard label="Submitted" value={overview.submitted}
@@ -756,10 +812,10 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
             <StatCard label="Completed Today" value={overview.completed_today}
               icon={<Zap className="w-4 h-4" />} color="green" />
           </div>
-        </CollapsibleSection>
+        )}
 
-        <CollapsibleSection icon={<BarChart2 className="w-4 h-4" />} title="Volume & Funnel" collapsed={collapsedSections.has('charts')} onToggle={() => toggleSection('charts')}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {activeTab === 'charts' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
           {/* Daily Volume */}
           <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-5">
@@ -808,12 +864,11 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
               ))}
             </div>
           </div>
-        </div>
-        </CollapsibleSection>
+          </div>
+        )}
 
-        <CollapsibleSection icon={<Activity className="w-4 h-4" />} title="Distributions & Activity" collapsed={collapsedSections.has('distributions')} onToggle={() => toggleSection('distributions')}>
-        {/* ── Second row: completion buckets + heatmap ───────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {activeTab === 'distributions' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
           {/* Completion Distribution */}
           <div className="bg-white border border-gray-200 rounded-xl p-5">
@@ -878,12 +933,16 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
               <span className="text-[10px] text-gray-400">More</span>
             </div>
           </div>
-        </div>
-        </CollapsibleSection>
+          </div>
+        )}
 
         {/* ── Field Answer Breakdowns ────────────────────────────────────── */}
-        {field_breakdowns.length > 0 && (
-          <CollapsibleSection icon={<BarChart2 className="w-4 h-4" />} title="Field Answer Breakdown" collapsed={collapsedSections.has('fields')} onToggle={() => toggleSection('fields')}>
+        {activeTab === 'fields' && field_breakdowns.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-gray-400"><BarChart2 className="w-4 h-4" /></span>
+              <h3 className="text-sm font-semibold text-gray-800">Field Answer Breakdown</h3>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {field_breakdowns.map((f: FieldAnswerBreakdown) => (
                 <div key={f.field_id} className="bg-white border border-gray-200 rounded-xl p-4">
@@ -908,26 +967,25 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                 </div>
               ))}
             </div>
-          </CollapsibleSection>
+          </div>
         )}
 
         {/* ── Recommended Check-ins ──────────────────────────────────────── */}
-        {check_ins.length > 0 && (
-          <CollapsibleSection
-            icon={<AlertCircle className="w-4 h-4 text-amber-400" />}
-            title={`Recommended Check-ins (${check_ins.length})`}
-            collapsed={collapsedSections.has('checkins')}
-            onToggle={() => toggleSection('checkins')}
-            action={
-              <button
-                onClick={() => openEmailComposer(check_ins.map(c => c.email).filter(Boolean))}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors"
-              >
-                <Mail className="w-3.5 h-3.5" />
-                Email All
-              </button>
-            }
-          >
+        {activeTab === 'checkins' && check_ins.length > 0 && (
+          <div>
+            <SectionHeader
+              icon={<AlertCircle className="w-4 h-4 text-amber-400" />}
+              title={`Recommended Check-ins (${check_ins.length})`}
+              action={
+                <button
+                  onClick={() => openEmailComposer(check_ins.map(c => c.email).filter(Boolean))}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  Email All
+                </button>
+              }
+            />
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
@@ -990,13 +1048,13 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                 </tbody>
               </table>
             </div>
-          </CollapsibleSection>
+          </div>
         )}
 
         {/* ── Submissions ──────────────────────────────────────────────────── */}
         <CollapsibleSection
           icon={<Users className="w-4 h-4" />}
-          title={`Submissions (${incomplete_submissions.length})`}
+          title={`Submissions (${allSubmissions.length})`}
           collapsed={collapsedSections.has('incomplete')}
           onToggle={() => toggleSection('incomplete')}
           action={
@@ -1011,11 +1069,11 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
             ) : undefined
           }
         >
-          {incomplete_submissions.length === 0 ? (
+          {allSubmissions.length === 0 ? (
             <div className="bg-white border border-gray-200 rounded-xl p-8 flex flex-col items-center gap-2">
-              <CheckCircle2 className="w-8 h-8 text-green-500" />
-              <p className="text-sm text-gray-700 font-medium">All submissions are complete!</p>
-              <p className="text-xs text-gray-400">No incomplete or draft submissions found.</p>
+              <Users className="w-8 h-8 text-gray-400" />
+              <p className="text-sm text-gray-700 font-medium">No submissions yet</p>
+              <p className="text-xs text-gray-400">Submissions will appear here once users start applying.</p>
             </div>
           ) : (
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -1059,8 +1117,8 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                     </button>
                   ))}
                 </div>
-                {filteredSubmissions.length !== incomplete_submissions.length && (
-                  <span className="text-xs text-gray-400">{filteredSubmissions.length} of {incomplete_submissions.length}</span>
+                {filteredSubmissions.length !== allSubmissions.length && (
+                  <span className="text-xs text-gray-400">{filteredSubmissions.length} of {allSubmissions.length}</span>
                 )}
               </div>
 
@@ -1085,8 +1143,8 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                       <th className="px-4 py-3 w-10">
                         <input
                           type="checkbox"
-                          checked={selectedRows.size === incompleteIds.length && incompleteIds.length > 0}
-                          onChange={() => selectAll(incompleteIds)}
+                          checked={selectedRows.size === submissionIds.length && submissionIds.length > 0}
+                          onChange={() => selectAll(submissionIds)}
                           className="rounded border-gray-300 bg-white text-blue-600 cursor-pointer"
                         />
                       </th>
