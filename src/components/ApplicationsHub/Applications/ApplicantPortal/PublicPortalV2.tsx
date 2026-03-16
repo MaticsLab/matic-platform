@@ -969,7 +969,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   }
 
   // Handle form submission
-  const handleFormSubmit = async (formData: Record<string, any>, options?: { saveAndExit?: boolean }): Promise<boolean> => {
+  const handleFormSubmit = async (formData: Record<string, any>, options?: { saveAndExit?: boolean }): Promise<void> => {
     try {
       if (!form?.id) {
         throw new Error('Form ID not found')
@@ -1038,12 +1038,11 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         toast.success('Application saved successfully!')
         setCurrentView('dashboard')
         // Don't clear currentFormData - keep it for when user returns
-        return true
+        return
       }
       
       toast.success('Application submitted successfully!')
       setIsSubmitted(true)
-      return true
     } catch (error) {
       console.error('Form submission error:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to submit form')

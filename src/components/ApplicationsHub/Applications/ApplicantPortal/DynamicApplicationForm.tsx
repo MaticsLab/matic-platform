@@ -441,8 +441,8 @@ export function DynamicApplicationForm({
   // Validate required fields before submit - returns detailed info including section
   const validateRequiredFields = (): { label: string; fieldId: string; sectionId: string }[] => {
     const missing: { label: string; fieldId: string; sectionId: string }[] = [];
-    const sectionsArr = Array.isArray(translatedConfig.sections) ? translatedConfig.sections : [];
-    sectionsArr.forEach(section => {
+    const sectionsArr: Section[] = Array.isArray(translatedConfig.sections) ? translatedConfig.sections : [];
+    sectionsArr.forEach((section: Section) => {
       const traverse = (fields: Field[]) => {
         (Array.isArray(fields) ? fields : []).forEach(field => {
           if (field.required) {

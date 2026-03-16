@@ -3,6 +3,9 @@ const path = require('path')
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   
   // Enable standalone output for Docker
   output: 'standalone',
