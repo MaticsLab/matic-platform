@@ -221,6 +221,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   // Ref to prevent duplicate form loads (React 18 Strict Mode)
   const formLoadRef = useRef<string | null>(null)
   const formLoadAbortControllerRef = useRef<AbortController | null>(null)
+  const currentFormDataRef = useRef<Record<string, any>>({})
 
   // Language support
   const defaultLanguage = form?.settings?.language?.default || 'en'
@@ -267,11 +268,16 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     }
   }, [form, activeLanguage, defaultLanguage])
 
+  useEffect(() => {
+    currentFormDataRef.current = currentFormData
+  }, [currentFormData])
+
 
   // Handle form data changes — state + localStorage only.
   // Handle form data changes and create initial draft submission if needed
   const handleFormDataChange = useCallback(async (data: Record<string, any>) => {
     setCurrentFormData(data)
+    currentFormDataRef.current = data
     
     // Also update submissionData so dashboard shows current data
     setSubmissionData(data)
@@ -956,18 +962,20 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     while (hasBlobUrls(data) && Date.now() - startTime < maxWait) {
       await new Promise(resolve => setTimeout(resolve, 100))
       // Re-check current form data (might have been updated by FileRenderer)
-      data = { ...currentFormData, ...data }
+      data = { ...currentFormDataRef.current, ...data }
     }
     
     return data
   }
 
   // Handle form submission
-  const handleFormSubmit = async (formData: Record<string, any>, options?: { saveAndExit?: boolean }): Promise<void> => {
+  const handleFormSubmit = async (formData: Record<string, any>, options?: { saveAndExit?: boolean }): Promise<boolean> => {
     try {
       if (!form?.id) {
         throw new Error('Form ID not found')
       }
+
+      setIsSaving(true)
       
       // Wait for any pending uploads before saving
       const dataWithUploads = await waitForPendingUploads(formData)
@@ -1006,36 +1014,42 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       
       const savedSubmission = await response.json()
       console.log('[PublicPortalV2] Submission saved:', { id: savedSubmission.id })
+      const savedSubmissionId = savedSubmission.id || applicationRowId
       
       // Update applicationRowId if we got an ID back
       if (savedSubmission.id && !applicationRowId) {
         setApplicationRowId(savedSubmission.id)
       }
       
+      setCurrentFormData(cleanedFormData)
+      currentFormDataRef.current = cleanedFormData
       setSubmissionData(cleanedFormData)
       
       if (options?.saveAndExit) {
         // Verify save succeeded - must have an application row ID
-        if (!applicationRowId) {
+        if (!savedSubmissionId) {
           console.error('[PublicPortalV2] Save returned but no submission ID - save may have failed')
-          toast.error('Failed to save application. Please try again.')
           // Don't navigate away if save didn't return an ID
           throw new Error('Save failed: No submission ID returned')
         }
         
         // Save succeeded - show success and navigate
-        console.log('[PublicPortalV2] Save and exit successful:', applicationRowId)
+        console.log('[PublicPortalV2] Save and exit successful:', savedSubmissionId)
         toast.success('Application saved successfully!')
         setCurrentView('dashboard')
         // Don't clear currentFormData - keep it for when user returns
-        return
+        return true
       }
       
       toast.success('Application submitted successfully!')
       setIsSubmitted(true)
+      return true
     } catch (error) {
       console.error('Form submission error:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to submit form')
+      throw error
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -1043,14 +1057,14 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   const handleSaveAndDashboard = async () => {
     try {
       console.log('[PublicPortalV2] Save and Exit clicked', { 
-        hasFormData: Object.keys(currentFormData).length > 0,
+        hasFormData: Object.keys(currentFormDataRef.current).length > 0,
         formId: form?.id,
         email,
         applicationRowId
       })
       
       // Call handleFormSubmit to save and navigate - it will show the success toast
-      await handleFormSubmit(currentFormData, { saveAndExit: true })
+      await handleFormSubmit(currentFormDataRef.current, { saveAndExit: true })
       
       // handleFormSubmit will handle navigation on success
     } catch (error) {
@@ -1131,7 +1145,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   // Save application data before navigation
   const saveBeforeNavigation = async (): Promise<void> => {
     // Only save if we're in application view and have form data
-    if (currentView !== 'application' || Object.keys(currentFormData).length === 0) {
+    if (currentView !== 'application' || Object.keys(currentFormDataRef.current).length === 0) {
       return
     }
 
@@ -1139,17 +1153,17 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     if (applicationRowId && form?.id && email) {
       try {
         console.log('[PublicPortalV2] Saving before navigation')
-        await handleFormSubmit(currentFormData, { saveAndExit: true })
+        await handleFormSubmit(currentFormDataRef.current, { saveAndExit: true })
         console.log('[PublicPortalV2] Save completed before navigation')
       } catch (error) {
         console.error('[PublicPortalV2] Save failed before navigation:', error)
         // Don't throw - allow navigation even if save fails
       }
-    } else if (form?.id && email && Object.keys(currentFormData).length > 0) {
+    } else if (form?.id && email && Object.keys(currentFormDataRef.current).length > 0) {
       // No submission ID yet - create one via form submit
       try {
         console.log('[PublicPortalV2] Saving before navigation via form submit (new submission)')
-        await handleFormSubmit(currentFormData, { saveAndExit: true })
+        await handleFormSubmit(currentFormDataRef.current, { saveAndExit: true })
       } catch (error) {
         console.error('[PublicPortalV2] Failed to save before navigation:', error)
         // Don't throw - allow navigation even if save fails

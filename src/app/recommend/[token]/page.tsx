@@ -270,6 +270,10 @@ export default function RecommendPage() {
     )
   }
 
+  const applicantName = data?.applicant_name?.trim() || 'the applicant'
+  const applicantEmail = data?.applicant_email?.trim() || ''
+  const applicantDisplay = applicantEmail ? `${applicantName} (${applicantEmail})` : applicantName
+
   // Already submitted - show read-only view of what they submitted
   if (data?.already_submitted) {
     const request = data.request
@@ -290,7 +294,7 @@ export default function RecommendPage() {
             </div>
             <h1 className="text-2xl font-bold text-slate-900 mb-1">Recommendation Submitted</h1>
             {submittedAt && <p className="text-sm text-slate-500">Submitted on {submittedAt}</p>}
-            <p className="text-slate-600 mt-2">Thank you, <strong>{request?.recommender_name}</strong>. Your recommendation for <strong>{data.form_title}</strong> has been received.</p>
+            <p className="text-slate-600 mt-2">Thank you, <strong>{request?.recommender_name}</strong>. Your recommendation for <strong>{applicantDisplay}</strong> has been received.</p>
           </div>
           {(data.questions?.length > 0 || uploadedDoc) && (
             <Card className="border-slate-200">
@@ -343,8 +347,8 @@ export default function RecommendPage() {
                 </div>
                 <h2 className="text-xl font-semibold text-slate-900 mb-2">Thank You!</h2>
                 <p className="text-slate-600">
-                  Your recommendation has been submitted successfully.
-                  The applicant will be notified.
+                  Your recommendation for <strong>{applicantDisplay}</strong> has been submitted successfully.
+                  They will be notified.
                 </p>
               </div>
             </CardContent>
@@ -374,7 +378,7 @@ export default function RecommendPage() {
             Recommendation Request
           </h1>
           <p className="text-slate-600">
-            <span className="font-medium">{data?.applicant_name || 'An applicant'}</span> has requested your recommendation for their application to{' '}
+            <span className="font-medium">{applicantDisplay}</span> has requested your recommendation for their application to{' '}
             <span className="font-medium">{data?.form_title}</span>
           </p>
           {/* Applicant Info Card */}

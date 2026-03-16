@@ -205,6 +205,17 @@ func buildRecommendationEmailHTML(recommenderName, mainText, formTitle, logoURL,
 	)
 }
 
+// isLegacyRecommendationReminderHTML detects older orange reminder templates so we can upgrade
+// them to the current white email shell automatically.
+func isLegacyRecommendationReminderHTML(body string) bool {
+	bodyLower := strings.ToLower(body)
+	hasReminderHeading := strings.Contains(bodyLower, "reminder: recommendation request")
+	hasLegacyOrange := strings.Contains(bodyLower, "#f59e0b") || strings.Contains(bodyLower, "#f59e0")
+	hasSubmitCTA := strings.Contains(bodyLower, "submit recommendation")
+
+	return hasReminderHeading && (hasLegacyOrange || hasSubmitCTA)
+}
+
 // GetRecommendationRequests returns all recommendation requests for a submission
 func GetRecommendationRequests(c *gin.Context) {
 	submissionID := c.Query("submission_id")
@@ -1199,12 +1210,26 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 		}
 		body = buildRecommendationEmailHTML(request.RecommenderName, mainText, form.Name, logoURL, recommendationLink, deadline, true)
 	} else {
+		logoURL := getFormLogoURL(form)
+		var defaultMainText string
+		if applicantEmail != "" {
+			defaultMainText = fmt.Sprintf("This is a friendly reminder that <strong>%s</strong> (%s) is waiting for your recommendation for their application to <strong>%s</strong>. Your support means a great deal to them.", applicantName, applicantEmail, form.Name)
+		} else {
+			defaultMainText = fmt.Sprintf("This is a friendly reminder that <strong>%s</strong> is waiting for your recommendation for their application to <strong>%s</strong>. Your support means a great deal to them.", applicantName, form.Name)
+		}
+
 		body = strings.ReplaceAll(body, "{{recommender_name}}", request.RecommenderName)
 		body = strings.ReplaceAll(body, "{{applicant_name}}", applicantName)
 		body = strings.ReplaceAll(body, "{{applicant_email}}", applicantEmail)
 		body = strings.ReplaceAll(body, "{{form_title}}", form.Name)
 		body = strings.ReplaceAll(body, "{{link}}", recommendationLink)
 		body = strings.ReplaceAll(body, "{{deadline}}", deadline)
+
+		if !strings.Contains(body, "<") {
+			body = buildRecommendationEmailHTML(request.RecommenderName, body, form.Name, logoURL, recommendationLink, deadline, true)
+		} else if isLegacyRecommendationReminderHTML(body) {
+			body = buildRecommendationEmailHTML(request.RecommenderName, defaultMainText, form.Name, logoURL, recommendationLink, deadline, true)
+		}
 
 		subject = strings.ReplaceAll(subject, "{{recommender_name}}", request.RecommenderName)
 		subject = strings.ReplaceAll(subject, "{{applicant_name}}", applicantName)
