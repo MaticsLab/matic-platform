@@ -358,13 +358,24 @@ export function DynamicApplicationForm({
 
   // Notify parent when form data changes - but skip on initial mount to prevent loops
   const isFirstRender = useRef(true)
+  const skipParentSyncEffectRef = useRef(false)
+  const syncParentFormData = useCallback((nextData: Record<string, any>) => {
+    if (!onFormDataChange) return
+    skipParentSyncEffectRef.current = true
+    void onFormDataChange(nextData)
+  }, [onFormDataChange])
+
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false
       return
     }
+    if (skipParentSyncEffectRef.current) {
+      skipParentSyncEffectRef.current = false
+      return
+    }
     if (onFormDataChange) {
-      onFormDataChange(formData)
+      void onFormDataChange(formData)
     }
   }, [formData, onFormDataChange])
   
@@ -416,11 +427,16 @@ export function DynamicApplicationForm({
   const hasPendingChanges = useOptimisticSave && submissionId ? optimisticAutosave.hasPendingChanges : false
 
   const handleFieldChange = (fieldId: string, value: any) => {
+    const nextData = { ...formDataRef.current, [fieldId]: value }
+    formDataRef.current = nextData
+
     if (useOptimisticSave && submissionId) {
       optimisticAutosave.handleFieldChange(fieldId, value)
     } else {
-      setLegacyFormData(prev => ({ ...prev, [fieldId]: value }))
+      setLegacyFormData(nextData)
     }
+
+    syncParentFormData(nextData)
   }
 
   // Helper to collect all required fields (including nested in groups/repeaters)
