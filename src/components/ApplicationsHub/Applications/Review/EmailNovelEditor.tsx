@@ -121,7 +121,7 @@ export function EmailNovelEditor({
             handlePaste: (view, event) => handleImagePaste(view, event, uploadFn),
             handleDrop: (view, event, _slice, moved) => handleImageDrop(view, event, moved, uploadFn),
             attributes: {
-              class: 'prose prose-sm max-w-none focus:outline-none p-4',
+              class: 'prose prose-sm max-w-none focus:outline-none px-3 py-2 leading-6 min-h-[180px] prose-p:my-0',
               'data-placeholder': placeholder,
             },
           }}

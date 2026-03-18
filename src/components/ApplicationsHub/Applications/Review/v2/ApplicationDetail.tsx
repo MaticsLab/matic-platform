@@ -1289,11 +1289,23 @@ export function ApplicationDetail({
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
         const signatureDivs = doc.querySelectorAll('div[data-type="emailSignature"]');
+
+        const decodeHtmlEntities = (input: string): string => {
+          const textarea = doc.createElement('textarea');
+          textarea.innerHTML = input;
+          return textarea.value;
+        };
         
         signatureDivs.forEach((div) => {
           const content = div.getAttribute('data-content');
           if (content) {
-            div.innerHTML = content;
+            const decoded = decodeHtmlEntities(content);
+            const wrapper = doc.createElement('div');
+            wrapper.innerHTML = decoded;
+            div.replaceWith(...Array.from(wrapper.childNodes));
+          } else {
+            const decodedInner = decodeHtmlEntities(div.innerHTML);
+            div.innerHTML = decodedInner;
           }
         });
         
@@ -1308,6 +1320,7 @@ export function ApplicationDetail({
         recipient_emails: [recipientEmail], // Explicitly pass the recipient email
         subject: emailSubject,
         body: processedBody,
+        body_html: processedBody,
         is_html: true, // Rich text editor produces HTML
         merge_tags: true,
         track_opens: true,
