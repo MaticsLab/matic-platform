@@ -60,6 +60,25 @@ interface ApplicationSettings {
   languageDefault: string
 }
 
+interface NotificationSettingsShape {
+  recipients?: string[]
+  on_submit?: boolean
+  respondent_notifications?: boolean
+}
+
+interface CustomEmailSettingsShape {
+  selfSubject?: string
+  selfBody?: string
+  respondentSubject?: string
+  respondentBody?: string
+}
+
+interface UrlParameterSettingsShape {
+  utm_source?: string
+  utm_campaign?: string
+  utm_medium?: string
+}
+
 const DEFAULT_SETTINGS: ApplicationSettings = {
   applicationDeadline: null,
   applicationStatus: 'open',
@@ -115,9 +134,9 @@ export function ApplicationSettingsModal({ open, onOpenChange, formId, workspace
       setAllowMultipleSubmissions(Boolean(data.allow_multiple_submissions))
 
       const existing = data.settings || {}
-      const notifications = existing.notifications || {}
-      const customEmails = existing.customEmails || {}
-      const urlParameters = existing.urlParameters || {}
+      const notifications: NotificationSettingsShape = (existing.notifications as NotificationSettingsShape) || {}
+      const customEmails: CustomEmailSettingsShape = (existing.customEmails as CustomEmailSettingsShape) || {}
+      const urlParameters: UrlParameterSettingsShape = (existing.urlParameters as UrlParameterSettingsShape) || {}
 
       setSettings({
         applicationDeadline: existing.applicationDeadline || null,

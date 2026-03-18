@@ -272,6 +272,7 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
         <ApplicationSettingsModal
           open={isAppSettingsModalOpen}
           onOpenChange={setIsAppSettingsModalOpen}
+          workspaceId={workspaceId}
           formId={formId}
           onSave={() => {
             // Refresh form data
