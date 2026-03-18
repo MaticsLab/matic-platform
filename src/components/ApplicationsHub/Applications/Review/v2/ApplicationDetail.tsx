@@ -581,6 +581,7 @@ export function ApplicationDetail({
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
   const [expandedRecommendations, setExpandedRecommendations] = useState<Set<string>>(new Set());
+  const [isSyncingRecommendationsToDrive, setIsSyncingRecommendationsToDrive] = useState(false);
   
   // Email account selection for reminders
   const [selectedReminderAccount, setSelectedReminderAccount] = useState<string>('');
@@ -960,6 +961,31 @@ export function ApplicationDetail({
       toast.error('Failed to send reminder');
     } finally {
       setSendingReminder(null);
+    }
+  };
+
+  const handleSyncRecommendationDocumentsToDrive = async () => {
+    if (!application.id || isSyncingRecommendationsToDrive) return;
+
+    setIsSyncingRecommendationsToDrive(true);
+    try {
+      const result = await recommendationsClient.syncSubmissionDocumentsToDrive(application.id);
+
+      if (result.documents_found === 0) {
+        toast.info('No uploaded recommendation documents were found to sync.');
+      } else if (result.documents_failed > 0) {
+        toast.warning(`Synced ${result.documents_synced}/${result.documents_found} recommendation document(s) to Google Drive.`);
+      } else {
+        toast.success(`Synced ${result.documents_synced} recommendation document(s) to Google Drive.`);
+      }
+
+      const data = await recommendationsClient.getForReview(application.id);
+      setRecommendations(data || []);
+    } catch (err) {
+      console.error('[ApplicationDetail] Failed to sync recommendation documents to Google Drive:', err);
+      toast.error('Failed to sync recommendation documents to Google Drive');
+    } finally {
+      setIsSyncingRecommendationsToDrive(false);
     }
   };
 
@@ -1974,24 +2000,74 @@ export function ApplicationDetail({
           <div className="w-80 flex flex-col overflow-hidden border-l border-gray-200">
               <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
                 <h2 className="text-sm font-semibold text-gray-900">Documents</h2>
-                <button 
-                  onClick={() => setShowDocumentsPanel(false)}
-                  className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-                >
-                  <X className="w-4 h-4 text-gray-500" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSyncRecommendationDocumentsToDrive}
+                    disabled={isSyncingRecommendationsToDrive}
+                  >
+                    {isSyncingRecommendationsToDrive ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                    ) : (
+                      <Folder className="w-4 h-4 mr-1.5" />
+                    )}
+                    Sync Drive
+                  </Button>
+                  <button
+                    onClick={() => setShowDocumentsPanel(false)}
+                    className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                  >
+                    <X className="w-4 h-4 text-gray-500" />
+                  </button>
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4">
                 {isLoadingFiles ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
                   </div>
-                ) : storageFiles.length === 0 && availableDocuments.length === 0 ? (
+                ) : storageFiles.length === 0 && availableDocuments.length === 0 && recommendationDocuments.length === 0 ? (
                   <div className="text-center py-8 text-sm text-gray-500">
                     No documents found
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    {/* Recommendation Documents */}
+                    {recommendationDocuments.length > 0 && (
+                      <div className="mb-4">
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-1">
+                          Recommendations
+                        </h3>
+                        {recommendationDocuments.map((doc, idx) => (
+                          <div key={`fullscreen-rec-doc-${idx}`} className="border border-green-200 bg-green-50 rounded-lg p-3 mb-2">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                                <FileSignature className="w-5 h-5 text-green-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">{doc.name}</p>
+                                <p className="text-xs text-gray-500">
+                                  <span className="text-green-600 font-medium">From {doc.recommenderName}</span>
+                                  {doc.contentType && ` • ${doc.contentType}`}
+                                  {doc.submittedAt && ` • ${new Date(doc.submittedAt).toLocaleDateString()}`}
+                                </p>
+                              </div>
+                              <a
+                                href={doc.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 hover:bg-green-100 rounded transition-colors"
+                                title="View document"
+                              >
+                                <Eye className="w-4 h-4 text-green-600" />
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Storage Files */}
                     {storageFiles.map((file) => {
                       const fileUrl = file.public_url || file.storage_path;
@@ -2285,14 +2361,30 @@ export function ApplicationDetail({
                 <FileText className="h-3.5 w-3.5" />
                 Documents
               </h2>
-              <Button 
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => setShowDocumentsPanel(false)}
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={handleSyncRecommendationDocumentsToDrive}
+                  disabled={isSyncingRecommendationsToDrive}
+                >
+                  {isSyncingRecommendationsToDrive ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Folder className="h-3 w-3" />
+                  )}
+                  <span className="ml-1">Sync Drive</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => setShowDocumentsPanel(false)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
             <ScrollArea className="flex-1 p-3">
               {isLoadingFiles ? (

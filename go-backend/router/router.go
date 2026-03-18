@@ -700,6 +700,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				recommendations.POST("/:id/remind", handlers.SendRecommendationReminder)               // Send reminder
 				recommendations.DELETE("/:id", handlers.CancelRecommendationRequest)                   // Cancel request
 				recommendations.GET("/submission/:submissionId", handlers.GetRecommendationsForReview) // For reviewers
+				recommendations.POST("/submission/:submissionId/google-drive/sync", handlers.SyncSubmissionRecommendationDocumentsToGoogleDrive)
 			}
 
 		}

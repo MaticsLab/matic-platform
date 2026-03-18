@@ -21,6 +21,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/resend/resend-go/v2"
+	"gorm.io/datatypes"
 )
 
 // generateRecommendationToken creates a secure random token for recommendation links
@@ -216,6 +217,226 @@ func isLegacyRecommendationReminderHTML(body string) bool {
 	return hasReminderHeading && (hasLegacyOrange || hasSubmitCTA)
 }
 
+func normalizeMergeTagName(name string) string {
+	name = strings.TrimSpace(strings.ToLower(name))
+	name = strings.ReplaceAll(name, "_", "")
+	name = strings.ReplaceAll(name, "-", "")
+	name = strings.ReplaceAll(name, " ", "")
+	return name
+}
+
+func stringifyMergeTagValue(value interface{}) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(v)
+	case float64:
+		return fmt.Sprintf("%.0f", v)
+	case bool:
+		if v {
+			return "Yes"
+		}
+		return "No"
+	case []interface{}:
+		parts := make([]string, 0, len(v))
+		for _, item := range v {
+			itemValue := stringifyMergeTagValue(item)
+			if itemValue != "" {
+				parts = append(parts, itemValue)
+			}
+		}
+		return strings.Join(parts, ", ")
+	case map[string]interface{}:
+		for _, key := range []string{"label", "name", "title", "text", "display", "display_value"} {
+			if raw, ok := v[key]; ok {
+				if s := stringifyMergeTagValue(raw); s != "" {
+					return s
+				}
+			}
+		}
+		if raw, ok := v["value"]; ok {
+			if s := stringifyMergeTagValue(raw); s != "" {
+				return s
+			}
+		}
+		encoded, err := json.Marshal(v)
+		if err == nil {
+			return string(encoded)
+		}
+	}
+
+	return fmt.Sprintf("%v", value)
+}
+
+func resolveSubmissionFieldValue(formID uuid.UUID, fieldID string, submissionData map[string]interface{}) (string, bool) {
+	trimmedID := strings.TrimSpace(fieldID)
+	if trimmedID == "" {
+		return "", false
+	}
+
+	if val, ok := submissionData[trimmedID]; ok {
+		if rendered := stringifyMergeTagValue(val); rendered != "" {
+			return rendered, true
+		}
+	}
+
+	normalizedWanted := normalizeMergeTagName(trimmedID)
+	for key, val := range submissionData {
+		if normalizeMergeTagName(key) == normalizedWanted {
+			if rendered := stringifyMergeTagValue(val); rendered != "" {
+				return rendered, true
+			}
+		}
+	}
+
+	fieldUUID, err := uuid.Parse(trimmedID)
+	if err != nil {
+		return "", false
+	}
+
+	// raw_data may be keyed by v2 form_fields.id while templates can reference legacy fields.id (and vice-versa).
+	var formField models.FormField
+	if err := database.DB.Select("id", "legacy_field_id").Where("form_id = ? AND id = ?", formID, fieldUUID).First(&formField).Error; err == nil {
+		if formField.LegacyFieldID != nil {
+			if val, ok := submissionData[formField.LegacyFieldID.String()]; ok {
+				if rendered := stringifyMergeTagValue(val); rendered != "" {
+					return rendered, true
+				}
+			}
+		}
+	}
+
+	if err := database.DB.Select("id", "legacy_field_id").Where("form_id = ? AND legacy_field_id = ?", formID, fieldUUID).First(&formField).Error; err == nil {
+		if val, ok := submissionData[formField.ID.String()]; ok {
+			if rendered := stringifyMergeTagValue(val); rendered != "" {
+				return rendered, true
+			}
+		}
+	}
+
+	return "", false
+}
+
+func applyRecommendationMergeTags(content string, mergeData map[string]string, submissionData map[string]interface{}, formID uuid.UUID) string {
+	if content == "" {
+		return content
+	}
+
+	for key, value := range mergeData {
+		content = strings.ReplaceAll(content, fmt.Sprintf("{{%s}}", key), value)
+		content = strings.ReplaceAll(content, fmt.Sprintf("{{{%s}}}", key), value)
+	}
+
+	mergeTagRegex := regexp.MustCompile(`\{\{\{?\s*([^{}]+?)\s*\}\}\}?`)
+	return mergeTagRegex.ReplaceAllStringFunc(content, func(match string) string {
+		parts := mergeTagRegex.FindStringSubmatch(match)
+		if len(parts) < 2 {
+			return match
+		}
+
+		tagKey := strings.TrimSpace(parts[1])
+		if tagKey == "" {
+			return match
+		}
+
+		if value, ok := mergeData[tagKey]; ok {
+			return value
+		}
+
+		if value, ok := resolveSubmissionFieldValue(formID, tagKey, submissionData); ok {
+			return value
+		}
+
+		return match
+	})
+}
+
+func findFirstMatchingSubmissionValue(submissionData map[string]interface{}, keys []string) string {
+	for _, key := range keys {
+		if value, ok := resolveSubmissionFieldValue(uuid.Nil, key, submissionData); ok {
+			if strings.TrimSpace(value) != "" {
+				return strings.TrimSpace(value)
+			}
+		}
+		if raw, ok := submissionData[key]; ok {
+			if value := strings.TrimSpace(stringifyMergeTagValue(raw)); value != "" {
+				return value
+			}
+		}
+	}
+
+	for rawKey, rawValue := range submissionData {
+		normalizedKey := normalizeMergeTagName(rawKey)
+		for _, key := range keys {
+			if normalizedKey == normalizeMergeTagName(key) {
+				if value := strings.TrimSpace(stringifyMergeTagValue(rawValue)); value != "" {
+					return value
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
+func resolveApplicantFromSubmissionData(formID uuid.UUID, config *models.RecommendationFieldConfig, submissionData map[string]interface{}) (string, string) {
+	if len(submissionData) == 0 {
+		return "", ""
+	}
+
+	applicantName := ""
+	applicantEmail := ""
+
+	if config != nil {
+		if config.MergeTagFields.ApplicantName != "" {
+			if value, ok := resolveSubmissionFieldValue(formID, config.MergeTagFields.ApplicantName, submissionData); ok {
+				applicantName = strings.TrimSpace(value)
+			}
+		}
+		if config.MergeTagFields.ApplicantEmail != "" {
+			if value, ok := resolveSubmissionFieldValue(formID, config.MergeTagFields.ApplicantEmail, submissionData); ok {
+				applicantEmail = strings.TrimSpace(value)
+			}
+		}
+	}
+
+	if applicantName == "" {
+		applicantName = findFirstMatchingSubmissionValue(submissionData, []string{
+			"_applicant_name", "applicant_name", "applicantName", "full_name", "fullName", "name", "first_name", "firstName",
+		})
+	}
+	if applicantEmail == "" {
+		applicantEmail = findFirstMatchingSubmissionValue(submissionData, []string{
+			"_applicant_email", "applicant_email", "applicantEmail", "email", "email_address", "emailAddress", "personalEmail",
+		})
+	}
+
+	return applicantName, applicantEmail
+}
+
+func loadRecommendationSubmissionData(submissionID uuid.UUID) map[string]interface{} {
+	data := map[string]interface{}{}
+
+	var submission models.FormSubmission
+	if err := database.DB.Select("raw_data").Where("id = ?", submissionID).First(&submission).Error; err == nil {
+		if len(submission.RawData) > 0 {
+			if err := json.Unmarshal(submission.RawData, &data); err == nil && len(data) > 0 {
+				return data
+			}
+		}
+	}
+
+	var legacySubmission models.Row
+	if err := database.DB.Select("data").Where("id = ?", submissionID).First(&legacySubmission).Error; err == nil {
+		if len(legacySubmission.Data) > 0 {
+			_ = json.Unmarshal(legacySubmission.Data, &data)
+		}
+	}
+
+	return data
+}
+
 func resolveApplicantInfo(submissionID uuid.UUID) (string, string, error) {
 	applicantName := ""
 	applicantEmail := ""
@@ -253,6 +474,188 @@ func resolveApplicantInfo(submissionID uuid.UUID) (string, string, error) {
 	}
 
 	return applicantName, applicantEmail, nil
+}
+
+func syncRecommendationDocumentToGoogleDrive(request *models.RecommendationRequest, documentURL, originalFileName string) (map[string]interface{}, error) {
+	if strings.TrimSpace(documentURL) == "" {
+		return nil, fmt.Errorf("document URL is required")
+	}
+
+	var formIntegration models.FormIntegrationSetting
+	err := database.DB.Preload("WorkspaceIntegration").
+		Joins("JOIN workspace_integrations ON workspace_integrations.id = form_integration_settings.workspace_integration_id").
+		Where("form_integration_settings.form_id = ? AND form_integration_settings.is_enabled = ? AND workspace_integrations.integration_type = ? AND workspace_integrations.is_connected = ?", request.FormID, true, "google_drive", true).
+		First(&formIntegration).Error
+	if err != nil {
+		return nil, fmt.Errorf("google drive integration not enabled for this form")
+	}
+
+	if strings.TrimSpace(formIntegration.ExternalFolderID) == "" {
+		return nil, fmt.Errorf("google drive form folder is not configured")
+	}
+
+	var submission models.FormSubmission
+	if err := database.DB.Select("raw_data").Where("id = ?", request.SubmissionID).First(&submission).Error; err != nil {
+		return nil, fmt.Errorf("failed to load submission data: %w", err)
+	}
+
+	rowData := map[string]interface{}{}
+	if len(submission.RawData) > 0 {
+		if err := json.Unmarshal(submission.RawData, &rowData); err != nil {
+			rowData = map[string]interface{}{}
+		}
+	}
+
+	var formSettings models.FormDriveSettings
+	if len(formIntegration.Settings) > 0 {
+		_ = json.Unmarshal(formIntegration.Settings, &formSettings)
+	}
+
+	folderName := services.GenerateApplicantFolderName(formSettings.ApplicantFolderTemplate, rowData)
+	ctx := context.Background()
+	srv, err := getGoogleDriveClient(ctx, &formIntegration.WorkspaceIntegration)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to google drive: %w", err)
+	}
+
+	folder, err := googleDriveService.FindOrCreateFolder(ctx, srv, folderName, formIntegration.ExternalFolderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find/create submission folder: %w", err)
+	}
+	_ = googleDriveService.SetPermission(ctx, srv, folder.ID, "anyone", "reader", "")
+
+	fileName := originalFileName
+	if strings.TrimSpace(formSettings.FileNameTemplate) != "" {
+		fileName = services.RenderFileNameTemplate(formSettings.FileNameTemplate, rowData, originalFileName)
+	}
+
+	driveFile, err := googleDriveService.UploadFileFromURL(ctx, srv, fileName, documentURL, folder.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload file to google drive: %w", err)
+	}
+	_ = googleDriveService.SetPermission(ctx, srv, driveFile.ID, "anyone", "reader", "")
+
+	return map[string]interface{}{
+		"folder_id":   folder.ID,
+		"folder_url":  folder.URL,
+		"folder_name": folder.Name,
+		"file_id":     driveFile.ID,
+		"file_url":    driveFile.URL,
+		"file_name":   driveFile.Name,
+	}, nil
+}
+
+type recommendationUploadedDocument struct {
+	URL      string
+	Filename string
+}
+
+func extractRecommendationUploadedDocuments(response datatypes.JSON) []recommendationUploadedDocument {
+	if len(response) == 0 {
+		return nil
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(response, &payload); err != nil {
+		return nil
+	}
+
+	documents := make([]recommendationUploadedDocument, 0)
+
+	if doc, ok := payload["uploaded_document"].(map[string]interface{}); ok {
+		if url, ok := doc["url"].(string); ok && strings.TrimSpace(url) != "" {
+			filename, _ := doc["filename"].(string)
+			documents = append(documents, recommendationUploadedDocument{URL: url, Filename: filename})
+		}
+	}
+
+	if rawDocs, ok := payload["uploaded_documents"].([]interface{}); ok {
+		for _, raw := range rawDocs {
+			doc, ok := raw.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			url, _ := doc["url"].(string)
+			if strings.TrimSpace(url) == "" {
+				continue
+			}
+			filename, _ := doc["filename"].(string)
+			documents = append(documents, recommendationUploadedDocument{URL: url, Filename: filename})
+		}
+	}
+
+	return documents
+}
+
+// SyncSubmissionRecommendationDocumentsToGoogleDrive syncs all uploaded recommendation docs for a submission.
+// POST /api/v1/recommendations/submission/:submissionId/google-drive/sync
+func SyncSubmissionRecommendationDocumentsToGoogleDrive(c *gin.Context) {
+	submissionID, err := uuid.Parse(c.Param("submissionId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid submission ID"})
+		return
+	}
+
+	var requests []models.RecommendationRequest
+	if err := database.DB.Where("submission_id = ? AND status = ?", submissionID, "submitted").Find(&requests).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load recommendation requests"})
+		return
+	}
+
+	type syncResult struct {
+		RequestID string                 `json:"request_id"`
+		Filename  string                 `json:"filename,omitempty"`
+		URL       string                 `json:"url,omitempty"`
+		DriveMeta map[string]interface{} `json:"drive,omitempty"`
+		Error     string                 `json:"error,omitempty"`
+	}
+
+	results := make([]syncResult, 0)
+	totalDocs := 0
+	syncedDocs := 0
+
+	for i := range requests {
+		documents := extractRecommendationUploadedDocuments(requests[i].Response)
+		if len(documents) == 0 {
+			continue
+		}
+
+		for _, doc := range documents {
+			totalDocs++
+			filename := strings.TrimSpace(doc.Filename)
+			if filename == "" {
+				filename = fmt.Sprintf("recommendation-%s", requests[i].ID.String())
+			}
+
+			driveMeta, syncErr := syncRecommendationDocumentToGoogleDrive(&requests[i], doc.URL, filename)
+			if syncErr != nil {
+				results = append(results, syncResult{
+					RequestID: requests[i].ID.String(),
+					Filename:  filename,
+					URL:       doc.URL,
+					Error:     syncErr.Error(),
+				})
+				continue
+			}
+
+			syncedDocs++
+			results = append(results, syncResult{
+				RequestID: requests[i].ID.String(),
+				Filename:  filename,
+				URL:       doc.URL,
+				DriveMeta: driveMeta,
+			})
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"submission_id":    submissionID,
+		"requests_checked": len(requests),
+		"documents_found":  totalDocs,
+		"documents_synced": syncedDocs,
+		"documents_failed": totalDocs - syncedDocs,
+		"sync_results":     results,
+	})
 }
 
 // GetRecommendationRequests returns all recommendation requests for a submission
@@ -340,46 +743,6 @@ func GetRecommendationByToken(c *gin.Context) {
 	fmt.Printf("[Recommendations] Found request ID: %s, Status: %s, SubmissionID: %s\n",
 		request.ID.String(), request.Status, request.SubmissionID.String())
 
-	// Check if expired
-	if request.ExpiresAt != nil && time.Now().After(*request.ExpiresAt) {
-		c.JSON(http.StatusGone, gin.H{"error": "This recommendation request has expired"})
-		return
-	}
-
-	// If already submitted, return the full data so the recommender can view their submission
-	if request.Status == "submitted" {
-		var submittedForm models.Table
-		database.DB.First(&submittedForm, "id = ?", request.FormID)
-
-		var fieldConfig models.RecommendationFieldConfig
-		var field models.Field
-		if err := database.DB.Where("table_id = ? AND id = ?", request.FormID, request.FieldID).First(&field).Error; err == nil {
-			if field.Config != nil {
-				json.Unmarshal(field.Config, &fieldConfig)
-			}
-		}
-
-		if len(request.Response) > 0 {
-			if rewritten, err := rewriteLocalhostURLs(request.Response); err == nil {
-				request.Response = rewritten
-			}
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"request":           request,
-			"form_title":        submittedForm.Name,
-			"questions":         fieldConfig.Questions,
-			"instructions":      fieldConfig.Instructions,
-			"already_submitted": true,
-			"logo_url":          getFormLogoURL(&submittedForm),
-		})
-		return
-	}
-
-	// Get submission data for context
-	var submission models.Row
-	database.DB.First(&submission, "id = ?", request.SubmissionID)
-
 	// Get form info
 	var form models.Table
 	database.DB.First(&form, "id = ?", request.FormID)
@@ -393,10 +756,42 @@ func GetRecommendationByToken(c *gin.Context) {
 		}
 	}
 
+	submissionData := loadRecommendationSubmissionData(request.SubmissionID)
 	applicantName, applicantEmail, err := resolveApplicantInfo(request.SubmissionID)
 	if err != nil {
+		fallbackName, fallbackEmail := resolveApplicantFromSubmissionData(form.ID, &fieldConfig, submissionData)
+		applicantName = fallbackName
+		applicantEmail = fallbackEmail
+	}
+	if strings.TrimSpace(applicantName) == "" {
 		applicantName = "the applicant"
-		applicantEmail = ""
+	}
+
+	// Check if expired
+	if request.ExpiresAt != nil && time.Now().After(*request.ExpiresAt) {
+		c.JSON(http.StatusGone, gin.H{"error": "This recommendation request has expired"})
+		return
+	}
+
+	// If already submitted, return the full data so the recommender can view their submission
+	if request.Status == "submitted" {
+		if len(request.Response) > 0 {
+			if rewritten, err := rewriteLocalhostURLs(request.Response); err == nil {
+				request.Response = rewritten
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"request":           request,
+			"applicant_name":    applicantName,
+			"applicant_email":   applicantEmail,
+			"form_title":        form.Name,
+			"questions":         fieldConfig.Questions,
+			"instructions":      fieldConfig.Instructions,
+			"already_submitted": true,
+			"logo_url":          getFormLogoURL(&form),
+		})
+		return
 	}
 
 	// Rewrite localhost URLs in response before returning
@@ -658,50 +1053,34 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 	}
 
 	var body string
+	submissionData := map[string]interface{}{}
+	if submission != nil && submission.Data != nil {
+		_ = json.Unmarshal(submission.Data, &submissionData)
+	}
+	mergeData := map[string]string{
+		"recommender_name": request.RecommenderName,
+		"applicant_name":   applicantName,
+		"applicant_email":  applicantEmail,
+		"form_title":       form.Name,
+		"link":             recommendationLink,
+		"deadline":         deadline,
+	}
+
+	if config.MergeTagFields.ApplicantName != "" {
+		if resolvedName, ok := resolveSubmissionFieldValue(form.ID, config.MergeTagFields.ApplicantName, submissionData); ok {
+			mergeData["applicant_name"] = resolvedName
+			applicantName = resolvedName
+		}
+	}
+	if config.MergeTagFields.ApplicantEmail != "" {
+		if resolvedEmail, ok := resolveSubmissionFieldValue(form.ID, config.MergeTagFields.ApplicantEmail, submissionData); ok {
+			mergeData["applicant_email"] = resolvedEmail
+			applicantEmail = resolvedEmail
+		}
+	}
 	if customBody != "" {
 		// Use custom body with merge tags
-		body = customBody
-		body = strings.ReplaceAll(body, "{{recommender_name}}", request.RecommenderName)
-		body = strings.ReplaceAll(body, "{{applicant_name}}", applicantName)
-		body = strings.ReplaceAll(body, "{{applicant_email}}", applicantEmail)
-		body = strings.ReplaceAll(body, "{{form_title}}", form.Name)
-		body = strings.ReplaceAll(body, "{{link}}", recommendationLink)
-		body = strings.ReplaceAll(body, "{{deadline}}", deadline)
-
-		// Replace dynamic field references like {{field_id}} with submission data
-		if submission.Data != nil {
-			var submissionData map[string]interface{}
-			json.Unmarshal(submission.Data, &submissionData)
-
-			// Find all {{field_id}} patterns and replace with actual values
-			re := regexp.MustCompile(`\{\{([^}]+)\}\}`)
-			body = re.ReplaceAllStringFunc(body, func(match string) string {
-				fieldId := strings.Trim(match, "{}")
-				// Skip standard merge tags (already handled above)
-				if fieldId == "recommender_name" || fieldId == "applicant_name" ||
-					fieldId == "applicant_email" || fieldId == "form_title" ||
-					fieldId == "link" || fieldId == "deadline" {
-					return match // These are already replaced
-				}
-				// Look up field value in submission data
-				if val, ok := submissionData[fieldId]; ok {
-					switch v := val.(type) {
-					case string:
-						return v
-					case float64:
-						return fmt.Sprintf("%.0f", v)
-					case bool:
-						if v {
-							return "Yes"
-						}
-						return "No"
-					default:
-						return fmt.Sprintf("%v", v)
-					}
-				}
-				return match // Keep original if not found
-			})
-		}
+		body = applyRecommendationMergeTags(customBody, mergeData, submissionData, form.ID)
 
 		// Wrap plain text in clean HTML if it doesn't contain HTML tags
 		if !strings.Contains(body, "<") {
@@ -710,10 +1089,7 @@ func sendRecommendationRequestEmail(request *models.RecommendationRequest, submi
 		}
 
 		// Also process subject merge tags
-		subject = strings.ReplaceAll(subject, "{{recommender_name}}", request.RecommenderName)
-		subject = strings.ReplaceAll(subject, "{{applicant_name}}", applicantName)
-		subject = strings.ReplaceAll(subject, "{{applicant_email}}", applicantEmail)
-		subject = strings.ReplaceAll(subject, "{{form_title}}", form.Name)
+		subject = applyRecommendationMergeTags(subject, mergeData, submissionData, form.ID)
 	} else {
 		// Default template
 		logoURL := getFormLogoURL(form)
@@ -860,6 +1236,19 @@ func SubmitRecommendation(c *gin.Context) {
 				"filename": header.Filename,
 				"size":     header.Size,
 				"type":     fileContentType,
+			}
+
+			// Best-effort sync to Google Drive if form integration is enabled.
+			if driveMeta, driveErr := syncRecommendationDocumentToGoogleDrive(&request, documentURL, header.Filename); driveErr == nil {
+				if uploadedDoc, ok := responseData["uploaded_document"].(map[string]interface{}); ok {
+					uploadedDoc["google_drive"] = driveMeta
+					responseData["uploaded_document"] = uploadedDoc
+				}
+			} else {
+				if uploadedDoc, ok := responseData["uploaded_document"].(map[string]interface{}); ok {
+					uploadedDoc["google_drive_sync_error"] = driveErr.Error()
+					responseData["uploaded_document"] = uploadedDoc
+				}
 			}
 		}
 	} else {
@@ -1012,13 +1401,32 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 	} else {
 		logoURL := getFormLogoURL(form)
 		defaultMainText := fmt.Sprintf("This is a friendly reminder that <strong>%s</strong> (%s) is waiting for your recommendation for their application to <strong>%s</strong>. Your support means a great deal to them.", applicantName, applicantEmail, form.Name)
+		submissionData := map[string]interface{}{}
+		if submission != nil && submission.Data != nil {
+			_ = json.Unmarshal(submission.Data, &submissionData)
+		}
+		mergeData := map[string]string{
+			"recommender_name": request.RecommenderName,
+			"applicant_name":   applicantName,
+			"applicant_email":  applicantEmail,
+			"form_title":       form.Name,
+			"link":             recommendationLink,
+			"deadline":         deadline,
+		}
+		if config.MergeTagFields.ApplicantName != "" {
+			if resolvedName, ok := resolveSubmissionFieldValue(form.ID, config.MergeTagFields.ApplicantName, submissionData); ok {
+				mergeData["applicant_name"] = resolvedName
+				applicantName = resolvedName
+			}
+		}
+		if config.MergeTagFields.ApplicantEmail != "" {
+			if resolvedEmail, ok := resolveSubmissionFieldValue(form.ID, config.MergeTagFields.ApplicantEmail, submissionData); ok {
+				mergeData["applicant_email"] = resolvedEmail
+				applicantEmail = resolvedEmail
+			}
+		}
 
-		body = strings.ReplaceAll(body, "{{recommender_name}}", request.RecommenderName)
-		body = strings.ReplaceAll(body, "{{applicant_name}}", applicantName)
-		body = strings.ReplaceAll(body, "{{applicant_email}}", applicantEmail)
-		body = strings.ReplaceAll(body, "{{form_title}}", form.Name)
-		body = strings.ReplaceAll(body, "{{link}}", recommendationLink)
-		body = strings.ReplaceAll(body, "{{deadline}}", deadline)
+		body = applyRecommendationMergeTags(body, mergeData, submissionData, form.ID)
 
 		if !strings.Contains(body, "<") {
 			body = buildRecommendationEmailHTML(request.RecommenderName, body, form.Name, logoURL, recommendationLink, deadline, true)
@@ -1026,10 +1434,7 @@ func sendRecommendationReminderEmail(request *models.RecommendationRequest, subm
 			body = buildRecommendationEmailHTML(request.RecommenderName, defaultMainText, form.Name, logoURL, recommendationLink, deadline, true)
 		}
 
-		subject = strings.ReplaceAll(subject, "{{recommender_name}}", request.RecommenderName)
-		subject = strings.ReplaceAll(subject, "{{applicant_name}}", applicantName)
-		subject = strings.ReplaceAll(subject, "{{applicant_email}}", applicantEmail)
-		subject = strings.ReplaceAll(subject, "{{form_title}}", form.Name)
+		subject = applyRecommendationMergeTags(subject, mergeData, submissionData, form.ID)
 	}
 
 	// Determine sender email and name

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,6 +15,32 @@ import (
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 )
+
+var unresolvedTemplateTokenPattern = regexp.MustCompile(`\{\{[^{}]+\}\}|\$\{[^{}]+\}|\{[^{}]+\}`)
+
+// RenderTemplateWithFields replaces supported placeholder formats using provided data.
+// Supported formats: {field}, {{field}}, ${field}
+func RenderTemplateWithFields(template string, data map[string]interface{}) string {
+	if strings.TrimSpace(template) == "" {
+		return ""
+	}
+
+	result := template
+	for key, value := range data {
+		strValue := strings.TrimSpace(fmt.Sprintf("%v", value))
+		if strValue == "" || strValue == "<nil>" {
+			continue
+		}
+
+		result = strings.ReplaceAll(result, fmt.Sprintf("{{%s}}", key), strValue)
+		result = strings.ReplaceAll(result, fmt.Sprintf("${%s}", key), strValue)
+		result = strings.ReplaceAll(result, fmt.Sprintf("{%s}", key), strValue)
+	}
+
+	// Remove unresolved placeholders to avoid leaking raw template tokens in folder/file names.
+	result = unresolvedTemplateTokenPattern.ReplaceAllString(result, "")
+	return strings.TrimSpace(result)
+}
 
 // SetPermission sets sharing permissions on a file or folder (user or anyone)
 func (s *GoogleDriveService) SetPermission(ctx context.Context, srv *drive.Service, fileID string, permType string, role string, email string) error {
@@ -33,14 +60,8 @@ func (s *GoogleDriveService) SetPermission(ctx context.Context, srv *drive.Servi
 
 // RenderFileNameTemplate renders a file name template using row data and fallback name
 func RenderFileNameTemplate(template string, rowData map[string]interface{}, fallback string) string {
-	name := template
-	for k, v := range rowData {
-		placeholder := fmt.Sprintf("${%s}", k)
-		val := fmt.Sprintf("%v", v)
-		name = strings.ReplaceAll(name, placeholder, val)
-	}
-	// If template is unchanged or empty, fallback
-	if name == template || strings.TrimSpace(name) == "" {
+	name := RenderTemplateWithFields(template, rowData)
+	if name == "" {
 		return fallback
 	}
 	return name
@@ -341,26 +362,15 @@ func SanitizeFolderName(name string) string {
 // GenerateApplicantFolderName generates a folder name for an applicant
 func GenerateApplicantFolderName(template string, data map[string]interface{}) string {
 	if template == "" {
-		template = "{{name}} - {{email}}"
+		template = "{name} - {email}"
 	}
 
-	result := template
-
-	// Replace placeholders with actual values
-	for key, value := range data {
-		placeholder := fmt.Sprintf("{{%s}}", key)
-		strValue := fmt.Sprintf("%v", value)
-		result = strings.ReplaceAll(result, placeholder, strValue)
-	}
-
-	// Clean up any remaining placeholders
-	for strings.Contains(result, "{{") && strings.Contains(result, "}}") {
-		start := strings.Index(result, "{{")
-		end := strings.Index(result, "}}") + 2
-		if start < end {
-			result = result[:start] + result[end:]
+	result := RenderTemplateWithFields(template, data)
+	if result == "" {
+		if name, ok := data["name"]; ok {
+			result = fmt.Sprintf("%v", name)
 		} else {
-			break
+			result = "Submission"
 		}
 	}
 

@@ -64,6 +64,23 @@ export interface RecommendationByTokenResponse {
   already_submitted?: boolean
 }
 
+export interface RecommendationDriveSyncResult {
+  request_id: string
+  filename?: string
+  url?: string
+  drive?: Record<string, any>
+  error?: string
+}
+
+export interface RecommendationDriveSyncResponse {
+  submission_id: string
+  requests_checked: number
+  documents_found: number
+  documents_synced: number
+  documents_failed: number
+  sync_results: RecommendationDriveSyncResult[]
+}
+
 // Client
 export const recommendationsClient = {
   /**
@@ -77,6 +94,14 @@ export const recommendationsClient = {
    */
   getForReview: (submissionId: string) =>
     goFetch<RecommendationRequest[]>(`/recommendations/submission/${submissionId}`),
+
+  /**
+   * Sync all uploaded recommendation documents for a submission to Google Drive
+   */
+  syncSubmissionDocumentsToDrive: (submissionId: string) =>
+    goFetch<RecommendationDriveSyncResponse>(`/recommendations/submission/${submissionId}/google-drive/sync`, {
+      method: 'POST',
+    }),
 
   /**
    * Get a single recommendation request by ID
