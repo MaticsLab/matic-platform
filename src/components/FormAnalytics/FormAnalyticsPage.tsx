@@ -12,17 +12,18 @@ import {
   AlertCircle, Mail, Download, RefreshCw, ChevronRight,
   Calendar, Activity, BarChart2, Zap, Layers, PencilLine, Settings,
   ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown,
-  List, LayoutGrid, CalendarDays, X
+  List, LayoutGrid, CalendarDays, X, Loader2
 } from 'lucide-react'
 import { formsClient } from '@/lib/api/forms-client'
 import { goClient } from '@/lib/api/go-client'
+import { recommendationsClient, type RecommendationRequest } from '@/lib/api/recommendations-client'
 import { buildLabelMap, normalizeValueToString, stripHtml } from '@/lib/form-data-normalizer'
 import { FullEmailComposer } from '@/components/ApplicationsHub/Applications/Review/FullEmailComposer'
 import { ApplicationDetailSheet } from '@/components/ApplicationsHub/Applications/Review/v2/ApplicationDetailSheet'
 import { useBreadcrumbs } from '@/hooks/useBreadcrumbs'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/ui-components/button'
-import { ApplicationSettingsModal } from '@/components/ApplicationsHub/Applications/Configuration/ApplicationSettingsModal'
+import { ApplicationSettingsModal } from '../ApplicationsHub/Applications/Configuration/ApplicationSettingsModal'
 import type { Application } from '@/components/ApplicationsHub/Applications/Review/v2/types'
 import type {
   FormAnalyticsResponse,
@@ -157,7 +158,24 @@ function CollapsibleSection({
 // ── Sort Table Header ─────────────────────────────────────────────────────────
 
 type SortKey = 'name' | 'completion_pct' | 'last_seen' | 'started_at'
-type AnalyticsTabId = 'overview' | 'charts' | 'distributions' | 'fields' | 'checkins'
+type AnalyticsTabId = 'overview' | 'charts' | 'distributions' | 'fields' | 'checkins' | 'recommendations'
+
+interface ApplicantRecommendationRow {
+  submissionId: string
+  applicantName: string
+  applicantEmail: string
+  pendingRequests: RecommendationRequest[]
+  latestReminderAt?: string
+}
+
+interface RecommenderRecommendationGroup {
+  key: string
+  recommenderEmail: string
+  recommenderName: string
+  pendingRequests: RecommendationRequest[]
+  applicants: Array<{ submissionId: string; applicantName: string; applicantEmail: string }>
+  latestReminderAt?: string
+}
 
 function SortTh({ label, sortK, currentSort, dir, onSort, className }: {
   label: string; sortK: SortKey; currentSort: SortKey; dir: 'asc' | 'desc'
@@ -475,6 +493,15 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [statusFilter, setStatusFilter] = useState('all')
   const [submissionView, setSubmissionView] = useState<'list' | 'kanban' | 'calendar'>('list')
+  const [recommendationRows, setRecommendationRows] = useState<ApplicantRecommendationRow[]>([])
+  const [recommendationsLoaded, setRecommendationsLoaded] = useState(false)
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false)
+  const [sendingRecommendationReminders, setSendingRecommendationReminders] = useState(false)
+  const [selectedRecommendationSubmissions, setSelectedRecommendationSubmissions] = useState<Set<string>>(new Set())
+  const [selectedRecommendationGroups, setSelectedRecommendationGroups] = useState<Set<string>>(new Set())
+  const [recommendationSearch, setRecommendationSearch] = useState('')
+  const [showAllRecommenders, setShowAllRecommenders] = useState(false)
+  const [recommendationGrouping, setRecommendationGrouping] = useState<'applicant' | 'recommender'>('applicant')
   const handleSort = useCallback((key: SortKey) => {
     setSortDir(prev => key === sortKey ? (prev === 'asc' ? 'desc' : 'asc') : 'asc')
     setSortKey(key)
@@ -606,6 +633,60 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
     }
   }, [formId, submissionsLoaded, submissions])
 
+  const loadRecommendationRows = useCallback(async () => {
+    setRecommendationsLoading(true)
+    try {
+      const list = await loadSubmissions()
+      const rows: ApplicantRecommendationRow[] = []
+
+      await Promise.all(
+        list.map(async (sub) => {
+          try {
+            const requests = await recommendationsClient.list(sub.id)
+            const pendingRequests = requests.filter(r => r.status === 'pending')
+            if (pendingRequests.length === 0) return
+
+            const latestReminderAt = pendingRequests
+              .map(r => r.reminded_at)
+              .filter((d): d is string => Boolean(d))
+              .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+
+            rows.push({
+              submissionId: sub.id,
+              applicantName: sub.ba_user?.name || sub.data?._applicant_name || sub.data?.name || '',
+              applicantEmail: sub.ba_user?.email || sub.data?._applicant_email || sub.data?.email || '',
+              pendingRequests,
+              latestReminderAt,
+            })
+          } catch {
+            // Some submissions may not have recommendation requests or may be inaccessible.
+          }
+        })
+      )
+
+      rows.sort((a, b) => b.pendingRequests.length - a.pendingRequests.length)
+      setRecommendationRows(rows)
+      setRecommendationsLoaded(true)
+      setSelectedRecommendationSubmissions(prev => {
+        const next = new Set<string>()
+        rows.forEach(r => {
+          if (prev.has(r.submissionId)) next.add(r.submissionId)
+        })
+        return next
+      })
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to load recommendation reminders')
+    } finally {
+      setRecommendationsLoading(false)
+    }
+  }, [loadSubmissions])
+
+  useEffect(() => {
+    if (activeTab === 'recommendations' && !recommendationsLoaded) {
+      void loadRecommendationRows()
+    }
+  }, [activeTab, recommendationsLoaded, loadRecommendationRows])
+
   const handleUserClick = useCallback(async (submissionId: string) => {
     const list = await loadSubmissions()
     const sub = list.find(s => s.id === submissionId)
@@ -697,8 +778,208 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
       tabs.push({ id: 'checkins', label: 'Recommended Check-ins', count: checkIns.length })
     }
 
+    tabs.push({ id: 'recommendations', label: 'Letters of Recommendation', count: recommendationRows.length })
+
     return tabs
-  }, [data?.check_ins, data?.field_breakdowns])
+  }, [data?.check_ins, data?.field_breakdowns, recommendationRows.length])
+
+  const filteredRecommendationRows = useMemo(() => {
+    const q = recommendationSearch.trim().toLowerCase()
+    if (!q) return recommendationRows
+
+    return recommendationRows.filter((row) => {
+      const applicantMatches =
+        row.applicantName.toLowerCase().includes(q) ||
+        row.applicantEmail.toLowerCase().includes(q)
+
+      const recommenderMatches = row.pendingRequests.some((req) =>
+        (req.recommender_name || '').toLowerCase().includes(q) ||
+        (req.recommender_email || '').toLowerCase().includes(q)
+      )
+
+      return applicantMatches || recommenderMatches
+    })
+  }, [recommendationRows, recommendationSearch])
+
+  const selectedRecommendationRows = recommendationRows.filter(row => selectedRecommendationSubmissions.has(row.submissionId))
+  const selectedFilteredRecommendationCount = filteredRecommendationRows.filter(row => selectedRecommendationSubmissions.has(row.submissionId)).length
+
+  const groupedRecommendationRows = useMemo<RecommenderRecommendationGroup[]>(() => {
+    const groups = new Map<string, RecommenderRecommendationGroup>()
+
+    filteredRecommendationRows.forEach((row) => {
+      row.pendingRequests.forEach((req) => {
+        const email = (req.recommender_email || '').trim().toLowerCase()
+        if (!email) return
+
+        const key = email
+        const existing = groups.get(key)
+        if (!existing) {
+          groups.set(key, {
+            key,
+            recommenderEmail: req.recommender_email || email,
+            recommenderName: req.recommender_name || '',
+            pendingRequests: [req],
+            applicants: [{
+              submissionId: row.submissionId,
+              applicantName: row.applicantName,
+              applicantEmail: row.applicantEmail,
+            }],
+            latestReminderAt: req.reminded_at,
+          })
+          return
+        }
+
+        existing.pendingRequests.push(req)
+        const hasApplicant = existing.applicants.some(a => a.submissionId === row.submissionId)
+        if (!hasApplicant) {
+          existing.applicants.push({
+            submissionId: row.submissionId,
+            applicantName: row.applicantName,
+            applicantEmail: row.applicantEmail,
+          })
+        }
+        if (req.reminded_at && (!existing.latestReminderAt || new Date(req.reminded_at).getTime() > new Date(existing.latestReminderAt).getTime())) {
+          existing.latestReminderAt = req.reminded_at
+        }
+        if (!existing.recommenderName && req.recommender_name) {
+          existing.recommenderName = req.recommender_name
+        }
+      })
+    })
+
+    return Array.from(groups.values()).sort((a, b) => {
+      const aReminderTime = a.latestReminderAt ? new Date(a.latestReminderAt).getTime() : 0
+      const bReminderTime = b.latestReminderAt ? new Date(b.latestReminderAt).getTime() : 0
+      if (bReminderTime !== aReminderTime) return bReminderTime - aReminderTime
+      return b.pendingRequests.length - a.pendingRequests.length
+    })
+  }, [filteredRecommendationRows])
+
+  const selectedRecommendationGroupRows = groupedRecommendationRows.filter(group => selectedRecommendationGroups.has(group.key))
+  const selectedFilteredRecommendationGroupCount = groupedRecommendationRows.filter(group => selectedRecommendationGroups.has(group.key)).length
+
+  const toggleRecommendationRow = useCallback((submissionId: string) => {
+    setSelectedRecommendationSubmissions(prev => {
+      const next = new Set(prev)
+      if (next.has(submissionId)) next.delete(submissionId)
+      else next.add(submissionId)
+      return next
+    })
+  }, [])
+
+  const toggleAllRecommendationRows = useCallback(() => {
+    setSelectedRecommendationSubmissions(prev => {
+      const next = new Set(prev)
+      const filteredIds = filteredRecommendationRows.map(row => row.submissionId)
+      const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => next.has(id))
+
+      if (allFilteredSelected) {
+        filteredIds.forEach(id => next.delete(id))
+      } else {
+        filteredIds.forEach(id => next.add(id))
+      }
+
+      return next
+    })
+  }, [filteredRecommendationRows])
+
+  const toggleRecommendationGroup = useCallback((groupKey: string) => {
+    setSelectedRecommendationGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(groupKey)) next.delete(groupKey)
+      else next.add(groupKey)
+      return next
+    })
+  }, [])
+
+  const toggleAllRecommendationGroups = useCallback(() => {
+    setSelectedRecommendationGroups(prev => {
+      const next = new Set(prev)
+      const keys = groupedRecommendationRows.map(group => group.key)
+      const allSelected = keys.length > 0 && keys.every(key => next.has(key))
+
+      if (allSelected) {
+        keys.forEach(key => next.delete(key))
+      } else {
+        keys.forEach(key => next.add(key))
+      }
+
+      return next
+    })
+  }, [groupedRecommendationRows])
+
+  const sendRemindersForRows = useCallback(async (rows: ApplicantRecommendationRow[]) => {
+    if (rows.length === 0) {
+      toast.error('Select at least one applicant with pending recommendation requests')
+      return
+    }
+
+    setSendingRecommendationReminders(true)
+    let sentCount = 0
+    let failedCount = 0
+
+    try {
+      for (const row of rows) {
+        for (const request of row.pendingRequests) {
+          try {
+            await recommendationsClient.sendReminder(request.id)
+            sentCount += 1
+          } catch {
+            failedCount += 1
+          }
+        }
+      }
+
+      if (sentCount > 0 && failedCount === 0) {
+        toast.success(`Sent ${sentCount} reminder${sentCount === 1 ? '' : 's'}`)
+      } else if (sentCount > 0 && failedCount > 0) {
+        toast.warning(`Sent ${sentCount} reminder${sentCount === 1 ? '' : 's'}, ${failedCount} failed`)
+      } else {
+        toast.error('Failed to send recommendation reminders')
+      }
+
+      await loadRecommendationRows()
+    } finally {
+      setSendingRecommendationReminders(false)
+    }
+  }, [loadRecommendationRows])
+
+  const sendRemindersForGroups = useCallback(async (groups: RecommenderRecommendationGroup[]) => {
+    if (groups.length === 0) {
+      toast.error('Select at least one recommender group')
+      return
+    }
+
+    setSendingRecommendationReminders(true)
+    let sentCount = 0
+    let failedCount = 0
+
+    try {
+      for (const group of groups) {
+        for (const request of group.pendingRequests) {
+          try {
+            await recommendationsClient.sendReminder(request.id)
+            sentCount += 1
+          } catch {
+            failedCount += 1
+          }
+        }
+      }
+
+      if (sentCount > 0 && failedCount === 0) {
+        toast.success(`Sent ${sentCount} reminder${sentCount === 1 ? '' : 's'}`)
+      } else if (sentCount > 0 && failedCount > 0) {
+        toast.warning(`Sent ${sentCount} reminder${sentCount === 1 ? '' : 's'}, ${failedCount} failed`)
+      } else {
+        toast.error('Failed to send recommendation reminders')
+      }
+
+      await loadRecommendationRows()
+    } finally {
+      setSendingRecommendationReminders(false)
+    }
+  }, [loadRecommendationRows])
 
   useEffect(() => {
     if (!analyticsTabs.some(tab => tab.id === activeTab)) {
@@ -1051,6 +1332,253 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
           </div>
         )}
 
+        {activeTab === 'recommendations' && (
+          <div>
+            <SectionHeader
+              icon={<Mail className="w-4 h-4" />}
+              title={`Letters of Recommendation (${recommendationRows.length})`}
+              action={
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => void loadRecommendationRows()}
+                    disabled={recommendationsLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className={cn('w-3.5 h-3.5', recommendationsLoading && 'animate-spin')} />
+                    Refresh
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (recommendationGrouping === 'recommender') {
+                        void sendRemindersForGroups(selectedRecommendationGroupRows)
+                      } else {
+                        void sendRemindersForRows(selectedRecommendationRows)
+                      }
+                    }}
+                    disabled={
+                      sendingRecommendationReminders ||
+                      (recommendationGrouping === 'recommender'
+                        ? selectedRecommendationGroupRows.length === 0
+                        : selectedRecommendationRows.length === 0)
+                    }
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {sendingRecommendationReminders ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                    Send Reminder to Selected ({recommendationGrouping === 'recommender' ? selectedRecommendationGroupRows.length : selectedRecommendationRows.length})
+                  </button>
+                </div>
+              }
+            />
+
+            {recommendationsLoading ? (
+              <div className="bg-white border border-gray-200 rounded-xl p-8 flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                <p className="text-sm text-gray-500">Loading recommendation requests...</p>
+              </div>
+            ) : recommendationRows.length === 0 ? (
+              <div className="bg-white border border-gray-200 rounded-xl p-8 flex flex-col items-center gap-2">
+                <Mail className="w-8 h-8 text-gray-400" />
+                <p className="text-sm text-gray-700 font-medium">No pending recommendation reminders</p>
+                <p className="text-xs text-gray-400">Applicants with pending recommendation requests will appear here.</p>
+              </div>
+            ) : (
+              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                <div className="flex flex-wrap items-center gap-2 p-3 border-b border-gray-100 bg-gray-50/60">
+                  <div className="relative flex-1 min-w-[220px]">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <input
+                      value={recommendationSearch}
+                      onChange={(e) => setRecommendationSearch(e.target.value)}
+                      placeholder="Search recommender or applicant..."
+                      className="w-full pl-8 pr-8 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    />
+                    {recommendationSearch && (
+                      <button onClick={() => setRecommendationSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowAllRecommenders(prev => !prev)}
+                    className={cn(
+                      'px-2.5 py-1.5 text-xs rounded-lg border transition-colors',
+                      showAllRecommenders
+                        ? 'text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100'
+                        : 'text-gray-600 bg-white border-gray-200 hover:bg-gray-50'
+                    )}
+                  >
+                    {showAllRecommenders ? 'Showing all recommenders' : 'Show all recommenders'}
+                  </button>
+                  <button
+                    onClick={() => setRecommendationGrouping(prev => prev === 'applicant' ? 'recommender' : 'applicant')}
+                    className={cn(
+                      'px-2.5 py-1.5 text-xs rounded-lg border transition-colors',
+                      recommendationGrouping === 'recommender'
+                        ? 'text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100'
+                        : 'text-gray-600 bg-white border-gray-200 hover:bg-gray-50'
+                    )}
+                  >
+                    {recommendationGrouping === 'recommender' ? 'Grouped by recommender email' : 'Group by recommender email'}
+                  </button>
+                  <span className="text-xs text-gray-400">
+                    {filteredRecommendationRows.length} of {recommendationRows.length} applicants
+                  </span>
+                </div>
+
+                {recommendationGrouping === 'applicant' && filteredRecommendationRows.length === 0 ? (
+                  <div className="p-8 flex flex-col items-center gap-2 text-center">
+                    <Search className="w-6 h-6 text-gray-300" />
+                    <p className="text-sm text-gray-500">No recommender matches your search</p>
+                  </div>
+                ) : recommendationGrouping === 'recommender' && groupedRecommendationRows.length === 0 ? (
+                  <div className="p-8 flex flex-col items-center gap-2 text-center">
+                    <Search className="w-6 h-6 text-gray-300" />
+                    <p className="text-sm text-gray-500">No recommender groups match your search</p>
+                  </div>
+                ) : recommendationGrouping === 'recommender' ? (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50">
+                      <th className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedFilteredRecommendationGroupCount === groupedRecommendationRows.length && groupedRecommendationRows.length > 0}
+                          onChange={toggleAllRecommendationGroups}
+                          className="rounded border-gray-300 bg-white text-blue-600 cursor-pointer"
+                        />
+                      </th>
+                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Recommender</th>
+                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Applicants</th>
+                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Pending Letters</th>
+                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Last Reminder</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedRecommendationRows.map((group) => (
+                      <tr key={group.key} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 w-10">
+                          <input
+                            type="checkbox"
+                            checked={selectedRecommendationGroups.has(group.key)}
+                            onChange={() => toggleRecommendationGroup(group.key)}
+                            className="rounded border-gray-300 bg-white text-blue-600 cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-xs text-gray-800 font-medium">{group.recommenderName || group.recommenderEmail}</p>
+                          {group.recommenderName && (
+                            <p className="text-[10px] text-gray-400">{group.recommenderEmail}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1.5">
+                            {(showAllRecommenders ? group.applicants : group.applicants.slice(0, 3)).map((applicant) => (
+                              <span key={`${group.key}-${applicant.submissionId}`} className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] text-gray-700">
+                                {displayName(applicant.applicantName, applicant.applicantEmail)}
+                              </span>
+                            ))}
+                            {!showAllRecommenders && group.applicants.length > 3 && (
+                              <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] text-gray-600">
+                                +{group.applicants.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">
+                            {group.pendingRequests.length}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-gray-400">{group.latestReminderAt ? relativeTime(group.latestReminderAt) : 'Never'}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => void sendRemindersForGroups([group])}
+                            disabled={sendingRecommendationReminders}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                            title="Send reminder"
+                          >
+                            {sendingRecommendationReminders ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50">
+                      <th className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedFilteredRecommendationCount === filteredRecommendationRows.length && filteredRecommendationRows.length > 0}
+                          onChange={toggleAllRecommendationRows}
+                          className="rounded border-gray-300 bg-white text-blue-600 cursor-pointer"
+                        />
+                      </th>
+                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Applicant</th>
+                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Pending Recommenders</th>
+                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Last Reminder</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRecommendationRows.map((row) => (
+                      <tr key={row.submissionId} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 w-10">
+                          <input
+                            type="checkbox"
+                            checked={selectedRecommendationSubmissions.has(row.submissionId)}
+                            onChange={() => toggleRecommendationRow(row.submissionId)}
+                            className="rounded border-gray-300 bg-white text-blue-600 cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-xs text-gray-800 font-medium">{displayName(row.applicantName, row.applicantEmail)}</p>
+                          {row.applicantName && row.applicantEmail && (
+                            <p className="text-[10px] text-gray-400">{row.applicantEmail}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1.5">
+                            {(showAllRecommenders ? row.pendingRequests : row.pendingRequests.slice(0, 3)).map(req => (
+                              <span key={req.id} className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">
+                                {req.recommender_name || req.recommender_email}
+                              </span>
+                            ))}
+                            {!showAllRecommenders && row.pendingRequests.length > 3 && (
+                              <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] text-gray-600">
+                                +{row.pendingRequests.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-gray-400">{row.latestReminderAt ? relativeTime(row.latestReminderAt) : 'Never'}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => void sendRemindersForRows([row])}
+                            disabled={sendingRecommendationReminders}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                            title="Send reminder"
+                          >
+                            {sendingRecommendationReminders ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Submissions ──────────────────────────────────────────────────── */}
         <CollapsibleSection
           icon={<Users className="w-4 h-4" />}
@@ -1299,6 +1827,7 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
           open={isAppSettingsModalOpen}
           onOpenChange={setIsAppSettingsModalOpen}
           formId={formId}
+          workspaceId={workspaceId}
           onSave={() => setIsAppSettingsModalOpen(false)}
         />
       )}
