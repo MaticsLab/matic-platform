@@ -697,6 +697,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				recommendations.GET("", handlers.GetRecommendationRequests)                            // ?submission_id=xxx
 				recommendations.POST("", handlers.CreateRecommendationRequest)                         // Create & send email
 				recommendations.GET("/:id", handlers.GetRecommendationRequest)                         // Get single request
+				recommendations.PATCH("/:id", handlers.UpdateRecommendationRequest)                    // Update recommender info
 				recommendations.POST("/:id/remind", handlers.SendRecommendationReminder)               // Send reminder
 				recommendations.DELETE("/:id", handlers.CancelRecommendationRequest)                   // Cancel request
 				recommendations.GET("/submission/:submissionId", handlers.GetRecommendationsForReview) // For reviewers

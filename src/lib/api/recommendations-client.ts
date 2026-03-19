@@ -110,6 +110,20 @@ export const recommendationsClient = {
     goFetch<RecommendationRequest>(`/recommendations/${id}`),
 
   /**
+   * Update a recommendation request (pending only)
+   */
+  update: (id: string, data: {
+    recommender_name?: string
+    recommender_email?: string
+    recommender_relationship?: string
+    recommender_organization?: string
+  }) =>
+    goFetch<RecommendationRequest>(`/recommendations/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  /**
    * Create a new recommendation request (sends email automatically)
    */
   create: (data: CreateRecommendationInput) =>

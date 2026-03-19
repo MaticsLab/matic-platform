@@ -164,7 +164,9 @@ interface ApplicantRecommendationRow {
   submissionId: string
   applicantName: string
   applicantEmail: string
+  requests: RecommendationRequest[]
   pendingRequests: RecommendationRequest[]
+  submittedRequests: RecommendationRequest[]
   latestReminderAt?: string
 }
 
@@ -502,6 +504,9 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
   const [recommendationSearch, setRecommendationSearch] = useState('')
   const [showAllRecommenders, setShowAllRecommenders] = useState(false)
   const [recommendationGrouping, setRecommendationGrouping] = useState<'applicant' | 'recommender'>('applicant')
+  const [editingRecommendationId, setEditingRecommendationId] = useState<string | null>(null)
+  const [editingRecommenderEmail, setEditingRecommenderEmail] = useState('')
+  const [savingRecommenderEmail, setSavingRecommenderEmail] = useState(false)
   const handleSort = useCallback((key: SortKey) => {
     setSortDir(prev => key === sortKey ? (prev === 'asc' ? 'desc' : 'asc') : 'asc')
     setSortKey(key)
@@ -643,8 +648,9 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
         list.map(async (sub) => {
           try {
             const requests = await recommendationsClient.list(sub.id)
+            if (!requests.length) return
             const pendingRequests = requests.filter(r => r.status === 'pending')
-            if (pendingRequests.length === 0) return
+            const submittedRequests = requests.filter(r => r.status === 'submitted')
 
             const latestReminderAt = pendingRequests
               .map(r => r.reminded_at)
@@ -655,7 +661,9 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
               submissionId: sub.id,
               applicantName: sub.ba_user?.name || sub.data?._applicant_name || sub.data?.name || '',
               applicantEmail: sub.ba_user?.email || sub.data?._applicant_email || sub.data?.email || '',
+              requests,
               pendingRequests,
+              submittedRequests,
               latestReminderAt,
             })
           } catch {
@@ -664,13 +672,18 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
         })
       )
 
-      rows.sort((a, b) => b.pendingRequests.length - a.pendingRequests.length)
+      rows.sort((a, b) => {
+        if (b.pendingRequests.length !== a.pendingRequests.length) {
+          return b.pendingRequests.length - a.pendingRequests.length
+        }
+        return b.submittedRequests.length - a.submittedRequests.length
+      })
       setRecommendationRows(rows)
       setRecommendationsLoaded(true)
       setSelectedRecommendationSubmissions(prev => {
         const next = new Set<string>()
         rows.forEach(r => {
-          if (prev.has(r.submissionId)) next.add(r.submissionId)
+          if (prev.has(r.submissionId) && r.pendingRequests.length > 0) next.add(r.submissionId)
         })
         return next
       })
@@ -792,7 +805,7 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
         row.applicantName.toLowerCase().includes(q) ||
         row.applicantEmail.toLowerCase().includes(q)
 
-      const recommenderMatches = row.pendingRequests.some((req) =>
+      const recommenderMatches = row.requests.some((req) =>
         (req.recommender_name || '').toLowerCase().includes(q) ||
         (req.recommender_email || '').toLowerCase().includes(q)
       )
@@ -860,18 +873,23 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
   const selectedFilteredRecommendationGroupCount = groupedRecommendationRows.filter(group => selectedRecommendationGroups.has(group.key)).length
 
   const toggleRecommendationRow = useCallback((submissionId: string) => {
+    const row = recommendationRows.find(r => r.submissionId === submissionId)
+    if (!row || row.pendingRequests.length === 0) return
+
     setSelectedRecommendationSubmissions(prev => {
       const next = new Set(prev)
       if (next.has(submissionId)) next.delete(submissionId)
       else next.add(submissionId)
       return next
     })
-  }, [])
+  }, [recommendationRows])
 
   const toggleAllRecommendationRows = useCallback(() => {
     setSelectedRecommendationSubmissions(prev => {
       const next = new Set(prev)
-      const filteredIds = filteredRecommendationRows.map(row => row.submissionId)
+      const filteredIds = filteredRecommendationRows
+        .filter(row => row.pendingRequests.length > 0)
+        .map(row => row.submissionId)
       const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => next.has(id))
 
       if (allFilteredSelected) {
@@ -883,6 +901,37 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
       return next
     })
   }, [filteredRecommendationRows])
+
+  const startEditRecommenderEmail = useCallback((req: RecommendationRequest) => {
+    setEditingRecommendationId(req.id)
+    setEditingRecommenderEmail(req.recommender_email || '')
+    setShowAllRecommenders(true)
+  }, [])
+
+  const cancelEditRecommenderEmail = useCallback(() => {
+    setEditingRecommendationId(null)
+    setEditingRecommenderEmail('')
+  }, [])
+
+  const saveRecommenderEmail = useCallback(async (req: RecommendationRequest) => {
+    const nextEmail = editingRecommenderEmail.trim()
+    if (!nextEmail || !nextEmail.includes('@')) {
+      toast.error('Enter a valid recommender email address')
+      return
+    }
+
+    setSavingRecommenderEmail(true)
+    try {
+      await recommendationsClient.update(req.id, { recommender_email: nextEmail })
+      toast.success('Recommender email updated')
+      cancelEditRecommenderEmail()
+      await loadRecommendationRows()
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update recommender email')
+    } finally {
+      setSavingRecommenderEmail(false)
+    }
+  }, [cancelEditRecommenderEmail, editingRecommenderEmail, loadRecommendationRows])
 
   const toggleRecommendationGroup = useCallback((groupKey: string) => {
     setSelectedRecommendationGroups(prev => {
@@ -1520,7 +1569,7 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                         />
                       </th>
                       <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Applicant</th>
-                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Pending Recommenders</th>
+                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Recommenders</th>
                       <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Last Reminder</th>
                       <th className="px-4 py-3" />
                     </tr>
@@ -1533,6 +1582,7 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                             type="checkbox"
                             checked={selectedRecommendationSubmissions.has(row.submissionId)}
                             onChange={() => toggleRecommendationRow(row.submissionId)}
+                            disabled={row.pendingRequests.length === 0}
                             className="rounded border-gray-300 bg-white text-blue-600 cursor-pointer"
                           />
                         </td>
@@ -1544,14 +1594,69 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1.5">
-                            {(showAllRecommenders ? row.pendingRequests : row.pendingRequests.slice(0, 3)).map(req => (
-                              <span key={req.id} className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">
-                                {req.recommender_name || req.recommender_email}
+                            {(showAllRecommenders ? row.requests : row.requests.slice(0, 3)).map(req => (
+                              <span
+                                key={req.id}
+                                className={cn(
+                                  'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] gap-1',
+                                  req.status === 'submitted'
+                                    ? 'border-green-200 bg-green-50 text-green-700'
+                                    : req.status === 'pending'
+                                      ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                      : 'border-gray-200 bg-gray-50 text-gray-600'
+                                )}
+                              >
+                                {editingRecommendationId === req.id ? (
+                                  <>
+                                    <input
+                                      value={editingRecommenderEmail}
+                                      onChange={(e) => setEditingRecommenderEmail(e.target.value)}
+                                      className="h-5 w-40 rounded border border-gray-300 px-1.5 text-[10px] text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        void saveRecommenderEmail(req)
+                                      }}
+                                      disabled={savingRecommenderEmail}
+                                      className="text-blue-700 hover:text-blue-800"
+                                      title="Save"
+                                    >
+                                      {savingRecommenderEmail ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        cancelEditRecommenderEmail()
+                                      }}
+                                      className="text-gray-500 hover:text-gray-700"
+                                      title="Cancel"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>{req.recommender_name || req.recommender_email}</span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        startEditRecommenderEmail(req)
+                                      }}
+                                      disabled={req.status !== 'pending'}
+                                      className="text-gray-500 hover:text-gray-700 disabled:opacity-40"
+                                      title={req.status === 'pending' ? 'Edit recommender email' : 'Only pending requests can be edited'}
+                                    >
+                                      <PencilLine className="w-3 h-3" />
+                                    </button>
+                                  </>
+                                )}
                               </span>
                             ))}
-                            {!showAllRecommenders && row.pendingRequests.length > 3 && (
+                            {!showAllRecommenders && row.requests.length > 3 && (
                               <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] text-gray-600">
-                                +{row.pendingRequests.length - 3} more
+                                +{row.requests.length - 3} more
                               </span>
                             )}
                           </div>
@@ -1562,7 +1667,7 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                         <td className="px-4 py-3">
                           <button
                             onClick={() => void sendRemindersForRows([row])}
-                            disabled={sendingRecommendationReminders}
+                            disabled={sendingRecommendationReminders || row.pendingRequests.length === 0}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
                             title="Send reminder"
                           >

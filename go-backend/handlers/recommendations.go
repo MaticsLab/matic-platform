@@ -269,8 +269,58 @@ func stringifyMergeTagValue(value interface{}) string {
 	return fmt.Sprintf("%v", value)
 }
 
+func normalizeMergeFieldID(fieldID string) string {
+	fieldID = strings.TrimSpace(fieldID)
+	for {
+		trimmed := strings.TrimPrefix(fieldID, "{")
+		trimmed = strings.TrimSuffix(trimmed, "}")
+		trimmed = strings.TrimSpace(trimmed)
+		if trimmed == fieldID {
+			break
+		}
+		fieldID = trimmed
+	}
+	return fieldID
+}
+
+func recommendationFormIDCandidates(formID uuid.UUID) []uuid.UUID {
+	seen := map[uuid.UUID]struct{}{}
+	ids := make([]uuid.UUID, 0, 3)
+
+	addID := func(id uuid.UUID) {
+		if id == uuid.Nil {
+			return
+		}
+		if _, ok := seen[id]; ok {
+			return
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+
+	addID(formID)
+
+	var byID models.Form
+	if err := database.DB.Select("id", "legacy_table_id").Where("id = ?", formID).First(&byID).Error; err == nil {
+		addID(byID.ID)
+		if byID.LegacyTableID != nil {
+			addID(*byID.LegacyTableID)
+		}
+	}
+
+	var byLegacy models.Form
+	if err := database.DB.Select("id", "legacy_table_id").Where("legacy_table_id = ?", formID).First(&byLegacy).Error; err == nil {
+		addID(byLegacy.ID)
+		if byLegacy.LegacyTableID != nil {
+			addID(*byLegacy.LegacyTableID)
+		}
+	}
+
+	return ids
+}
+
 func resolveSubmissionFieldValue(formID uuid.UUID, fieldID string, submissionData map[string]interface{}) (string, bool) {
-	trimmedID := strings.TrimSpace(fieldID)
+	trimmedID := normalizeMergeFieldID(fieldID)
 	if trimmedID == "" {
 		return "", false
 	}
@@ -296,21 +346,23 @@ func resolveSubmissionFieldValue(formID uuid.UUID, fieldID string, submissionDat
 	}
 
 	// raw_data may be keyed by v2 form_fields.id while templates can reference legacy fields.id (and vice-versa).
-	var formField models.FormField
-	if err := database.DB.Select("id", "legacy_field_id").Where("form_id = ? AND id = ?", formID, fieldUUID).First(&formField).Error; err == nil {
-		if formField.LegacyFieldID != nil {
-			if val, ok := submissionData[formField.LegacyFieldID.String()]; ok {
-				if rendered := stringifyMergeTagValue(val); rendered != "" {
-					return rendered, true
+	for _, candidateFormID := range recommendationFormIDCandidates(formID) {
+		var formField models.FormField
+		if err := database.DB.Select("id", "legacy_field_id").Where("form_id = ? AND id = ?", candidateFormID, fieldUUID).First(&formField).Error; err == nil {
+			if formField.LegacyFieldID != nil {
+				if val, ok := submissionData[formField.LegacyFieldID.String()]; ok {
+					if rendered := stringifyMergeTagValue(val); rendered != "" {
+						return rendered, true
+					}
 				}
 			}
 		}
-	}
 
-	if err := database.DB.Select("id", "legacy_field_id").Where("form_id = ? AND legacy_field_id = ?", formID, fieldUUID).First(&formField).Error; err == nil {
-		if val, ok := submissionData[formField.ID.String()]; ok {
-			if rendered := stringifyMergeTagValue(val); rendered != "" {
-				return rendered, true
+		if err := database.DB.Select("id", "legacy_field_id").Where("form_id = ? AND legacy_field_id = ?", candidateFormID, fieldUUID).First(&formField).Error; err == nil {
+			if val, ok := submissionData[formField.ID.String()]; ok {
+				if rendered := stringifyMergeTagValue(val); rendered != "" {
+					return rendered, true
+				}
 			}
 		}
 	}
@@ -336,15 +388,29 @@ func applyRecommendationMergeTags(content string, mergeData map[string]string, s
 		}
 
 		tagKey := strings.TrimSpace(parts[1])
+		cleanTagKey := normalizeMergeFieldID(tagKey)
 		if tagKey == "" {
+			return match
+		}
+		if cleanTagKey == "" {
 			return match
 		}
 
 		if value, ok := mergeData[tagKey]; ok {
 			return value
 		}
+		if value, ok := mergeData[cleanTagKey]; ok {
+			return value
+		}
 
-		if value, ok := resolveSubmissionFieldValue(formID, tagKey, submissionData); ok {
+		normalizedTagKey := normalizeMergeTagName(cleanTagKey)
+		for key, value := range mergeData {
+			if normalizeMergeTagName(key) == normalizedTagKey {
+				return value
+			}
+		}
+
+		if value, ok := resolveSubmissionFieldValue(formID, cleanTagKey, submissionData); ok {
 			return value
 		}
 
@@ -703,6 +769,67 @@ func GetRecommendationRequest(c *gin.Context) {
 		if err == nil {
 			request.Response = rewritten
 		}
+	}
+
+	c.JSON(http.StatusOK, request)
+}
+
+// UpdateRecommendationRequest updates recommender details for a pending recommendation request
+func UpdateRecommendationRequest(c *gin.Context) {
+	id := c.Param("id")
+
+	var request models.RecommendationRequest
+	if err := database.DB.First(&request, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Recommendation request not found"})
+		return
+	}
+
+	if request.Status != "pending" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only pending recommendation requests can be edited"})
+		return
+	}
+
+	var input struct {
+		RecommenderName         *string `json:"recommender_name"`
+		RecommenderEmail        *string `json:"recommender_email"`
+		RecommenderRelationship *string `json:"recommender_relationship"`
+		RecommenderOrganization *string `json:"recommender_organization"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if input.RecommenderName == nil && input.RecommenderEmail == nil && input.RecommenderRelationship == nil && input.RecommenderOrganization == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No fields provided for update"})
+		return
+	}
+
+	if input.RecommenderName != nil {
+		request.RecommenderName = strings.TrimSpace(*input.RecommenderName)
+	}
+
+	if input.RecommenderEmail != nil {
+		email := strings.TrimSpace(*input.RecommenderEmail)
+		if email == "" || !strings.Contains(email, "@") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "A valid recommender_email is required"})
+			return
+		}
+		request.RecommenderEmail = email
+	}
+
+	if input.RecommenderRelationship != nil {
+		request.RecommenderRelationship = strings.TrimSpace(*input.RecommenderRelationship)
+	}
+
+	if input.RecommenderOrganization != nil {
+		request.RecommenderOrganization = strings.TrimSpace(*input.RecommenderOrganization)
+	}
+
+	if err := database.DB.Save(&request).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update recommendation request"})
+		return
 	}
 
 	c.JSON(http.StatusOK, request)
