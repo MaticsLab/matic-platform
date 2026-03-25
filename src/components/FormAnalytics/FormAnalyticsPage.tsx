@@ -717,9 +717,20 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
       toast.error('No submissions to export')
       return
     }
-    exportToCSV(list, formFields, formName, formId)
-    toast.success(`Exported ${list.length} submissions`)
-  }, [loadSubmissions, formFields, formName, formId])
+    
+    // Apply status filter to export
+    const filtered = statusFilter !== 'all' 
+      ? list.filter(s => s.status === statusFilter)
+      : list
+    
+    if (filtered.length === 0) {
+      toast.error(`No ${statusFilter} submissions to export`)
+      return
+    }
+    
+    exportToCSV(filtered, formFields, formName, formId)
+    toast.success(`Exported ${filtered.length} submissions`)
+  }, [loadSubmissions, formFields, formName, formId, statusFilter])
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 

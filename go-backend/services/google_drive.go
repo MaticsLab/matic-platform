@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -277,8 +278,11 @@ func (s *GoogleDriveService) UploadFile(ctx context.Context, srv *drive.Service,
 
 // UploadFileFromURL downloads a file from URL and uploads to Google Drive
 func (s *GoogleDriveService) UploadFileFromURL(ctx context.Context, srv *drive.Service, name string, sourceURL string, parentID string) (*DriveFile, error) {
+	sourceURL = normalizeDocumentDownloadURL(sourceURL)
+
 	// Download the file
-	resp, err := http.Get(sourceURL)
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Get(sourceURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download file: %w", err)
 	}
@@ -292,8 +296,47 @@ func (s *GoogleDriveService) UploadFileFromURL(ctx context.Context, srv *drive.S
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
+	if strings.Contains(strings.ToLower(mimeType), "text/html") {
+		return nil, fmt.Errorf("source URL resolved to an HTML page instead of a downloadable file")
+	}
 
 	return s.UploadFile(ctx, srv, name, mimeType, resp.Body, parentID)
+}
+
+func normalizeDocumentDownloadURL(sourceURL string) string {
+	trimmed := strings.TrimSpace(sourceURL)
+	if trimmed == "" {
+		return sourceURL
+	}
+
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return sourceURL
+	}
+
+	host := strings.ToLower(parsed.Host)
+
+	if strings.Contains(host, "drive.google.com") {
+		if match := regexp.MustCompile(`/file/d/([^/]+)`).FindStringSubmatch(parsed.Path); len(match) == 2 {
+			return fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", match[1])
+		}
+	}
+
+	if strings.Contains(host, "dropbox.com") {
+		q := parsed.Query()
+		q.Set("dl", "1")
+		parsed.RawQuery = q.Encode()
+		return parsed.String()
+	}
+
+	if strings.Contains(host, "onedrive.live.com") || strings.Contains(host, "1drv.ms") {
+		q := parsed.Query()
+		q.Set("download", "1")
+		parsed.RawQuery = q.Encode()
+		return parsed.String()
+	}
+
+	return sourceURL
 }
 
 // DeleteFile deletes a file from Google Drive
@@ -374,7 +417,31 @@ func GenerateApplicantFolderName(template string, data map[string]interface{}) s
 		}
 	}
 
-	return SanitizeFolderName(strings.TrimSpace(result))
+	folderName := SanitizeFolderName(strings.TrimSpace(result))
+
+	// Handle unresolved template separators like "-" or "_".
+	hasLetterOrNumber := false
+	for _, ch := range strings.ToLower(folderName) {
+		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') {
+			hasLetterOrNumber = true
+			break
+		}
+	}
+
+	if !hasLetterOrNumber {
+		if name, ok := data["full_name"]; ok && strings.TrimSpace(fmt.Sprintf("%v", name)) != "" {
+			return SanitizeFolderName(fmt.Sprintf("%v", name))
+		}
+		if name, ok := data["name"]; ok && strings.TrimSpace(fmt.Sprintf("%v", name)) != "" {
+			return SanitizeFolderName(fmt.Sprintf("%v", name))
+		}
+		if email, ok := data["email"]; ok && strings.TrimSpace(fmt.Sprintf("%v", email)) != "" {
+			return SanitizeFolderName(fmt.Sprintf("%v", email))
+		}
+		return "Submission"
+	}
+
+	return folderName
 }
 
 // CreateFormDataSummary creates a text summary of form data for upload

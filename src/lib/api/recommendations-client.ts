@@ -66,8 +66,11 @@ export interface RecommendationByTokenResponse {
 
 export interface RecommendationDriveSyncResult {
   request_id: string
+  source?: 'recommendation' | 'submission_file' | 'submission_raw_data'
+  field_label?: string
   filename?: string
   url?: string
+  existing?: boolean
   drive?: Record<string, any>
   error?: string
 }
@@ -79,6 +82,28 @@ export interface RecommendationDriveSyncResponse {
   documents_synced: number
   documents_failed: number
   sync_results: RecommendationDriveSyncResult[]
+}
+
+export interface RecommendationFormBackfillSubmissionResult {
+  submission_id: string
+  requests_checked: number
+  submission_files: number
+  documents_found: number
+  documents_synced: number
+  documents_existing: number
+  documents_failed: number
+  sync_results: RecommendationDriveSyncResult[]
+  error?: string
+}
+
+export interface RecommendationFormBackfillResponse {
+  form_id: string
+  submissions_checked: number
+  documents_found: number
+  documents_synced: number
+  documents_existing: number
+  documents_failed: number
+  results: RecommendationFormBackfillSubmissionResult[]
 }
 
 // Client
@@ -100,6 +125,14 @@ export const recommendationsClient = {
    */
   syncSubmissionDocumentsToDrive: (submissionId: string) =>
     goFetch<RecommendationDriveSyncResponse>(`/recommendations/submission/${submissionId}/google-drive/sync`, {
+      method: 'POST',
+    }),
+
+  /**
+   * Backfill all historical recommendation and uploaded docs for every submission in a form
+   */
+  backfillFormDocumentsToDrive: (formId: string) =>
+    goFetch<RecommendationFormBackfillResponse>(`/recommendations/form/${formId}/google-drive/backfill`, {
       method: 'POST',
     }),
 

@@ -46,6 +46,7 @@ import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
 import { filesClient, rowFilesClient } from '@/lib/api/files-client';
 import type { TableFileResponse } from '@/types/files';
 import { recommendationsClient, RecommendationRequest } from '@/lib/api/recommendations-client';
+import { googleDriveClient } from '@/lib/api/integrations-client';
 import { RefreshCw } from 'lucide-react';
 import { QuickReminderPanel } from '../QuickReminderPanel';
 import { FullEmailComposer } from '../FullEmailComposer';
@@ -582,6 +583,7 @@ export function ApplicationDetail({
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
   const [expandedRecommendations, setExpandedRecommendations] = useState<Set<string>>(new Set());
   const [isSyncingRecommendationsToDrive, setIsSyncingRecommendationsToDrive] = useState(false);
+  const [isSyncingAllSubmissionsToDrive, setIsSyncingAllSubmissionsToDrive] = useState(false);
   
   // Email account selection for reminders
   const [selectedReminderAccount, setSelectedReminderAccount] = useState<string>('');
@@ -969,23 +971,87 @@ export function ApplicationDetail({
 
     setIsSyncingRecommendationsToDrive(true);
     try {
-      const result = await recommendationsClient.syncSubmissionDocumentsToDrive(application.id);
+      const [rowSyncResult, submissionSyncResult] = await Promise.allSettled([
+        googleDriveClient.syncAllFiles(application.id),
+        recommendationsClient.syncSubmissionDocumentsToDrive(application.id),
+      ]);
 
-      if (result.documents_found === 0) {
-        toast.info('No uploaded recommendation documents were found to sync.');
-      } else if (result.documents_failed > 0) {
-        toast.warning(`Synced ${result.documents_synced}/${result.documents_found} recommendation document(s) to Google Drive.`);
+      const rowSynced = rowSyncResult.status === 'fulfilled' ? (rowSyncResult.value?.total || 0) : 0;
+      const submissionFound = submissionSyncResult.status === 'fulfilled' ? submissionSyncResult.value.documents_found : 0;
+      const submissionSynced = submissionSyncResult.status === 'fulfilled' ? submissionSyncResult.value.documents_synced : 0;
+      const submissionExisting = submissionSyncResult.status === 'fulfilled' ? (submissionSyncResult.value as any).documents_existing || 0 : 0;
+      const submissionFailed = submissionSyncResult.status === 'fulfilled' ? submissionSyncResult.value.documents_failed : 0;
+      const failedUploadFieldDocs = submissionSyncResult.status === 'fulfilled'
+        ? (submissionSyncResult.value.sync_results || []).filter((item) =>
+            !!item.error && (item.source === 'submission_file' || item.source === 'submission_raw_data')
+          )
+        : [];
+
+      if (rowSyncResult.status === 'rejected' && submissionSyncResult.status === 'rejected') {
+        toast.error('Failed to sync Drive documents for this submission.')
+      } else if (submissionFound === 0 && rowSynced === 0) {
+        toast.info('No documents were found to sync for this submission.')
+      } else if (submissionFailed > 0) {
+        const failureList = failedUploadFieldDocs
+          .slice(0, 5)
+          .map((item) => {
+            const label = (item.field_label || '').trim();
+            const file = (item.filename || item.url || 'unknown file').trim();
+            return label ? `${label}: ${file}` : file;
+          });
+        const extraCount = failedUploadFieldDocs.length > 5 ? ` (+${failedUploadFieldDocs.length - 5} more)` : '';
+        const uploadFailDetails = failureList.length > 0
+          ? ` Upload-field failures: ${failureList.join(' | ')}${extraCount}`
+          : '';
+        toast.warning(`Drive sync complete: ${submissionSynced} synced, ${submissionExisting} already in Drive, ${submissionFailed} failed, ${rowSynced} row file(s) processed.${uploadFailDetails}`)
       } else {
-        toast.success(`Synced ${result.documents_synced} recommendation document(s) to Google Drive.`);
+        toast.success(`Drive sync complete: ${submissionSynced} synced, ${submissionExisting} already in Drive, ${rowSynced} row file(s) processed.`)
       }
 
       const data = await recommendationsClient.getForReview(application.id);
       setRecommendations(data || []);
     } catch (err) {
       console.error('[ApplicationDetail] Failed to sync recommendation documents to Google Drive:', err);
-      toast.error('Failed to sync recommendation documents to Google Drive');
+      toast.error('Failed to sync Drive documents to Google Drive');
     } finally {
       setIsSyncingRecommendationsToDrive(false);
+    }
+  };
+
+  const handleSyncAllSubmissionsToDrive = async () => {
+    if (!formId || isSyncingAllSubmissionsToDrive) return;
+
+    setIsSyncingAllSubmissionsToDrive(true);
+    try {
+      const result = await recommendationsClient.backfillFormDocumentsToDrive(formId);
+
+      if (result.submissions_checked === 0) {
+        toast.info('No submissions were found for this form.');
+      } else if (result.documents_found === 0) {
+        if (application.id) {
+          try {
+            const singleResult = await recommendationsClient.syncSubmissionDocumentsToDrive(application.id);
+            if (singleResult.documents_found > 0) {
+              toast.warning(`Form-wide scan found 0 docs, but current submission found ${singleResult.documents_found}. Synced ${singleResult.documents_synced}, failed ${singleResult.documents_failed}. This usually means the selected form ID does not match all submission records.`);
+            } else {
+              toast.info(`Scanned ${result.submissions_checked} submission(s), but found no documents to sync.`);
+            }
+          } catch {
+            toast.info(`Scanned ${result.submissions_checked} submission(s), but found no documents to sync.`);
+          }
+        } else {
+          toast.info(`Scanned ${result.submissions_checked} submission(s), but found no documents to sync.`);
+        }
+      } else if (result.documents_failed > 0) {
+        toast.warning(`Scanned ${result.submissions_checked} submission(s): ${result.documents_synced} synced, ${result.documents_existing} already in Drive, ${result.documents_failed} failed.`);
+      } else {
+        toast.success(`Scanned ${result.submissions_checked} submission(s): ${result.documents_synced} synced, ${result.documents_existing} already in Drive.`);
+      }
+    } catch (err) {
+      console.error('[ApplicationDetail] Failed to sync all submissions to Google Drive:', err);
+      toast.error('Failed to sync all submissions to Google Drive');
+    } finally {
+      setIsSyncingAllSubmissionsToDrive(false);
     }
   };
 
@@ -2017,6 +2083,19 @@ export function ApplicationDetail({
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={handleSyncAllSubmissionsToDrive}
+                    disabled={isSyncingAllSubmissionsToDrive || !formId}
+                  >
+                    {isSyncingAllSubmissionsToDrive ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-1.5" />
+                    )}
+                    Sync All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={handleSyncRecommendationDocumentsToDrive}
                     disabled={isSyncingRecommendationsToDrive}
                   >
@@ -2375,6 +2454,20 @@ export function ApplicationDetail({
                 Documents
               </h2>
               <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={handleSyncAllSubmissionsToDrive}
+                  disabled={isSyncingAllSubmissionsToDrive || !formId}
+                >
+                  {isSyncingAllSubmissionsToDrive ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3" />
+                  )}
+                  <span className="ml-1">Sync All</span>
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"

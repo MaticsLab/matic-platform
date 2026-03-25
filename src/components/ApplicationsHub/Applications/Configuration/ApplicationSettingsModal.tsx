@@ -8,6 +8,7 @@ import { Label } from '@/ui-components/label'
 import { Switch } from '@/ui-components/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
 import { goClient } from '@/lib/api/go-client'
+import { recommendationsClient } from '@/lib/api/recommendations-client'
 import { Form } from '@/types/forms'
 import { toast } from 'sonner'
 import { connectGoogleDrive, googleDriveClient, isGoogleDriveConnected, isGoogleDriveEnabledForForm } from '@/lib/api/integrations-client'
@@ -118,6 +119,7 @@ export function ApplicationSettingsModal({ open, onOpenChange, formId, workspace
   const [googleDriveConnected, setGoogleDriveConnected] = useState(false)
   const [googleDriveEnabled, setGoogleDriveEnabled] = useState(false)
   const [isIntegrationLoading, setIsIntegrationLoading] = useState(false)
+  const [isBackfillingDrive, setIsBackfillingDrive] = useState(false)
 
   useEffect(() => {
     if (open && formId) {
@@ -264,6 +266,19 @@ export function ApplicationSettingsModal({ open, onOpenChange, formId, workspace
     } finally {
       setIsIntegrationLoading(false)
     }
+  }
+
+  const handleBackfillGoogleDriveDocuments = async () => {
+  setIsBackfillingDrive(true)
+  try {
+    const result = await recommendationsClient.backfillFormDocumentsToDrive(formId)
+    toast.success(`Backfill complete: ${result.documents_found} found, ${result.documents_synced} synced, ${result.documents_existing} already in Drive, ${result.documents_failed} failed.`)
+  } catch (error) {
+    console.error('Failed to backfill Google Drive documents:', error)
+    toast.error('Unable to backfill existing documents to Google Drive')
+  } finally {
+    setIsBackfillingDrive(false)
+  }
   }
 
   const isDeadlinePassed = settings.applicationDeadline ? new Date(settings.applicationDeadline) < new Date() : false
@@ -508,6 +523,21 @@ export function ApplicationSettingsModal({ open, onOpenChange, formId, workspace
                         </div>
                         <Switch checked={googleDriveEnabled} disabled={!googleDriveConnected} onCheckedChange={setGoogleDriveEnabled} />
                       </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-6 flex items-center justify-between">
+              <div>
+                <p className="font-semibold text-gray-900">Backfill existing documents</p>
+                <p className="text-sm text-gray-500 mt-1">Scan all submissions and upload historical recommendation and submission files into applicant subfolders.</p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={handleBackfillGoogleDriveDocuments}
+                disabled={!googleDriveConnected || isBackfillingDrive || isIntegrationLoading}
+              >
+                {isBackfillingDrive ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Run Backfill
+              </Button>
+            </div>
                     </div>
                   )}
                 </div>

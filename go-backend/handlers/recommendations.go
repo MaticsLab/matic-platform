@@ -5,9 +5,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	urlpkg "net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/resend/resend-go/v2"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 // generateRecommendationToken creates a secure random token for recommendation links
@@ -542,22 +545,91 @@ func resolveApplicantInfo(submissionID uuid.UUID) (string, string, error) {
 	return applicantName, applicantEmail, nil
 }
 
-func syncRecommendationDocumentToGoogleDrive(request *models.RecommendationRequest, documentURL, originalFileName string) (map[string]interface{}, error) {
+func isWeakRecommendationFolderName(name string) bool {
+	trimmed := strings.TrimSpace(strings.ToLower(name))
+	if trimmed == "" {
+		return true
+	}
+
+	// Names like "-" or "___" happen when template placeholders are unresolved.
+	hasLetterOrNumber := false
+	for _, ch := range trimmed {
+		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') {
+			hasLetterOrNumber = true
+			break
+		}
+	}
+
+	if !hasLetterOrNumber {
+		return true
+	}
+
+	return trimmed == "unnamed" || trimmed == "submission"
+}
+
+func syncRecommendationDocumentToGoogleDrive(request *models.RecommendationRequest, documentURL, originalFileName, fieldLabel string, allowExistingCheck bool) (map[string]interface{}, error) {
 	if strings.TrimSpace(documentURL) == "" {
 		return nil, fmt.Errorf("document URL is required")
 	}
 
-	var formIntegration models.FormIntegrationSetting
-	err := database.DB.Preload("WorkspaceIntegration").
-		Joins("JOIN workspace_integrations ON workspace_integrations.id = form_integration_settings.workspace_integration_id").
-		Where("form_integration_settings.form_id = ? AND form_integration_settings.is_enabled = ? AND workspace_integrations.integration_type = ? AND workspace_integrations.is_connected = ?", request.FormID, true, "google_drive", true).
-		First(&formIntegration).Error
+	formIntegration, err := lookupGoogleDriveFormIntegration(request.FormID)
 	if err != nil {
 		return nil, fmt.Errorf("google drive integration not enabled for this form")
 	}
 
-	if strings.TrimSpace(formIntegration.ExternalFolderID) == "" {
-		return nil, fmt.Errorf("google drive form folder is not configured")
+	formName := resolveDriveFormName(formIntegration.FormID)
+	if strings.TrimSpace(formName) == "" {
+		formName = resolveDriveFormName(request.FormID)
+	}
+	if strings.TrimSpace(formName) == "" {
+		formName = fmt.Sprintf("Form %s", formIntegration.FormID.String()[:8])
+	}
+
+	ctx := context.Background()
+	srv, err := getGoogleDriveClient(ctx, &formIntegration.WorkspaceIntegration)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to google drive: %w", err)
+	}
+
+	formFolderID := strings.TrimSpace(formIntegration.ExternalFolderID)
+	formFolderURL := strings.TrimSpace(formIntegration.ExternalFolderURL)
+	var driveConfig models.GoogleDriveConfig
+	if len(formIntegration.WorkspaceIntegration.Config) > 0 {
+		_ = json.Unmarshal(formIntegration.WorkspaceIntegration.Config, &driveConfig)
+	}
+	parentFolderID := strings.TrimSpace(driveConfig.RootFolderID)
+	desiredFormFolderName := services.SanitizeFolderName(strings.TrimSpace(formName))
+	if desiredFormFolderName == "" || strings.EqualFold(desiredFormFolderName, "unnamed") {
+		desiredFormFolderName = fmt.Sprintf("Form %s", formIntegration.FormID.String()[:8])
+	}
+
+	needsFolderRebind := formFolderID == ""
+	if formFolderID != "" {
+		if existingFolder, folderErr := googleDriveService.GetFolder(ctx, srv, formFolderID); folderErr != nil {
+			needsFolderRebind = true
+		} else if !strings.EqualFold(strings.TrimSpace(existingFolder.Name), desiredFormFolderName) {
+			needsFolderRebind = true
+		}
+	}
+
+	if needsFolderRebind {
+		formFolder, err := googleDriveService.FindOrCreateFolder(ctx, srv, desiredFormFolderName, parentFolderID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create form folder: %w", err)
+		}
+		_ = googleDriveService.SetPermission(ctx, srv, formFolder.ID, "anyone", "reader", "")
+
+		formFolderID = formFolder.ID
+		formFolderURL = formFolder.URL
+
+		if saveErr := database.DB.Model(&models.FormIntegrationSetting{}).
+			Where("id = ?", formIntegration.ID).
+			Updates(map[string]interface{}{
+				"external_folder_id":  formFolderID,
+				"external_folder_url": formFolderURL,
+			}).Error; saveErr != nil {
+			fmt.Printf("[Recommendations] Warning: failed to persist form folder for form %s: %v\n", request.FormID.String(), saveErr)
+		}
 	}
 
 	var submission models.FormSubmission
@@ -577,14 +649,45 @@ func syncRecommendationDocumentToGoogleDrive(request *models.RecommendationReque
 		_ = json.Unmarshal(formIntegration.Settings, &formSettings)
 	}
 
-	folderName := services.GenerateApplicantFolderName(formSettings.ApplicantFolderTemplate, rowData)
-	ctx := context.Background()
-	srv, err := getGoogleDriveClient(ctx, &formIntegration.WorkspaceIntegration)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to google drive: %w", err)
+	applicantName, applicantEmail := resolveApplicantFromSubmissionData(formIntegration.FormID, nil, rowData)
+	if resolvedName, resolvedEmail, infoErr := resolveApplicantInfo(request.SubmissionID); infoErr == nil {
+		if strings.TrimSpace(applicantName) == "" {
+			applicantName = strings.TrimSpace(resolvedName)
+		}
+		if strings.TrimSpace(applicantEmail) == "" {
+			applicantEmail = strings.TrimSpace(resolvedEmail)
+		}
 	}
 
-	folder, err := googleDriveService.FindOrCreateFolder(ctx, srv, folderName, formIntegration.ExternalFolderID)
+	if strings.TrimSpace(applicantName) != "" {
+		if _, ok := rowData["name"]; !ok {
+			rowData["name"] = applicantName
+		}
+		if _, ok := rowData["full_name"]; !ok {
+			rowData["full_name"] = applicantName
+		}
+	}
+	if strings.TrimSpace(applicantEmail) != "" {
+		if _, ok := rowData["email"]; !ok {
+			rowData["email"] = applicantEmail
+		}
+	}
+
+	folderName := services.GenerateApplicantFolderName(formSettings.ApplicantFolderTemplate, rowData)
+	if isWeakRecommendationFolderName(folderName) {
+		switch {
+		case strings.TrimSpace(applicantName) != "" && strings.TrimSpace(applicantEmail) != "":
+			folderName = services.SanitizeFolderName(fmt.Sprintf("%s - %s", applicantName, applicantEmail))
+		case strings.TrimSpace(applicantName) != "":
+			folderName = services.SanitizeFolderName(applicantName)
+		case strings.TrimSpace(applicantEmail) != "":
+			folderName = services.SanitizeFolderName(applicantEmail)
+		default:
+			folderName = services.SanitizeFolderName(fmt.Sprintf("Submission %s", request.SubmissionID.String()[:8]))
+		}
+	}
+
+	folder, err := googleDriveService.FindOrCreateFolder(ctx, srv, folderName, formFolderID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find/create submission folder: %w", err)
 	}
@@ -594,6 +697,35 @@ func syncRecommendationDocumentToGoogleDrive(request *models.RecommendationReque
 	if strings.TrimSpace(formSettings.FileNameTemplate) != "" {
 		fileName = services.RenderFileNameTemplate(formSettings.FileNameTemplate, rowData, originalFileName)
 	}
+	fileName = buildDriveUploadFileName(fieldLabel, fileName)
+	fileName = strings.TrimSpace(fileName)
+	if fileName == "" {
+		fileName = buildDriveUploadFileName(fieldLabel, strings.TrimSpace(originalFileName))
+	}
+	if fileName == "" {
+		fileName = fmt.Sprintf("document-%s", request.SubmissionID.String()[:8])
+	}
+
+	if allowExistingCheck {
+		if existingFiles, listErr := googleDriveService.ListFilesInFolder(ctx, srv, folder.ID); listErr == nil {
+			for _, existingFile := range existingFiles {
+				if strings.EqualFold(strings.TrimSpace(existingFile.Name), fileName) {
+					return map[string]interface{}{
+						"parent_folder_id":   formFolderID,
+						"parent_folder_url":  formFolderURL,
+						"parent_folder_name": formName,
+						"folder_id":          folder.ID,
+						"folder_url":         folder.URL,
+						"folder_name":        folder.Name,
+						"file_id":            existingFile.ID,
+						"file_url":           existingFile.URL,
+						"file_name":          existingFile.Name,
+						"existing":           true,
+					}, nil
+				}
+			}
+		}
+	}
 
 	driveFile, err := googleDriveService.UploadFileFromURL(ctx, srv, fileName, documentURL, folder.ID)
 	if err != nil {
@@ -602,18 +734,103 @@ func syncRecommendationDocumentToGoogleDrive(request *models.RecommendationReque
 	_ = googleDriveService.SetPermission(ctx, srv, driveFile.ID, "anyone", "reader", "")
 
 	return map[string]interface{}{
-		"folder_id":   folder.ID,
-		"folder_url":  folder.URL,
-		"folder_name": folder.Name,
-		"file_id":     driveFile.ID,
-		"file_url":    driveFile.URL,
-		"file_name":   driveFile.Name,
+		"parent_folder_id":   formFolderID,
+		"parent_folder_url":  formFolderURL,
+		"parent_folder_name": formName,
+		"folder_id":          folder.ID,
+		"folder_url":         folder.URL,
+		"folder_name":        folder.Name,
+		"file_id":            driveFile.ID,
+		"file_url":           driveFile.URL,
+		"file_name":          driveFile.Name,
 	}, nil
+}
+
+func lookupGoogleDriveFormIntegration(formID uuid.UUID) (models.FormIntegrationSetting, error) {
+	candidateFormIDs := candidateFormIDsForDriveIntegration(formID)
+
+	for _, candidateID := range candidateFormIDs {
+		var formIntegration models.FormIntegrationSetting
+		err := database.DB.Preload("WorkspaceIntegration").
+			Joins("JOIN workspace_integrations ON workspace_integrations.id = form_integration_settings.workspace_integration_id").
+			Where("form_integration_settings.form_id = ? AND form_integration_settings.is_enabled = ? AND workspace_integrations.integration_type = ? AND workspace_integrations.is_connected = ?", candidateID, true, "google_drive", true).
+			First(&formIntegration).Error
+		if err == nil {
+			return formIntegration, nil
+		}
+	}
+
+	return models.FormIntegrationSetting{}, gorm.ErrRecordNotFound
+}
+
+func candidateFormIDsForDriveIntegration(formID uuid.UUID) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, 4)
+	addUnique := func(id uuid.UUID) {
+		if id == uuid.Nil {
+			return
+		}
+		for _, existing := range ids {
+			if existing == id {
+				return
+			}
+		}
+		ids = append(ids, id)
+	}
+
+	addUnique(formID)
+
+	// If this is a v2 form, include its legacy table id (common location of integrations).
+	var v2Form models.Form
+	if err := database.DB.Select("id", "legacy_table_id").Where("id = ?", formID).First(&v2Form).Error; err == nil {
+		if v2Form.LegacyTableID != nil {
+			addUnique(*v2Form.LegacyTableID)
+		}
+	}
+
+	// If this is a legacy table id, include mapped v2 forms.
+	var mappedForms []models.Form
+	if err := database.DB.Select("id").Where("legacy_table_id = ?", formID).Find(&mappedForms).Error; err == nil {
+		for i := range mappedForms {
+			addUnique(mappedForms[i].ID)
+		}
+	}
+
+	return ids
+}
+
+func resolveDriveFormName(formID uuid.UUID) string {
+	if formID == uuid.Nil {
+		return ""
+	}
+
+	var table models.Table
+	if err := database.DB.Select("id", "name").Where("id = ?", formID).First(&table).Error; err == nil {
+		if strings.TrimSpace(table.Name) != "" {
+			return table.Name
+		}
+	}
+
+	var v2Form models.Form
+	if err := database.DB.Select("id", "name").Where("id = ?", formID).First(&v2Form).Error; err == nil {
+		if strings.TrimSpace(v2Form.Name) != "" {
+			return v2Form.Name
+		}
+	}
+
+	return ""
 }
 
 type recommendationUploadedDocument struct {
 	URL      string
 	Filename string
+}
+
+type backfillDocumentCandidate struct {
+	RequestID  string
+	Source     string
+	URL        string
+	Filename   string
+	FieldLabel string
 }
 
 func extractRecommendationUploadedDocuments(response datatypes.JSON) []recommendationUploadedDocument {
@@ -653,32 +870,339 @@ func extractRecommendationUploadedDocuments(response datatypes.JSON) []recommend
 	return documents
 }
 
-// SyncSubmissionRecommendationDocumentsToGoogleDrive syncs all uploaded recommendation docs for a submission.
-// POST /api/v1/recommendations/submission/:submissionId/google-drive/sync
-func SyncSubmissionRecommendationDocumentsToGoogleDrive(c *gin.Context) {
-	submissionID, err := uuid.Parse(c.Param("submissionId"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid submission ID"})
-		return
+func collectRawDataDocumentCandidates(value interface{}, sourceKey string, out *[]backfillDocumentCandidate) {
+	isUploadField := func(key string) bool {
+		lowerKey := strings.ToLower(key)
+		uploadKeywords := []string{"upload", "document", "attachment", "resume", "cv", "file", "portfolio", "transcript", "letter", "recommendation"}
+		for _, kw := range uploadKeywords {
+			if strings.Contains(lowerKey, kw) {
+				return true
+			}
+		}
+		return false
+	}
+
+	switch v := value.(type) {
+	case map[string]interface{}:
+		pathJoin := func(parent, key string) string {
+			key = strings.TrimSpace(key)
+			if parent == "" {
+				return key
+			}
+			if key == "" {
+				return parent
+			}
+			return parent + "." + key
+		}
+
+		// Try to extract URL + filename from object
+		for _, key := range []string{"url", "public_url", "file_url", "download_url", "link", "href"} {
+			rawURL, ok := v[key]
+			if !ok {
+				continue
+			}
+			url, ok := rawURL.(string)
+			if !ok || strings.TrimSpace(url) == "" {
+				continue
+			}
+
+			filename := ""
+			for _, nameKey := range []string{"filename", "file_name", "original_filename", "name", "title"} {
+				if rawName, exists := v[nameKey]; exists {
+					if s, ok := rawName.(string); ok && strings.TrimSpace(s) != "" {
+						filename = strings.TrimSpace(s)
+						break
+					}
+				}
+			}
+
+			fieldLabel := strings.TrimSpace(sourceKey)
+			for _, labelKey := range []string{"field_label", "fieldLabel", "label", "question", "field", "field_name", "fieldName"} {
+				if rawLabel, exists := v[labelKey]; exists {
+					if s, ok := rawLabel.(string); ok && strings.TrimSpace(s) != "" {
+						fieldLabel = strings.TrimSpace(s)
+						break
+					}
+				}
+			}
+
+			*out = append(*out, backfillDocumentCandidate{
+				Source:     sourceKey,
+				URL:        strings.TrimSpace(url),
+				Filename:   filename,
+				FieldLabel: fieldLabel,
+			})
+			break
+		}
+
+		// Recurse into nested objects
+		for key, nested := range v {
+			childSource := pathJoin(sourceKey, key)
+			collectRawDataDocumentCandidates(nested, childSource, out)
+		}
+	case []interface{}:
+		// Handle arrays - especially file arrays from upload fields
+		for idx, item := range v {
+			itemSource := sourceKey
+			if isUploadField(sourceKey) {
+				itemSource = fmt.Sprintf("%s[%d]", sourceKey, idx)
+			}
+			collectRawDataDocumentCandidates(item, itemSource, out)
+		}
+	case string:
+		s := strings.TrimSpace(v)
+		if strings.HasPrefix(strings.ToLower(s), "http://") || strings.HasPrefix(strings.ToLower(s), "https://") {
+			// Check if this string URL is in an upload field context
+			if isUploadField(sourceKey) {
+				*out = append(*out, backfillDocumentCandidate{
+					Source:     sourceKey,
+					URL:        s,
+					Filename:   "",
+					FieldLabel: sourceKey,
+				})
+			}
+		}
+	}
+}
+
+func resolveFieldLabelsForSyncForm(formID uuid.UUID) map[uuid.UUID]string {
+	labels := map[uuid.UUID]string{}
+
+	addLegacyTableFieldLabels := func(tableID uuid.UUID) {
+		if tableID == uuid.Nil {
+			return
+		}
+		var fields []models.Field
+		if err := database.DB.Select("id", "label").Where("table_id = ?", tableID).Find(&fields).Error; err != nil {
+			return
+		}
+		for i := range fields {
+			if strings.TrimSpace(fields[i].Label) != "" {
+				labels[fields[i].ID] = strings.TrimSpace(fields[i].Label)
+			}
+		}
+	}
+
+	addV2FormFieldLabels := func(v2FormID uuid.UUID) {
+		if v2FormID == uuid.Nil {
+			return
+		}
+		var fields []models.FormField
+		if err := database.DB.Select("id", "label", "legacy_field_id").Where("form_id = ?", v2FormID).Find(&fields).Error; err != nil {
+			return
+		}
+		for i := range fields {
+			label := strings.TrimSpace(fields[i].Label)
+			if label == "" {
+				continue
+			}
+			labels[fields[i].ID] = label
+			if fields[i].LegacyFieldID != nil && *fields[i].LegacyFieldID != uuid.Nil {
+				labels[*fields[i].LegacyFieldID] = label
+			}
+		}
+	}
+
+	addLegacyTableFieldLabels(formID)
+	addV2FormFieldLabels(formID)
+
+	var mappedForms []models.Form
+	if err := database.DB.Select("id", "legacy_table_id").Where("id = ? OR legacy_table_id = ?", formID, formID).Find(&mappedForms).Error; err == nil {
+		for i := range mappedForms {
+			addV2FormFieldLabels(mappedForms[i].ID)
+			if mappedForms[i].LegacyTableID != nil {
+				addLegacyTableFieldLabels(*mappedForms[i].LegacyTableID)
+			}
+		}
+	}
+
+	return labels
+}
+
+func fieldLabelFromRawSource(source string, labels map[uuid.UUID]string) string {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return ""
+	}
+
+	parts := strings.FieldsFunc(source, func(r rune) bool {
+		switch r {
+		case '.', '[', ']', '/':
+			return true
+		default:
+			return false
+		}
+	})
+
+	for _, part := range parts {
+		id, err := uuid.Parse(strings.TrimSpace(part))
+		if err != nil {
+			continue
+		}
+		if label, ok := labels[id]; ok {
+			return label
+		}
+	}
+
+	ignore := map[string]struct{}{
+		"":    {},
+		"url": {}, "public_url": {}, "file_url": {}, "download_url": {}, "link": {}, "href": {},
+		"filename": {}, "file_name": {}, "original_filename": {}, "name": {}, "title": {},
+		"uploaded_document": {}, "uploaded_documents": {},
+		"submission": {}, "raw": {}, "data": {}, "submission_raw_data": {},
+	}
+
+	for i := len(parts) - 1; i >= 0; i-- {
+		p := strings.TrimSpace(parts[i])
+		if _, skip := ignore[strings.ToLower(p)]; skip {
+			continue
+		}
+		if _, err := uuid.Parse(p); err == nil {
+			continue
+		}
+		if _, err := fmt.Sscanf(p, "%d", new(int)); err == nil {
+			continue
+		}
+		return p
+	}
+
+	return source
+}
+
+func extractSubmissionRawDataDocuments(rawData datatypes.JSON) []backfillDocumentCandidate {
+	if len(rawData) == 0 {
+		return nil
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(rawData, &payload); err != nil {
+		return nil
+	}
+
+	results := make([]backfillDocumentCandidate, 0)
+	collectRawDataDocumentCandidates(payload, "", &results)
+
+	// Deduplicate by URL + filename while preserving order.
+	seen := make(map[string]struct{}, len(results))
+	deduped := make([]backfillDocumentCandidate, 0, len(results))
+	for _, item := range results {
+		key := strings.TrimSpace(strings.ToLower(item.URL)) + "|" + strings.TrimSpace(strings.ToLower(item.Filename))
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		deduped = append(deduped, item)
+	}
+
+	return deduped
+}
+
+type recommendationDriveSyncResult struct {
+	RequestID  string                 `json:"request_id"`
+	Source     string                 `json:"source,omitempty"`
+	FieldLabel string                 `json:"field_label,omitempty"`
+	Filename   string                 `json:"filename,omitempty"`
+	URL        string                 `json:"url,omitempty"`
+	Existing   bool                   `json:"existing,omitempty"`
+	DriveMeta  map[string]interface{} `json:"drive,omitempty"`
+	Error      string                 `json:"error,omitempty"`
+}
+
+type recommendationSubmissionBackfillSummary struct {
+	SubmissionID      uuid.UUID                       `json:"submission_id"`
+	RequestsChecked   int                             `json:"requests_checked"`
+	SubmissionFiles   int                             `json:"submission_files"`
+	DocumentsFound    int                             `json:"documents_found"`
+	DocumentsSynced   int                             `json:"documents_synced"`
+	DocumentsExisting int                             `json:"documents_existing"`
+	DocumentsFailed   int                             `json:"documents_failed"`
+	SyncResults       []recommendationDriveSyncResult `json:"sync_results"`
+}
+
+func backfillRecommendationDocumentsForSubmission(submissionID uuid.UUID, fallbackFormID *uuid.UUID) (*recommendationSubmissionBackfillSummary, error) {
+	var submission models.FormSubmission
+	hasFormSubmission := false
+	if err := database.DB.Select("id", "form_id", "legacy_row_id", "raw_data").Where("id = ?", submissionID).First(&submission).Error; err == nil {
+		hasFormSubmission = true
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to load submission")
+	}
+
+	formID := uuid.Nil
+	if hasFormSubmission {
+		formID = submission.FormID
+	}
+	if formID == uuid.Nil {
+		var req models.RecommendationRequest
+		if err := database.DB.Select("form_id").Where("submission_id = ?", submissionID).Order("created_at ASC").First(&req).Error; err == nil {
+			formID = req.FormID
+		}
+	}
+	if formID == uuid.Nil && fallbackFormID != nil && *fallbackFormID != uuid.Nil {
+		formID = *fallbackFormID
+	}
+	if formID == uuid.Nil {
+		var row models.Row
+		if err := database.DB.Select("table_id").Where("id = ?", submissionID).First(&row).Error; err == nil {
+			formID = row.TableID
+		}
+	}
+	if formID == uuid.Nil {
+		return nil, fmt.Errorf("submission not found")
+	}
+
+	syncRequest := models.RecommendationRequest{
+		SubmissionID: submissionID,
+		FormID:       formID,
 	}
 
 	var requests []models.RecommendationRequest
 	if err := database.DB.Where("submission_id = ? AND status = ?", submissionID, "submitted").Find(&requests).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load recommendation requests"})
-		return
+		return nil, fmt.Errorf("failed to load recommendation requests")
 	}
 
-	type syncResult struct {
-		RequestID string                 `json:"request_id"`
-		Filename  string                 `json:"filename,omitempty"`
-		URL       string                 `json:"url,omitempty"`
-		DriveMeta map[string]interface{} `json:"drive,omitempty"`
-		Error     string                 `json:"error,omitempty"`
+	rowIDSet := map[uuid.UUID]struct{}{}
+	rowIDSet[submissionID] = struct{}{}
+	if hasFormSubmission && submission.LegacyRowID != nil && *submission.LegacyRowID != uuid.Nil {
+		rowIDSet[*submission.LegacyRowID] = struct{}{}
+	}
+	if !hasFormSubmission {
+		var linked []models.FormSubmission
+		if err := database.DB.Select("id").Where("legacy_row_id = ?", submissionID).Find(&linked).Error; err == nil {
+			for i := range linked {
+				if linked[i].ID != uuid.Nil {
+					rowIDSet[linked[i].ID] = struct{}{}
+				}
+			}
+		}
 	}
 
-	results := make([]syncResult, 0)
+	rowIDs := make([]uuid.UUID, 0, len(rowIDSet))
+	for id := range rowIDSet {
+		rowIDs = append(rowIDs, id)
+	}
+
+	var rowFiles []models.TableFile
+	if err := database.DB.Where("row_id IN ? AND deleted_at IS NULL", rowIDs).Find(&rowFiles).Error; err != nil {
+		return nil, fmt.Errorf("failed to load uploaded files")
+	}
+
+	rawDataDocs := make([]backfillDocumentCandidate, 0)
+	if hasFormSubmission {
+		rawDataDocs = append(rawDataDocs, extractSubmissionRawDataDocuments(submission.RawData)...)
+	}
+	var legacyRows []models.Row
+	if err := database.DB.Select("id", "data").Where("id IN ?", rowIDs).Find(&legacyRows).Error; err == nil {
+		for i := range legacyRows {
+			rawDataDocs = append(rawDataDocs, extractSubmissionRawDataDocuments(legacyRows[i].Data)...)
+		}
+	}
+
+	results := make([]recommendationDriveSyncResult, 0)
 	totalDocs := 0
 	syncedDocs := 0
+	existingDocs := 0
+	fieldLabels := resolveFieldLabelsForSyncForm(formID)
 
 	for i := range requests {
 		documents := extractRecommendationUploadedDocuments(requests[i].Response)
@@ -693,34 +1217,330 @@ func SyncSubmissionRecommendationDocumentsToGoogleDrive(c *gin.Context) {
 				filename = fmt.Sprintf("recommendation-%s", requests[i].ID.String())
 			}
 
-			driveMeta, syncErr := syncRecommendationDocumentToGoogleDrive(&requests[i], doc.URL, filename)
+			driveMeta, syncErr := syncRecommendationDocumentToGoogleDrive(&requests[i], doc.URL, filename, "Recommendation Letter", true)
 			if syncErr != nil {
-				results = append(results, syncResult{
-					RequestID: requests[i].ID.String(),
-					Filename:  filename,
-					URL:       doc.URL,
-					Error:     syncErr.Error(),
+				results = append(results, recommendationDriveSyncResult{
+					RequestID:  requests[i].ID.String(),
+					Source:     "recommendation",
+					FieldLabel: "Recommendation Letter",
+					Filename:   filename,
+					URL:        doc.URL,
+					Error:      syncErr.Error(),
 				})
 				continue
 			}
 
-			syncedDocs++
-			results = append(results, syncResult{
-				RequestID: requests[i].ID.String(),
-				Filename:  filename,
-				URL:       doc.URL,
-				DriveMeta: driveMeta,
+			isExisting := false
+			if rawExisting, ok := driveMeta["existing"].(bool); ok && rawExisting {
+				isExisting = true
+				existingDocs++
+			} else {
+				syncedDocs++
+			}
+
+			results = append(results, recommendationDriveSyncResult{
+				RequestID:  requests[i].ID.String(),
+				Source:     "recommendation",
+				FieldLabel: "Recommendation Letter",
+				Filename:   filename,
+				URL:        doc.URL,
+				Existing:   isExisting,
+				DriveMeta:  driveMeta,
 			})
 		}
 	}
 
+	for i := range rowFiles {
+		fieldLabel := ""
+		if rowFiles[i].FieldID != nil {
+			fieldLabel = fieldLabels[*rowFiles[i].FieldID]
+		}
+
+		filename := strings.TrimSpace(rowFiles[i].OriginalFilename)
+		if filename == "" {
+			filename = strings.TrimSpace(rowFiles[i].Filename)
+		}
+		if filename == "" {
+			filename = fmt.Sprintf("file-%s", rowFiles[i].ID.String()[:8])
+		}
+		filename = buildDriveUploadFileName(fieldLabel, filename)
+
+		url := strings.TrimSpace(rowFiles[i].PublicURL)
+		if url == "" {
+			continue
+		}
+
+		totalDocs++
+		driveMeta, syncErr := syncRecommendationDocumentToGoogleDrive(&syncRequest, url, filename, fieldLabel, true)
+		if syncErr != nil {
+			results = append(results, recommendationDriveSyncResult{
+				RequestID:  submissionID.String(),
+				Source:     "submission_file",
+				FieldLabel: fieldLabel,
+				Filename:   filename,
+				URL:        url,
+				Error:      syncErr.Error(),
+			})
+			continue
+		}
+
+		isExisting := false
+		if rawExisting, ok := driveMeta["existing"].(bool); ok && rawExisting {
+			isExisting = true
+			existingDocs++
+		} else {
+			syncedDocs++
+		}
+
+		results = append(results, recommendationDriveSyncResult{
+			RequestID:  submissionID.String(),
+			Source:     "submission_file",
+			FieldLabel: fieldLabel,
+			Filename:   filename,
+			URL:        url,
+			Existing:   isExisting,
+			DriveMeta:  driveMeta,
+		})
+	}
+
+	for i := range rawDataDocs {
+		url := strings.TrimSpace(rawDataDocs[i].URL)
+		if url == "" {
+			continue
+		}
+
+		fieldLabel := strings.TrimSpace(rawDataDocs[i].FieldLabel)
+		if resolvedLabel := strings.TrimSpace(fieldLabelFromRawSource(rawDataDocs[i].Source, fieldLabels)); resolvedLabel != "" {
+			fieldLabel = resolvedLabel
+		}
+
+		filename := strings.TrimSpace(rawDataDocs[i].Filename)
+		if filename == "" {
+			if parsed, parseErr := urlpkg.Parse(url); parseErr == nil {
+				if base := strings.TrimSpace(filepath.Base(parsed.Path)); base != "" && base != "." && base != "/" {
+					filename = base
+				}
+			}
+		}
+		if filename == "" {
+			filename = fmt.Sprintf("linked-document-%d", i+1)
+		}
+		filename = buildDriveUploadFileName(fieldLabel, filename)
+
+		totalDocs++
+		driveMeta, syncErr := syncRecommendationDocumentToGoogleDrive(&syncRequest, url, filename, fieldLabel, true)
+		if syncErr != nil {
+			results = append(results, recommendationDriveSyncResult{
+				RequestID:  submissionID.String(),
+				Source:     "submission_raw_data",
+				FieldLabel: fieldLabel,
+				Filename:   filename,
+				URL:        url,
+				Error:      syncErr.Error(),
+			})
+			continue
+		}
+
+		isExisting := false
+		if rawExisting, ok := driveMeta["existing"].(bool); ok && rawExisting {
+			isExisting = true
+			existingDocs++
+		} else {
+			syncedDocs++
+		}
+
+		results = append(results, recommendationDriveSyncResult{
+			RequestID:  submissionID.String(),
+			Source:     "submission_raw_data",
+			FieldLabel: fieldLabel,
+			Filename:   filename,
+			URL:        url,
+			Existing:   isExisting,
+			DriveMeta:  driveMeta,
+		})
+	}
+
+	summary := &recommendationSubmissionBackfillSummary{
+		SubmissionID:      submissionID,
+		RequestsChecked:   len(requests),
+		SubmissionFiles:   len(rowFiles),
+		DocumentsFound:    totalDocs,
+		DocumentsSynced:   syncedDocs,
+		DocumentsExisting: existingDocs,
+		DocumentsFailed:   totalDocs - syncedDocs - existingDocs,
+		SyncResults:       results,
+	}
+
+	return summary, nil
+}
+
+func collectSubmissionIDsForForm(formID uuid.UUID) ([]uuid.UUID, error) {
+	seen := map[uuid.UUID]struct{}{}
+	add := func(id uuid.UUID) {
+		if id == uuid.Nil {
+			return
+		}
+		seen[id] = struct{}{}
+	}
+
+	// Recommendation requests already tied to this form/table.
+	var recSubmissionIDs []uuid.UUID
+	if err := database.DB.Model(&models.RecommendationRequest{}).
+		Where("form_id = ?", formID).
+		Distinct("submission_id").
+		Pluck("submission_id", &recSubmissionIDs).Error; err != nil {
+		return nil, fmt.Errorf("failed to load recommendation submissions")
+	}
+	for _, id := range recSubmissionIDs {
+		add(id)
+	}
+
+	// Legacy rows under the table/form id.
+	var legacyRows []models.Row
+	if err := database.DB.Select("id").Where("table_id = ?", formID).Find(&legacyRows).Error; err != nil {
+		return nil, fmt.Errorf("failed to load legacy form rows")
+	}
+	for i := range legacyRows {
+		add(legacyRows[i].ID)
+	}
+
+	// Files attached directly at table scope can still reference row IDs.
+	var tableFiles []models.TableFile
+	if err := database.DB.Select("row_id").Where("table_id = ? AND deleted_at IS NULL", formID).Find(&tableFiles).Error; err == nil {
+		for i := range tableFiles {
+			if tableFiles[i].RowID != nil {
+				add(*tableFiles[i].RowID)
+			}
+		}
+	}
+
+	// V2 forms may be linked to this legacy table id.
+	formIDs := map[uuid.UUID]struct{}{}
+	var mappedForms []models.Form
+	if err := database.DB.Select("id", "legacy_table_id").Where("id = ? OR legacy_table_id = ?", formID, formID).Find(&mappedForms).Error; err != nil {
+		return nil, fmt.Errorf("failed to load mapped forms")
+	}
+	for i := range mappedForms {
+		formIDs[mappedForms[i].ID] = struct{}{}
+	}
+
+	if len(formIDs) > 0 {
+		ids := make([]uuid.UUID, 0, len(formIDs))
+		for id := range formIDs {
+			ids = append(ids, id)
+		}
+
+		var submissions []models.FormSubmission
+		if err := database.DB.Select("id", "legacy_row_id").Where("form_id IN ?", ids).Find(&submissions).Error; err != nil {
+			return nil, fmt.Errorf("failed to load v2 form submissions")
+		}
+		for i := range submissions {
+			add(submissions[i].ID)
+			if submissions[i].LegacyRowID != nil {
+				add(*submissions[i].LegacyRowID)
+			}
+		}
+	}
+
+	result := make([]uuid.UUID, 0, len(seen))
+	for id := range seen {
+		result = append(result, id)
+	}
+
+	return result, nil
+}
+
+// SyncSubmissionRecommendationDocumentsToGoogleDrive syncs all uploaded recommendation docs for a submission.
+// POST /api/v1/recommendations/submission/:submissionId/google-drive/sync
+func SyncSubmissionRecommendationDocumentsToGoogleDrive(c *gin.Context) {
+	submissionID, err := uuid.Parse(c.Param("submissionId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid submission ID"})
+		return
+	}
+
+	summary, syncErr := backfillRecommendationDocumentsForSubmission(submissionID, nil)
+	if syncErr != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(strings.ToLower(syncErr.Error()), "not found") {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"error": syncErr.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, summary)
+}
+
+// BackfillFormRecommendationDocumentsToGoogleDrive syncs historical recommendation and uploaded docs for all submissions in a form.
+// POST /api/v1/recommendations/form/:formId/google-drive/backfill
+func BackfillFormRecommendationDocumentsToGoogleDrive(c *gin.Context) {
+	formID, err := uuid.Parse(c.Param("formId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid form ID"})
+		return
+	}
+
+	submissionIDs, err := collectSubmissionIDsForForm(formID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	type submissionResult struct {
+		SubmissionID      string                          `json:"submission_id"`
+		RequestsChecked   int                             `json:"requests_checked"`
+		SubmissionFiles   int                             `json:"submission_files"`
+		DocumentsFound    int                             `json:"documents_found"`
+		DocumentsSynced   int                             `json:"documents_synced"`
+		DocumentsExisting int                             `json:"documents_existing"`
+		DocumentsFailed   int                             `json:"documents_failed"`
+		SyncResults       []recommendationDriveSyncResult `json:"sync_results"`
+		Error             string                          `json:"error,omitempty"`
+	}
+
+	results := make([]submissionResult, 0, len(submissionIDs))
+	totalFound := 0
+	totalSynced := 0
+	totalExisting := 0
+	totalFailed := 0
+
+	for _, submissionID := range submissionIDs {
+		summary, syncErr := backfillRecommendationDocumentsForSubmission(submissionID, &formID)
+		if syncErr != nil {
+			results = append(results, submissionResult{
+				SubmissionID: submissionID.String(),
+				Error:        syncErr.Error(),
+			})
+			totalFailed++
+			continue
+		}
+
+		results = append(results, submissionResult{
+			SubmissionID:      summary.SubmissionID.String(),
+			RequestsChecked:   summary.RequestsChecked,
+			SubmissionFiles:   summary.SubmissionFiles,
+			DocumentsFound:    summary.DocumentsFound,
+			DocumentsSynced:   summary.DocumentsSynced,
+			DocumentsExisting: summary.DocumentsExisting,
+			DocumentsFailed:   summary.DocumentsFailed,
+			SyncResults:       summary.SyncResults,
+		})
+
+		totalFound += summary.DocumentsFound
+		totalSynced += summary.DocumentsSynced
+		totalExisting += summary.DocumentsExisting
+		totalFailed += summary.DocumentsFailed
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"submission_id":    submissionID,
-		"requests_checked": len(requests),
-		"documents_found":  totalDocs,
-		"documents_synced": syncedDocs,
-		"documents_failed": totalDocs - syncedDocs,
-		"sync_results":     results,
+		"form_id":             formID,
+		"submissions_checked": len(submissionIDs),
+		"documents_found":     totalFound,
+		"documents_synced":    totalSynced,
+		"documents_existing":  totalExisting,
+		"documents_failed":    totalFailed,
+		"results":             results,
 	})
 }
 
@@ -1366,7 +2186,7 @@ func SubmitRecommendation(c *gin.Context) {
 			}
 
 			// Best-effort sync to Google Drive if form integration is enabled.
-			if driveMeta, driveErr := syncRecommendationDocumentToGoogleDrive(&request, documentURL, header.Filename); driveErr == nil {
+			if driveMeta, driveErr := syncRecommendationDocumentToGoogleDrive(&request, documentURL, header.Filename, "Recommendation Letter", true); driveErr == nil {
 				if uploadedDoc, ok := responseData["uploaded_document"].(map[string]interface{}); ok {
 					uploadedDoc["google_drive"] = driveMeta
 					responseData["uploaded_document"] = uploadedDoc

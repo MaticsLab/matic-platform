@@ -702,6 +702,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				recommendations.DELETE("/:id", handlers.CancelRecommendationRequest)                   // Cancel request
 				recommendations.GET("/submission/:submissionId", handlers.GetRecommendationsForReview) // For reviewers
 				recommendations.POST("/submission/:submissionId/google-drive/sync", handlers.SyncSubmissionRecommendationDocumentsToGoogleDrive)
+				recommendations.POST("/form/:formId/google-drive/backfill", handlers.BackfillFormRecommendationDocumentsToGoogleDrive)
 			}
 
 		}
@@ -727,6 +728,13 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	apiV2Public := r.Group("/api/v2")
 	{
 		apiV2Public.GET("/forms/by-slug/:workspace_slug/:form_slug", handlers.GetFormBySlugV2)
+	}
+
+	// Public diagnostics endpoints (debug only - no auth required)
+	diagnosticsPublic := r.Group("/api/v1/diagnostics")
+	{
+		diagnosticsPublic.GET("/discovered-files", handlers.ListDiscoveredFilesForUser) // ?email=user@example.com
+		diagnosticsPublic.GET("/submissions/:submissionId/discovered-files", handlers.ListSubmissionDiscoveredFiles)
 	}
 
 	return r
