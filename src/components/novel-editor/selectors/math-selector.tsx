@@ -1,7 +1,7 @@
 import { Button } from "@/components/novel-editor/ui/button";
 import { cn } from "@/lib/utils";
 import { SigmaIcon } from "lucide-react";
-import { useEditor } from "novel";
+import { useEditor } from "@/lib/novel";
 
 export const MathSelector = () => {
   const { editor } = useEditor();

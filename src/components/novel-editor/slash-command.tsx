@@ -13,7 +13,7 @@ import {
   Twitter,
   Youtube,
 } from "lucide-react";
-import { Command, createSuggestionItems, renderItems } from "novel";
+import { Command, createSuggestionItems, renderItems } from "@/lib/novel";
 import { uploadFn } from "./image-upload";
 
 export const suggestionItems = createSuggestionItems([

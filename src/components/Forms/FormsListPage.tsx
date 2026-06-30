@@ -6,7 +6,7 @@ import { FileText, Plus, Eye, Edit, Trash2, MoreVertical, Copy } from 'lucide-re
 import { Button } from '@/ui-components/button'
 import { Card } from '@/ui-components/card'
 import { Badge } from '@/ui-components/badge'
-import { formsSupabase } from '@/lib/api/forms-supabase'
+import { formsClient } from '@/lib/api/forms-client'
 import type { Form } from '@/types/forms'
 import { toast } from 'sonner'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
@@ -28,7 +28,7 @@ export function FormsListPage({ workspaceId }: FormsListPageProps) {
     try {
       setLoading(true)
       console.log('🔍 Loading forms for workspace:', workspaceId)
-      const data = await formsSupabase.getFormsByWorkspace(workspaceId)
+      const data = await formsClient.list(workspaceId)
       console.log('✅ Forms loaded:', data.length, data)
       setForms(data)
       if (data.length === 0) {
@@ -51,7 +51,7 @@ export function FormsListPage({ workspaceId }: FormsListPageProps) {
     if (!confirm(`Are you sure you want to delete "${formName}"?`)) return
 
     try {
-      await formsSupabase.deleteForm(formId)
+      await formsClient.delete(formId)
       toast.success('Form deleted')
       loadForms()
     } catch (error) {

@@ -13,8 +13,6 @@ type BetterAuthUser struct {
 	Image                *string   `json:"image" gorm:"column:image"`
 	CreatedAt            time.Time `json:"createdAt" gorm:"column:created_at"`
 	UpdatedAt            time.Time `json:"updatedAt" gorm:"column:updated_at"`
-	SupabaseUserID       *string   `json:"supabaseUserId" gorm:"column:supabase_user_id"`
-	MigratedFromSupabase bool      `json:"migratedFromSupabase" gorm:"column:migrated_from_supabase;default:false"`
 	FullName             *string   `json:"fullName" gorm:"column:full_name"`
 	AvatarURL            *string   `json:"avatarUrl" gorm:"column:avatar_url"`
 	UserType             string    `json:"userType" gorm:"column:user_type;default:'staff'"` // staff, applicant, reviewer
@@ -59,13 +57,11 @@ func (s *BetterAuthSession) IsExpired() bool {
 //   - provider_id = "credential"
 //   - password: Contains scrypt-hashed password (format: "salt:hash")
 //   - access_token, refresh_token, id_token: NULL (not used for credential auth)
-//   - account_id: Links to Supabase user ID for migration tracking
 //
 // For OAUTH providers (Google, GitHub, etc.):
 //   - provider_id = "google", "github", etc.
 //   - password: NULL (not used for OAuth)
 //   - access_token, refresh_token, id_token: OAuth tokens from provider
-//   - account_id: Provider's user ID
 type BetterAuthAccount struct {
 	ID                    string     `json:"id" gorm:"primaryKey;column:id"`
 	AccountID            string     `json:"accountId" gorm:"column:account_id"` // Provider's account ID or Supabase user ID for migrated users

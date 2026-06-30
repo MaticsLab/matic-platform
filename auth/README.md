@@ -42,7 +42,8 @@ import { portalAuthClient } from '@/auth/client/portal'
 ## Environment Variables
 
 Required:
-- `DATABASE_URL` - PostgreSQL connection string
+- `DATABASE_URL` - Main application PostgreSQL connection string
+- `BETTER_AUTH_DATABASE_URL` - Fresh PostgreSQL database for Better Auth. Falls back to `DATABASE_URL` if unset.
 - `BETTER_AUTH_SECRET` - Secret for session encryption
 - `BETTER_AUTH_URL` - Base URL for auth endpoints
 
@@ -59,5 +60,21 @@ npx @better-auth/cli generate --config auth/config/main.ts
 
 Run migrations:
 ```bash
-npx @better-auth/cli migrate --config auth/config/main.ts
+npm run auth:migrate
 ```
+
+
+## Fresh Schema Workflow
+
+This project now bootstraps Better Auth from scratch. Do not import or migrate any old Supabase users or schema.
+
+1. Create a fresh PostgreSQL database for Better Auth.
+2. Set `BETTER_AUTH_DATABASE_URL` to that new database.
+3. Set `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`.
+4. Run `npx --yes auth@latest generate --yes --config auth/config/main.ts` to generate the schema from the current auth config.
+5. Run `npm run auth:migrate` to create the Better Auth tables.
+6. Start the app and verify `/api/auth/*` and `/api/portal-auth/*` routes.
+
+Notes:
+- The schema is now generated directly from the current Better Auth config.
+- If `BETTER_AUTH_DATABASE_URL` is unset, the auth layer falls back to `DATABASE_URL`.

@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
+import { workspacesClient } from '@/lib/api/workspaces-client'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/auth/client/main'
-import type { Workspace as APIWorkspace } from '@/types/workspaces'
+import type { Workspace as APIWorkspace } from '@/lib/api/workspaces-client'
 
 interface Workspace {
   id: string
@@ -30,7 +30,7 @@ export function useWorkspaceDiscovery() {
       console.log('🔍 Fetching workspaces for user:', userId)
       
       // Fetch from Go backend (uses auth context internally)
-      const apiWorkspaces = await workspacesSupabase.getWorkspacesForUser(userId)
+      const apiWorkspaces = await workspacesClient.list()
       
       // Ensure apiWorkspaces is an array
       const workspacesArray = Array.isArray(apiWorkspaces) ? apiWorkspaces : []
@@ -79,7 +79,7 @@ export function useWorkspaceDiscovery() {
 
   const switchToWorkspace = (workspaceSlug: string) => {
     console.log('🔄 Switching to workspace:', workspaceSlug)
-    router.push(`/w/${workspaceSlug}`)
+    router.push(`/workspace/${workspaceSlug}`)
   }
 
   const findUserWorkspace = async (): Promise<string | null> => {

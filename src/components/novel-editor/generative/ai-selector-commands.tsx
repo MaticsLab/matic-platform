@@ -1,5 +1,5 @@
 import { ArrowDownWideNarrow, CheckCheck, RefreshCcwDot, StepForward, WrapText } from "lucide-react";
-import { getPrevText, useEditor } from "novel";
+import { getPrevText, useEditor } from "@/lib/novel";
 import { CommandGroup, CommandItem, CommandSeparator } from "../ui/command";
 
 const options = [

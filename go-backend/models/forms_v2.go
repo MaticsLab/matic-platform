@@ -360,7 +360,7 @@ type FormSubmission struct {
 
 	// Relations
 	Form      *Form           `gorm:"foreignKey:FormID" json:"form,omitempty"`
-	User      *BetterAuthUser `gorm:"foreignKey:UserID;references:ID" json:"user,omitempty"`
+	User      *BetterAuthUser `gorm:"-:migration;foreignKey:UserID;references:ID" json:"user,omitempty"`
 	Responses []FormResponse  `gorm:"foreignKey:SubmissionID" json:"responses,omitempty"`
 }
 

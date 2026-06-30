@@ -30,12 +30,17 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Initialize database with direct PostgreSQL connection (IPv4 enabled)
+	// Initialize primary app database (core app data)
 	if err := database.InitDB(cfg.DatabaseURL); err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("Failed to connect to app database: %v", err)
 	}
 
-	// Run AutoMigrate to ensure new columns are added (e.g., hide_pii, hidden_pii_fields)
+	// Initialize Better Auth database connection for session validation
+	if err := database.InitAuthDB(cfg.BetterAuthDatabaseURL); err != nil {
+		log.Printf("⚠️  Better Auth DB warning: %v", err)
+	}
+
+	// Run AutoMigrate on primary app DB only
 	if err := database.AutoMigrate(); err != nil {
 		log.Printf("⚠️  AutoMigrate warning: %v", err)
 	}

@@ -1,7 +1,7 @@
 import { Button } from "@/components/novel-editor/ui/button";
 import { cn } from "@/lib/utils";
 import { BoldIcon, CodeIcon, ItalicIcon, StrikethroughIcon, UnderlineIcon } from "lucide-react";
-import { EditorBubbleItem, useEditor } from "novel";
+import { EditorBubbleItem, useEditor } from "@/lib/novel";
 import type { SelectorItem } from "./node-selector";
 
 export const TextButtons = () => {

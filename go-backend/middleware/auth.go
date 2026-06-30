@@ -79,11 +79,32 @@ func validateBetterAuthSessionToken(token string) (*models.BetterAuthSession, bo
 		sessionCache.Delete(token)
 	}
 
-	// Cache miss - query database
-	var session models.BetterAuthSession
+	// Cache miss - query candidate databases. In mixed/local environments, one DB may not
+	// contain Better Auth tables, so try both handles before failing.
+	candidates := []*gorm.DB{}
+	if database.AuthDB != nil {
+		candidates = append(candidates, database.AuthDB)
+	}
+	if database.DB != nil && database.DB != database.AuthDB {
+		candidates = append(candidates, database.DB)
+	}
 
-	result := database.DB.Preload("User").Where("token = ?", token).First(&session)
-	if result.Error != nil {
+	var session models.BetterAuthSession
+	validated := false
+	for _, dbHandle := range candidates {
+		session = models.BetterAuthSession{}
+		result := dbHandle.Preload("User").Where("token = ?", token).First(&session)
+		if result.Error == nil {
+			validated = true
+			break
+		}
+
+		if strings.Contains(result.Error.Error(), `relation "ba_sessions" does not exist`) {
+			continue
+		}
+	}
+
+	if !validated {
 		return nil, false
 	}
 

@@ -7,8 +7,8 @@ import { NavigationLayout } from '@/components/NavigationLayout'
 import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
 import { BreadcrumbBar } from '@/components/BreadcrumbBar'
 import { ApplicationManager } from '@/components/ApplicationsHub/Applications/ApplicationManager'
-import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
-import type { Workspace } from '@/types/workspaces'
+import { workspacesClient } from '@/lib/api/workspaces-client'
+import type { Workspace } from '@/lib/api/workspaces-client'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
 
 function ApplicationDetailPageContent() {
@@ -27,7 +27,7 @@ function ApplicationDetailPageContent() {
       try {
         setLoading(true)
         console.log('[ApplicationDetailPage] Loading workspace for slug:', slug)
-        const ws = await workspacesSupabase.getWorkspaceBySlug(slug)
+        const ws = await workspacesClient.getBySlug(slug)
         if (!ws) throw new Error('Workspace not found')
         console.log('[ApplicationDetailPage] Workspace loaded:', ws.id, ws.name)
         setWorkspace(ws)

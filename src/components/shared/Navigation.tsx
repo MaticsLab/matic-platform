@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useSession } from '@/auth/client/main'
 import { useActiveOrganization, useListOrganizations } from '@/auth/client/main'
-import { getLastWorkspace } from '@/lib/utils'
+import { getLastWorkspace, saveLastWorkspace } from '@/lib/utils'
 import { ArrowRight, Menu, X } from 'lucide-react'
 
 interface NavigationProps {
@@ -17,6 +17,7 @@ export function Navigation({ variant = 'dark' }: NavigationProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const { data } = useSession()
   const router = useRouter()
+  const pathname = usePathname()
   const isAuthenticated = !!data?.user
 
   const isDark = variant === 'dark'
@@ -24,11 +25,64 @@ export function Navigation({ variant = 'dark' }: NavigationProps) {
   const { data: organizations } = useListOrganizations()
   const workspaceSlug = activeOrg?.slug ?? organizations?.[0]?.slug
 
+  const parseWorkspaceSlugFromPath = (path: string | null | undefined) => {
+    if (!path) return null
+    const match = path.match(/^\/workspace\/([^/?#]+)/)
+    return match?.[1] ?? null
+  }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const slugFromPath = parseWorkspaceSlugFromPath(pathname)
+    if (!slugFromPath) return
+
+    saveLastWorkspace(slugFromPath)
+    localStorage.setItem('lastWorkspace', JSON.stringify({ slug: slugFromPath }))
+  }, [pathname])
+
+  const getStoredWorkspaceSlug = () => {
+    if (typeof window === 'undefined') return null
+
+    // Primary source used by most workspace pages.
+    const rawLastWorkspace = localStorage.getItem('lastWorkspace')
+    if (rawLastWorkspace) {
+      try {
+        const parsed = JSON.parse(rawLastWorkspace) as { slug?: string } | string
+        if (typeof parsed === 'string' && parsed.trim()) return parsed.trim()
+        if (typeof parsed === 'object' && parsed?.slug) return parsed.slug
+      } catch {
+        if (rawLastWorkspace.trim()) return rawLastWorkspace.trim()
+      }
+    }
+
+    // Backward compatibility with legacy helper key.
+    const legacy = getLastWorkspace()
+    if (legacy) return legacy
+
+    const slugFromCurrentPath = parseWorkspaceSlugFromPath(window.location.pathname)
+    if (slugFromCurrentPath) return slugFromCurrentPath
+
+    if (document.referrer) {
+      try {
+        const refUrl = new URL(document.referrer)
+        if (refUrl.origin === window.location.origin) {
+          const slugFromReferrer = parseWorkspaceSlugFromPath(refUrl.pathname)
+          if (slugFromReferrer) return slugFromReferrer
+        }
+      } catch {
+        // Ignore malformed referrer.
+      }
+    }
+
+    return null
+  }
+
   const handleWorkspaceClick = (e: React.MouseEvent) => {
     e.preventDefault()
-    // Prefer live org data, fall back to last visited workspace in localStorage
-    const slug = workspaceSlug ?? getLastWorkspace()
-    router.push(slug ? `/workspace/${slug}` : '/workspace')
+    const slug = getStoredWorkspaceSlug() ?? workspaceSlug
+    router.push(slug ? `/workspace/${slug}/applications` : '/workspace')
+    setIsMobileMenuOpen(false)
   }
 
   useEffect(() => {

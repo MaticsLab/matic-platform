@@ -7,6 +7,7 @@ import (
 
 type Config struct {
 	DatabaseURL            string
+	BetterAuthDatabaseURL  string
 	Port                   string
 	GinMode                string
 	AllowedOrigins         []string
@@ -33,6 +34,7 @@ func LoadConfig() *Config {
 
 	return &Config{
 		DatabaseURL:            os.Getenv("DATABASE_URL"),
+		BetterAuthDatabaseURL:  getEnv("BETTER_AUTH_DATABASE_URL", os.Getenv("DATABASE_URL")),
 		Port:                   getEnv("PORT", "8080"),
 		GinMode:                getEnv("GIN_MODE", "debug"),
 		AllowedOrigins:         origins,

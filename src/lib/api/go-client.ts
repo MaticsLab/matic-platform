@@ -7,6 +7,8 @@
  * Backend is at api.maticsapp.com (same parent domain as frontend)
  * so cookies with domain .maticsapp.com are sent automatically.
  */
+import { getSessionToken } from '@/lib/auth-helpers'
+
 
 // Use local backend in development, production URL otherwise
 const getApiUrl = () => {
@@ -60,15 +62,42 @@ export async function goFetch<T>(
     url += `?${searchParams.toString()}`
   }
 
+  const sessionToken = await getSessionToken()
+  const requestHeaders: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...fetchOptions.headers,
+  }
+
+  // Fallback for cross-domain API hosts (e.g., Railway): attach Better Auth session token.
+  // On localhost/same-host browser requests, prefer cookies to avoid sending compact cookie-cache
+  // tokens as bearer credentials, which backend session-token validation may reject.
+  const shouldAttachBearerToken = (() => {
+    if (!sessionToken || (requestHeaders as Record<string, string>).Authorization) {
+      return false
+    }
+
+    if (typeof window === 'undefined') {
+      return true
+    }
+
+    try {
+      const requestHost = new URL(url).hostname
+      return requestHost !== window.location.hostname
+    } catch {
+      return true
+    }
+  })()
+
+  if (shouldAttachBearerToken) {
+    ;(requestHeaders as Record<string, string>).Authorization = `Bearer ${sessionToken}`
+  }
+
   // Make request with credentials: 'include' to send Better Auth session cookies
   // Cookies with domain .maticsapp.com are sent to api.maticsapp.com automatically
   const response = await fetch(url, {
     ...fetchOptions,
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...fetchOptions.headers,
-    },
+    headers: requestHeaders,
   })
 
   // Handle errors

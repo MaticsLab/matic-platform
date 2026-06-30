@@ -60,13 +60,36 @@ export function getTrustedOrigins(): string[] {
     "http://localhost:3002",
     // Dynamic origins from environment
     ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
-    ...(process.env.NEXT_PUBLIC_SUPABASE_URL ? [process.env.NEXT_PUBLIC_SUPABASE_URL] : []),
     // Vercel preview deployments
     ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
     // Allow subdomains
     "https://*.vercel.app",
     "https://*.maticsapp.com",
   ];
+}
+
+/**
+ * Resolve cookie domain from app URL.
+ *
+ * - For maticsapp.com deployments, use a shared parent domain for subdomain SSO.
+ * - For preview/custom hosts (for example *.up.railway.app), return undefined so
+ *   cookies are host-only and can be persisted correctly.
+ */
+export function getCookieDomain(): string | undefined {
+  if (process.env.NODE_ENV !== "production") {
+    return undefined;
+  }
+
+  try {
+    const hostname = new URL(getBaseURL()).hostname.toLowerCase();
+    if (hostname === "maticsapp.com" || hostname.endsWith(".maticsapp.com")) {
+      return ".maticsapp.com";
+    }
+  } catch {
+    // Fall through to host-only cookies on invalid URL input.
+  }
+
+  return undefined;
 }
 
 /**
@@ -77,8 +100,8 @@ export function validateEnv(): void {
     if (!process.env.BETTER_AUTH_SECRET) {
       console.error('[Better Auth] CRITICAL: BETTER_AUTH_SECRET is not set. Authentication will fail.');
     }
-    if (!process.env.DATABASE_URL) {
-      console.error('[Better Auth] CRITICAL: DATABASE_URL is not set. Authentication will not work.');
+    if (!process.env.BETTER_AUTH_DATABASE_URL && !process.env.DATABASE_URL) {
+      console.error('[Better Auth] CRITICAL: BETTER_AUTH_DATABASE_URL or DATABASE_URL must be set. Authentication will not work.');
     }
   }
 }
@@ -88,13 +111,14 @@ export function validateEnv(): void {
  */
 export function getCookieConfig(cookieName: string) {
   const isProduction = process.env.NODE_ENV === "production";
+  const cookieDomain = getCookieDomain();
   
   return {
     name: cookieName,
     attributes: {
       secure: isProduction,
       sameSite: isProduction ? ("none" as const) : ("lax" as const),
-      domain: isProduction ? ".maticsapp.com" : undefined,
+      domain: cookieDomain,
       path: "/",
       httpOnly: true,
     },

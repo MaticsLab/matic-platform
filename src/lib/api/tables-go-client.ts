@@ -1,6 +1,6 @@
 /**
  * Tables Go API Client
- * Complete replacement for tables-supabase.ts using Go backend
+ * Complete replacement for the legacy tables client using the Go backend.
  */
 
 import { goClient } from './go-client'
@@ -240,8 +240,3 @@ export const tablesGoClient = {
   },
 }
 
-/**
- * Backward compatibility - use tablesGoClient instead
- * @deprecated Use tablesGoClient
- */
-export const tablesSupabaseCompat = tablesGoClient

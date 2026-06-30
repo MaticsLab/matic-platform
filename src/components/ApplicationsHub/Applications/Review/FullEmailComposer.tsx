@@ -10,7 +10,7 @@ import { Button } from '@/ui-components/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui-components/dialog';
 import { EmailNovelEditor } from './EmailNovelEditor';
 import { cn } from '@/lib/utils';
-import type { EditorInstance } from 'novel';
+import type { EditorInstance } from '@/lib/novel';
 
 interface FullEmailComposerProps {
   open: boolean;

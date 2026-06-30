@@ -159,8 +159,8 @@ func GetWorkspaceBySlug(c *gin.Context) {
 		// It's a valid UUID, query by ID
 		query = query.Where("workspaces.id = ?", slugOrID)
 	} else {
-		// It's a slug, query by slug
-		query = query.Where("workspaces.slug = ?", slugOrID)
+		// It's a slug, query case-insensitively so URLs remain stable regardless of casing.
+		query = query.Where("LOWER(workspaces.slug) = LOWER(?)", strings.TrimSpace(slugOrID))
 	}
 
 	if err := query.First(&workspace).Error; err != nil {

@@ -1,5 +1,5 @@
 import { Check, ChevronDown } from "lucide-react";
-import { EditorBubbleItem, useEditor } from "novel";
+import { EditorBubbleItem, useEditor } from "@/lib/novel";
 
 import { Button } from "@/components/novel-editor/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/novel-editor/ui/popover";

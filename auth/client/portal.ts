@@ -7,26 +7,13 @@
  */
 
 import { createAuthClient } from "better-auth/react";
+import { magicLinkClient } from "better-auth/client/plugins";
 
-/**
- * Get the base URL for portal auth requests
- */
-function getPortalAuthBaseURL(): string {
-  if (typeof window !== "undefined") {
-    return window.location.origin;
-  }
-  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-}
-
-/**
- * Portal auth client - simplified version
- * No plugins, just basic email/password authentication
- */
 export const portalAuthClient = createAuthClient({
-  baseURL: getPortalAuthBaseURL(),
   basePath: "/api/portal-auth",
+  plugins: [magicLinkClient()],
   fetchOptions: {
-    credentials: "include", // Include cookies for session
+    credentials: "include",
   },
 });
 

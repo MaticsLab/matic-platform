@@ -3,7 +3,7 @@ import { PopoverContent } from "@/components/novel-editor/ui/popover";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverTrigger } from "@radix-ui/react-popover";
 import { Check, Trash } from "lucide-react";
-import { useEditor } from "novel";
+import { useEditor } from "@/lib/novel";
 import { useEffect, useRef } from "react";
 
 export function isValidUrl(url: string) {

@@ -12,8 +12,11 @@
  */
 
 import { betterAuth } from "better-auth";
+import { nextCookies } from "better-auth/next-js";
+import { magicLink } from "better-auth/plugins";
 import { getPool } from "../lib/database";
-import { getBaseURL, getTrustedOrigins, getCookieConfig } from "../lib/helpers";
+import { getBaseURL, getTrustedOrigins } from "../lib/helpers";
+import { sendMagicLink } from "@/lib/emails/magic-link-email";
 
 /**
  * Create the portal auth configuration
@@ -38,15 +41,25 @@ export function createPortalAuthConfig() {
     secret: process.env.BETTER_AUTH_SECRET,
     database: pool,
     
-    // Email & Password authentication only
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
       autoSignIn: true,
     },
-    
-    // Trusted origins for CORS
     trustedOrigins: getTrustedOrigins(),
+    plugins: [
+      nextCookies(),
+      magicLink({
+        sendMagicLink: async ({ email, url }) => {
+          await sendMagicLink({
+            user: { name: email.split('@')[0], email },
+            url,
+          });
+        },
+        expiresIn: 1200,
+        disableSignUp: false,
+      }),
+    ],
     
     // Custom table names with snake_case column mapping
     user: {
@@ -111,7 +124,7 @@ export function createPortalAuthConfig() {
           },
         },
       },
-      crossSubdomainCookies: {
+      crossSubDomainCookies: {
         enabled: true,
         domain: ".maticsapp.com",
       },

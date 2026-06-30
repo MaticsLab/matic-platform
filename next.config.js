@@ -7,14 +7,14 @@ const nextConfig = {
   // Skip ESLint during builds (run it separately in CI)
   eslint: { ignoreDuringBuilds: true },
   
-  // Enable standalone output for Docker
-  output: 'standalone',
+  // Railway runs directly from the build output, so standalone packaging is unnecessary.
+  // Keeping default output avoids intermittent manifest copy errors during standalone emit.
   
   // Compression
   compress: true,
   
-  // Transpile better-auth and local novel package (ESM)
-  transpilePackages: ['better-auth', 'novel'],
+  // Transpile packages that must be compiled for Next.js
+  transpilePackages: ['better-auth'],
   
   // API proxy to backend (excludes /api/auth which is handled by Better Auth)
   async rewrites() {

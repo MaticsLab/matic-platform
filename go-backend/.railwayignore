@@ -1,0 +1,11 @@
+.git
+.gitignore
+.DS_Store
+.vscode
+.env
+.env.*
+server.log
+main
+matic-platform
+uploads
+*.sqlite

@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
-import { tablesSupabase } from '@/lib/api/tables-supabase'
-import { formsSupabase } from '@/lib/api/forms-supabase'
-import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
+import { tablesGoClient } from '@/lib/api/tables-go-client'
+import { formsClient } from '@/lib/api/forms-client'
+import { workspacesClient } from '@/lib/api/workspaces-client'
 
 export default function DebugPage() {
   const [user, setUser] = useState<any>(null)
@@ -36,7 +35,7 @@ export default function DebugPage() {
         if (currentUser) {
           // Try to fetch workspaces
           try {
-            const workspaceData = await workspacesSupabase.getWorkspacesForUser(currentUser.id)
+            const workspaceData = await workspacesClient.list()
             setWorkspaces(workspaceData)
             
             if (workspaceData.length > 0) {
@@ -44,7 +43,7 @@ export default function DebugPage() {
 
               // Try to fetch tables
               try {
-                const tableData = await tablesSupabase.getTablesByWorkspace(firstWorkspace.id)
+                const tableData = await tablesGoClient.getTablesByWorkspace(firstWorkspace.id)
                 setTables(tableData)
               } catch (err: any) {
                 errorLog.tables = err.message
@@ -52,7 +51,7 @@ export default function DebugPage() {
 
               // Try to fetch forms
               try {
-                const formData = await formsSupabase.getFormsByWorkspace(firstWorkspace.id)
+                const formData = await formsClient.list(firstWorkspace.id)
                 setForms(formData)
               } catch (err: any) {
                 errorLog.forms = err.message
@@ -186,7 +185,6 @@ export default function DebugPage() {
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold mb-4">⚙️ Configuration</h2>
           <div className="space-y-2">
-            <p><strong>Supabase URL:</strong> {process.env.NEXT_PUBLIC_SUPABASE_URL}</p>
             <p><strong>Go API URL:</strong> {process.env.NEXT_PUBLIC_GO_API_URL || 'Not configured'}</p>
           </div>
         </div>

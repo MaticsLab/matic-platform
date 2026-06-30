@@ -6,8 +6,8 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
 import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
 import { BreadcrumbBar } from '@/components/BreadcrumbBar'
-import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
-import type { Workspace } from '@/types/workspaces'
+import { workspacesClient } from '@/lib/api/workspaces-client'
+import type { Workspace } from '@/lib/api/workspaces-client'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
 import { ApplicantCRMPage } from '@/components/CRM/ApplicantCRMPage'
 
@@ -26,7 +26,7 @@ function CRMPageContent() {
   async function loadWorkspace() {
     try {
       setLoading(true)
-      const ws = await workspacesSupabase.getWorkspaceBySlug(slug)
+      const ws = await workspacesClient.getBySlug(slug)
       if (!ws) throw new Error('Workspace not found')
       setWorkspace(ws)
     } catch (err: any) {

@@ -50,7 +50,7 @@ import { QuickReminderPanel } from '../QuickReminderPanel';
 import { FullEmailComposer } from '../FullEmailComposer';
 import { EmailNovelEditor } from '../EmailNovelEditor';
 import { EmailAIComposer } from '../EmailAIComposer';
-import type { EditorInstance } from 'novel';
+import type { EditorInstance } from '@/lib/novel';
 
 // Icon mapping for actions
 const actionIcons: Record<string, React.ReactNode> = {

@@ -11,6 +11,7 @@ import (
 )
 
 var DB *gorm.DB
+var AuthDB *gorm.DB
 
 func InitDB(databaseURL string) error {
 	var err error
@@ -36,6 +37,30 @@ func InitDB(databaseURL string) error {
 	sqlDB.SetMaxOpenConns(10)
 
 	log.Println("✅ Database connected successfully")
+	return nil
+}
+
+func InitAuthDB(databaseURL string) error {
+	if databaseURL == "" {
+		return fmt.Errorf("better auth database URL is empty")
+	}
+
+	config := &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)}
+
+	var err error
+	AuthDB, err = gorm.Open(postgres.Open(databaseURL), config)
+	if err != nil {
+		return fmt.Errorf("failed to connect to better auth database: %w", err)
+	}
+
+	sqlDB, err := AuthDB.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get better auth database instance: %w", err)
+	}
+
+	sqlDB.SetMaxIdleConns(2)
+	sqlDB.SetMaxOpenConns(5)
+	log.Println("✅ Better Auth database connected successfully")
 	return nil
 }
 

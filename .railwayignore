@@ -1,0 +1,7 @@
+.claude/
+.agents/
+.github/skills/
+.git/
+.vscode/
+node_modules/
+tsconfig.tsbuildinfo

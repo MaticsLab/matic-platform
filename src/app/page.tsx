@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Navigation } from '@/components/shared/Navigation'
 import { Footer } from '@/components/shared/Footer'
+import { ScrollNarrative } from '@/components/landing/ScrollNarrative'
+import { ScrollFeatures } from '@/components/landing/ScrollFeatures'
 import { ArrowRight } from 'lucide-react'
 
 // ============================================================================
@@ -214,109 +216,53 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Problem Section ── */}
-      <section className="px-6 md:px-12 lg:px-24 py-32 md:py-44">
-        <div className="max-w-4xl">
-          <p className="text-gray-500 text-lg md:text-xl leading-relaxed max-w-2xl">
-            You&apos;re doing important work. Real work. And somehow it still
-            lives in a Google Sheet.
-          </p>
-          <h2 className="mt-12 font-serif text-3xl md:text-5xl lg:text-6xl leading-[1.1] tracking-tight text-gray-900">
-            You didn&apos;t sign up to manage
-            <br />
-            spreadsheets, email chains,
-            <br />
-            and good intentions.
-          </h2>
-          <p className="mt-10 text-lg md:text-xl text-gray-500 max-w-2xl leading-relaxed">
-            You need one tool that actually keeps up with you. Not five that
-            slow you down.
-          </p>
-        </div>
-      </section>
+      {/* ── Problem Section — scroll-driven narrative ── */}
+      <ScrollNarrative />
 
-      {/* ── Feature Header + Rows ── */}
-      <section id="features" className="px-6 md:px-12 lg:px-24 py-32 md:py-44">
-        <div className="max-w-6xl">
-          <div className="mb-20 max-w-2xl">
-            <h2 className="font-serif text-3xl md:text-5xl lg:text-6xl leading-[1.1] tracking-tight text-gray-900">
-              We built this for
-              <br />
-              people like you.
-            </h2>
-          </div>
-
-          <div className="space-y-24 md:space-y-32">
-            {/* Row 1 — Forms */}
-            <div className="grid md:grid-cols-2 gap-8 md:gap-16 items-start">
-              <h3 className="font-serif text-2xl md:text-4xl tracking-tight leading-snug text-gray-900">
-                Forms that work as
-                <br />
-                hard as you do.
-              </h3>
-              <p className="text-gray-500 text-base md:text-lg leading-relaxed md:pt-2">
-                Conditional logic. File uploads. Field validation. Set it up
-                once, and let it run. Every response lands exactly where you
-                need it.
-              </p>
-            </div>
-
-            {/* Row 2 — Tables */}
-            <div className="grid md:grid-cols-2 gap-8 md:gap-16 items-start">
-              <h3 className="font-serif text-2xl md:text-4xl tracking-tight leading-snug text-gray-900">
-                One table.
-                <br />
-                Not twelve tabs.
-              </h3>
-              <p className="text-gray-500 text-base md:text-lg leading-relaxed md:pt-2">
-                Your data is already there. Matics just puts it somewhere you
-                can actually use it.
-              </p>
-            </div>
-
-            {/* Row 3 — Reviews */}
-            <div className="grid md:grid-cols-2 gap-8 md:gap-16 items-start">
-              <h3 className="font-serif text-2xl md:text-4xl tracking-tight leading-snug text-gray-900">
-                Reviews without
-                <br />
-                the chaos.
-              </h3>
-              <p className="text-gray-500 text-base md:text-lg leading-relaxed md:pt-2">
-                Set it up once, run it every cycle. Your reviewers know what
-                to do. No more chasing anyone through email.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* ── Features — scroll-driven ── */}
+      <ScrollFeatures />
 
       {/* ── Portal illustration ── */}
-      <section className="px-6 md:px-12 lg:px-24 py-8">
-        <div className="relative w-full rounded-3xl overflow-hidden" style={{ minHeight: '420px' }}>
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-200 via-orange-200 to-rose-300" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.3)_0%,_transparent_50%)]" />
-          <div className="absolute inset-0 opacity-[0.03]" style={{
-            backgroundImage: 'radial-gradient(circle, #000 1px, transparent 1px)',
-            backgroundSize: '12px 12px',
-          }} />
+      <section className="bg-white">
+        {/* Heading */}
+        <div className="px-6 md:px-16 lg:px-24 py-6 flex items-center justify-center">
+          <p className="text-center text-lg md:text-xl font-bold text-gray-900 leading-snug">
+            Give your users a place that feels like it was made for them.
+          </p>
+        </div>
 
-          <div className="relative z-10 flex items-center p-8 md:p-16" style={{ minHeight: '420px' }}>
-            <div className="bg-white/50 backdrop-blur-xl rounded-2xl border border-white/40 shadow-xl p-8 md:p-10 max-w-md">
-              <p className="text-sm text-gray-500 uppercase tracking-[0.2em] mb-4 font-medium">Applicant Portal</p>
-              <h3 className="font-serif text-2xl md:text-3xl leading-snug text-gray-900 mb-4">
-                Give your people a place
-                <br />
-                that feels like it was
-                <br />
-                made for them.
-              </h3>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                They sign in, check their status, and get what they need —
-                without pinging you every five minutes.
-              </p>
+        {/* Divider below heading */}
+        <div className="w-full h-px bg-gray-200" />
+
+        {/* Card with pixel-art background + screenshot */}
+        <div className="px-6 md:px-16 lg:px-24 py-6 md:py-8">
+          <div className="relative w-full rounded-3xl overflow-hidden" style={{ minHeight: 480 }}>
+            {/* Background — same SVG as section 3 */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/hero/section3-bg.svg"
+              alt=""
+              aria-hidden
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+
+            {/* Screenshot centred inside */}
+            <div className="relative z-10 flex items-center justify-center px-8 md:px-16 py-10">
+              <div className="w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl">
+                <Image
+                  src="/hero/section4.png"
+                  alt="Applicant portal — The Logan Scholarship login screen"
+                  width={1400}
+                  height={900}
+                  className="w-full h-auto"
+                />
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Divider below section */}
+        <div className="w-full h-px bg-gray-200" />
       </section>
 
       {/* ── Statement slide — large centered serif ── */}

@@ -17,7 +17,7 @@ import {
   handleCommandNavigation,
   handleImagePaste,
   handleImageDrop,
-} from 'novel'
+} from '@/lib/novel'
 import { useEffect, useRef, useState } from 'react'
 import { useDebouncedCallback } from 'use-debounce'
 import { defaultExtensions } from '@/components/novel-editor/extensions'

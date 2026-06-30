@@ -147,6 +147,17 @@ export function saveLastWorkspace(workspaceSlug: string) {
 export function getLastWorkspace(): string | null {
   if (typeof window === 'undefined') return null
   try {
+    const modernValue = localStorage.getItem('lastWorkspace')
+    if (modernValue) {
+      try {
+        const parsed = JSON.parse(modernValue) as { slug?: string } | string
+        if (typeof parsed === 'string' && parsed.trim()) return parsed.trim()
+        if (typeof parsed === 'object' && parsed?.slug) return parsed.slug
+      } catch {
+        if (modernValue.trim()) return modernValue.trim()
+      }
+    }
+
     return localStorage.getItem(LAST_WORKSPACE_KEY)
   } catch (error) {
     console.error('Failed to get last workspace:', error)

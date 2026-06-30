@@ -11,13 +11,18 @@ type ReviewWorkspaceCache = {
 const getCachedReviewWorkspace = (formId: string, workspaceId: string): ReviewWorkspaceCache | null => null;
 const setCachedReviewWorkspace = (formId: string, workspaceId: string, data: ReviewWorkspaceCache) => {};
 
-import { 
-  fetchReviewWorkspaceDataDirect,
-  fetchSubmissionsDirect,
-  DirectSubmission 
-} from '@/lib/api/supabase-direct'
 import { formsClient } from '@/lib/api/forms-client'
 import { RealtimeApplication } from './useApplicationsRealtime'
+
+type DirectSubmission = {
+  id: string
+  form_id: string
+  data?: Record<string, unknown>
+  metadata?: Record<string, unknown>
+  created_at: string
+  submitted_at?: string | null
+  updated_at?: string
+}
 
 interface UseOptimisticReviewDataOptions {
   formId: string | null
@@ -27,7 +32,7 @@ interface UseOptimisticReviewDataOptions {
 
 interface ReviewDataState {
   form: any | null
-  submissions: DirectSubmission[]
+  submissions: any[]
   isFromCache: boolean
   isFetching: boolean
   error: Error | null
@@ -86,25 +91,9 @@ export function useOptimisticReviewData({
     setState(prev => ({ ...prev, isFetching: true }))
     
     try {
-      // Phase 2: Fast path - direct Supabase queries for submissions
-      // This is much faster than going through Go backend
-      console.log('⚡ Phase 2: Fetching submissions directly from Supabase')
-      
-      const directData = await fetchReviewWorkspaceDataDirect(formId, workspaceId)
-      
-      if (!mountedRef.current) return
-      
-      // Update with direct data first (this is fast)
-      setState(prev => ({
-        ...prev,
-        form: directData.form,
-        submissions: directData.submissions,
-        isFromCache: false,
-      }))
-      
-      // Phase 3: Complete data from Go backend (for complex joins)
-      console.log('🔄 Phase 3: Fetching complete data from Go backend')
-      
+      // Load fresh data from the Go backend
+      console.log('🔄 Fetching review workspace data from Go backend')
+
       const [form, submissions] = await Promise.all([
         formsClient.get(formId),
         formsClient.getSubmissions(formId)
@@ -116,7 +105,7 @@ export function useOptimisticReviewData({
       setState(prev => ({
         ...prev,
         form: form,
-        submissions: submissions as DirectSubmission[],
+        submissions: submissions as any[],
         isFromCache: false,
         isFetching: false,
       }))
@@ -200,10 +189,10 @@ export function useOptimisticReviewData({
     if (!formId) return
     
     try {
-      const submissions = await fetchSubmissionsDirect(formId)
+      const submissions = await formsClient.getSubmissions(formId)
       setState(prev => ({
         ...prev,
-        submissions,
+        submissions: submissions as any[],
       }))
     } catch (error) {
       console.error('Failed to refresh submissions:', error)

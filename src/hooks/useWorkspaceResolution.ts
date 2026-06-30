@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/auth/client/main'
-import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
+import { workspacesClient } from '@/lib/api/workspaces-client'
 
 interface WorkspaceInfo {
   id: string
@@ -65,7 +65,7 @@ export function useWorkspaceResolution() {
     if (!session?.user?.id) return null
 
     try {
-      const workspaces = await workspacesSupabase.getWorkspacesForUser(session.user.id)
+      const workspaces = await workspacesClient.list()
       if (workspaces && workspaces.length > 0) {
         const first = workspaces[0]
         return {

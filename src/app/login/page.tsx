@@ -17,11 +17,11 @@ function LoginContent() {
   const { data, isPending } = useSession()
 
   useEffect(() => {
-    console.log('[Login] Session check:', { isPending, hasSession: !!data?.session, hasUser: !!data?.user, data, redirectPath })
+    console.log('[Login] Session check:', { isPending, hasSession: !!data?.session, hasUser: !!data?.user, redirectPath })
 
-    // Wait for session to load
+    // Wait for session to load - be patient, sometimes it takes a moment
     if (isPending) {
-      console.log('[Login] Still pending, waiting...')
+      console.log('[Login] Session still loading, waiting...')
       return
     }
 
@@ -38,7 +38,29 @@ function LoginContent() {
     }
 
     if (session && user) {
-      console.log('[Login] User logged in:', { userType: (user as any)?.userType || (user as any)?.user_type })
+      console.log('[Login] User authenticated:', { 
+        userId: user.id, 
+        email: user.email,
+        userType: (user as any)?.userType || (user as any)?.user_type 
+      })
+
+      // If user navigated back to /login without a redirect query,
+      // prefer returning to the last in-app page instead of forcing home.
+      if (!redirectPath && typeof window !== 'undefined' && document.referrer) {
+        try {
+          const referrerUrl = new URL(document.referrer)
+          if (referrerUrl.origin === window.location.origin) {
+            const referrerPath = `${referrerUrl.pathname}${referrerUrl.search}`
+            if (!referrerPath.startsWith('/login') && !referrerPath.startsWith('/auth')) {
+              console.log('[Login] Using in-app referrer fallback:', referrerPath)
+              router.replace(referrerPath)
+              return
+            }
+          }
+        } catch {
+          // Ignore malformed referrer and continue with existing redirect logic.
+        }
+      }
       
       // Get user type from session
       const userType = (user as any)?.userType || (user as any)?.user_type
@@ -57,31 +79,42 @@ function LoginContent() {
         if (lastWorkspace) {
           try {
             const workspace = JSON.parse(lastWorkspace)
+            console.log('[Login] Redirecting to last workspace:', workspace.slug)
             router.replace(`/workspace/${workspace.slug}/applications`)
             return
           } catch (e) {
+            console.log('[Login] Redirecting to last workspace:', lastWorkspace)
             router.replace(`/workspace/${lastWorkspace}/applications`)
             return
           }
         }
-        // No last workspace - go to home which will handle discovery
-        router.replace('/')
+        // No last workspace - use workspace root resolver instead of sending user home
+        console.log('[Login] No last workspace, going to workspace resolver')
+        router.replace('/workspace')
         return
       } else if (userType === 'applicant') {
-        // For applicants without a redirect path, go to root
-        // The subdomain routing will handle showing the correct application
-        console.log('[Login] Applicant without redirect path, going to root')
-        router.replace('/')
+        // Avoid forcing home so back navigation does not bounce users away.
+        console.log('[Login] Applicant user, going to workspace resolver')
+        router.replace('/workspace')
         return
       }
 
       // Default: if we have a session but no user type, go home
-      console.log('[Login] No user type, going home')
-      router.replace('/')
+      console.log('[Login] Session exists but no user type, going to workspace resolver')
+      router.replace('/workspace')
     } else {
-      // No session AND no redirect path - go to auth page
-      console.log('[Login] No session and no redirect path, redirecting to auth')
-      router.replace('/auth?mode=login')
+      // No session after loading completed
+      // This might happen if Better Auth cookie hasn't propagated yet
+      // Give it a moment and try one refresh before giving up
+      console.warn('[Login] No session found after auth. Waiting 1 second for cookie propagation...')
+      
+      setTimeout(() => {
+        // Check one more time
+        if (!data?.session) {
+          console.error('[Login] Still no session after wait. Redirecting to auth page.')
+          router.replace('/auth')
+        }
+      }, 1000)
     }
   }, [data, isPending, router, redirectPath])
 

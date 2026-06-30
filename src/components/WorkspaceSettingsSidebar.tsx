@@ -46,7 +46,6 @@ import {
   Plug
 } from 'lucide-react'
 import { workspacesClient } from '@/lib/api/workspaces-client'
-import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { adminClient, type AuthUser } from '@/lib/api/admin-client'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -226,7 +225,7 @@ export function WorkspaceSettingsSidebar({ isOpen, onClose, workspace, onUpdate 
         logo_url: logoUrl || undefined,
       }
 
-      await workspacesSupabase.updateWorkspace(workspace.id, basicUpdates)
+      await workspacesClient.update(workspace.id, basicUpdates)
 
       if (customSubdomain !== ((workspace as any).custom_subdomain || '')) {
         try {

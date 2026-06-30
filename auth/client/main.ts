@@ -9,22 +9,7 @@
 import { createAuthClient } from "better-auth/react";
 import { organizationClient, multiSessionClient, magicLinkClient } from "better-auth/client/plugins";
 
-/**
- * Get the base URL for auth requests
- */
-function getAuthBaseURL(): string {
-  if (typeof window !== "undefined") {
-    return window.location.origin;
-  }
-  return process.env.NEXT_PUBLIC_APP_URL || 'https://www.maticsapp.com';
-}
-
-/**
- * Main platform auth client
- * Includes all plugins: organization, multiSession, magicLink
- */
 export const authClient = createAuthClient({
-  baseURL: getAuthBaseURL(),
   basePath: "/api/auth",
   plugins: [
     organizationClient(),
@@ -32,7 +17,7 @@ export const authClient = createAuthClient({
     magicLinkClient(),
   ],
   fetchOptions: {
-    // Handle rate limit errors gracefully
+    credentials: "include",
     onError: async (context) => {
       const { response } = context;
       if (response.status === 429) {
@@ -43,7 +28,6 @@ export const authClient = createAuthClient({
   },
 });
 
-// Export commonly used hooks and methods
 export const {
   signIn,
   signUp,

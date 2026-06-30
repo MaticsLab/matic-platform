@@ -20,7 +20,7 @@ import {
   UpdatedImage,
   UploadImagesPlugin,
   Youtube,
-} from "novel";
+} from "@/lib/novel";
 
 import { Markdown } from "tiptap-markdown";
 import { cx } from "class-variance-authority";

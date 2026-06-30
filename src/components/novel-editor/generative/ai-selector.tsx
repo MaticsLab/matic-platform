@@ -4,8 +4,8 @@ import { Command, CommandInput } from "@/components/novel-editor/ui/command";
 
 import { useCompletion } from "@ai-sdk/react";
 import { ArrowUp } from "lucide-react";
-import { useEditor } from "novel";
-import { addAIHighlight } from "novel";
+import { useEditor } from "@/lib/novel";
+import { addAIHighlight } from "@/lib/novel";
 import { useState } from "react";
 import Markdown from "react-markdown";
 import { toast } from "sonner";

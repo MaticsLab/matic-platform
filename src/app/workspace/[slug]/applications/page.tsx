@@ -7,8 +7,9 @@ import { NavigationLayout } from '@/components/NavigationLayout'
 import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
 import { BreadcrumbBar } from '@/components/BreadcrumbBar'
 import { ApplicationsHub } from '@/components/ApplicationsHub/ApplicationsHub'
-import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
-import type { Workspace } from '@/types/workspaces'
+import { workspacesClient } from '@/lib/api/workspaces-client'
+import { saveLastWorkspace } from '@/lib/utils'
+import type { Workspace } from '@/lib/api/workspaces-client'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
 
 function ApplicationsPageContent() {
@@ -18,12 +19,20 @@ function ApplicationsPageContent() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!slug || typeof window === 'undefined') return
+
+    // Persist slug immediately so top-level CTA can route correctly even if data fetch is slow.
+    saveLastWorkspace(slug)
+    localStorage.setItem('lastWorkspace', JSON.stringify({ slug }))
+  }, [slug])
+
+  useEffect(() => {
     async function loadWorkspace() {
       if (!slug) return
 
       try {
         setLoading(true)
-        const ws = await workspacesSupabase.getWorkspaceBySlug(slug)
+        const ws = await workspacesClient.getBySlug(slug)
         if (!ws) throw new Error('Workspace not found')
         setWorkspace(ws)
       } catch (error) {

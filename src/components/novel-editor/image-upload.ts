@@ -1,4 +1,4 @@
-import { createImageUpload } from "novel";
+import { createImageUpload } from "@/lib/novel";
 import { toast } from "sonner";
 
 const onUpload = (file: File) => {

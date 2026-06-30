@@ -58,7 +58,7 @@ type OrganizationMember struct {
 	//   "can_manage_billing": false,
 	//   "can_invite_members": true
 	// }
-	Permissions datatypes.JSON `gorm:"type:jsonb;default:'{}" json:"permissions"`
+	Permissions datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"permissions"`
 	JoinedAt    time.Time      `gorm:"autoCreateTime" json:"joined_at"`
 	UpdatedAt   time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -107,7 +107,7 @@ type WorkspaceMember struct {
 	//   "can_manage_members": false,
 	//   "can_export_data": true
 	// }
-	Permissions datatypes.JSON `gorm:"type:jsonb;default:'{}" json:"permissions"`
+	Permissions datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"permissions"`
 
 	// Invitation fields
 	Status          string     `gorm:"type:varchar(20);default:'active'" json:"status"` // pending, active, declined, expired
@@ -123,7 +123,7 @@ type WorkspaceMember struct {
 
 	// Relations
 	Workspace Workspace       `gorm:"foreignKey:WorkspaceID" json:"workspace,omitempty"`
-	BAUser    *BetterAuthUser `gorm:"foreignKey:BAUserID;references:ID" json:"ba_user,omitempty"` // Better Auth user relationship
+	BAUser    *BetterAuthUser `gorm:"-:migration;foreignKey:BAUserID;references:ID" json:"ba_user,omitempty"` // Better Auth user relationship
 
 	// Virtual fields populated from joins
 	Email        string `gorm:"-" json:"email,omitempty"`         // From auth.users

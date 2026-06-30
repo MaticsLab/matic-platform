@@ -9,20 +9,20 @@
  */
 
 import { betterAuth } from "better-auth";
+import { nextCookies } from "better-auth/next-js";
 import { organization, multiSession, magicLink } from "better-auth/plugins";
 import { getPool } from "../lib/database";
-import { getBaseURL, getTrustedOrigins, getCookieConfig } from "../lib/helpers";
+import { getBaseURL, getTrustedOrigins, getCookieConfig, getCookieDomain } from "../lib/helpers";
 import { sendPasswordResetEmail } from "@/lib/emails/password-reset-email";
 import { sendMagicLink } from "@/lib/emails/magic-link-email";
 import { sendOrganizationInviteEmail } from "@/lib/emails/organization-invite-email";
-import type { UserForReset } from "../types";
-
 /**
  * Create the main platform auth configuration
  * This contains all plugins: organization, multiSession, magicLink
  */
 export function createMainAuthConfig() {
   const pool = getPool();
+  const cookieDomain = getCookieDomain();
   
   if (!pool) {
     throw new Error('[Better Auth] Cannot create auth: database pool unavailable');
@@ -32,37 +32,27 @@ export function createMainAuthConfig() {
     throw new Error('[Better Auth] BETTER_AUTH_SECRET not set');
   }
   
-  const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_URL || 'https://maticsapp.com';
-  
   return betterAuth({
-    // Core configuration
     appName: "Matic Platform",
     baseURL: getBaseURL(),
     basePath: "/api/auth",
     secret: process.env.BETTER_AUTH_SECRET,
     database: pool,
-    
-    // Email & Password authentication with reset functionality
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
       autoSignIn: true,
-      
-      sendResetPassword: async ({ user, url, request }: { user: UserForReset; url: string; request?: Request }) => {
+      sendResetPassword: async ({ user, url }) => {
         await sendPasswordResetEmail({ 
           user: { 
-            email: user.email, 
-            name: user.name || user.email.split('@')[0] 
+            email: user.email ?? "",
+            name: user.name || user.email?.split('@')[0] || "User"
           }, 
           url 
         });
       },
     },
-    
-    // Trusted origins for CORS
     trustedOrigins: getTrustedOrigins(),
-    
-    // Social providers (optional)
     socialProviders: {
       google: {
         clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -70,10 +60,8 @@ export function createMainAuthConfig() {
         enabled: !!process.env.GOOGLE_CLIENT_ID,
       }
     },
-    
-    // Plugins
     plugins: [
-      // Organization plugin for multi-tenant support
+      nextCookies(),
       organization({
         allowUserToCreateOrganization: true,
         creatorRole: "owner",
@@ -117,16 +105,11 @@ export function createMainAuthConfig() {
           },
         },
       }),
-      
-      // Multi-session support
       multiSession({
         maximumSessions: 5,
       }),
-      
-      // Magic Link plugin
       magicLink({
         sendMagicLink: async ({ email, url, token }, ctx) => {
-          // Try to extract portal/form settings from the URL if available
           let portalSettings: any = undefined;
           
           try {
@@ -166,8 +149,6 @@ export function createMainAuthConfig() {
         disableSignUp: false,
       }),
     ],
-    
-    // Custom table names with snake_case column mapping
     user: {
       modelName: "ba_users",
       fields: {
@@ -176,19 +157,6 @@ export function createMainAuthConfig() {
         updatedAt: "updated_at",
       },
       additionalFields: {
-        supabaseUserId: {
-          type: "string" as const,
-          required: false,
-          input: false,
-          fieldName: "supabase_user_id",
-        },
-        migratedFromSupabase: {
-          type: "boolean" as const,
-          required: false,
-          defaultValue: false,
-          input: false,
-          fieldName: "migrated_from_supabase",
-        },
         fullName: {
           type: "string" as const,
           required: false,
@@ -208,7 +176,6 @@ export function createMainAuthConfig() {
         },
       },
     },
-    
     session: {
       modelName: "ba_sessions",
       expiresIn: 60 * 60 * 24 * 7, // 7 days
@@ -228,7 +195,6 @@ export function createMainAuthConfig() {
         updatedAt: "updated_at",
       },
     },
-    
     account: {
       modelName: "ba_accounts",
       fields: {
@@ -244,7 +210,6 @@ export function createMainAuthConfig() {
         updatedAt: "updated_at",
       },
     },
-    
     verification: {
       modelName: "ba_verifications",
       fields: {
@@ -253,26 +218,22 @@ export function createMainAuthConfig() {
         updatedAt: "updated_at",
       },
     },
-    
-    // Advanced cookie configuration
     advanced: {
       cookies: {
         sessionToken: getCookieConfig("better-auth.session_token"),
       },
-      crossSubdomainCookies: {
-        enabled: true,
-        domain: ".maticsapp.com",
+      crossSubDomainCookies: {
+        enabled: !!cookieDomain,
+        domain: cookieDomain,
       },
       defaultCookieAttributes: {
         sameSite: process.env.NODE_ENV === "production" ? ("none" as const) : ("lax" as const),
         secure: process.env.NODE_ENV === "production",
         httpOnly: true,
         path: "/",
-        domain: process.env.NODE_ENV === "production" ? ".maticsapp.com" : undefined,
+        domain: cookieDomain,
       },
     },
-    
-    // Rate limiting
     rateLimit: {
       enabled: true,
       window: 60,

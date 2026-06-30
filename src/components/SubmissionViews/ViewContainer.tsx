@@ -8,9 +8,9 @@ import { KanbanView } from './KanbanView';
 import { CalendarView } from './CalendarView';
 import { GalleryView } from './GalleryView';
 import { ViewType, Submission, FormField, FilterConfig } from './types';
-import { goClient } from '@/lib/api/go-client';
 import { reviewExportClient } from '@/lib/api/review-export-client';
-import { fetchFormBasicDirect, fetchSubmissionsWithResponsesDirect } from '@/lib/api/supabase-direct';
+import { formsClient } from '@/lib/api/forms-client';
+import { goClient } from '@/lib/api/go-client';
 
 interface ViewContainerProps {
   workspaceId: string;
@@ -45,19 +45,20 @@ export function ViewContainer({
   const loadData = async () => {
     setIsLoading(true);
     try {
-      console.log('🔥 Using DIRECT SUPABASE queries for Review Workspace')
-      
-      // Load form and submissions in parallel - DIRECTLY from Supabase
-      const [formData, submissionsData] = await Promise.all([
-        fetchFormBasicDirect(formId),
-        fetchSubmissionsWithResponsesDirect(formId),
-      ]);
+      console.log('🔄 Loading review workspace data from Go backend')
 
-      console.log('✅ Loaded form and submissions (DIRECT):', {
+      // Load form and submissions in parallel through the Go backend
+      const [formData, submissionsData] = await Promise.all([
+        formsClient.get(formId),
+        formsClient.getSubmissions(formId),
+      ]);
+      const submissionsArray = Array.isArray(submissionsData) ? submissionsData : [];
+
+      console.log('✅ Loaded form and submissions:', {
         formName: formData?.name,
         formId: formData?.id,
-        fieldsCount: (formData?.fields || []).length,
-        submissionsCount: submissionsData?.length || 0
+        fieldsCount: (((formData as any)?.fields) || []).length,
+        submissionsCount: submissionsArray.length
       });
 
       if (!formData) {
@@ -67,7 +68,7 @@ export function ViewContainer({
       }
 
       // Extract fields from form
-      const formFields = formData.fields || [];
+      const formFields = ((formData as any)?.fields) || [];
       
       const transformedFields: FormField[] = formFields.map((field: any) => ({
         id: field.id,
@@ -84,10 +85,9 @@ export function ViewContainer({
 
       // Transform submissions
       const transformedSubmissions: Submission[] = (
-        (submissionsData as any[]) || []
+        submissionsArray as any[]
       ).map((sub: any) => {
-        // Direct Supabase query returns 'data' as an object with field IDs as keys
-        const rawData = sub.data || {};
+        const rawData = sub.data || sub.raw_data || {};
 
         // Use applicant info from query (already extracted from ba_user)
         let name = sub.applicant_name || '';

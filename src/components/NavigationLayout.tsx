@@ -13,7 +13,7 @@ import { InviteToWorkspaceSidebarV2 } from './InviteToWorkspaceSidebarV2'
 import { WorkspaceSettingsPanel } from './WorkspaceSettingsPanel'
 import { UpdatePasswordDialog } from './UpdatePasswordDialog'
 import { ApiKeyDialog } from './ApiKeyDialog'
-import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
+import { workspacesClient } from '@/lib/api/workspaces-client'
 import { toast } from 'sonner'
 import type { Workspace } from '@/types/workspaces'
 import { SearchProvider, SearchPanel } from './Search'
@@ -72,8 +72,13 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
     if (!currentWorkspace) return
     
     try {
-      const workspace = await workspacesSupabase.getWorkspaceById(currentWorkspace.id)
-      setFullWorkspace(workspace)
+      const workspace = await workspacesClient.get(currentWorkspace.id)
+      const normalizedWorkspace: Workspace = {
+        ...workspace,
+        settings: workspace.settings ?? {},
+        is_archived: workspace.is_archived ?? false,
+      }
+      setFullWorkspace(normalizedWorkspace)
       setShowSettingsModal(true)
     } catch (error) {
       console.error('Error fetching workspace:', error)

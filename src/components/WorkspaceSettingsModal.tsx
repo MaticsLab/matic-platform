@@ -7,7 +7,6 @@ import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { Upload, Palette, X, Globe, AlertCircle, Check } from 'lucide-react'
 import { workspacesClient } from '@/lib/api/workspaces-client'
-import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import type { Workspace } from '@/types/workspaces'
@@ -194,7 +193,7 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspace, onUpdate }:
         logo_url: logoUrl || undefined,
       }
 
-      await workspacesSupabase.updateWorkspace(workspace.id, basicUpdates)
+      await workspacesClient.update(workspace.id, basicUpdates)
 
       // Then update subdomain via Go backend (for proper validation)
       if (customSubdomain !== ((workspace as any).custom_subdomain || '')) {

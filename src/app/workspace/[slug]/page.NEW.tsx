@@ -6,9 +6,9 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
 import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
 import { BreadcrumbBar } from '@/components/BreadcrumbBar'
-import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
+import { workspacesClient } from '@/lib/api/workspaces-client'
 import { saveLastWorkspace } from '@/lib/utils'
-import type { Workspace } from '@/types/workspaces'
+import type { Workspace } from '@/lib/api/workspaces-client'
 import { toast } from 'sonner'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
 
@@ -29,7 +29,7 @@ function WorkspacePageContent() {
     try {
       setLoading(true)
       setError(null)
-      const data = await workspacesSupabase.getWorkspaceBySlug(slug)
+      const data = await workspacesClient.getBySlug(slug)
 
       if (!data) {
         throw new Error('Workspace not found')
