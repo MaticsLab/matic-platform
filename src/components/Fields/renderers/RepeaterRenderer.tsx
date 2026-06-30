@@ -127,7 +127,7 @@ export function RepeaterRenderer(props: FieldRendererProps): React.ReactElement 
   if (mode === 'display' || mode === 'compact') {
     if (items.length === 0) {
       return (
-        <span className={cn('text-gray-400 text-sm', className)}>
+        <span className={cn('text-gray-400 dark:text-gray-500 text-sm', className)}>
           {mode === 'compact' ? '—' : 'No items'}
         </span>
       );
@@ -136,7 +136,7 @@ export function RepeaterRenderer(props: FieldRendererProps): React.ReactElement 
     if (mode === 'compact') {
       return (
         <div className={cn('flex items-center gap-1', className)}>
-          <List size={14} className="text-gray-400" />
+          <List size={14} className="text-gray-400 dark:text-gray-500" />
           <span className="text-sm">{items.length} {itemLabel}{items.length !== 1 ? 's' : ''}</span>
         </div>
       );
@@ -145,15 +145,15 @@ export function RepeaterRenderer(props: FieldRendererProps): React.ReactElement 
     return (
       <div className={cn('space-y-2', className)}>
         {items.map((item, index) => (
-          <div key={item.id || index} className="border rounded-md p-3 bg-gray-50">
-            <div className="font-medium text-sm text-gray-700 mb-2">
+          <div key={item.id || index} className="border border-gray-200 dark:border-gray-700 rounded-md p-3 bg-gray-50 dark:bg-gray-900">
+            <div className="font-medium text-sm text-gray-700 dark:text-gray-300 mb-2">
               {getItemSummary(item, index)}
             </div>
             <div className="space-y-1">
               {childFields.map((cf) => (
                 <div key={cf.id || cf.name} className="flex gap-2 text-sm">
-                  <span className="text-gray-500">{cf.label}:</span>
-                  <span className="text-gray-900">
+                  <span className="text-gray-500 dark:text-gray-400">{cf.label}:</span>
+                  <span className="text-gray-900 dark:text-white">
                     {item[cf.name] !== null && item[cf.name] !== undefined 
                       ? String(item[cf.name]) 
                       : '—'}
@@ -171,7 +171,7 @@ export function RepeaterRenderer(props: FieldRendererProps): React.ReactElement 
   if (mode === 'edit') {
     return (
       <div className={cn('space-y-2', className)}>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <List size={14} />
           <span>{items.length} {itemLabel}{items.length !== 1 ? 's' : ''}</span>
         </div>
@@ -206,13 +206,13 @@ export function RepeaterRenderer(props: FieldRendererProps): React.ReactElement 
         </div>
         
         {description && (
-          <p className="text-sm text-gray-500">{description}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
         )}
         
         {items.length === 0 ? (
-          <div className="border-2 border-dashed rounded-lg p-6 text-center">
-            <List className="mx-auto h-8 w-8 text-gray-300 mb-2" />
-            <p className="text-sm text-gray-500">No items yet</p>
+          <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center bg-gray-50 dark:bg-gray-900">
+            <List className="mx-auto h-8 w-8 text-gray-300 dark:text-gray-600 mb-2" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">No items yet</p>
             {!disabled && (
               <Button
                 type="button"
@@ -234,20 +234,20 @@ export function RepeaterRenderer(props: FieldRendererProps): React.ReactElement 
               return (
                 <div
                   key={item.id || index}
-                  className="border rounded-lg overflow-hidden"
+                  className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
                 >
                   {/* Item header */}
                   <div className={cn(
-                    'flex items-center gap-2 px-3 py-2 bg-gray-50',
+                    'flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-900',
                     collapsible && 'cursor-pointer'
                   )}
                   onClick={() => collapsible && toggleExpand(index)}
                   >
                     {allowReorder && (
-                      <GripVertical size={16} className="text-gray-400 cursor-grab" />
+                      <GripVertical size={16} className="text-gray-400 dark:text-gray-500 cursor-grab" />
                     )}
                     
-                    <span className="flex-1 font-medium text-sm">
+                    <span className="flex-1 font-medium text-sm text-gray-900 dark:text-white">
                       {getItemSummary(item, index)}
                     </span>
                     
@@ -256,7 +256,7 @@ export function RepeaterRenderer(props: FieldRendererProps): React.ReactElement 
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-6 w-6 p-0 text-gray-400 hover:text-red-500"
+                        className="h-6 w-6 p-0 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleRemoveItem(index);
@@ -273,7 +273,7 @@ export function RepeaterRenderer(props: FieldRendererProps): React.ReactElement 
                   
                   {/* Item content */}
                   {(!collapsible || isExpanded) && (
-                    <div className="p-3 space-y-4 border-t">
+                    <div className="p-3 space-y-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950">
                       {childFields.length > 0 ? (
                         childFields.map((cf) => (
                           <div key={cf.id || cf.name} className="space-y-1">
@@ -289,13 +289,13 @@ export function RepeaterRenderer(props: FieldRendererProps): React.ReactElement 
                               value={item[cf.name] || ''}
                               onChange={(e) => handleItemChange(index, cf.name, e.target.value)}
                               disabled={disabled}
-                              className="w-full px-3 py-2 border rounded-md text-sm"
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600"
                               placeholder={`Enter ${cf.label.toLowerCase()}`}
                             />
                           </div>
                         ))
                       ) : (
-                        <p className="text-sm text-gray-400 italic">
+                        <p className="text-sm text-gray-400 dark:text-gray-500 italic">
                           No child fields defined
                         </p>
                       )}
@@ -312,7 +312,7 @@ export function RepeaterRenderer(props: FieldRendererProps): React.ReactElement 
         )}
         
         {minItems > 0 && items.length < minItems && (
-          <p className="text-xs text-amber-600">
+          <p className="text-xs text-amber-600 dark:text-amber-400">
             Minimum {minItems} {itemLabel.toLowerCase()}{minItems !== 1 ? 's' : ''} required
           </p>
         )}
@@ -325,25 +325,25 @@ export function RepeaterRenderer(props: FieldRendererProps): React.ReactElement 
     const label = safeFieldString(field.label);
     return (
       <div className={cn('space-y-2', className)}>
-        <Label className="text-gray-500">
+        <Label className="text-gray-500 dark:text-gray-400">
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </Label>
         
-        <div className="border-2 border-dashed rounded-lg p-4">
-          <div className="flex items-center gap-2 text-gray-400">
+        <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+          <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500">
             <List size={16} />
             <span className="text-sm">Repeating section</span>
           </div>
           {childFields.length > 0 && (
-            <div className="mt-2 pl-6 border-l-2 border-gray-200">
+            <div className="mt-2 pl-6 border-l-2 border-gray-200 dark:border-gray-700">
               {childFields.slice(0, 3).map((cf) => (
-                <p key={cf.id || cf.name} className="text-xs text-gray-400">
+                <p key={cf.id || cf.name} className="text-xs text-gray-400 dark:text-gray-500">
                   • {cf.label}
                 </p>
               ))}
               {childFields.length > 3 && (
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-400 dark:text-gray-500">
                   +{childFields.length - 3} more fields
                 </p>
               )}

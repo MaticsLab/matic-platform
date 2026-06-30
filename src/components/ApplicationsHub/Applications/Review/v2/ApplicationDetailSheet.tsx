@@ -16,7 +16,8 @@ interface ApplicationDetailSheetProps {
   onStatusChange: (appId: string, newStatus: string) => void;
   onStartReview?: (appId: string) => void;
   onDelete?: (appId: string) => void;
-  fields?: Array<{ id: string; label: string; type: string; config?: Record<string, any>; name?: string }>;
+  fields?: Array<{ id: string; label: string; type: string; config?: Record<string, any>; name?: string; section_id?: string }>;
+  sections?: Array<{ id: string; name: string; description?: string; sort_order: number }>;
   onActivityCreated?: () => void;
 }
 
@@ -31,6 +32,7 @@ export function ApplicationDetailSheet({
   onStartReview,
   onDelete,
   fields = [],
+  sections = [],
   onActivityCreated
 }: ApplicationDetailSheetProps) {
 
@@ -61,6 +63,7 @@ export function ApplicationDetailSheet({
               onStartReview={onStartReview}
               onDelete={onDelete}
               fields={fields}
+              sections={sections}
               onActivityCreated={onActivityCreated}
             />
           </div>

@@ -48,6 +48,7 @@ export interface Application {
   comments?: string;
   flagged?: boolean;
   reviewHistory?: ReviewHistoryEntry[];
+  applicant_id?: string; // ba_users.id — the auth account ID for this applicant
 }
 
 export interface Reviewer {
@@ -99,7 +100,7 @@ export interface ApplicationDetailProps {
   onDelete?: (appId: string) => void;
   workspaceId?: string;
   formId?: string;
-  fields?: Array<{ id: string; label: string; type: string; config?: Record<string, any>; name?: string }>;
+  fields?: Array<{ id: string; label: string; type: string; config?: Record<string, any>; name?: string; section_id?: string }>;
   sections?: Array<{ id: string; name: string; description?: string; sort_order: number }>;
   onActivityCreated?: () => void;
 }

@@ -33,6 +33,8 @@ interface PortalFieldAdapterProps {
   formData?: Record<string, unknown>;
   /** Form ID for file uploads */
   formId?: string;
+  /** Submission ID for recommendation fields */
+  submissionId?: string;
   /** Hide the label (when label is rendered separately) */
   hideLabel?: boolean;
 }
@@ -165,6 +167,7 @@ export function PortalFieldAdapter({
   allFields,
   formData,
   formId,
+  submissionId,
   hideLabel = false,
 }: PortalFieldAdapterProps): React.ReactElement | null {
   // Convert portal field to unified definition
@@ -314,9 +317,6 @@ export function PortalFieldAdapter({
   // Check both field.children and field.config.children for compatibility
   const allChildren: PortalField[] = field.children || (field.config?.children as PortalField[] | undefined) || [];
   const childFieldDefinitions = allChildren.map(portalFieldToDefinition);
-
-  // Extract submission ID from formData for recommendation fields
-  const submissionId = formData?._submission_id as string | undefined;
 
   return (
     <FieldRenderer

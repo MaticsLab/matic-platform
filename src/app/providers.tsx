@@ -7,7 +7,7 @@ import { SessionProvider } from '@/components/auth/provider'
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} forcedTheme="light">
         {children}
         <Toaster position="top-right" richColors expand={false} />
       </ThemeProvider>

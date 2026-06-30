@@ -134,6 +134,7 @@ export function ViewContainer({
           form_name: formData.name || 'Unknown Form',
           submitted_at: sub.submitted_at || sub.created_at,
           documents: rawData.documents || [],
+          applicant_id: sub.ba_user?.id,
         };
       });
 

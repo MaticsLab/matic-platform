@@ -65,7 +65,7 @@ export function AddressRenderer(props: FieldRendererProps): React.ReactElement |
     return (
       <div className={cn('flex items-start gap-2', className)}>
         <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-        <span className="text-gray-900 text-sm">{formattedAddress}</span>
+        <span className="text-gray-900 dark:text-white text-sm">{formattedAddress}</span>
       </div>
     );
   }

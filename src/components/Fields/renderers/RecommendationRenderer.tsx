@@ -271,8 +271,8 @@ export function RecommendationRenderer({
               <div 
                 key={rec.id} 
                 className={cn(
-                  "border rounded-lg p-4 bg-white space-y-3",
-                  isSent && "bg-gray-50 border-green-200"
+                  "border rounded-lg p-4 bg-background dark:bg-gray-900 space-y-3",
+                  isSent && "bg-gray-50 dark:bg-gray-800 border-green-200 dark:border-green-700"
                 )}
               >
                 <div className="flex items-center justify-between">
@@ -396,7 +396,7 @@ export function RecommendationRenderer({
 
       {/* Empty state */}
       {recommenders.length === 0 && (
-        <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+        <div className="text-center py-8 bg-gray-50 dark:bg-gray-900 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700">
           <UserPlus className="h-10 w-10 mx-auto text-gray-400 mb-3" />
           <p className="text-sm font-medium text-gray-700">No recommenders added yet</p>
           <p className="text-xs text-gray-500 mt-1">

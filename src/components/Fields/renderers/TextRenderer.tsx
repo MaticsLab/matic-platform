@@ -123,7 +123,7 @@ export function TextRenderer(props: FieldRendererProps): React.ReactElement | nu
 
     // Regular text
     return (
-      <span className={cn('text-gray-900', isTextarea && 'whitespace-pre-wrap', className)}>
+      <span className={cn('text-gray-900 dark:text-white', isTextarea && 'whitespace-pre-wrap', className)}>
         {isTextarea && mode === 'compact' 
           ? (value?.length > 50 ? value.slice(0, 50) + '...' : value)
           : value}
@@ -232,12 +232,6 @@ export function TextRenderer(props: FieldRendererProps): React.ReactElement | nu
         
         {error && (
           <p className="text-sm text-red-500">{error}</p>
-        )}
-        
-        {maxLength && !isTextarea && (
-          <p className="text-xs text-gray-400 text-right">
-            {(value?.length || 0)} / {maxLength}
-          </p>
         )}
       </div>
     );

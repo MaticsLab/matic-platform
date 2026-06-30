@@ -517,6 +517,20 @@ func SyncFileToDrive(c *gin.Context) {
 		fileName = services.RenderFileNameTemplate(formSettings.FileNameTemplate, rowData, input.FileName)
 	}
 
+	fieldLabel := ""
+	if input.FileID != "" {
+		if parsedFileID, parseErr := uuid.Parse(input.FileID); parseErr == nil {
+			var tableFile models.TableFile
+			if err := database.DB.Select("field_id").Where("id = ?", parsedFileID).First(&tableFile).Error; err == nil && tableFile.FieldID != nil {
+				var field models.Field
+				if err := database.DB.Select("label").Where("id = ?", *tableFile.FieldID).First(&field).Error; err == nil {
+					fieldLabel = strings.TrimSpace(field.Label)
+				}
+			}
+		}
+	}
+	fileName = buildDriveUploadFileName(fieldLabel, fileName)
+
 	// Only allow upload if field is in upload_fields (if set)
 	if len(formSettings.UploadFields) > 0 && input.FileID != "" {
 		// Check if file's field is allowed (assume FileID encodes field or add logic as needed)
@@ -626,10 +640,28 @@ func SyncAllFilesToDrive(c *gin.Context) {
 	var files []models.TableFile
 	database.DB.Where("row_id = ? AND deleted_at IS NULL", rowID).Find(&files)
 
+	fieldLabels := map[uuid.UUID]string{}
+	if len(files) > 0 {
+		var fields []models.Field
+		if err := database.DB.Select("id", "label").Where("table_id = ?", row.TableID).Find(&fields).Error; err == nil {
+			for i := range fields {
+				fieldLabels[fields[i].ID] = strings.TrimSpace(fields[i].Label)
+			}
+		}
+	}
+
 	var syncedFiles []gin.H
 	var errors []string
 
 	for _, file := range files {
+		driveFileName := strings.TrimSpace(file.Filename)
+		if driveFileName == "" {
+			driveFileName = strings.TrimSpace(file.OriginalFilename)
+		}
+		if file.FieldID != nil {
+			driveFileName = buildDriveUploadFileName(fieldLabels[*file.FieldID], driveFileName)
+		}
+
 		// Check if already synced
 		var existingSync models.FileSyncLog
 		if err := database.DB.Where("table_file_id = ? AND sync_status = ?", file.ID, "synced").First(&existingSync).Error; err == nil {
@@ -637,7 +669,7 @@ func SyncAllFilesToDrive(c *gin.Context) {
 			syncedFiles = append(syncedFiles, gin.H{
 				"file_id":   existingSync.ExternalFileID,
 				"file_url":  existingSync.ExternalFileURL,
-				"file_name": file.Filename,
+				"file_name": driveFileName,
 				"skipped":   true,
 			})
 			continue
@@ -645,9 +677,9 @@ func SyncAllFilesToDrive(c *gin.Context) {
 
 		// Upload file
 
-		driveFile, err := googleDriveService.UploadFileFromURL(ctx, srv, file.Filename, file.PublicURL, applicantFolder.ExternalFolderID)
+		driveFile, err := googleDriveService.UploadFileFromURL(ctx, srv, driveFileName, file.PublicURL, applicantFolder.ExternalFolderID)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("Failed to sync %s: %s", file.Filename, err.Error()))
+			errors = append(errors, fmt.Sprintf("Failed to sync %s: %s", driveFileName, err.Error()))
 			continue
 		}
 		// Set anyone-with-link reader permission on file

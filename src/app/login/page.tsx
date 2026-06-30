@@ -73,9 +73,9 @@ function LoginContent() {
       }
 
       // Redirect based on user type only if no redirect path specified
-      if (userType === 'staff') {
-        // Try to get last workspace
-        const lastWorkspace = localStorage.getItem('lastWorkspace')
+      if (userType === 'staff' || userType === 'owner' || userType === 'admin' || userType === 'member') {
+        // Try to get last workspace from localStorage first (key: 'matic_last_workspace', plain slug string)
+        const lastWorkspace = localStorage.getItem('matic_last_workspace')
         if (lastWorkspace) {
           try {
             const workspace = JSON.parse(lastWorkspace)

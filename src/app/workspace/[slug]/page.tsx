@@ -26,6 +26,13 @@ function WorkspacePageContent() {
     }
   }, [slug])
 
+  // Redirect to Forms (applications) page by default
+  useEffect(() => {
+    if (workspace && slug) {
+      router.replace(`/workspace/${slug}/applications`)
+    }
+  }, [workspace, slug, router])
+
   async function loadWorkspace() {
     try {
       setLoading(true)
@@ -88,7 +95,7 @@ function WorkspacePageContent() {
       </div>
     )
   }
-  
+
   return <LoadingOverlay message="Loading workspace..." />
 }
 

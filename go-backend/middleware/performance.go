@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -62,6 +63,6 @@ func RequestTimingMiddleware() gin.HandlerFunc {
 
 		duration := time.Since(start)
 		c.Header("X-Response-Time", duration.String())
-		c.Header("X-Response-Time-Ms", string(rune(duration.Milliseconds())))
+		c.Header("X-Response-Time-Ms", strconv.FormatInt(duration.Milliseconds(), 10))
 	}
 }

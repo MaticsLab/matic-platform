@@ -61,3 +61,4 @@ go.work
 Thumbs.db
 node_modules
 Import Modal/
+go-backend/uploads/

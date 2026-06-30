@@ -6,12 +6,12 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
 import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
 import { BreadcrumbBar } from '@/components/BreadcrumbBar'
-import { FormAnalyticsPage } from '@/components/FormAnalytics/FormAnalyticsPage'
-import { workspacesClient } from '@/lib/api/workspaces-client'
-import type { Workspace } from '@/lib/api/workspaces-client'
+import { ApplicationManager } from '@/components/ApplicationsHub/Applications/ApplicationManager'
+import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
+import type { Workspace } from '@/types/workspaces'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
 
-function ApplicationDetailPageContent() {
+function FormAnalyticsPageContent() {
   const params = useParams()
   const slug = params.slug as string
   const formId = params.formId as string
@@ -21,26 +21,21 @@ function ApplicationDetailPageContent() {
   useEffect(() => {
     async function loadWorkspace() {
       if (!slug) return
-
       try {
         setLoading(true)
-        console.log('[ApplicationDetailPage] Loading workspace for slug:', slug)
-        const ws = await workspacesClient.getBySlug(slug)
+        const ws = await workspacesSupabase.getWorkspaceBySlug(slug)
         if (!ws) throw new Error('Workspace not found')
         setWorkspace(ws)
       } catch (error) {
-        console.error('[ApplicationDetailPage] Failed to load workspace:', error)
+        console.error('[ReviewWorkspacePage] Failed to load workspace:', error)
       } finally {
         setLoading(false)
       }
     }
-
     loadWorkspace()
   }, [slug])
 
-  if (loading) {
-    return <LoadingOverlay message="Loading analytics..." />
-  }
+  if (loading) return <LoadingOverlay message="Loading submissions..." />
 
   if (!workspace) {
     return (
@@ -55,21 +50,18 @@ function ApplicationDetailPageContent() {
       <NavigationLayout workspaceSlug={workspace.slug}>
         <div className="flex flex-col h-full">
           <BreadcrumbBar />
-          <FormAnalyticsPage
-            workspaceId={workspace.id}
-            formId={formId}
-          />
+          <ApplicationManager formId={formId} workspaceId={workspace.id} />
         </div>
       </NavigationLayout>
     </BreadcrumbProvider>
   )
 }
 
-export default function ApplicationDetailPage() {
+export default function FormAnalyticsRoute() {
   return (
     <Suspense fallback={<LoadingOverlay />}>
       <ProtectedRoute>
-        <ApplicationDetailPageContent />
+        <FormAnalyticsPageContent />
       </ProtectedRoute>
     </Suspense>
   )

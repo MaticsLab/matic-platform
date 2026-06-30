@@ -45,7 +45,7 @@ const CALLOUT_ICONS: Record<string, React.ComponentType<{ className?: string }>>
 function DividerRenderer({ className }: { className?: string }) {
   return (
     <div className={cn('w-full py-4', className)}>
-      <hr className="border-t border-gray-200" />
+      <hr className="border-t border-gray-200 dark:border-gray-700" />
     </div>
   );
 }
@@ -58,7 +58,7 @@ function HeadingRenderer({
   className?: string;
 }) {
   return (
-    <h3 className={cn('text-lg font-semibold text-gray-900 mt-4 mb-2', className)}>
+    <h3 className={cn('text-lg font-semibold text-gray-900 dark:text-white mt-4 mb-2', className)}>
       {label}
     </h3>
   );

@@ -98,7 +98,7 @@ export function FormulaRenderer(props: FieldRendererProps): React.ReactElement |
     return (
       <div className={cn('flex items-center gap-1.5', className)}>
         <FunctionSquare size={12} className="text-orange-500 flex-shrink-0" />
-        <span className="text-gray-900">{displayValue}</span>
+        <span className="text-gray-900 dark:text-white">{displayValue}</span>
       </div>
     );
   }
@@ -130,7 +130,7 @@ export function FormulaRenderer(props: FieldRendererProps): React.ReactElement |
               <span className="text-sm">{errorMessage || 'Formula error'}</span>
             </div>
           ) : displayValue ? (
-            <span className="text-gray-900">{displayValue}</span>
+            <span className="text-gray-900 dark:text-white">{displayValue}</span>
           ) : (
             <span className="text-gray-400 italic">
               Computed from formula

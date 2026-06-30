@@ -56,10 +56,54 @@ export interface RecommendationByTokenResponse {
   applicant_name: string
   applicant_email: string
   form_title: string
+  logo_url?: string
   questions: RecommendationQuestion[]
   instructions?: string
   require_relationship?: boolean
   show_file_upload?: boolean
+  already_submitted?: boolean
+}
+
+export interface RecommendationDriveSyncResult {
+  request_id: string
+  source?: 'recommendation' | 'submission_file' | 'submission_raw_data'
+  field_label?: string
+  filename?: string
+  url?: string
+  existing?: boolean
+  drive?: Record<string, any>
+  error?: string
+}
+
+export interface RecommendationDriveSyncResponse {
+  submission_id: string
+  requests_checked: number
+  documents_found: number
+  documents_synced: number
+  documents_failed: number
+  sync_results: RecommendationDriveSyncResult[]
+}
+
+export interface RecommendationFormBackfillSubmissionResult {
+  submission_id: string
+  requests_checked: number
+  submission_files: number
+  documents_found: number
+  documents_synced: number
+  documents_existing: number
+  documents_failed: number
+  sync_results: RecommendationDriveSyncResult[]
+  error?: string
+}
+
+export interface RecommendationFormBackfillResponse {
+  form_id: string
+  submissions_checked: number
+  documents_found: number
+  documents_synced: number
+  documents_existing: number
+  documents_failed: number
+  results: RecommendationFormBackfillSubmissionResult[]
 }
 
 // Client
@@ -77,10 +121,40 @@ export const recommendationsClient = {
     goFetch<RecommendationRequest[]>(`/recommendations/submission/${submissionId}`),
 
   /**
+   * Sync all uploaded recommendation documents for a submission to Google Drive
+   */
+  syncSubmissionDocumentsToDrive: (submissionId: string) =>
+    goFetch<RecommendationDriveSyncResponse>(`/recommendations/submission/${submissionId}/google-drive/sync`, {
+      method: 'POST',
+    }),
+
+  /**
+   * Backfill all historical recommendation and uploaded docs for every submission in a form
+   */
+  backfillFormDocumentsToDrive: (formId: string) =>
+    goFetch<RecommendationFormBackfillResponse>(`/recommendations/form/${formId}/google-drive/backfill`, {
+      method: 'POST',
+    }),
+
+  /**
    * Get a single recommendation request by ID
    */
   get: (id: string) =>
     goFetch<RecommendationRequest>(`/recommendations/${id}`),
+
+  /**
+   * Update a recommendation request (pending only)
+   */
+  update: (id: string, data: {
+    recommender_name?: string
+    recommender_email?: string
+    recommender_relationship?: string
+    recommender_organization?: string
+  }) =>
+    goFetch<RecommendationRequest>(`/recommendations/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
 
   /**
    * Create a new recommendation request (sends email automatically)
@@ -119,6 +193,7 @@ export const recommendationsClient = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
+      credentials: 'include', // Include portal auth cookie
     })
     
     if (!response.ok) {

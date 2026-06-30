@@ -204,6 +204,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.GET("/portal/v2/submissions/:id", handlers.PortalAuthMiddlewareV2(), handlers.GetPortalSubmission)
 		api.PUT("/portal/v2/submissions/:id", handlers.PortalAuthMiddlewareV2(), handlers.UpdatePortalSubmission)
 
+		// Autosave endpoint for portal submissions
+		api.POST("/submissions/:id/autosave", handlers.PortalAuthMiddlewareV2(), handlers.AutosavePortalSubmission)
+
 		// Portal Submission Routes (Authenticated - for public portal applicants)
 		api.GET("/portal/forms/:form_id/my-submission", handlers.PortalAuthMiddlewareV2(), handlers.GetMyPortalSubmission)
 		api.POST("/portal/forms/:form_id/my-submission", handlers.PortalAuthMiddlewareV2(), handlers.SaveMyPortalSubmission)
@@ -250,8 +253,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.POST("/email/resend/webhook", handlers.HandleResendWebhook)
 
 		// Recommendation Routes (Public with Token - for recommenders)
-		api.GET("/recommend/:token", handlers.GetRecommendationByToken)     // Get recommendation request details
-		api.POST("/recommend/:token/submit", handlers.SubmitRecommendation) // Submit recommendation
+		api.GET("/recommend/:token", handlers.GetRecommendationByToken)               // Get recommendation request details
+		api.POST("/recommend/:token/submit", handlers.SubmitRecommendation)           // Submit recommendation
+		api.POST("/recommendations/test-email", handlers.SendTestRecommendationEmail) // Send test email
 
 		// Public Ending Pages Routes (for portal form submissions)
 		// This endpoint is public because it's called after form submission by applicants
@@ -477,8 +481,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 				// Form submissions
 				forms.GET("/:id/submissions", handlers.ListFormSubmissions)
+				forms.GET("/:id/fields", handlers.ListFormFieldsV2)
 				forms.DELETE("/:id/submissions/:submission_id", handlers.DeleteFormSubmission)
 				forms.POST("/:id/submissions/bulk-delete", handlers.BulkDeleteFormSubmissions)
+
+				// Form analytics
+				forms.GET("/:id/analytics", handlers.GetFormAnalytics)
 
 				// Form search
 				forms.GET("/:id/search", handlers.SearchFormSubmissions)
@@ -689,9 +697,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				recommendations.GET("", handlers.GetRecommendationRequests)                            // ?submission_id=xxx
 				recommendations.POST("", handlers.CreateRecommendationRequest)                         // Create & send email
 				recommendations.GET("/:id", handlers.GetRecommendationRequest)                         // Get single request
+				recommendations.PATCH("/:id", handlers.UpdateRecommendationRequest)                    // Update recommender info
 				recommendations.POST("/:id/remind", handlers.SendRecommendationReminder)               // Send reminder
 				recommendations.DELETE("/:id", handlers.CancelRecommendationRequest)                   // Cancel request
 				recommendations.GET("/submission/:submissionId", handlers.GetRecommendationsForReview) // For reviewers
+				recommendations.POST("/submission/:submissionId/google-drive/sync", handlers.SyncSubmissionRecommendationDocumentsToGoogleDrive)
+				recommendations.POST("/form/:formId/google-drive/backfill", handlers.BackfillFormRecommendationDocumentsToGoogleDrive)
 			}
 
 		}
@@ -717,6 +728,13 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	apiV2Public := r.Group("/api/v2")
 	{
 		apiV2Public.GET("/forms/by-slug/:workspace_slug/:form_slug", handlers.GetFormBySlugV2)
+	}
+
+	// Public diagnostics endpoints (debug only - no auth required)
+	diagnosticsPublic := r.Group("/api/v1/diagnostics")
+	{
+		diagnosticsPublic.GET("/discovered-files", handlers.ListDiscoveredFilesForUser) // ?email=user@example.com
+		diagnosticsPublic.GET("/submissions/:submissionId/discovered-files", handlers.ListSubmissionDiscoveredFiles)
 	}
 
 	return r

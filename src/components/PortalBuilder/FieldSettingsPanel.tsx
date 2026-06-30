@@ -993,31 +993,36 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                   <div className="space-y-2">
                     <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Email Message</Label>
                     <MergeTagTextarea 
-                      value={selectedField.config?.emailMessage || 'You have been requested to provide a letter of recommendation. Please click the link below to submit your recommendation.'} 
+                      value={selectedField.config?.emailMessage || 'You have been requested to provide a letter of recommendation for {{applicant_name}} ({{applicant_email}}). Please click the link below to submit your recommendation.'} 
                       onChange={(v) => handleConfigUpdate('emailMessage', v)} 
                       placeholder="Enter the email message for recommenders..."
+                      standardTags={[
+                        { id: 'applicant_name', label: 'Applicant Name' },
+                        { id: 'applicant_email', label: 'Applicant Email' },
+                        { id: 'recommender_name', label: 'Recommender Name' },
+                        { id: 'deadline', label: 'Deadline' },
+                      ]}
                       fields={allFields.filter(f => f.id !== selectedField.id).map(f => ({
                         id: f.id,
                         label: f.label || f.id,
                         type: f.type
                       }))}
-                      rows={3}
+                      rows={4}
                     />
-                    <p className="text-xs text-gray-500">Message sent to recommenders via email. Click + to insert field values.</p>
                   </div>
 
-                  {/* Merge Tag Field Mappings */}
+                  {/* Variable Sources */}
                   <div className="space-y-3 pt-4 border-t border-gray-200">
-                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Merge Tag Field Mappings</Label>
-                    <p className="text-xs text-gray-500">
-                      Select which form fields to use for email merge tags
-                    </p>
+                    <div>
+                      <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Variable Sources</Label>
+                      <p className="text-xs text-gray-400 mt-0.5">Map which form fields provide the values for email variables</p>
+                    </div>
                     
                     <div className="space-y-3">
                       <div className="space-y-1.5">
                         <Label className="text-xs text-gray-600 flex items-center gap-2">
                           <code className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px]">{'{{applicant_name}}'}</code>
-                          Applicant Name
+                          Which field has the applicant's name?
                         </Label>
                         <MergeTagFieldPicker
                           value={selectedField.config?.mergeTagFields?.applicant_name || ''}
@@ -1039,7 +1044,7 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                       <div className="space-y-1.5">
                         <Label className="text-xs text-gray-600 flex items-center gap-2">
                           <code className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px]">{'{{applicant_email}}'}</code>
-                          Applicant Email
+                          Which field has the applicant's email?
                         </Label>
                         <MergeTagFieldPicker
                           value={selectedField.config?.mergeTagFields?.applicant_email || ''}

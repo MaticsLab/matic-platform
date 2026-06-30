@@ -221,6 +221,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   // Ref to prevent duplicate form loads (React 18 Strict Mode)
   const formLoadRef = useRef<string | null>(null)
   const formLoadAbortControllerRef = useRef<AbortController | null>(null)
+  const currentFormDataRef = useRef<Record<string, any>>({})
 
   // Language support
   const defaultLanguage = form?.settings?.language?.default || 'en'
@@ -267,11 +268,16 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     }
   }, [form, activeLanguage, defaultLanguage])
 
+  useEffect(() => {
+    currentFormDataRef.current = currentFormData
+  }, [currentFormData])
+
 
   // Handle form data changes — state + localStorage only.
   // Handle form data changes and create initial draft submission if needed
   const handleFormDataChange = useCallback(async (data: Record<string, any>) => {
     setCurrentFormData(data)
+    currentFormDataRef.current = data
     
     // Also update submissionData so dashboard shows current data
     setSubmissionData(data)
@@ -319,6 +325,59 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       }
     }
   }, [form, email, applicationRowId])
+
+  // Helper function to reload submission data from backend
+  const reloadSubmissionData = useCallback(async (): Promise<boolean> => {
+    if (!form?.id) return false
+    
+    try {
+      const session = await portalBetterAuthClient.getSession()
+      const sessionToken = session?.data?.session?.token
+      
+      if (!sessionToken) {
+        console.warn('[PublicPortalV2] No session token, cannot reload submission')
+        return false
+      }
+      
+      const baseUrl = getApiUrl()
+      const response = await fetch(
+        `${baseUrl}/portal/forms/${form.id}/my-submission`,
+        {
+          headers: {
+            'Authorization': `Bearer ${sessionToken}`
+          }
+        }
+      )
+      
+      if (response.ok) {
+        const submission = await response.json()
+        
+        if (submission.id && submission.data) {
+          console.log('[PublicPortalV2] Reloaded submission from backend:', {
+            id: submission.id,
+            dataKeys: Object.keys(submission.data)
+          })
+          
+          // Update all the relevant state
+          setApplicationRowId(submission.id)
+          setInitialData(submission.data)
+          setSubmissionData(submission.data)
+          setCurrentFormData(submission.data)
+          
+          if (submission.metadata?.status) {
+            setApplicationStatus(submission.metadata.status)
+          }
+          
+          return true
+        }
+      }
+      
+      return false
+    } catch (error) {
+      console.warn('[PublicPortalV2] Failed to reload submission:', error)
+      return false
+    }
+  }, [form])
 
   // Load form configuration and restore session
   useEffect(() => {
@@ -848,6 +907,14 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         setIsAuthenticated(true)
         setApplicantName(displayName || betterAuthUser.name || betterAuthUser.email)
 
+        // Initialize empty form data for new signups if no existing submission
+        if (!hasExistingSubmission) {
+          setInitialData({})
+        }
+        
+        // Set view to application so user can start filling the form
+        setCurrentView('application')
+
         // Save to localStorage
         try {
           const authData = {
@@ -895,7 +962,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     while (hasBlobUrls(data) && Date.now() - startTime < maxWait) {
       await new Promise(resolve => setTimeout(resolve, 100))
       // Re-check current form data (might have been updated by FileRenderer)
-      data = { ...currentFormData, ...data }
+      data = { ...currentFormDataRef.current, ...data }
     }
     
     return data
@@ -907,6 +974,8 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       if (!form?.id) {
         throw new Error('Form ID not found')
       }
+
+      setIsSaving(true)
       
       // Wait for any pending uploads before saving
       const dataWithUploads = await waitForPendingUploads(formData)
@@ -945,25 +1014,27 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       
       const savedSubmission = await response.json()
       console.log('[PublicPortalV2] Submission saved:', { id: savedSubmission.id })
+      const savedSubmissionId = savedSubmission.id || applicationRowId
       
       // Update applicationRowId if we got an ID back
       if (savedSubmission.id && !applicationRowId) {
         setApplicationRowId(savedSubmission.id)
       }
       
+      setCurrentFormData(cleanedFormData)
+      currentFormDataRef.current = cleanedFormData
       setSubmissionData(cleanedFormData)
       
       if (options?.saveAndExit) {
         // Verify save succeeded - must have an application row ID
-        if (!applicationRowId) {
+        if (!savedSubmissionId) {
           console.error('[PublicPortalV2] Save returned but no submission ID - save may have failed')
-          toast.error('Failed to save application. Please try again.')
           // Don't navigate away if save didn't return an ID
           throw new Error('Save failed: No submission ID returned')
         }
         
         // Save succeeded - show success and navigate
-        console.log('[PublicPortalV2] Save and exit successful:', applicationRowId)
+        console.log('[PublicPortalV2] Save and exit successful:', savedSubmissionId)
         toast.success('Application saved successfully!')
         setCurrentView('dashboard')
         // Don't clear currentFormData - keep it for when user returns
@@ -975,6 +1046,9 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     } catch (error) {
       console.error('Form submission error:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to submit form')
+      throw error
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -982,14 +1056,14 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   const handleSaveAndDashboard = async () => {
     try {
       console.log('[PublicPortalV2] Save and Exit clicked', { 
-        hasFormData: Object.keys(currentFormData).length > 0,
+        hasFormData: Object.keys(currentFormDataRef.current).length > 0,
         formId: form?.id,
         email,
         applicationRowId
       })
       
       // Call handleFormSubmit to save and navigate - it will show the success toast
-      await handleFormSubmit(currentFormData, { saveAndExit: true })
+      await handleFormSubmit(currentFormDataRef.current, { saveAndExit: true })
       
       // handleFormSubmit will handle navigation on success
     } catch (error) {
@@ -1037,11 +1111,17 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       await saveBeforeNavigation()
     }
     
-    // Update initialData with current form data when switching back to application
-    if (currentFormData && Object.keys(currentFormData).length > 0) {
-      setInitialData(currentFormData)
-    } else if (submissionData && Object.keys(submissionData).length > 0) {
-      setInitialData(submissionData)
+    // Try to reload from backend first
+    const reloaded = await reloadSubmissionData()
+    
+    // If reload failed, fall back to local data
+    if (!reloaded) {
+      // Update initialData with current form data when switching back to application
+      if (currentFormData && Object.keys(currentFormData).length > 0) {
+        setInitialData(currentFormData)
+      } else if (submissionData && Object.keys(submissionData).length > 0) {
+        setInitialData(submissionData)
+      }
     }
     
     setCurrentView('application')
@@ -1064,7 +1144,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   // Save application data before navigation
   const saveBeforeNavigation = async (): Promise<void> => {
     // Only save if we're in application view and have form data
-    if (currentView !== 'application' || Object.keys(currentFormData).length === 0) {
+    if (currentView !== 'application' || Object.keys(currentFormDataRef.current).length === 0) {
       return
     }
 
@@ -1072,17 +1152,17 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     if (applicationRowId && form?.id && email) {
       try {
         console.log('[PublicPortalV2] Saving before navigation')
-        await handleFormSubmit(currentFormData, { saveAndExit: true })
+        await handleFormSubmit(currentFormDataRef.current, { saveAndExit: true })
         console.log('[PublicPortalV2] Save completed before navigation')
       } catch (error) {
         console.error('[PublicPortalV2] Save failed before navigation:', error)
         // Don't throw - allow navigation even if save fails
       }
-    } else if (form?.id && email && Object.keys(currentFormData).length > 0) {
+    } else if (form?.id && email && Object.keys(currentFormDataRef.current).length > 0) {
       // No submission ID yet - create one via form submit
       try {
         console.log('[PublicPortalV2] Saving before navigation via form submit (new submission)')
-        await handleFormSubmit(currentFormData, { saveAndExit: true })
+        await handleFormSubmit(currentFormDataRef.current, { saveAndExit: true })
       } catch (error) {
         console.error('[PublicPortalV2] Failed to save before navigation:', error)
         // Don't throw - allow navigation even if save fails
@@ -1292,12 +1372,12 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }} 
         animate={{ opacity: 1, scale: 1 }} 
-        className="min-h-screen bg-white flex flex-col items-center justify-center p-4 text-center"
+        className="min-h-screen bg-background dark:bg-gray-950 flex flex-col items-center justify-center p-4 text-center"
       >
-        <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6">
+        <div className="w-20 h-20 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mb-6">
           <CheckCircle2 className="w-10 h-10" />
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Application Submitted!</h1>
+        <h1 className="text-3xl font-bold text-foreground dark:text-gray-100 mb-2">Application Submitted!</h1>
         <p className="text-gray-500 max-w-md mb-8">
           Thank you for applying. We have received your application and will review it shortly.
         </p>
@@ -1311,7 +1391,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   // Show loading spinner while checking auth
   if (isCheckingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-background dark:bg-gray-950">
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     )
@@ -1321,7 +1401,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   if (!isAuthenticated) {
     return (
       <TranslationProvider>
-        <div className="min-h-screen bg-white">
+        <div className="min-h-screen bg-background dark:bg-gray-950">
           {translatedForm && (
             <>
               {/* Language Selector - Top Right */}
@@ -1377,10 +1457,8 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   return (
     <TranslationProvider>
       <div 
-        className="h-screen flex overflow-hidden"
+        className="h-screen flex overflow-hidden bg-white dark:bg-gray-950 text-gray-900 dark:text-white"
         style={{ 
-          backgroundColor: backgroundColor,
-          color: textColor,
           fontFamily: fontMap[fontFamily]
         }}
       >
@@ -1392,6 +1470,36 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
               // If navigating away from application view, save data first
               if (currentView === 'application' && view !== 'application') {
                 await saveBeforeNavigation()
+              }
+              
+              // If navigating TO application view, reload the latest data from backend
+              if (view === 'application') {
+                // Try to reload from backend first
+                const reloaded = await reloadSubmissionData()
+                
+                // If reload failed, fall back to local data
+                if (!reloaded) {
+                  // Update initialData with current form data when switching back to application
+                  if (currentFormData && Object.keys(currentFormData).length > 0) {
+                    setInitialData(currentFormData)
+                  } else if (submissionData && Object.keys(submissionData).length > 0) {
+                    setInitialData(submissionData)
+                  }
+                }
+                
+                // Set first section as active
+                if (portalConfig.sections && portalConfig.sections.length > 0) {
+                  const firstSection = portalConfig.sections.find((s: any) => 
+                    s.sectionType === 'form' || 
+                    s.sectionType === 'cover' || 
+                    s.sectionType === 'review'
+                  )
+                  if (firstSection) {
+                    setActiveSectionId(firstSection.id)
+                  } else if (portalConfig.sections[0]) {
+                    setActiveSectionId(portalConfig.sections[0].id)
+                  }
+                }
               }
               
               // Change view after save completes
@@ -1693,11 +1801,7 @@ function PortalHeader({
   return (
     <>
       <header 
-        className="border-b"
-        style={{ 
-          backgroundColor: backgroundColor,
-          borderColor: `${textColor}20`
-        }}
+        className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950"
       >
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
@@ -1707,10 +1811,7 @@ function PortalHeader({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-9 w-9"
-                  style={{ 
-                    color: textColor,
-                  }}
+                  className="h-9 w-9 text-gray-900 dark:text-white"
                   onClick={onToggleNavSidebar}
                   aria-label={navSidebarOpen ? "Close sidebar" : "Open sidebar"}
                 >
@@ -1733,8 +1834,7 @@ function PortalHeader({
                 </div>
               )}
               <span 
-                className="font-semibold"
-                style={{ color: textColor }}
+                className="font-semibold text-gray-900 dark:text-white"
               >
                 {portalConfig.settings.name || form?.name}
               </span>
@@ -1768,7 +1868,7 @@ function PortalHeader({
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="hover:bg-gray-100 h-9 w-9"
+                  className="hover:bg-gray-100 dark:hover:bg-gray-800 h-9 w-9"
                   onClick={() => onSettingsOpenChange(true)}
                   data-settings-trigger
                 >
@@ -1984,7 +2084,7 @@ function ApplicationView({
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
       {/* Application Sections Sidebar - Separate container with full height */}
-      <aside className="hidden lg:block w-64 shrink-0 bg-white border-r border-gray-200 h-full overflow-y-auto">
+      <aside className="hidden lg:block w-64 shrink-0 bg-background dark:bg-gray-900 border-r border-border dark:border-gray-800 h-full overflow-y-auto">
         <div className="p-4 space-y-2">
           {formSections.map((section: Section, idx: number) => {
             const isActive = section.id === activeSectionId

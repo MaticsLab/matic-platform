@@ -109,7 +109,7 @@ export function SectionRenderer(props: FieldRendererProps): React.ReactElement |
             onClick={toggleExpand}
           >
             <div>
-              <h3 className="font-medium text-gray-900 flex items-center gap-2">
+              <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
                 <LayoutGrid size={18} className="text-gray-400" />
                 {safeFieldString(field.label)}
               </h3>

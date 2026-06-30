@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,6 +16,32 @@ import (
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 )
+
+var unresolvedTemplateTokenPattern = regexp.MustCompile(`\{\{[^{}]+\}\}|\$\{[^{}]+\}|\{[^{}]+\}`)
+
+// RenderTemplateWithFields replaces supported placeholder formats using provided data.
+// Supported formats: {field}, {{field}}, ${field}
+func RenderTemplateWithFields(template string, data map[string]interface{}) string {
+	if strings.TrimSpace(template) == "" {
+		return ""
+	}
+
+	result := template
+	for key, value := range data {
+		strValue := strings.TrimSpace(fmt.Sprintf("%v", value))
+		if strValue == "" || strValue == "<nil>" {
+			continue
+		}
+
+		result = strings.ReplaceAll(result, fmt.Sprintf("{{%s}}", key), strValue)
+		result = strings.ReplaceAll(result, fmt.Sprintf("${%s}", key), strValue)
+		result = strings.ReplaceAll(result, fmt.Sprintf("{%s}", key), strValue)
+	}
+
+	// Remove unresolved placeholders to avoid leaking raw template tokens in folder/file names.
+	result = unresolvedTemplateTokenPattern.ReplaceAllString(result, "")
+	return strings.TrimSpace(result)
+}
 
 // SetPermission sets sharing permissions on a file or folder (user or anyone)
 func (s *GoogleDriveService) SetPermission(ctx context.Context, srv *drive.Service, fileID string, permType string, role string, email string) error {
@@ -33,14 +61,8 @@ func (s *GoogleDriveService) SetPermission(ctx context.Context, srv *drive.Servi
 
 // RenderFileNameTemplate renders a file name template using row data and fallback name
 func RenderFileNameTemplate(template string, rowData map[string]interface{}, fallback string) string {
-	name := template
-	for k, v := range rowData {
-		placeholder := fmt.Sprintf("${%s}", k)
-		val := fmt.Sprintf("%v", v)
-		name = strings.ReplaceAll(name, placeholder, val)
-	}
-	// If template is unchanged or empty, fallback
-	if name == template || strings.TrimSpace(name) == "" {
+	name := RenderTemplateWithFields(template, rowData)
+	if name == "" {
 		return fallback
 	}
 	return name
@@ -256,8 +278,11 @@ func (s *GoogleDriveService) UploadFile(ctx context.Context, srv *drive.Service,
 
 // UploadFileFromURL downloads a file from URL and uploads to Google Drive
 func (s *GoogleDriveService) UploadFileFromURL(ctx context.Context, srv *drive.Service, name string, sourceURL string, parentID string) (*DriveFile, error) {
+	sourceURL = normalizeDocumentDownloadURL(sourceURL)
+
 	// Download the file
-	resp, err := http.Get(sourceURL)
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Get(sourceURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download file: %w", err)
 	}
@@ -271,8 +296,47 @@ func (s *GoogleDriveService) UploadFileFromURL(ctx context.Context, srv *drive.S
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
+	if strings.Contains(strings.ToLower(mimeType), "text/html") {
+		return nil, fmt.Errorf("source URL resolved to an HTML page instead of a downloadable file")
+	}
 
 	return s.UploadFile(ctx, srv, name, mimeType, resp.Body, parentID)
+}
+
+func normalizeDocumentDownloadURL(sourceURL string) string {
+	trimmed := strings.TrimSpace(sourceURL)
+	if trimmed == "" {
+		return sourceURL
+	}
+
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return sourceURL
+	}
+
+	host := strings.ToLower(parsed.Host)
+
+	if strings.Contains(host, "drive.google.com") {
+		if match := regexp.MustCompile(`/file/d/([^/]+)`).FindStringSubmatch(parsed.Path); len(match) == 2 {
+			return fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", match[1])
+		}
+	}
+
+	if strings.Contains(host, "dropbox.com") {
+		q := parsed.Query()
+		q.Set("dl", "1")
+		parsed.RawQuery = q.Encode()
+		return parsed.String()
+	}
+
+	if strings.Contains(host, "onedrive.live.com") || strings.Contains(host, "1drv.ms") {
+		q := parsed.Query()
+		q.Set("download", "1")
+		parsed.RawQuery = q.Encode()
+		return parsed.String()
+	}
+
+	return sourceURL
 }
 
 // DeleteFile deletes a file from Google Drive
@@ -341,30 +405,43 @@ func SanitizeFolderName(name string) string {
 // GenerateApplicantFolderName generates a folder name for an applicant
 func GenerateApplicantFolderName(template string, data map[string]interface{}) string {
 	if template == "" {
-		template = "{{name}} - {{email}}"
+		template = "{name} - {email}"
 	}
 
-	result := template
-
-	// Replace placeholders with actual values
-	for key, value := range data {
-		placeholder := fmt.Sprintf("{{%s}}", key)
-		strValue := fmt.Sprintf("%v", value)
-		result = strings.ReplaceAll(result, placeholder, strValue)
-	}
-
-	// Clean up any remaining placeholders
-	for strings.Contains(result, "{{") && strings.Contains(result, "}}") {
-		start := strings.Index(result, "{{")
-		end := strings.Index(result, "}}") + 2
-		if start < end {
-			result = result[:start] + result[end:]
+	result := RenderTemplateWithFields(template, data)
+	if result == "" {
+		if name, ok := data["name"]; ok {
+			result = fmt.Sprintf("%v", name)
 		} else {
+			result = "Submission"
+		}
+	}
+
+	folderName := SanitizeFolderName(strings.TrimSpace(result))
+
+	// Handle unresolved template separators like "-" or "_".
+	hasLetterOrNumber := false
+	for _, ch := range strings.ToLower(folderName) {
+		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') {
+			hasLetterOrNumber = true
 			break
 		}
 	}
 
-	return SanitizeFolderName(strings.TrimSpace(result))
+	if !hasLetterOrNumber {
+		if name, ok := data["full_name"]; ok && strings.TrimSpace(fmt.Sprintf("%v", name)) != "" {
+			return SanitizeFolderName(fmt.Sprintf("%v", name))
+		}
+		if name, ok := data["name"]; ok && strings.TrimSpace(fmt.Sprintf("%v", name)) != "" {
+			return SanitizeFolderName(fmt.Sprintf("%v", name))
+		}
+		if email, ok := data["email"]; ok && strings.TrimSpace(fmt.Sprintf("%v", email)) != "" {
+			return SanitizeFolderName(fmt.Sprintf("%v", email))
+		}
+		return "Submission"
+	}
+
+	return folderName
 }
 
 // CreateFormDataSummary creates a text summary of form data for upload

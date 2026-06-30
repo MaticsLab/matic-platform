@@ -8,7 +8,7 @@ import {
   CheckCircle2, ArrowRight, AlertCircle, Users, Send,
   Paperclip, Sparkles, AtSign, Tag, Loader2, FileEdit, Settings,
   Play, Archive, XCircle, Clock, Folder, ChevronUp, Download, ExternalLink,
-  Image, File, FileImage, Bell, Upload, Eye, Search, Link, Smile, PenTool, MoreVertical, Maximize2, Square, PanelRight, UserPlus, Clock3, FileSignature, KeyRound, Copy
+  Image, File, FileImage, Bell, Upload, Eye, Search, Link, Smile, PenTool, MoreVertical, Maximize2, Square, PanelRight, UserPlus, Clock3, FileSignature, KeyRound, Copy, Key, Pencil, Check
 } from 'lucide-react';
 import { cn, getApplicantDisplayName } from '@/lib/utils';
 import { NOT_PROVIDED, UNKNOWN, NO_NAME_PROVIDED } from '@/constants/fallbacks';
@@ -26,6 +26,7 @@ import {
   Dialog, 
   DialogContent, 
   DialogDescription, 
+  DialogFooter,
   DialogHeader, 
   DialogTitle 
 } from '@/ui-components/dialog';
@@ -37,7 +38,7 @@ import {
 import { Checkbox } from '@/ui-components/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui-components/collapsible';
 import { Progress } from '@/ui-components/progress';
-import { RadioGroup, RadioGroupItem } from '@/ui-components/radio-group';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui-components/tabs';
 import { Input } from '@/ui-components/input';
 import { Label } from '@/ui-components/label';
 import { useEmailConnection } from '@/hooks/useEmailConnection';
@@ -45,6 +46,7 @@ import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
 import { filesClient, rowFilesClient } from '@/lib/api/files-client';
 import type { TableFileResponse } from '@/types/files';
 import { recommendationsClient, RecommendationRequest } from '@/lib/api/recommendations-client';
+import { googleDriveClient } from '@/lib/api/integrations-client';
 import { RefreshCw } from 'lucide-react';
 import { QuickReminderPanel } from '../QuickReminderPanel';
 import { FullEmailComposer } from '../FullEmailComposer';
@@ -423,10 +425,25 @@ function renderFieldValue(value: any, depth: number = 0, fieldLabel?: string, fi
   
   // Handle objects
   if (typeof parsedValue === 'object') {
+    // Address field — render as a single clean string
+    if ('full_address' in parsedValue || 'city' in parsedValue) {
+      const address =
+        parsedValue.full_address ||
+        [parsedValue.street_address, parsedValue.city, parsedValue.state, parsedValue.postal_code]
+          .filter(Boolean)
+          .join(', ');
+      return <span className="text-gray-900">{address}</span>;
+    }
+
     const entries = Object.entries(parsedValue).filter(([k]) => !k.startsWith('_')); // Skip internal fields
-    
+
     if (entries.length === 0) {
       return <span className="text-gray-400 italic">Empty</span>;
+    }
+
+    // Unwrap single-value groups (e.g. {"field-1766110112708-zg4hskrds": "11"} → "11")
+    if (entries.length === 1) {
+      return renderFieldValue(entries[0][1], depth, fieldLabel, fieldMap);
     }
     
     // Check if all values are simple (no nested objects)
@@ -495,7 +512,7 @@ export function ApplicationDetail({
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [passwordMode, setPasswordMode] = useState<'generate' | 'custom'>('generate');
   const [customPassword, setCustomPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [copied, setCopied] = useState(false);
   
   const [emailTo, setEmailTo] = useState(application.email || '');
   const [emailSubject, setEmailSubject] = useState('');
@@ -565,6 +582,8 @@ export function ApplicationDetail({
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
   const [expandedRecommendations, setExpandedRecommendations] = useState<Set<string>>(new Set());
+  const [isSyncingRecommendationsToDrive, setIsSyncingRecommendationsToDrive] = useState(false);
+  const [isSyncingAllSubmissionsToDrive, setIsSyncingAllSubmissionsToDrive] = useState(false);
   
   // Email account selection for reminders
   const [selectedReminderAccount, setSelectedReminderAccount] = useState<string>('');
@@ -680,31 +699,26 @@ export function ApplicationDetail({
       }
     }
 
+    const applicantId = application.applicant_id;
+    if (!applicantId) {
+      toast.error('Cannot reset password: applicant account not found');
+      return;
+    }
+
     setIsResettingPassword(true);
     try {
       if (passwordMode === 'generate') {
-        const result = await crmClient.resetPassword(application.id, workspaceId);
-        if (result.success) {
-          setTemporaryPassword(result.temporary_password);
-          toast.success('Password reset successfully');
-        } else {
-          toast.error(result.message || 'Failed to reset password');
-          setShowResetPasswordModal(false);
-        }
+        const result = await crmClient.resetPassword(applicantId, workspaceId);
+        setTemporaryPassword(result.temporary_password);
+        toast.success('Password reset successfully');
       } else {
-        const result = await crmClient.setPassword(application.id, workspaceId, customPassword);
-        if (result.success) {
-          setTemporaryPassword(customPassword);
-          toast.success('Password set successfully');
-        } else {
-          toast.error(result.message || 'Failed to set password');
-          setShowResetPasswordModal(false);
-        }
+        await crmClient.setPassword(applicantId, workspaceId, customPassword);
+        setTemporaryPassword(customPassword);
+        toast.success('Password set successfully');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to reset password:', error);
-      toast.error('Failed to reset password');
-      setShowResetPasswordModal(false);
+      toast.error(error.message || 'Failed to reset password');
     } finally {
       setIsResettingPassword(false);
     }
@@ -713,7 +727,8 @@ export function ApplicationDetail({
   const handleCopyPassword = () => {
     if (temporaryPassword) {
       navigator.clipboard.writeText(temporaryPassword);
-      toast.success('Password copied to clipboard');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -722,7 +737,7 @@ export function ApplicationDetail({
     setTemporaryPassword(null);
     setPasswordMode('generate');
     setCustomPassword('');
-    setShowPassword(false);
+    setCopied(false);
   };
 
 
@@ -951,6 +966,95 @@ export function ApplicationDetail({
     }
   };
 
+  const handleSyncRecommendationDocumentsToDrive = async () => {
+    if (!application.id || isSyncingRecommendationsToDrive) return;
+
+    setIsSyncingRecommendationsToDrive(true);
+    try {
+      const [rowSyncResult, submissionSyncResult] = await Promise.allSettled([
+        googleDriveClient.syncAllFiles(application.id),
+        recommendationsClient.syncSubmissionDocumentsToDrive(application.id),
+      ]);
+
+      const rowSynced = rowSyncResult.status === 'fulfilled' ? (rowSyncResult.value?.total || 0) : 0;
+      const submissionFound = submissionSyncResult.status === 'fulfilled' ? submissionSyncResult.value.documents_found : 0;
+      const submissionSynced = submissionSyncResult.status === 'fulfilled' ? submissionSyncResult.value.documents_synced : 0;
+      const submissionExisting = submissionSyncResult.status === 'fulfilled' ? (submissionSyncResult.value as any).documents_existing || 0 : 0;
+      const submissionFailed = submissionSyncResult.status === 'fulfilled' ? submissionSyncResult.value.documents_failed : 0;
+      const failedUploadFieldDocs = submissionSyncResult.status === 'fulfilled'
+        ? (submissionSyncResult.value.sync_results || []).filter((item) =>
+            !!item.error && (item.source === 'submission_file' || item.source === 'submission_raw_data')
+          )
+        : [];
+
+      if (rowSyncResult.status === 'rejected' && submissionSyncResult.status === 'rejected') {
+        toast.error('Failed to sync Drive documents for this submission.')
+      } else if (submissionFound === 0 && rowSynced === 0) {
+        toast.info('No documents were found to sync for this submission.')
+      } else if (submissionFailed > 0) {
+        const failureList = failedUploadFieldDocs
+          .slice(0, 5)
+          .map((item) => {
+            const label = (item.field_label || '').trim();
+            const file = (item.filename || item.url || 'unknown file').trim();
+            return label ? `${label}: ${file}` : file;
+          });
+        const extraCount = failedUploadFieldDocs.length > 5 ? ` (+${failedUploadFieldDocs.length - 5} more)` : '';
+        const uploadFailDetails = failureList.length > 0
+          ? ` Upload-field failures: ${failureList.join(' | ')}${extraCount}`
+          : '';
+        toast.warning(`Drive sync complete: ${submissionSynced} synced, ${submissionExisting} already in Drive, ${submissionFailed} failed, ${rowSynced} row file(s) processed.${uploadFailDetails}`)
+      } else {
+        toast.success(`Drive sync complete: ${submissionSynced} synced, ${submissionExisting} already in Drive, ${rowSynced} row file(s) processed.`)
+      }
+
+      const data = await recommendationsClient.getForReview(application.id);
+      setRecommendations(data || []);
+    } catch (err) {
+      console.error('[ApplicationDetail] Failed to sync recommendation documents to Google Drive:', err);
+      toast.error('Failed to sync Drive documents to Google Drive');
+    } finally {
+      setIsSyncingRecommendationsToDrive(false);
+    }
+  };
+
+  const handleSyncAllSubmissionsToDrive = async () => {
+    if (!formId || isSyncingAllSubmissionsToDrive) return;
+
+    setIsSyncingAllSubmissionsToDrive(true);
+    try {
+      const result = await recommendationsClient.backfillFormDocumentsToDrive(formId);
+
+      if (result.submissions_checked === 0) {
+        toast.info('No submissions were found for this form.');
+      } else if (result.documents_found === 0) {
+        if (application.id) {
+          try {
+            const singleResult = await recommendationsClient.syncSubmissionDocumentsToDrive(application.id);
+            if (singleResult.documents_found > 0) {
+              toast.warning(`Form-wide scan found 0 docs, but current submission found ${singleResult.documents_found}. Synced ${singleResult.documents_synced}, failed ${singleResult.documents_failed}. This usually means the selected form ID does not match all submission records.`);
+            } else {
+              toast.info(`Scanned ${result.submissions_checked} submission(s), but found no documents to sync.`);
+            }
+          } catch {
+            toast.info(`Scanned ${result.submissions_checked} submission(s), but found no documents to sync.`);
+          }
+        } else {
+          toast.info(`Scanned ${result.submissions_checked} submission(s), but found no documents to sync.`);
+        }
+      } else if (result.documents_failed > 0) {
+        toast.warning(`Scanned ${result.submissions_checked} submission(s): ${result.documents_synced} synced, ${result.documents_existing} already in Drive, ${result.documents_failed} failed.`);
+      } else {
+        toast.success(`Scanned ${result.submissions_checked} submission(s): ${result.documents_synced} synced, ${result.documents_existing} already in Drive.`);
+      }
+    } catch (err) {
+      console.error('[ApplicationDetail] Failed to sync all submissions to Google Drive:', err);
+      toast.error('Failed to sync all submissions to Google Drive');
+    } finally {
+      setIsSyncingAllSubmissionsToDrive(false);
+    }
+  };
+
   // Create a field map for looking up field labels by ID
   const fieldMap = useMemo(() => {
     const map = new Map<string, any>();
@@ -971,6 +1075,11 @@ export function ApplicationDetail({
         map.set(fieldLabel, f);
         map.set(fieldLabel.toLowerCase().replace(/\s+/g, '_'), f);
         map.set(fieldLabel.replace(/\s+/g, '_'), f);
+      }
+      // Also index by field_key / name so repeater sub-field keys resolve to labels
+      const fieldName = (f as any).name;
+      if (fieldName && fieldName !== fieldLabel) {
+        map.set(fieldName, f);
       }
       // Map child fields for repeater/group fields
       const children = (f as any).children || (f as any).child_fields || [];
@@ -1246,11 +1355,23 @@ export function ApplicationDetail({
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
         const signatureDivs = doc.querySelectorAll('div[data-type="emailSignature"]');
+
+        const decodeHtmlEntities = (input: string): string => {
+          const textarea = doc.createElement('textarea');
+          textarea.innerHTML = input;
+          return textarea.value;
+        };
         
         signatureDivs.forEach((div) => {
           const content = div.getAttribute('data-content');
           if (content) {
-            div.innerHTML = content;
+            const decoded = decodeHtmlEntities(content);
+            const wrapper = doc.createElement('div');
+            wrapper.innerHTML = decoded;
+            div.replaceWith(...Array.from(wrapper.childNodes));
+          } else {
+            const decodedInner = decodeHtmlEntities(div.innerHTML);
+            div.innerHTML = decodedInner;
           }
         });
         
@@ -1265,6 +1386,7 @@ export function ApplicationDetail({
         recipient_emails: [recipientEmail], // Explicitly pass the recipient email
         subject: emailSubject,
         body: processedBody,
+        body_html: processedBody,
         is_html: true, // Rich text editor produces HTML
         merge_tags: true,
         track_opens: true,
@@ -1759,13 +1881,14 @@ export function ApplicationDetail({
                               <CardContent className="p-4 pt-0">
                                 <div className="space-y-4">
                                   {section.fields.map((field) => {
-                                    const value = application.raw_data?.[field.id] || 
+                                    const value = application.raw_data?.[field.id] ||
+                                                 application.raw_data?.[(field as any).name] ||
                                                  application.raw_data?.[(field as any).field_key] ||
                                                  application.raw_data?.[field.label?.toLowerCase().replace(/\s+/g, '_')] ||
                                                  application.raw_data?.[field.label];
                                     
-                                    // Use field.label directly, fallback to formatFieldLabel if not available
-                                    const displayLabel = field.label || formatFieldLabel(field.id, fieldMap);
+                                    // Strip HTML from rich-text labels
+                                    const displayLabel = (field.label || formatFieldLabel(field.id, fieldMap)).replace(/<[^>]+>/g, '').trim();
                                     const isRequired = (field as any).required;
                                     const isEmpty = value === null || value === undefined || value === '';
 
@@ -1956,24 +2079,87 @@ export function ApplicationDetail({
           <div className="w-80 flex flex-col overflow-hidden border-l border-gray-200">
               <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
                 <h2 className="text-sm font-semibold text-gray-900">Documents</h2>
-                <button 
-                  onClick={() => setShowDocumentsPanel(false)}
-                  className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-                >
-                  <X className="w-4 h-4 text-gray-500" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSyncAllSubmissionsToDrive}
+                    disabled={isSyncingAllSubmissionsToDrive || !formId}
+                  >
+                    {isSyncingAllSubmissionsToDrive ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-1.5" />
+                    )}
+                    Sync All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSyncRecommendationDocumentsToDrive}
+                    disabled={isSyncingRecommendationsToDrive}
+                  >
+                    {isSyncingRecommendationsToDrive ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                    ) : (
+                      <Folder className="w-4 h-4 mr-1.5" />
+                    )}
+                    Sync Drive
+                  </Button>
+                  <button
+                    onClick={() => setShowDocumentsPanel(false)}
+                    className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                  >
+                    <X className="w-4 h-4 text-gray-500" />
+                  </button>
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4">
                 {isLoadingFiles ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
                   </div>
-                ) : storageFiles.length === 0 && availableDocuments.length === 0 ? (
+                ) : storageFiles.length === 0 && availableDocuments.length === 0 && recommendationDocuments.length === 0 ? (
                   <div className="text-center py-8 text-sm text-gray-500">
                     No documents found
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    {/* Recommendation Documents */}
+                    {recommendationDocuments.length > 0 && (
+                      <div className="mb-4">
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-1">
+                          Recommendations
+                        </h3>
+                        {recommendationDocuments.map((doc, idx) => (
+                          <div key={`fullscreen-rec-doc-${idx}`} className="border border-green-200 bg-green-50 rounded-lg p-3 mb-2">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                                <FileSignature className="w-5 h-5 text-green-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">{doc.name}</p>
+                                <p className="text-xs text-gray-500">
+                                  <span className="text-green-600 font-medium">From {doc.recommenderName}</span>
+                                  {doc.contentType && ` • ${doc.contentType}`}
+                                  {doc.submittedAt && ` • ${new Date(doc.submittedAt).toLocaleDateString()}`}
+                                </p>
+                              </div>
+                              <a
+                                href={doc.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 hover:bg-green-100 rounded transition-colors"
+                                title="View document"
+                              >
+                                <Eye className="w-4 h-4 text-green-600" />
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Storage Files */}
                     {storageFiles.map((file) => {
                       const fileUrl = file.public_url || file.storage_path;
@@ -2267,14 +2453,44 @@ export function ApplicationDetail({
                 <FileText className="h-3.5 w-3.5" />
                 Documents
               </h2>
-              <Button 
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => setShowDocumentsPanel(false)}
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={handleSyncAllSubmissionsToDrive}
+                  disabled={isSyncingAllSubmissionsToDrive || !formId}
+                >
+                  {isSyncingAllSubmissionsToDrive ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3" />
+                  )}
+                  <span className="ml-1">Sync All</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={handleSyncRecommendationDocumentsToDrive}
+                  disabled={isSyncingRecommendationsToDrive}
+                >
+                  {isSyncingRecommendationsToDrive ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Folder className="h-3 w-3" />
+                  )}
+                  <span className="ml-1">Sync Drive</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => setShowDocumentsPanel(false)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
             <ScrollArea className="flex-1 p-3">
               {isLoadingFiles ? (
@@ -3106,136 +3322,133 @@ export function ApplicationDetail({
       />
 
       {/* Reset Password Dialog */}
-      <Dialog open={showResetPasswordModal} onOpenChange={setShowResetPasswordModal}>
+      <Dialog open={showResetPasswordModal} onOpenChange={(open) => !open && handleCloseResetModal()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Reset Password</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="w-5 h-5 text-blue-600" />
+              Set Password
+            </DialogTitle>
             <DialogDescription>
-              {!temporaryPassword 
-                ? `Reset the password for ${application.name || application.email}`
-                : 'Password has been reset successfully'}
+              {temporaryPassword
+                ? `Password for ${application.name || application.email}`
+                : `Set password for ${application.name || application.email}`
+              }
             </DialogDescription>
           </DialogHeader>
-          
-          {!temporaryPassword ? (
+
+          {isResettingPassword ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            </div>
+          ) : temporaryPassword ? (
             <div className="space-y-4">
-              <RadioGroup value={passwordMode} onValueChange={(value: 'generate' | 'custom') => setPasswordMode(value)}>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="generate" id="generate" />
-                  <Label htmlFor="generate" className="font-normal cursor-pointer">
-                    Generate random password
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="custom" id="custom" />
-                  <Label htmlFor="custom" className="font-normal cursor-pointer">
-                    Set custom password
-                  </Label>
-                </div>
-              </RadioGroup>
-
-              {passwordMode === 'generate' ? (
-                <p className="text-sm text-muted-foreground">
-                  A secure random password will be generated for {application.email}.
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-sm text-green-800 font-medium mb-2">
+                  ✓ Password set successfully
                 </p>
-              ) : (
-                <div className="space-y-2">
-                  <Label htmlFor="custom-password">Password (min. 8 characters)</Label>
-                  <div className="relative">
-                    <Input
-                      id="custom-password"
-                      type={showPassword ? 'text' : 'password'}
-                      value={customPassword}
-                      onChange={(e) => setCustomPassword(e.target.value)}
-                      placeholder="Enter password"
-                      className="pr-10"
-                      autoComplete="new-password"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Password will be set for {application.email}
-                  </p>
-                </div>
-              )}
+                <p className="text-xs text-green-700">
+                  Share this password with {application.name || 'the applicant'}:
+                </p>
+              </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-gray-100 rounded-lg p-3 font-mono text-lg font-bold text-center">
+                  {temporaryPassword}
+                </div>
                 <Button
                   variant="outline"
-                  onClick={handleCloseResetModal}
-                  disabled={isResettingPassword}
+                  size="sm"
+                  onClick={handleCopyPassword}
+                  className="h-11"
                 >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleResetPassword}
-                  disabled={isResettingPassword || (passwordMode === 'custom' && customPassword.length < 8)}
-                >
-                  {isResettingPassword ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {passwordMode === 'generate' ? 'Generating...' : 'Setting...'}
-                    </>
+                  {copied ? (
+                    <Check className="w-4 h-4 text-green-600" />
                   ) : (
-                    <>
-                      {passwordMode === 'generate' ? 'Generate Password' : 'Set Password'}
-                    </>
+                    <Copy className="w-4 h-4" />
                   )}
                 </Button>
               </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-800">
+                  <strong>Email:</strong> {application.email}
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  Send this password to the applicant via email or your preferred communication method.
+                </p>
+              </div>
+
+              <Button
+                variant="outline"
+                onClick={() => setTemporaryPassword(null)}
+                className="w-full"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Set New Password
+              </Button>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4">
-                <div className="flex items-start gap-2 mb-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-green-900 dark:text-green-100">Password has been set successfully</p>
-                    <p className="text-xs text-green-700 dark:text-green-300 mt-1">Make sure to save this password securely before closing this dialog</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-green-800 dark:text-green-200">New Password for {application.email}</Label>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 p-3 bg-background rounded border font-mono text-sm select-all">
-                      {temporaryPassword}
-                    </code>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      onClick={handleCopyPassword}
-                      className="shrink-0"
-                      title="Copy to clipboard"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                  <p className="text-xs text-amber-800 dark:text-amber-200">
-                    <strong>Important:</strong> This password will only be shown once. Save it now in a secure location. 
-                    Share it with the user through a secure channel.
+            <Tabs
+              value={passwordMode}
+              onValueChange={(mode) => setPasswordMode(mode as 'generate' | 'custom')}
+            >
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="generate">Generate</TabsTrigger>
+                <TabsTrigger value="custom">Set Custom</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="generate" className="space-y-4">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+                  <p className="text-sm text-gray-600">
+                    Click below to generate a secure 12-character password with letters, numbers, and special characters.
                   </p>
                 </div>
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={handleCloseResetModal}>
-                  Done
+
+                <Button
+                  onClick={handleResetPassword}
+                  disabled={isResettingPassword}
+                  className="w-full"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Generate Password
                 </Button>
-              </div>
-            </div>
+              </TabsContent>
+
+              <TabsContent value="custom" className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Enter Custom Password
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="Minimum 8 characters"
+                    value={customPassword}
+                    onChange={(e) => setCustomPassword(e.target.value)}
+                    className="font-mono"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Password must be at least 8 characters long
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleResetPassword}
+                  disabled={isResettingPassword || customPassword.length < 8}
+                  className="w-full"
+                >
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Set Password
+                </Button>
+              </TabsContent>
+            </Tabs>
           )}
+
+          <DialogFooter>
+            <Button onClick={handleCloseResetModal}>
+              {temporaryPassword ? 'Done' : 'Cancel'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

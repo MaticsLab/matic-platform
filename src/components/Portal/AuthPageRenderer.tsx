@@ -330,7 +330,7 @@ export function AuthPageRenderer({
                 <div className={cn(isMobilePreview ? "space-y-1" : "space-y-2")}>
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password" className={cn(isMobilePreview && "text-xs")}>
-                      Password <span className="text-gray-500 font-normal">(optional)</span>
+                      Password
                     </Label>
                     <a 
                       href="#" 
@@ -355,7 +355,7 @@ export function AuthPageRenderer({
                       id="password" 
                       type="password"
                       autoComplete="current-password"
-                      placeholder="Leave empty to use magic link"
+                      placeholder="Enter your password"
                       className={cn(
                         "pl-10",
                         isMobilePreview && "h-8 text-xs"
@@ -391,7 +391,7 @@ export function AuthPageRenderer({
                     type: 'password',
                     label: 'Password',
                     required: false,
-                    placeholder: 'Leave empty to use magic link'
+                    placeholder: 'Enter your password'
                   }
                 ]
                 
@@ -431,7 +431,7 @@ export function AuthPageRenderer({
                           className={cn(isMobilePreview ? "space-y-1" : "space-y-2")}
                         >
                           <Label htmlFor={field.id} className={cn(isMobilePreview && "text-xs")}>
-                            {field.label} <span className="text-gray-500 font-normal">(optional)</span>
+                            {field.label}
                           </Label>
                           <Input
                             id={field.id}
