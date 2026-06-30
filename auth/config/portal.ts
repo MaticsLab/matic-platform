@@ -12,8 +12,10 @@
  */
 
 import { betterAuth } from "better-auth";
+import { magicLink } from "better-auth/plugins";
 import { getPool } from "../lib/database";
 import { getBaseURL, getTrustedOrigins, getCookieConfig } from "../lib/helpers";
+import { sendMagicLink } from "@/lib/emails/magic-link-email";
 
 /**
  * Create the portal auth configuration
@@ -44,7 +46,21 @@ export function createPortalAuthConfig() {
       requireEmailVerification: false,
       autoSignIn: true,
     },
-    
+
+    // Plugins
+    plugins: [
+      magicLink({
+        sendMagicLink: async ({ email, url }) => {
+          await sendMagicLink({
+            user: { name: email.split('@')[0], email },
+            url,
+          });
+        },
+        expiresIn: 1200, // 20 minutes
+        disableSignUp: false,
+      }),
+    ],
+
     // Trusted origins for CORS
     trustedOrigins: getTrustedOrigins(),
     

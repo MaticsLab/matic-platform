@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     // Try to get portal auth instance
     diagnostics.portalAuth = { status: 'attempting' };
     
-    const { getPortalAuth } = await import('@/lib/portal-better-auth');
+    const { getPortalAuth } = await import('@/auth/server/portal');
     diagnostics.portalAuth = { status: 'module imported' };
     
     const portalAuth = getPortalAuth();
