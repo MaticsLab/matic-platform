@@ -39,7 +39,7 @@ function getPool(): Pool {
 }
 
 // Lazy singleton auth instance
-let _auth: ReturnType<typeof betterAuth> | null = null;
+let _auth: any = null;
 
 /**
  * Get Portal Auth instance (lazy initialization)

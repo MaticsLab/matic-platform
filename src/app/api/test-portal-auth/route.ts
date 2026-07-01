@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     result.step = 'checking auth properties';
     result.authProps = {
-      hasApi: !!auth.api,
+      hasApi: !!auth?.api,
       typeof: typeof auth,
     };
 

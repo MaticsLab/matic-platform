@@ -7,8 +7,8 @@ import { NavigationLayout } from '@/components/NavigationLayout'
 import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
 import { BreadcrumbBar } from '@/components/BreadcrumbBar'
 import { ApplicationManager } from '@/components/ApplicationsHub/Applications/ApplicationManager'
-import { workspacesSupabase } from '@/lib/api/workspaces-supabase'
-import type { Workspace } from '@/types/workspaces'
+import { workspacesClient } from '@/lib/api/workspaces-client'
+import type { Workspace } from '@/lib/api/workspaces-client'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
 
 function FormAnalyticsPageContent() {
@@ -23,7 +23,7 @@ function FormAnalyticsPageContent() {
       if (!slug) return
       try {
         setLoading(true)
-        const ws = await workspacesSupabase.getWorkspaceBySlug(slug)
+        const ws = await workspacesClient.getBySlug(slug)
         if (!ws) throw new Error('Workspace not found')
         setWorkspace(ws)
       } catch (error) {
