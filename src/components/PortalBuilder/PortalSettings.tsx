@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui-components/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
 import { PortalConfig, Field } from '@/types/portal'
 import { cn } from '@/lib/utils'
-import { supabase } from '@/lib/supabase'
+import { storageClient } from '@/lib/api/storage-client'
 import { toast } from 'sonner'
 
 interface PortalSettingsProps {
@@ -51,15 +51,15 @@ export function PortalSettings({ type, settings, onUpdate, formId }: PortalSetti
       const fileExt = file.name.split('.').pop()
       const fileName = `logos/${formId || 'default'}/${Date.now()}.${fileExt}`
 
-      const { data, error } = await supabase.storage
-        .from('form-assets')
+      const { data, error } = await storageClient
+        .from('workspace-assets')
         .upload(fileName, file, { upsert: true })
 
       if (error) throw error
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('form-assets')
+      const { data: { publicUrl } } = storageClient
+        .from('workspace-assets')
         .getPublicUrl(fileName)
 
       onUpdate({ logoUrl: publicUrl })
@@ -94,14 +94,14 @@ export function PortalSettings({ type, settings, onUpdate, formId }: PortalSetti
       const fileExt = file.name.split('.').pop()
       const fileName = `backgrounds/${formId || 'default'}/${Date.now()}.${fileExt}`
 
-      const { data, error } = await supabase.storage
-        .from('form-assets')
+      const { data, error } = await storageClient
+        .from('workspace-assets')
         .upload(fileName, file, { upsert: true })
 
       if (error) throw error
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('form-assets')
+      const { data: { publicUrl } } = storageClient
+        .from('workspace-assets')
         .getPublicUrl(fileName)
 
       onUpdate({ backgroundImageUrl: publicUrl })

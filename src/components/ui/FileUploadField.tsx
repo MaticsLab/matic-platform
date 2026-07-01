@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui-components/dialog'
-import { supabase } from '@/lib/supabase'
+import { storageClient, type StorageBucket } from '@/lib/api/storage-client'
 
 export interface UploadedFile {
   name: string
@@ -168,9 +168,9 @@ export function FileUploadField({
         const uniqueName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
         const filePath = storagePath ? `${storagePath}${uniqueName}` : uniqueName
 
-        // Upload to Supabase Storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from(storageBucket)
+        // Upload via Go backend to Railway object storage
+        const { data: uploadData, error: uploadError } = await storageClient
+          .from(storageBucket as StorageBucket)
           .upload(filePath, file, {
             cacheControl: '3600',
             upsert: false
@@ -183,8 +183,8 @@ export function FileUploadField({
         }
 
         // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from(storageBucket)
+        const { data: { publicUrl } } = storageClient
+          .from(storageBucket as StorageBucket)
           .getPublicUrl(filePath)
 
         const uploadedFile: UploadedFile = {

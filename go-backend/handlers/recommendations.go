@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	urlpkg "net/url"
 	"os"
@@ -34,41 +33,6 @@ func generateRecommendationToken() string {
 	return hex.EncodeToString(bytes)
 }
 
-// uploadRecommendationToSupabase uploads a file to Supabase Storage and returns the public URL
-func uploadRecommendationToSupabase(fileData io.Reader, storagePath string, contentType string) (string, error) {
-	supabaseURL := os.Getenv("NEXT_PUBLIC_SUPABASE_URL")
-	serviceRoleKey := os.Getenv("SUPABASE_SERVICE_ROLE_KEY")
-	if supabaseURL == "" || serviceRoleKey == "" {
-		return "", fmt.Errorf("Supabase credentials not configured")
-	}
-
-	bucket := "workspace-assets"
-	uploadURL := fmt.Sprintf("%s/storage/v1/object/%s/%s", supabaseURL, bucket, storagePath)
-
-	req, err := http.NewRequest("POST", uploadURL, fileData)
-	if err != nil {
-		return "", fmt.Errorf("failed to create upload request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+serviceRoleKey)
-	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("x-upsert", "false")
-
-	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("upload request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return "", fmt.Errorf("Supabase upload failed (%d): %s", resp.StatusCode, string(body))
-	}
-
-	// Return the public URL
-	publicURL := fmt.Sprintf("%s/storage/v1/object/public/%s/%s", supabaseURL, bucket, storagePath)
-	return publicURL, nil
-}
 
 // rewriteLocalhostURLs fixes old localhost URLs in recommendation response JSONB
 func rewriteLocalhostURLs(response []byte) ([]byte, error) {
@@ -2170,9 +2134,9 @@ func SubmitRecommendation(c *gin.Context) {
 			ext := filepath.Ext(header.Filename)
 			filename := fmt.Sprintf("%s_%s%s", uuid.New().String()[:8], strings.TrimSuffix(header.Filename, ext), ext)
 
-			// Upload to Supabase Storage (persistent, survives redeploys)
+			// Upload to Railway object storage (persistent, survives redeploys)
 			storagePath := fmt.Sprintf("uploads/recommendations/%s/%s", request.ID.String(), filename)
-			documentURL, err := uploadRecommendationToSupabase(file, storagePath, fileContentType)
+			documentURL, err := services.UploadObject(services.BucketWorkspaceAssets, storagePath, file, fileContentType)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to upload file: %s", err.Error())})
 				return

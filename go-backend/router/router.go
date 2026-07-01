@@ -254,8 +254,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 		// Recommendation Routes (Public with Token - for recommenders)
 		api.GET("/recommend/:token", handlers.GetRecommendationByToken)               // Get recommendation request details
-		api.POST("/recommend/:token/submit", handlers.SubmitRecommendation)           // Submit recommendation
+		api.POST("/recommend/:token/submit", handlers.SubmitRecommendation)           // Submit recommendation (accepts an optional "document" file field)
 		api.POST("/recommendations/test-email", handlers.SendTestRecommendationEmail) // Send test email
+
+		// Storage object retrieval (public — these buckets were public Supabase buckets
+		// before the Railway migration; reads are unauthenticated to match prior behavior)
+		api.GET("/storage/object/:bucket/*path", handlers.GetStorageObject)
 
 		// Public Ending Pages Routes (for portal form submissions)
 		// This endpoint is public because it's called after form submission by applicants
@@ -279,6 +283,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware(cfg))
 		{
+			// Storage (authenticated uploads/deletes — reads are public, see above)
+			protected.POST("/storage/upload", handlers.UploadStorageObject)
+			protected.DELETE("/storage/object", handlers.DeleteStorageObject)
+
 			// Organizations
 			organizations := protected.Group("/organizations")
 			{

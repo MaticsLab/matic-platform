@@ -47,7 +47,7 @@ import {
 } from 'lucide-react'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { adminClient, type AuthUser } from '@/lib/api/admin-client'
-import { supabase } from '@/lib/supabase'
+import { storageClient } from '@/lib/api/storage-client'
 import { toast } from 'sonner'
 import type { Workspace } from '@/types/workspaces'
 import { cn } from '@/lib/utils'
@@ -131,7 +131,7 @@ export function WorkspaceSettingsSidebar({ isOpen, onClose, workspace, onUpdate 
       const fileName = `${workspace.id}_${Date.now()}.${fileExt}`
       const filePath = `workspace-logos/${fileName}`
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await storageClient
         .from('workspace-assets')
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -140,14 +140,14 @@ export function WorkspaceSettingsSidebar({ isOpen, onClose, workspace, onUpdate 
 
       if (uploadError) throw uploadError
 
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = storageClient
         .from('workspace-assets')
         .getPublicUrl(filePath)
 
       if (logoUrl && logoUrl.includes('workspace-assets')) {
         const oldPath = logoUrl.split('/workspace-assets/').pop()
         if (oldPath) {
-          await supabase.storage.from('workspace-assets').remove([oldPath])
+          await storageClient.from('workspace-assets').remove([oldPath])
         }
       }
 
@@ -168,7 +168,7 @@ export function WorkspaceSettingsSidebar({ isOpen, onClose, workspace, onUpdate 
       if (logoUrl.includes('workspace-assets')) {
         const filePath = logoUrl.split('/workspace-assets/').pop()
         if (filePath) {
-          await supabase.storage.from('workspace-assets').remove([filePath])
+          await storageClient.from('workspace-assets').remove([filePath])
         }
       }
       setLogoUrl('')

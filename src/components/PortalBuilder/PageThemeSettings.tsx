@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui-component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui-components/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
 import { PortalConfig } from '@/types/portal'
-import { supabase } from '@/lib/supabase'
+import { storageClient } from '@/lib/api/storage-client'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { ColorPicker } from './ColorPicker'
@@ -78,13 +78,13 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
       const fileExt = file.name.split('.').pop()
       const fileName = `auth-media/${formId || 'default'}/${pageType}-${Date.now()}.${fileExt}`
 
-      const { data, error } = await supabase.storage
+      const { data, error } = await storageClient
         .from('workspace-assets')
         .upload(fileName, file, { upsert: true })
 
       if (error) throw error
 
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = storageClient
         .from('workspace-assets')
         .getPublicUrl(fileName)
 
@@ -131,13 +131,13 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
       const fileExt = file.name.split('.').pop()
       const fileName = `logos/${formId || 'default'}/${pageType}-${Date.now()}.${fileExt}`
 
-      const { data, error } = await supabase.storage
+      const { data, error } = await storageClient
         .from('workspace-assets')
         .upload(fileName, file, { upsert: true })
 
       if (error) throw error
 
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = storageClient
         .from('workspace-assets')
         .getPublicUrl(fileName)
 

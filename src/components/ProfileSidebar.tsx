@@ -26,7 +26,7 @@ import {
   Key
 } from 'lucide-react'
 import { authClient } from '@/auth/client/main'
-import { supabase } from '@/lib/supabase' // Keep for storage only
+import { storageClient } from '@/lib/api/storage-client'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Switch } from '@/ui-components/switch'
@@ -121,7 +121,7 @@ export function ProfileSidebar({ isOpen, onClose }: ProfileSidebarProps) {
       const fileName = `${user.id}_${Date.now()}.${fileExt}`
       const filePath = `avatars/${fileName}`
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await storageClient
         .from('user-assets')
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -130,7 +130,7 @@ export function ProfileSidebar({ isOpen, onClose }: ProfileSidebarProps) {
 
       if (uploadError) throw uploadError
 
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = storageClient
         .from('user-assets')
         .getPublicUrl(filePath)
 
@@ -138,7 +138,7 @@ export function ProfileSidebar({ isOpen, onClose }: ProfileSidebarProps) {
       if (avatarUrl && avatarUrl.includes('user-assets')) {
         const oldPath = avatarUrl.split('/user-assets/').pop()
         if (oldPath) {
-          await supabase.storage.from('user-assets').remove([oldPath])
+          await storageClient.from('user-assets').remove([oldPath])
         }
       }
 

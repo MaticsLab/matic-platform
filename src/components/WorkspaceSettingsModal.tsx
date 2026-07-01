@@ -7,7 +7,7 @@ import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { Upload, Palette, X, Globe, AlertCircle, Check } from 'lucide-react'
 import { workspacesClient } from '@/lib/api/workspaces-client'
-import { supabase } from '@/lib/supabase'
+import { storageClient } from '@/lib/api/storage-client'
 import { toast } from 'sonner'
 import type { Workspace } from '@/types/workspaces'
 
@@ -82,7 +82,7 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspace, onUpdate }:
       const filePath = `workspace-logos/${fileName}`
 
       // Upload to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { data: uploadData, error: uploadError } = await storageClient
         .from('workspace-assets')
         .upload(filePath, file, {
           cacheControl: '3600',
@@ -94,7 +94,7 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspace, onUpdate }:
       }
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = storageClient
         .from('workspace-assets')
         .getPublicUrl(filePath)
 
@@ -102,7 +102,7 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspace, onUpdate }:
       if (logoUrl && logoUrl.includes('workspace-assets')) {
         const oldPath = logoUrl.split('/workspace-assets/').pop()
         if (oldPath) {
-          await supabase.storage
+          await storageClient
             .from('workspace-assets')
             .remove([oldPath])
         }
@@ -126,7 +126,7 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspace, onUpdate }:
       if (logoUrl.includes('workspace-assets')) {
         const filePath = logoUrl.split('/workspace-assets/').pop()
         if (filePath) {
-          const { error } = await supabase.storage
+          const { error } = await storageClient
             .from('workspace-assets')
             .remove([filePath])
           

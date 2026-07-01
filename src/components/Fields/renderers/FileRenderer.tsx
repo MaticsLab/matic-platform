@@ -14,7 +14,7 @@ import { Upload, FileText, Image as ImageIcon, X, Download, Eye, Trash2, Loader2
 import type { FieldRendererProps } from '../types';
 import { safeFieldString } from '../types';
 import { FIELD_TYPES } from '@/types/field-types';
-import { createClient } from '@/lib/supabase';
+import { storageClient, type StorageBucket } from '@/lib/api/storage-client';
 import { googleDriveClient } from '@/lib/api/integrations-client';
 
 const FILE_SUBTYPES = [
@@ -165,7 +165,6 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
     setUploadError(null);
     setIsUploading(true);
 
-    const supabase = createClient();
     const processedFiles: FileValue[] = [];
 
     for (const file of Array.from(fileList)) {
@@ -181,9 +180,9 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
         const uniqueName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
         const filePath = `${storagePath}${uniqueName}`;
 
-        // Upload to Supabase Storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from(storageBucket)
+        // Upload via Go backend to Railway object storage
+        const { data: uploadData, error: uploadError } = await storageClient
+          .from(storageBucket as StorageBucket)
           .upload(filePath, file, {
             cacheControl: '3600',
             upsert: false
@@ -196,8 +195,8 @@ export function FileRenderer(props: FieldRendererProps): React.ReactElement | nu
         }
 
         // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from(storageBucket)
+        const { data: { publicUrl } } = storageClient
+          .from(storageBucket as StorageBucket)
           .getPublicUrl(filePath);
 
         // Sync to Google Drive if enabled (rowId and formId must be available)

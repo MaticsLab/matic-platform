@@ -22,7 +22,6 @@ import recommendationsClient, {
   RecommendationByTokenResponse, 
   RecommendationQuestion 
 } from '@/lib/api/recommendations-client'
-import { createClient } from '@/lib/supabase'
 
 // File Upload Component
 function FileUpload({ value, onChange }: { value?: File | null; onChange: (file: File | null) => void }) {
@@ -201,27 +200,10 @@ export default function RecommendPage() {
       setSubmitting(true)
       setError(null)
 
-      // If a file was selected, upload it directly from the browser to Supabase Storage
-      if (file) {
-        const supabase = createClient()
-        const ext = file.name.split('.').pop()
-        const uniqueName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`
-        const storagePath = `uploads/recommendations/${token}/${uniqueName}`
-        const { error: uploadErr } = await supabase.storage
-          .from('workspace-assets')
-          .upload(storagePath, file, { cacheControl: '3600', upsert: false })
-        if (uploadErr) throw new Error(`Failed to upload file: ${uploadErr.message}`)
-        const { data: { publicUrl } } = supabase.storage.from('workspace-assets').getPublicUrl(storagePath)
-        responsesToSend['uploaded_document'] = {
-          url: publicUrl,
-          filename: file.name,
-          size: file.size,
-          type: file.type,
-        }
-      }
-
-      // Submit as plain JSON (no multipart) — file URL already included above
-      await recommendationsClient.submit(token, { response: responsesToSend })
+      // If a file was selected, it's sent as part of the multipart submission below —
+      // the backend uploads it to Railway object storage and attaches
+      // `uploaded_document` to the stored response itself.
+      await recommendationsClient.submit(token, { response: responsesToSend }, file)
       setSuccess(true)
     } catch (err: any) {
       setError(err.message || 'Failed to submit recommendation')

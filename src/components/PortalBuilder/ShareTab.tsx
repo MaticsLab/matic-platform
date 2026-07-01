@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { formsClient, Form } from '@/lib/api/forms-client'
 import { workspacesClient, Workspace } from '@/lib/api/workspaces-client'
 import { toast } from 'sonner'
-import { createClient } from '@/lib/supabase'
+import { storageClient } from '@/lib/api/storage-client'
 
 interface ShareTabProps {
   formId: string | null
@@ -742,29 +742,27 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
 
     setIsUploading(true)
     try {
-      const supabase = createClient()
-      
       // Generate unique filename
       const fileExt = file.name.split('.').pop()
       const fileName = `${formId}-preview-${Date.now()}.${fileExt}`
       const filePath = `form-previews/${fileName}`
-      
-      // Upload to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
+
+      // Upload via Go backend to Railway object storage
+      const { data: uploadData, error: uploadError } = await storageClient
         .from('workspace-assets')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false
         })
-      
+
       if (uploadError) {
         console.error('Upload error:', uploadError)
         toast.error('Failed to upload image')
         return
       }
-      
+
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = storageClient
         .from('workspace-assets')
         .getPublicUrl(filePath)
       
