@@ -180,22 +180,22 @@ export function createMainAuthConfig() {
     user: {
       // Table/column names now come directly from the Drizzle schema
       // (src/drizzle/schemas/auth-schema.ts) — no modelName/fields overrides needed.
+      // Note: no `fieldName` overrides here either — the drizzle adapter looks up
+      // additionalFields by the JS property name used in the Drizzle schema itself
+      // (camelCase, e.g. `userType`), not the underlying snake_case DB column name.
       additionalFields: {
         fullName: {
           type: "string" as const,
           required: false,
-          fieldName: "full_name",
         },
         avatarUrl: {
           type: "string" as const,
           required: false,
-          fieldName: "avatar_url",
         },
         userType: {
           type: "string" as const,
           required: false,
           defaultValue: "applicant",
-          fieldName: "user_type",
           input: true,
         },
       },
