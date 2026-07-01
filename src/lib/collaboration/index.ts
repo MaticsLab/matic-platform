@@ -1,1 +1,1 @@
-export { SupabaseYjsProvider, type UserPresence, type SupabaseProviderOptions } from './SupabaseYjsProvider';
+export { WebSocketYjsProvider, type UserPresence, type WebSocketProviderOptions } from './WebSocketYjsProvider';

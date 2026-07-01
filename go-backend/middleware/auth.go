@@ -66,7 +66,7 @@ func init() {
 }
 
 // validateBetterAuthSessionToken checks if a token is a valid Better Auth session token
-// by looking it up in the ba_sessions table with caching for performance
+// by looking it up in the session table with caching for performance
 func validateBetterAuthSessionToken(token string) (*models.BetterAuthSession, bool) {
 	// Check cache first (5 minute TTL matches Better Auth cookie cache)
 	if cached, ok := sessionCache.Load(token); ok {
@@ -122,6 +122,13 @@ func validateBetterAuthSessionToken(token string) (*models.BetterAuthSession, bo
 	})
 
 	return &session, true
+}
+
+// ValidateSessionToken exposes session-token validation for callers outside the Gin
+// middleware chain (e.g. the WebSocket upgrade handshake, which needs to check auth
+// manually before hijacking the connection).
+func ValidateSessionToken(token string) (*models.BetterAuthSession, bool) {
+	return validateBetterAuthSessionToken(token)
 }
 
 // extractTokenFromRequest extracts the token from cookies (primary) or Authorization header (fallback)

@@ -3,8 +3,7 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import * as Y from 'yjs';
-import { SupabaseYjsProvider, type UserPresence } from './index';
-import { supabase } from '@/lib/supabase';
+import { WebSocketYjsProvider, type UserPresence } from './WebSocketYjsProvider';
 
 // ============================================================================
 // Types
@@ -36,7 +35,7 @@ interface CollaborationState {
   
   // Internal refs (not reactive)
   _ydoc: Y.Doc | null;
-  _provider: SupabaseYjsProvider | null;
+  _provider: WebSocketYjsProvider | null;
   _cursorThrottleTimeout: NodeJS.Timeout | null;
   _typingTimeout: NodeJS.Timeout | null;
 }
@@ -126,8 +125,7 @@ export const useCollaborationStore = create<CollaborationStore>()(
 
       const ydoc = new Y.Doc();
       
-      const provider = new SupabaseYjsProvider({
-        supabaseClient: supabase,  // Reuse existing client to avoid multiple GoTrueClient warning
+      const provider = new WebSocketYjsProvider({
         roomId: `portal-builder:${roomId}`,
         doc: ydoc,
         userId: currentUser.id,

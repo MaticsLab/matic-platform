@@ -91,6 +91,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		})
 	})
 
+	// Realtime collaboration WebSocket relay. Mounted outside /api/v1 deliberately —
+	// next.config.js's rewrites() only proxies plain HTTP under /api/v1/*, so a WS
+	// upgrade request routed through it would be mangled. The frontend connects to
+	// this backend's own domain directly for this one endpoint.
+	r.GET("/ws/collaboration/:roomId", handlers.HandleCollaborationWebSocket(cfg))
+
 	// API v1 routes
 	api := r.Group("/api/v1")
 	{
