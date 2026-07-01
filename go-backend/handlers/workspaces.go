@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -20,6 +21,49 @@ import (
 )
 
 // Workspace Handlers
+
+// populateBAUsersForWorkspaces fills in the BAUser field on each workspace's members.
+// workspace_members lives in AppDB and the Better Auth user table lives in AuthDB —
+// separate physical databases now, so this can no longer be a GORM Preload and is
+// done as one batched AuthDB query merged in Go instead.
+func populateBAUsersForWorkspaces(workspaces []models.Workspace) {
+	idSet := make(map[string]struct{})
+	for _, ws := range workspaces {
+		for _, m := range ws.Members {
+			if m.BAUserID != nil {
+				idSet[*m.BAUserID] = struct{}{}
+			}
+		}
+	}
+	if len(idSet) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(idSet))
+	for id := range idSet {
+		ids = append(ids, id)
+	}
+
+	var baUsers []models.BetterAuthUser
+	if err := database.AuthDB.Where("id IN ?", ids).Find(&baUsers).Error; err != nil {
+		log.Printf("populateBAUsersForWorkspaces: AuthDB error: %v", err)
+		return
+	}
+	baUserByID := make(map[string]models.BetterAuthUser, len(baUsers))
+	for _, u := range baUsers {
+		baUserByID[u.ID] = u
+	}
+
+	for wi := range workspaces {
+		for mi := range workspaces[wi].Members {
+			if id := workspaces[wi].Members[mi].BAUserID; id != nil {
+				if u, ok := baUserByID[*id]; ok {
+					user := u
+					workspaces[wi].Members[mi].BAUser = &user
+				}
+			}
+		}
+	}
+}
 
 func ListWorkspaces(c *gin.Context) {
 	organizationID := c.Query("organization_id")
@@ -45,17 +89,18 @@ func ListWorkspaces(c *gin.Context) {
 		query = query.Where("workspaces.is_archived = ?", false)
 	}
 
-	// PERFORMANCE OPTIMIZATION: Preload Members with BAUser in single query
-	// This fixes N+1 query issue - previously queried ba_users for each member separately
+	// PERFORMANCE OPTIMIZATION: Preload Members in a single query, then batch-fetch
+	// BAUser from AuthDB separately (see populateBAUsersForWorkspaces).
 	if err := query.
 		Preload("Members", func(db *gorm.DB) *gorm.DB {
-			return db.Preload("BAUser").Where("status = ?", "active")
+			return db.Where("status = ?", "active")
 		}).
 		Order("workspaces.created_at DESC").
 		Find(&workspaces).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	populateBAUsersForWorkspaces(workspaces)
 
 	c.JSON(http.StatusOK, workspaces)
 }
@@ -87,13 +132,14 @@ func GetWorkspacesInit(c *gin.Context) {
 		Joins("JOIN workspace_members ON workspace_members.workspace_id = workspaces.id").
 		Where("(workspace_members.user_id::text = ? OR workspace_members.ba_user_id = ?) AND workspace_members.status = ? AND workspaces.is_archived = ?", userID, userID, "active", false).
 		Preload("Members", func(db *gorm.DB) *gorm.DB {
-			return db.Preload("BAUser").Where("status = ?", "active")
+			return db.Where("status = ?", "active")
 		}).
 		Order("workspaces.created_at DESC").
 		Find(&workspaces).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch workspaces"})
 		return
 	}
+	populateBAUsersForWorkspaces(workspaces)
 
 	response.Workspaces = workspaces
 
@@ -215,10 +261,12 @@ func CreateWorkspace(c *gin.Context) {
 		icon = "folder"
 	}
 
-	// Begin transaction to create workspace and Better Auth organization
-	tx := database.DB.Begin()
+	// Better Auth organization/member tables live in AuthDB, a separate physical
+	// database from AppDB (where workspaces live) — they can't share a transaction,
+	// so create them first against AuthDB, then the workspace against AppDB, with a
+	// best-effort compensating delete if the AppDB write fails.
+	authTx := database.AuthDB.Begin()
 
-	// Create Better Auth organization
 	baOrg := models.BetterAuthOrganization{
 		ID:        uuid.New().String(),
 		Name:      input.Name,
@@ -228,11 +276,28 @@ func CreateWorkspace(c *gin.Context) {
 		CreatedAt: time.Now(),
 	}
 
-	if err := tx.Create(&baOrg).Error; err != nil {
-		tx.Rollback()
+	if err := authTx.Create(&baOrg).Error; err != nil {
+		authTx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Better Auth organization: " + err.Error()})
 		return
 	}
+
+	// Add creator as owner in Better Auth members table
+	baMember := models.BetterAuthMember{
+		ID:             uuid.New().String(),
+		OrganizationID: baOrg.ID,
+		UserID:         baUserID,
+		Role:           "owner",
+		CreatedAt:      time.Now(),
+	}
+
+	if err := authTx.Create(&baMember).Error; err != nil {
+		authTx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add user as Better Auth member: " + err.Error()})
+		return
+	}
+
+	authTx.Commit()
 
 	// Create workspace with link to Better Auth organization
 	workspace := models.Workspace{
@@ -247,28 +312,14 @@ func CreateWorkspace(c *gin.Context) {
 		BACreatedBy:      &baUserID, // Better Auth user ID (TEXT)
 	}
 
-	if err := tx.Create(&workspace).Error; err != nil {
-		tx.Rollback()
+	if err := database.DB.Create(&workspace).Error; err != nil {
+		// Compensate: the AuthDB org/member were already committed, so clean them up
+		// since there's no cross-database transaction to roll them back with.
+		database.AuthDB.Delete(&models.BetterAuthMember{}, "id = ?", baMember.ID)
+		database.AuthDB.Delete(&models.BetterAuthOrganization{}, "id = ?", baOrg.ID)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	// Add creator as owner in Better Auth members table
-	baMember := models.BetterAuthMember{
-		ID:             uuid.New().String(),
-		OrganizationID: baOrg.ID,
-		UserID:         baUserID,
-		Role:           "owner",
-		CreatedAt:      time.Now(),
-	}
-
-	if err := tx.Create(&baMember).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add user as Better Auth member: " + err.Error()})
-		return
-	}
-
-	tx.Commit()
 
 	c.JSON(http.StatusCreated, workspace)
 }
@@ -521,9 +572,9 @@ func ListWorkspaceMembers(c *gin.Context) {
 				FullName *string
 			}
 			var baProfiles []BAUserProfile
-			database.DB.Raw(`
+			database.AuthDB.Raw(`
 				SELECT id, name, email, full_name
-				FROM ba_users WHERE id IN ?
+				FROM "user" WHERE id IN ?
 			`, baUserIDs).Scan(&baProfiles)
 
 			// Create a map for quick lookup
@@ -728,32 +779,89 @@ func GetWorkspaceMembersWithAuth(c *gin.Context) {
 		UserCreatedAt     string  `json:"user_created_at"`
 	}
 
-	var members []MemberWithAuth
-	err = database.DB.Raw(`
-		SELECT 
-			wm.id,
-			wm.workspace_id,
-			wm.ba_user_id,
-			wm.role,
-			ba.created_at::text as created_at,
-			ba.updated_at::text as updated_at,
-			ba.name as user_name,
-			ba.email as user_email,
-			ba.image as user_image,
-			ba.email_verified as user_email_verified,
-			ba.created_at::text as user_created_at
-		FROM workspace_members wm
-		LEFT JOIN ba_users ba ON wm.ba_user_id = ba.id
-		WHERE wm.workspace_id = ? AND wm.status = 'active'
-			AND (ba.user_type IS NULL OR ba.user_type != 'applicant')
-		ORDER BY ba.created_at ASC
-	`, wsID).Scan(&members).Error
-
-	if err != nil {
+	// workspace_members lives in AppDB, the Better Auth user table lives in AuthDB —
+	// these are separate physical databases now, so the former single JOIN query is
+	// split into two queries and merged here.
+	type workspaceMemberRow struct {
+		ID          string
+		WorkspaceID string
+		BAUserID    *string
+		Role        string
+	}
+	var memberRows []workspaceMemberRow
+	if err := database.DB.Table("workspace_members").
+		Select("id, workspace_id, ba_user_id, role").
+		Where("workspace_id = ? AND status = ?", wsID, "active").
+		Find(&memberRows).Error; err != nil {
 		log.Printf("GetWorkspaceMembersWithAuth: Database error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch members"})
 		return
 	}
+
+	baUserIDs := make([]string, 0, len(memberRows))
+	for _, m := range memberRows {
+		if m.BAUserID != nil {
+			baUserIDs = append(baUserIDs, *m.BAUserID)
+		}
+	}
+
+	type baUserRow struct {
+		ID            string
+		Name          string
+		Email         string
+		Image         *string
+		EmailVerified bool
+		UserType      *string
+		CreatedAt     time.Time
+		UpdatedAt     time.Time
+	}
+	var baUsers []baUserRow
+	if len(baUserIDs) > 0 {
+		if err := database.AuthDB.Table(`"user"`).
+			Select(`id, name, email, image, email_verified, user_type, created_at, updated_at`).
+			Where("id IN ?", baUserIDs).
+			Find(&baUsers).Error; err != nil {
+			log.Printf("GetWorkspaceMembersWithAuth: AuthDB error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch members"})
+			return
+		}
+	}
+
+	baUserByID := make(map[string]baUserRow, len(baUsers))
+	for _, u := range baUsers {
+		baUserByID[u.ID] = u
+	}
+
+	members := make([]MemberWithAuth, 0, len(memberRows))
+	for _, m := range memberRows {
+		if m.BAUserID == nil {
+			continue
+		}
+		baUser, ok := baUserByID[*m.BAUserID]
+		if !ok {
+			continue
+		}
+		if baUser.UserType != nil && *baUser.UserType == "applicant" {
+			continue
+		}
+		userName := baUser.Name
+		members = append(members, MemberWithAuth{
+			ID:                m.ID,
+			WorkspaceID:       m.WorkspaceID,
+			BAUserID:          m.BAUserID,
+			Role:              m.Role,
+			CreatedAt:         baUser.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:         baUser.UpdatedAt.Format(time.RFC3339),
+			UserName:          &userName,
+			UserEmail:         baUser.Email,
+			UserImage:         baUser.Image,
+			UserEmailVerified: baUser.EmailVerified,
+			UserCreatedAt:     baUser.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	sort.Slice(members, func(i, j int) bool {
+		return members[i].CreatedAt < members[j].CreatedAt
+	})
 
 	c.JSON(http.StatusOK, members)
 }

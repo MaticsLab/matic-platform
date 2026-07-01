@@ -13,6 +13,7 @@ import (
 	"github.com/Jsanchez767/matic-platform/models"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
 )
 
 // BetterAuthClaims represents the claims in a Better Auth JWT token
@@ -99,7 +100,7 @@ func validateBetterAuthSessionToken(token string) (*models.BetterAuthSession, bo
 			break
 		}
 
-		if strings.Contains(result.Error.Error(), `relation "ba_sessions" does not exist`) {
+		if strings.Contains(result.Error.Error(), `relation "session" does not exist`) {
 			continue
 		}
 	}

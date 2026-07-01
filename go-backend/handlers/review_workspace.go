@@ -83,17 +83,15 @@ func GetReviewWorkspaceSubmissions(c *gin.Context) {
 		CreatedAt     string  `json:"created_at"`
 		UpdatedAt     string  `json:"updated_at"`
 		UserID        string  `json:"user_id"`
-		UserEmail     string  `json:"user_email"`
-		UserName      *string `json:"user_name"`
 	}
 
 	var rows []SubmissionRow
 	err = database.DB.Raw(`
-		SELECT 
+		SELECT
 			fs.id::text as submission_id,
 			fs.form_id::text as form_id,
 			COALESCE(fs.status, 'draft') as status,
-			CASE 
+			CASE
 				WHEN fs.status = 'submitted' THEN 100
 				WHEN fs.status = 'draft' THEN COALESCE(
 					(SELECT (COUNT(DISTINCT CASE WHEN fr.id IS NOT NULL THEN ff.id END)::float * 100 / NULLIF(COUNT(DISTINCT ff.id), 0))::int
@@ -108,11 +106,8 @@ func GetReviewWorkspaceSubmissions(c *gin.Context) {
 			fs.updated_at::text as last_saved_at,
 			fs.created_at::text as created_at,
 			fs.updated_at::text as updated_at,
-			ba.id as user_id,
-			ba.email as user_email,
-			ba.name as user_name
+			fs.user_id as user_id
 		FROM form_submissions fs
-		LEFT JOIN ba_users ba ON fs.user_id = ba.id
 		WHERE fs.form_id = ?
 		ORDER BY fs.created_at DESC
 	`, formUUID).Scan(&rows).Error
@@ -124,6 +119,35 @@ func GetReviewWorkspaceSubmissions(c *gin.Context) {
 	}
 
 	fmt.Printf("✅ GetReviewWorkspaceSubmissions: Found %d submissions\n", len(rows))
+
+	// Better Auth users live in AuthDB, a separate physical database from
+	// AppDB (where form_submissions lives), so their info is fetched in a
+	// second query and merged in Go instead of a SQL JOIN.
+	userIDs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.UserID != "" {
+			userIDs = append(userIDs, row.UserID)
+		}
+	}
+
+	type BAUserInfo struct {
+		ID    string `json:"id"`
+		Email string `json:"email"`
+		Name  string `json:"name"`
+	}
+	baUserMap := make(map[string]BAUserInfo, len(userIDs))
+	if len(userIDs) > 0 {
+		var baUsers []BAUserInfo
+		if err := database.AuthDB.Raw(`
+			SELECT id, email, name FROM "user" WHERE id IN ?
+		`, userIDs).Scan(&baUsers).Error; err != nil {
+			fmt.Printf("⚠️ GetReviewWorkspaceSubmissions: Error loading Better Auth users: %v\n", err)
+		} else {
+			for _, u := range baUsers {
+				baUserMap[u.ID] = u
+			}
+		}
+	}
 
 	// For each submission, aggregate form_responses
 	results := make([]ReviewWorkspaceSubmission, 0, len(rows))
@@ -146,9 +170,11 @@ func GetReviewWorkspaceSubmissions(c *gin.Context) {
 
 		// Extract name and email for compatibility
 		applicantName := ""
-		applicantEmail := row.UserEmail
-		if row.UserName != nil {
-			applicantName = *row.UserName
+		applicantEmail := ""
+		baUser, hasBAUser := baUserMap[row.UserID]
+		if hasBAUser {
+			applicantEmail = baUser.Email
+			applicantName = baUser.Name
 		}
 
 		submission := ReviewWorkspaceSubmission{
@@ -165,13 +191,11 @@ func GetReviewWorkspaceSubmissions(c *gin.Context) {
 			ApplicantEmail:       applicantEmail,
 		}
 
-		if row.UserEmail != "" {
+		if hasBAUser {
 			submission.BAUser = &models.BetterAuthUser{
-				ID:    row.UserID,
-				Email: row.UserEmail,
-			}
-			if row.UserName != nil {
-				submission.BAUser.Name = *row.UserName
+				ID:    baUser.ID,
+				Email: baUser.Email,
+				Name:  baUser.Name,
 			}
 		}
 

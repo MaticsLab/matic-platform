@@ -68,18 +68,23 @@ Use variable references in services:
 
 ## 5) Run Better Auth Migration
 
+AuthDB schema is managed with Drizzle Kit (see `drizzle.config.ts` and
+`src/drizzle/schemas/auth-schema.ts`), not the Better Auth CLI's raw-SQL migrations.
+
 After frontend service has env variables set:
 
-1. Open frontend service shell in Railway.
-2. Run:
+1. With `BETTER_AUTH_DATABASE_URL` pointed at AuthDB (its public URL works fine from
+   a local shell), run:
 
-npm run auth:migrate
+npm run db:migrate
 
-3. Confirm tables are created in AuthDB:
-- ba_users
-- ba_accounts
-- ba_sessions
-- ba_verifications
+2. Confirm tables are created in AuthDB:
+- user
+- account
+- session
+- verification
+- organization, member, invitation
+- two_factor, passkey, subscription
 
 ## 6) Domains and CORS
 

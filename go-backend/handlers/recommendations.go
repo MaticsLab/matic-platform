@@ -521,7 +521,7 @@ func resolveApplicantInfo(submissionID uuid.UUID) (string, string, error) {
 	}
 
 	var user models.BetterAuthUser
-	if err := database.DB.Where("id = ?", betterAuthUserID).First(&user).Error; err != nil {
+	if err := database.AuthDB.Where("id = ?", betterAuthUserID).First(&user).Error; err != nil {
 		return applicantName, applicantEmail, fmt.Errorf("failed to find ba_user %s: %w", betterAuthUserID, err)
 	}
 

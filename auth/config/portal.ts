@@ -15,7 +15,7 @@ import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 import { magicLink } from "better-auth/plugins";
 import { getPool } from "../lib/database";
-import { getBaseURL, getTrustedOrigins } from "../lib/helpers";
+import { getBaseURL, getTrustedOrigins, getCookieDomain } from "../lib/helpers";
 import { sendMagicLink } from "@/lib/emails/magic-link-email";
 
 /**
@@ -24,7 +24,8 @@ import { sendMagicLink } from "@/lib/emails/magic-link-email";
  */
 export function createPortalAuthConfig() {
   const pool = getPool();
-  
+  const cookieDomain = getCookieDomain();
+
   if (!pool) {
     throw new Error('[Portal Auth] Cannot create auth: database pool unavailable');
   }
@@ -118,15 +119,15 @@ export function createPortalAuthConfig() {
           attributes: {
             secure: process.env.NODE_ENV === "production",
             sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-            domain: process.env.NODE_ENV === "production" ? ".maticsapp.com" : undefined,
+            domain: cookieDomain,
             path: "/",
             httpOnly: true,
           },
         },
       },
       crossSubDomainCookies: {
-        enabled: true,
-        domain: ".maticsapp.com",
+        enabled: !!cookieDomain,
+        domain: cookieDomain,
       },
     },
     

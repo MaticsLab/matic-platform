@@ -39,12 +39,12 @@ func ListDiscoveredFilesForUser(c *gin.Context) {
 		return
 	}
 
-	// Find the ba_users record for this email
+	// Find the Better Auth user record for this email
 	var user struct {
 		ID    string
 		Email string
 	}
-	if err := database.DB.Table("ba_users").Where("email = ?", userEmail).First(&user).Error; err != nil {
+	if err := database.AuthDB.Table("user").Where("email = ?", userEmail).First(&user).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("User not found: %s", userEmail)})
 		return
 	}

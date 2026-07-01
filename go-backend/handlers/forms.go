@@ -1067,14 +1067,15 @@ func ListFormSubmissions(c *gin.Context) {
 		}
 
 		var results []SubmissionWithUser
-		// Join with ba_users table using ba_created_by field
+		// table_rows lives in AppDB; ba_created_by references the Better Auth
+		// "user" table which lives in AuthDB, so this can no longer be a SQL
+		// JOIN. Query table_rows first, then look up Better Auth users
+		// separately and merge in Go.
 		query := database.DB.Table("table_rows").
-			Select(`table_rows.id, table_rows.table_id, table_rows.data, table_rows.metadata, 
-				table_rows.is_archived, table_rows.position, table_rows.stage_group_id, 
-				table_rows.tags, table_rows.ba_created_by, table_rows.ba_updated_by, 
-				table_rows.created_at, table_rows.updated_at,
-				ba_users.id as ba_user_id, ba_users.email as ba_user_email, ba_users.name as ba_user_name`).
-			Joins("LEFT JOIN ba_users ON table_rows.ba_created_by = ba_users.id").
+			Select(`table_rows.id, table_rows.table_id, table_rows.data, table_rows.metadata,
+				table_rows.is_archived, table_rows.position, table_rows.stage_group_id,
+				table_rows.tags, table_rows.ba_created_by, table_rows.ba_updated_by,
+				table_rows.created_at, table_rows.updated_at`).
 			Where("table_rows.table_id = ?", tableID).
 			Order("table_rows.created_at DESC").
 			Offset(offset).Limit(limit)
@@ -1089,14 +1090,12 @@ func ListFormSubmissions(c *gin.Context) {
 
 		for rows.Next() {
 			var result SubmissionWithUser
-			var baUserID, baUserEmail, baUserName *string
 
 			if err := rows.Scan(
 				&result.ID, &result.TableID, &result.Data, &result.Metadata,
 				&result.IsArchived, &result.Position, &result.StageGroupID,
 				&result.Tags, &result.BACreatedBy, &result.BAUpdatedBy,
 				&result.CreatedAt, &result.UpdatedAt,
-				&baUserID, &baUserEmail, &baUserName,
 			); err != nil {
 				fmt.Printf("Error scanning submission row: %v\n", err)
 				continue
@@ -1121,18 +1120,44 @@ func ListFormSubmissions(c *gin.Context) {
 				result.Status = s
 			}
 
-			// Build Better Auth user if data exists
-			if baUserID != nil && baUserEmail != nil {
-				result.BAUser = &models.BetterAuthUser{
-					ID:    *baUserID,
-					Email: *baUserEmail,
+			results = append(results, result)
+		}
+
+		// Fetch Better Auth users for all ba_created_by IDs in one query against AuthDB
+		baUserIDs := make([]string, 0, len(results))
+		for _, r := range results {
+			if r.BACreatedBy != nil && *r.BACreatedBy != "" {
+				baUserIDs = append(baUserIDs, *r.BACreatedBy)
+			}
+		}
+
+		if len(baUserIDs) > 0 {
+			type baUserRow struct {
+				ID    string
+				Email string
+				Name  string
+			}
+			var baUsers []baUserRow
+			if err := database.AuthDB.Raw(`SELECT id, email, name FROM "user" WHERE id IN ?`, baUserIDs).Scan(&baUsers).Error; err != nil {
+				fmt.Printf("Error fetching Better Auth users: %v\n", err)
+			} else {
+				baUserMap := make(map[string]baUserRow, len(baUsers))
+				for _, u := range baUsers {
+					baUserMap[u.ID] = u
 				}
-				if baUserName != nil {
-					result.BAUser.Name = *baUserName
+				for i, r := range results {
+					if r.BACreatedBy == nil {
+						continue
+					}
+					if u, ok := baUserMap[*r.BACreatedBy]; ok {
+						results[i].BAUser = &models.BetterAuthUser{
+							ID:    u.ID,
+							Email: u.Email,
+							Name:  u.Name,
+						}
+					}
 				}
 			}
-
-			results = append(results, result)
 		}
 
 		fmt.Printf("Found %d submissions with users for form %s\n", len(results), formID)
@@ -1354,22 +1379,15 @@ func listFormSubmissionsNewSchema(c *gin.Context, form models.Form, includeUser 
 		BAUser      *models.BetterAuthUser `json:"ba_user,omitempty"`
 	}
 
-	// Query form_submissions, optionally joining with ba_users
+	// Query form_submissions, optionally enriching with Better Auth user info.
+	// form_submissions lives in AppDB while Better Auth's "user" table lives
+	// in AuthDB, so this can no longer be a SQL JOIN — query separately and
+	// merge in Go.
 	var results []SubmissionResult
 
 	if includeUser {
-		type scanRow struct {
-			models.FormSubmission
-			BAUserID    *string `gorm:"column:ba_user_id"`
-			BAUserEmail *string `gorm:"column:ba_user_email"`
-			BAUserName  *string `gorm:"column:ba_user_name"`
-		}
-
-		var rows []scanRow
+		var rows []models.FormSubmission
 		err := database.DB.Table("form_submissions").
-			Select(`form_submissions.*, 
-				ba_users.id as ba_user_id, ba_users.email as ba_user_email, ba_users.name as ba_user_name`).
-			Joins("LEFT JOIN ba_users ON form_submissions.user_id = ba_users.id").
 			Where("form_submissions.form_id = ?", form.ID).
 			Order("form_submissions.created_at DESC").
 			Offset(offset).Limit(limit).
@@ -1379,6 +1397,30 @@ func listFormSubmissionsNewSchema(c *gin.Context, form models.Form, includeUser 
 			fmt.Printf("❌ listFormSubmissionsNewSchema: Error querying: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
+		}
+
+		baUserIDs := make([]string, 0, len(rows))
+		for _, row := range rows {
+			if row.UserID != "" {
+				baUserIDs = append(baUserIDs, row.UserID)
+			}
+		}
+
+		type baUserRow struct {
+			ID    string
+			Email string
+			Name  string
+		}
+		baUserMap := make(map[string]baUserRow, len(baUserIDs))
+		if len(baUserIDs) > 0 {
+			var baUsers []baUserRow
+			if err := database.AuthDB.Raw(`SELECT id, email, name FROM "user" WHERE id IN ?`, baUserIDs).Scan(&baUsers).Error; err != nil {
+				fmt.Printf("⚠️ listFormSubmissionsNewSchema: Error fetching Better Auth users: %v\n", err)
+			} else {
+				for _, u := range baUsers {
+					baUserMap[u.ID] = u
+				}
+			}
 		}
 
 		for _, row := range rows {
@@ -1418,13 +1460,11 @@ func listFormSubmissionsNewSchema(c *gin.Context, form models.Form, includeUser 
 				UpdatedAt:   row.UpdatedAt,
 			}
 
-			if row.BAUserID != nil && row.BAUserEmail != nil {
+			if u, ok := baUserMap[row.UserID]; ok {
 				result.BAUser = &models.BetterAuthUser{
-					ID:    *row.BAUserID,
-					Email: *row.BAUserEmail,
-				}
-				if row.BAUserName != nil {
-					result.BAUser.Name = *row.BAUserName
+					ID:    u.ID,
+					Email: u.Email,
+					Name:  u.Name,
 				}
 			}
 
@@ -1787,7 +1827,7 @@ func SubmitForm(c *gin.Context) {
 				var baUser struct {
 					ID string `gorm:"column:id"`
 				}
-				if err := database.DB.Raw("SELECT id FROM ba_users WHERE email = ? LIMIT 1", email).Scan(&baUser).Error; err == nil && baUser.ID != "" {
+				if err := database.AuthDB.Raw("SELECT id FROM \"user\" WHERE email = ? LIMIT 1", email).Scan(&baUser).Error; err == nil && baUser.ID != "" {
 					existingRow.BACreatedBy = &baUser.ID
 					fmt.Printf("🔗 SubmitForm: Linked existing submission to Better Auth user %s (email=%s)\n", baUser.ID, email)
 				}
@@ -1945,7 +1985,7 @@ func SubmitForm(c *gin.Context) {
 		var baUser struct {
 			ID string `gorm:"column:id"`
 		}
-		if err := database.DB.Raw("SELECT id FROM ba_users WHERE email = ? LIMIT 1", email).Scan(&baUser).Error; err == nil && baUser.ID != "" {
+		if err := database.AuthDB.Raw("SELECT id FROM \"user\" WHERE email = ? LIMIT 1", email).Scan(&baUser).Error; err == nil && baUser.ID != "" {
 			row.BACreatedBy = &baUser.ID
 			userIDStr = baUser.ID
 			fmt.Printf("📝 SubmitForm: Linked submission to Better Auth user %s (email=%s)\n", baUser.ID, email)

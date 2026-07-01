@@ -49,13 +49,13 @@ func PortalSignupV2(c *gin.Context) {
 		return
 	}
 
-	// Check if user already exists in ba_users
+	// Check if user already exists in the Better Auth "user" table
 	var existingUser struct {
 		ID       string `gorm:"column:id"`
 		Metadata []byte `gorm:"column:metadata"`
 	}
 
-	err := database.DB.Raw("SELECT id, metadata FROM ba_users WHERE email = ?", req.Email).Scan(&existingUser).Error
+	err := database.AuthDB.Raw("SELECT id, metadata FROM \"user\" WHERE email = ?", req.Email).Scan(&existingUser).Error
 
 	if err == nil && existingUser.ID != "" {
 		// User exists - check if they've already applied to this form
@@ -75,8 +75,8 @@ func PortalSignupV2(c *gin.Context) {
 		}
 
 		// Add this form to their applied forms
-		err = database.DB.Exec(`
-			UPDATE ba_users 
+		err = database.AuthDB.Exec(`
+			UPDATE "user"
 			SET metadata = jsonb_set(
 				COALESCE(metadata, '{}'::jsonb),
 				'{forms_applied}',
@@ -93,7 +93,7 @@ func PortalSignupV2(c *gin.Context) {
 
 		// Get user email for portal_applicants
 		var userEmail string
-		database.DB.Raw("SELECT email FROM ba_users WHERE id = ?", existingUser.ID).Scan(&userEmail)
+		database.AuthDB.Raw("SELECT email FROM \"user\" WHERE id = ?", existingUser.ID).Scan(&userEmail)
 
 		// Check for existing orphaned submission for this user/form by email
 		var existingRow struct {
@@ -175,7 +175,12 @@ func PortalSignupV2(c *gin.Context) {
 		return
 	}
 
-	tx := database.DB.Begin()
+	// Better Auth's "user"/"account" tables live in AuthDB, a separate physical
+	// database from AppDB (where table_rows/portal_applicants live) — they can't
+	// share a transaction, so create them first against AuthDB, then the
+	// AppDB records separately, with a best-effort compensating delete if the
+	// AppDB writes fail.
+	authTx := database.AuthDB.Begin()
 
 	// Create ba_user with applicant type
 	metadata := map[string]interface{}{
@@ -183,32 +188,40 @@ func PortalSignupV2(c *gin.Context) {
 	}
 	metadataBytes, _ := json.Marshal(metadata)
 
-	if err := tx.Exec(`
-		INSERT INTO ba_users (id, email, name, user_type, metadata, created_at, updated_at)
+	if err := authTx.Exec(`
+		INSERT INTO "user" (id, email, name, user_type, metadata, created_at, updated_at)
 		VALUES ($1, $2, $3, 'applicant', $4, NOW(), NOW())
 	`, userID, req.Email, req.FullName, metadataBytes).Error; err != nil {
-		tx.Rollback()
+		authTx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user: " + err.Error()})
 		return
 	}
 
 	// Create ba_account for credential (password) auth
 	accountID := uuid.New().String()
-	if err := tx.Exec(`
-		INSERT INTO ba_accounts (id, account_id, provider_id, user_id, password, created_at, updated_at)
+	if err := authTx.Exec(`
+		INSERT INTO account (id, account_id, provider_id, user_id, password, created_at, updated_at)
 		VALUES ($1, $2, 'credential', $3, $4, NOW(), NOW())
 	`, accountID, req.Email, userID, string(hashedPassword)).Error; err != nil {
-		tx.Rollback()
+		authTx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create account: " + err.Error()})
 		return
 	}
+
+	if err := authTx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
+	// AppDB writes (table_rows / portal_applicants) happen in their own transaction.
+	tx := database.DB.Begin()
 
 	// Check for existing orphaned submission for this user/form by email
 	var existingRow struct {
 		ID string `gorm:"column:id"`
 	}
 	tx.Raw(`
-		SELECT tr.id 
+		SELECT tr.id
 		FROM table_rows tr
 		WHERE tr.table_id = $1
 		AND tr.ba_created_by IS NULL
@@ -230,6 +243,8 @@ func PortalSignupV2(c *gin.Context) {
 			WHERE id = $2
 		`, userID, rowID).Error; err != nil {
 			tx.Rollback()
+			database.AuthDB.Exec(`DELETE FROM account WHERE id = ?`, accountID)
+			database.AuthDB.Exec(`DELETE FROM "user" WHERE id = ?`, userID)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to link existing submission: " + err.Error()})
 			return
 		}
@@ -251,6 +266,8 @@ func PortalSignupV2(c *gin.Context) {
 			VALUES ($1, $2, '{}'::jsonb, $3, NOW(), NOW())
 		`, rowID, req.FormID, rowMetadata).Error; err != nil {
 			tx.Rollback()
+			database.AuthDB.Exec(`DELETE FROM account WHERE id = ?`, accountID)
+			database.AuthDB.Exec(`DELETE FROM "user" WHERE id = ?`, userID)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create form submission: " + err.Error()})
 			return
 		}
@@ -264,6 +281,8 @@ func PortalSignupV2(c *gin.Context) {
 		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
 	`, portalApplicantID, userID, req.FormID, req.Email, rowID).Error; err != nil {
 		tx.Rollback()
+		database.AuthDB.Exec(`DELETE FROM account WHERE id = ?`, accountID)
+		database.AuthDB.Exec(`DELETE FROM "user" WHERE id = ?`, userID)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create portal applicant record: " + err.Error()})
 		return
 	}
@@ -308,17 +327,17 @@ func PortalLoginV2(c *gin.Context) {
 		Metadata []byte `gorm:"column:metadata"`
 	}
 
-	if err := database.DB.Raw("SELECT id, email, name, user_type, metadata FROM ba_users WHERE email = ?", req.Email).Scan(&user).Error; err != nil || user.ID == "" {
+	if err := database.AuthDB.Raw("SELECT id, email, name, user_type, metadata FROM \"user\" WHERE email = ?", req.Email).Scan(&user).Error; err != nil || user.ID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
 
-	// Get password from ba_accounts
+	// Get password from the Better Auth "account" table
 	var account struct {
 		Password string `gorm:"column:password"`
 	}
 
-	if err := database.DB.Raw("SELECT password FROM ba_accounts WHERE user_id = ? AND provider_id = 'credential'", user.ID).Scan(&account).Error; err != nil || account.Password == "" {
+	if err := database.AuthDB.Raw("SELECT password FROM account WHERE user_id = ? AND provider_id = 'credential'", user.ID).Scan(&account).Error; err != nil || account.Password == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
@@ -352,8 +371,8 @@ func PortalLoginV2(c *gin.Context) {
 
 	if !formFound {
 		formsApplied = append(formsApplied, req.FormID)
-		database.DB.Exec(`
-			UPDATE ba_users 
+		database.AuthDB.Exec(`
+			UPDATE "user"
 			SET metadata = jsonb_set(
 				COALESCE(metadata, '{}'::jsonb),
 				'{forms_applied}',
@@ -397,8 +416,8 @@ func PortalLoginV2(c *gin.Context) {
 	sessionToken := uuid.New().String()
 	expiresAt := time.Now().Add(7 * 24 * time.Hour) // 7 days
 
-	if err := database.DB.Exec(`
-		INSERT INTO ba_sessions (id, user_id, token, expires_at, ip_address, user_agent, created_at, updated_at)
+	if err := database.AuthDB.Exec(`
+		INSERT INTO session (id, user_id, token, expires_at, ip_address, user_agent, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
 	`, sessionID, user.ID, sessionToken, expiresAt, c.ClientIP(), c.Request.UserAgent()).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
@@ -436,7 +455,7 @@ func PortalGetMeV2(c *gin.Context) {
 		Metadata []byte `gorm:"column:metadata"`
 	}
 
-	if err := database.DB.Raw("SELECT id, email, name, user_type, metadata FROM ba_users WHERE id = ?", userID).Scan(&user).Error; err != nil || user.ID == "" {
+	if err := database.AuthDB.Raw("SELECT id, email, name, user_type, metadata FROM \"user\" WHERE id = ?", userID).Scan(&user).Error; err != nil || user.ID == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
@@ -477,7 +496,7 @@ func PortalLogoutV2(c *gin.Context) {
 	}
 
 	// Delete session
-	database.DB.Exec("DELETE FROM ba_sessions WHERE token = ?", token)
+	database.AuthDB.Exec("DELETE FROM session WHERE token = ?", token)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
@@ -548,7 +567,7 @@ func PortalAuthMiddlewareV2() gin.HandlerFunc {
 			ExpiresAt time.Time `gorm:"column:expires_at"`
 		}
 
-		err := database.DB.Raw("SELECT user_id, expires_at FROM ba_sessions WHERE token = ?", token).Scan(&session).Error
+		err := database.AuthDB.Raw("SELECT user_id, expires_at FROM session WHERE token = ?", token).Scan(&session).Error
 		if err != nil || session.UserID == "" {
 			c.Next() // Invalid token, continue without auth
 			return
@@ -557,7 +576,7 @@ func PortalAuthMiddlewareV2() gin.HandlerFunc {
 		// Check expiration
 		if time.Now().After(session.ExpiresAt) {
 			// Session expired, delete it
-			database.DB.Exec("DELETE FROM ba_sessions WHERE token = ?", token)
+			database.AuthDB.Exec("DELETE FROM session WHERE token = ?", token)
 			c.Next()
 			return
 		}
@@ -708,31 +727,32 @@ func PortalSyncBetterAuthApplicant(c *gin.Context) {
 	// No existing portal_applicants record - create one for new signup
 	fmt.Printf("🆕 Creating new portal records for user %s on form %s\n", req.BetterAuthUserID, req.FormID)
 
+	// Update the Better Auth "user" metadata to include user_type and forms_applied.
+	// This lives in AuthDB, a separate physical database from AppDB (where
+	// table_rows/portal_applicants live), so it can't share a transaction with
+	// them. It's best-effort/non-critical, so it's run standalone before the
+	// AppDB transaction below.
+	if err := database.AuthDB.Exec(`
+		UPDATE "user"
+		SET
+			user_type = 'applicant',
+			metadata = COALESCE(metadata, '{}'::jsonb) ||
+				jsonb_build_object('forms_applied',
+					COALESCE(metadata->'forms_applied', '[]'::jsonb) || $1::jsonb
+				),
+			updated_at = NOW()
+		WHERE id = $2
+	`, fmt.Sprintf(`["%s"]`, formUUID), req.BetterAuthUserID).Error; err != nil {
+		fmt.Printf("⚠️ Failed to update user metadata: %v\n", err)
+		// Don't fail - this is not critical
+	}
+
 	tx := database.DB.Begin()
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
 		}
 	}()
-
-	// Update ba_users metadata to include user_type and forms_applied
-	err = tx.Exec(`
-		UPDATE ba_users 
-		SET 
-			user_type = 'applicant',
-			metadata = COALESCE(metadata, '{}'::jsonb) || 
-				jsonb_build_object('forms_applied', 
-					COALESCE(metadata->'forms_applied', '[]'::jsonb) || $1::jsonb
-				),
-			updated_at = NOW()
-		WHERE id = $2
-	`, fmt.Sprintf(`["%s"]`, formUUID), req.BetterAuthUserID).Error
-
-	if err != nil {
-		tx.Rollback()
-		fmt.Printf("⚠️ Failed to update ba_users metadata: %v\n", err)
-		// Don't fail - this is not critical
-	}
 
 	// Create table_row for the form submission
 	rowID := uuid.New().String()

@@ -795,7 +795,7 @@ func GetWorkspaceActivity(c *gin.Context) {
 			Name  string
 			Email string
 		}
-		database.DB.Raw(`
+		database.AuthDB.Raw(`
 			SELECT id, COALESCE(name, email) as name, email
 			FROM "user" WHERE id IN ?
 		`, userIDs).Scan(&profiles)

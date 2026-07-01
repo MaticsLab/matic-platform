@@ -66,7 +66,10 @@ func GetReviewExportData(c *gin.Context) {
 
 	var rows []SubmissionRow
 
-	// Optimized query with LEFT JOINs
+	// Optimized query with LEFT JOIN against forms (AppDB only).
+	// Better Auth users (applicant_email/applicant_name) live in AuthDB, a
+	// separate physical database, so they can no longer be joined here —
+	// they're fetched in a second query below and merged in Go.
 	query := database.DB.
 		Table("form_submissions fs").
 		Select(`
@@ -78,8 +81,6 @@ func GetReviewExportData(c *gin.Context) {
 			fs.started_at,
 			fs.last_saved_at,
 			fs.user_id as applicant_id,
-			COALESCE(u.email, '') as applicant_email,
-			COALESCE(u.name, '') as applicant_name,
 			fs.raw_data as form_data,
 			fs.completion_percentage,
 			fs.workflow_id,
@@ -88,7 +89,6 @@ func GetReviewExportData(c *gin.Context) {
 			fs.updated_at
 		`).
 		Joins("LEFT JOIN forms f ON f.id = fs.form_id").
-		Joins("LEFT JOIN ba_users u ON u.id = fs.user_id").
 		Where("f.workspace_id = ?", workspaceID).
 		Order("fs.created_at DESC")
 
@@ -107,6 +107,36 @@ func GetReviewExportData(c *gin.Context) {
 			"error": fmt.Sprintf("Failed to fetch submissions: %v", err),
 		})
 		return
+	}
+
+	// Fetch Better Auth applicant info (email/name) in a single query against AuthDB
+	applicantIDs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.ApplicantID != "" {
+			applicantIDs = append(applicantIDs, row.ApplicantID)
+		}
+	}
+	type baUserInfo struct {
+		ID    string `db:"id"`
+		Email string `db:"email"`
+		Name  string `db:"name"`
+	}
+	applicantMap := make(map[string]baUserInfo, len(applicantIDs))
+	if len(applicantIDs) > 0 {
+		var baUsers []baUserInfo
+		if err := database.AuthDB.Raw(`SELECT id, email, name FROM "user" WHERE id IN ?`, applicantIDs).Scan(&baUsers).Error; err != nil {
+			fmt.Printf("Warning: Failed to fetch Better Auth applicants: %v\n", err)
+		} else {
+			for _, u := range baUsers {
+				applicantMap[u.ID] = u
+			}
+		}
+	}
+	for i, row := range rows {
+		if u, ok := applicantMap[row.ApplicantID]; ok {
+			rows[i].ApplicantEmail = u.Email
+			rows[i].ApplicantName = u.Name
+		}
 	}
 
 	// If no submissions found, return consistent structure with empty array

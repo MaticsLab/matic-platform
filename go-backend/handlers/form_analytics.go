@@ -210,15 +210,58 @@ func buildAnalyticsNewSchema(form models.Form) FormAnalyticsResponse {
 	database.DB.Raw(`
 		SELECT fs.id, fs.user_id, fs.status, fs.completion_percentage,
 		       fs.raw_data, fs.started_at, fs.last_saved_at, fs.submitted_at,
-		       fs.created_at, fs.updated_at,
-		       bu.email, bu.name as user_name
+		       fs.created_at, fs.updated_at
 		FROM form_submissions fs
-		LEFT JOIN ba_users bu ON fs.user_id = bu.id
 		WHERE fs.form_id = ?
 		ORDER BY fs.updated_at DESC
 	`, formID).Scan(&rows)
 
+	// Better Auth users (AuthDB) can no longer be SQL-joined against
+	// form_submissions (AppDB), so look them up separately and merge in Go.
+	userIDs := make([]string, 0, len(rows))
+	for _, r := range rows {
+		if r.UserID != "" {
+			userIDs = append(userIDs, r.UserID)
+		}
+	}
+	baUserMap := fetchBAUserInfoMap(userIDs)
+	for i, r := range rows {
+		if u, ok := baUserMap[r.UserID]; ok {
+			email := u.Email
+			name := u.Name
+			rows[i].Email = &email
+			rows[i].UserName = &name
+		}
+	}
+
 	return computeAnalytics(rows, form.ID.String(), formID)
+}
+
+type baUserInfo struct {
+	ID    string
+	Email string
+	Name  string
+}
+
+// fetchBAUserInfoMap looks up Better Auth users (AuthDB) by ID and returns
+// them keyed by ID, for merging into AppDB query results in Go since they
+// can no longer be joined via SQL across the two physical databases.
+func fetchBAUserInfoMap(userIDs []string) map[string]baUserInfo {
+	baUserMap := make(map[string]baUserInfo, len(userIDs))
+	if len(userIDs) == 0 {
+		return baUserMap
+	}
+
+	var baUsers []baUserInfo
+	if err := database.AuthDB.Raw(`SELECT id, email, name FROM "user" WHERE id IN ?`, userIDs).Scan(&baUsers).Error; err != nil {
+		fmt.Printf("⚠️ fetchBAUserInfoMap: Error fetching Better Auth users: %v\n", err)
+		return baUserMap
+	}
+
+	for _, u := range baUsers {
+		baUserMap[u.ID] = u
+	}
+	return baUserMap
 }
 
 // ─── Legacy Schema Analytics ──────────────────────────────────────────────────
@@ -240,7 +283,7 @@ func buildAnalyticsLegacy(tableID uuid.UUID, queryID uuid.UUID) FormAnalyticsRes
 
 	var rows []legacyRow
 	database.DB.Raw(`
-		SELECT 
+		SELECT
 			tr.id,
 			tr.ba_created_by as user_id,
 			COALESCE(tr.metadata->>'status', 'submitted') as status,
@@ -250,14 +293,32 @@ func buildAnalyticsLegacy(tableID uuid.UUID, queryID uuid.UUID) FormAnalyticsRes
 			CASE WHEN COALESCE(tr.metadata->>'status','submitted') = 'submitted'
 			     THEN tr.updated_at ELSE NULL END as submitted_at,
 			tr.created_at,
-			tr.updated_at,
-			bu.email,
-			bu.name as user_name
+			tr.updated_at
 		FROM table_rows tr
-		LEFT JOIN ba_users bu ON tr.ba_created_by = bu.id
 		WHERE tr.table_id = ?
 		ORDER BY tr.updated_at DESC
 	`, tableID).Scan(&rows)
+
+	// Better Auth users (AuthDB) can no longer be SQL-joined against
+	// table_rows (AppDB), so look them up separately and merge in Go.
+	legacyUserIDs := make([]string, 0, len(rows))
+	for _, r := range rows {
+		if r.UserID != nil && *r.UserID != "" {
+			legacyUserIDs = append(legacyUserIDs, *r.UserID)
+		}
+	}
+	legacyBAUserMap := fetchBAUserInfoMap(legacyUserIDs)
+	for i, r := range rows {
+		if r.UserID == nil {
+			continue
+		}
+		if u, ok := legacyBAUserMap[*r.UserID]; ok {
+			email := u.Email
+			name := u.Name
+			rows[i].Email = &email
+			rows[i].UserName = &name
+		}
+	}
 
 	// Convert to unified schema row shape
 	type subRow struct {

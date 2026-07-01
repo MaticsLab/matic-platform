@@ -69,9 +69,10 @@ func GetApplicantsCRM(c *gin.Context) {
 		return
 	}
 
-	// Query all applicants who have applied to forms in this workspace
-	// Uses form_submissions to link applicants to forms (unified schema)
-	type ApplicantRow struct {
+	// Query all applicants who have applied to forms in this workspace.
+	// Better Auth users live in AuthDB while form_submissions/forms live in AppDB,
+	// so this is split into two queries with results merged in Go.
+	type BAUserRow struct {
 		UserID                 string  `json:"user_id"`
 		Email                  string  `json:"email"`
 		Name                   *string `json:"name"`
@@ -79,79 +80,99 @@ func GetApplicantsCRM(c *gin.Context) {
 		UserCreatedAt          string  `json:"user_created_at"`
 		LastLoginAt            *string `json:"last_login_at"`
 		PasswordResetRequested *string `json:"password_reset_requested"`
-		FormID                 string  `json:"form_id"`
-		FormName               string  `json:"form_name"`
-		FormSlug               *string `json:"form_slug"`
-		RowID                  *string `json:"row_id"`
-		SubmissionID           *string `json:"submission_id"`
-		Status                 string  `json:"status"`
-		CompletionPct          int     `json:"completion_pct"`
-		SubmittedAt            *string `json:"submitted_at"`
-		LastSavedAt            *string `json:"last_saved_at"`
-		AppCreatedAt           string  `json:"app_created_at"`
 	}
 
-	var rows []ApplicantRow
-	err = database.DB.Raw(`
-		SELECT 
+	var baUsers []BAUserRow
+	err = database.AuthDB.Raw(`
+		SELECT
 			ba.id as user_id,
 			ba.email,
 			ba.name,
 			ba.user_type,
 			ba.created_at::text as user_created_at,
 			ba.updated_at::text as last_login_at,
-			(ba.metadata->>'password_reset_requested')::text as password_reset_requested,
-			f.id::text as form_id,
-			f.name as form_name,
-			f.slug as form_slug,
-			fs.id::text as row_id,
-			fs.id::text as submission_id,
-			COALESCE(fs.status, 'not_started') as status,
-			CASE 
-				WHEN fs.status = 'submitted' THEN 100
-				WHEN fs.status = 'draft' THEN COALESCE(
-					(SELECT (COUNT(DISTINCT CASE WHEN fr.id IS NOT NULL THEN ff.id END)::float * 100 / NULLIF(COUNT(DISTINCT ff.id), 0))::int
-					 FROM form_fields ff
-					 LEFT JOIN form_responses fr ON fr.field_id = ff.id AND fr.submission_id = fs.id
-					 WHERE ff.form_id = f.id),
-					0
-				)
-				ELSE 0
-			END as completion_pct,
-			fs.submitted_at::text as submitted_at,
-			fs.updated_at::text as last_saved_at,
-			COALESCE(fs.created_at::text, ba.created_at::text) as app_created_at
-		FROM ba_users ba
-		LEFT JOIN form_submissions fs ON fs.user_id = ba.id
-		LEFT JOIN forms f ON f.id = fs.form_id
+			(ba.metadata->>'password_reset_requested')::text as password_reset_requested
+		FROM "user" ba
 		WHERE ba.user_type LIKE 'applicant%'
-		  AND (f.workspace_id = ? OR f.workspace_id IS NULL OR fs.id IS NULL)
-		ORDER BY ba.created_at DESC, fs.created_at DESC NULLS LAST
-	`, wsID).Scan(&rows).Error
+		ORDER BY ba.created_at DESC
+	`).Scan(&baUsers).Error
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch applicants", "details": err.Error()})
 		return
 	}
 
-	// Group by applicant
-	applicantMap := make(map[string]*ApplicantCRM)
-	for _, row := range rows {
-		if _, exists := applicantMap[row.UserID]; !exists {
-			applicantMap[row.UserID] = &ApplicantCRM{
-				ID:                     row.UserID,
-				Email:                  row.Email,
-				Name:                   row.Name,
-				UserType:               row.UserType,
-				CreatedAt:              row.UserCreatedAt,
-				LastLoginAt:            row.LastLoginAt,
-				PasswordResetRequested: row.PasswordResetRequested,
-				Applications:           []application{},
-				TotalForms:             0,
-			}
+	applicantMap := make(map[string]*ApplicantCRM, len(baUsers))
+	userIDs := make([]string, 0, len(baUsers))
+	for _, u := range baUsers {
+		applicantMap[u.UserID] = &ApplicantCRM{
+			ID:                     u.UserID,
+			Email:                  u.Email,
+			Name:                   u.Name,
+			UserType:               u.UserType,
+			CreatedAt:              u.UserCreatedAt,
+			LastLoginAt:            u.LastLoginAt,
+			PasswordResetRequested: u.PasswordResetRequested,
+			Applications:           []application{},
+			TotalForms:             0,
 		}
+		userIDs = append(userIDs, u.UserID)
+	}
 
-		applicant := applicantMap[row.UserID]
+	type SubmissionRow struct {
+		UserID        string  `json:"user_id"`
+		FormID        string  `json:"form_id"`
+		FormName      string  `json:"form_name"`
+		FormSlug      *string `json:"form_slug"`
+		SubmissionID  *string `json:"submission_id"`
+		Status        string  `json:"status"`
+		CompletionPct int     `json:"completion_pct"`
+		SubmittedAt   *string `json:"submitted_at"`
+		LastSavedAt   *string `json:"last_saved_at"`
+		AppCreatedAt  string  `json:"app_created_at"`
+	}
+
+	var submissionRows []SubmissionRow
+	if len(userIDs) > 0 {
+		err = database.DB.Raw(`
+			SELECT
+				fs.user_id as user_id,
+				f.id::text as form_id,
+				f.name as form_name,
+				f.slug as form_slug,
+				fs.id::text as submission_id,
+				COALESCE(fs.status, 'not_started') as status,
+				CASE
+					WHEN fs.status = 'submitted' THEN 100
+					WHEN fs.status = 'draft' THEN COALESCE(
+						(SELECT (COUNT(DISTINCT CASE WHEN fr.id IS NOT NULL THEN ff.id END)::float * 100 / NULLIF(COUNT(DISTINCT ff.id), 0))::int
+						 FROM form_fields ff
+						 LEFT JOIN form_responses fr ON fr.field_id = ff.id AND fr.submission_id = fs.id
+						 WHERE ff.form_id = f.id),
+						0
+					)
+					ELSE 0
+				END as completion_pct,
+				fs.submitted_at::text as submitted_at,
+				fs.updated_at::text as last_saved_at,
+				fs.created_at::text as app_created_at
+			FROM form_submissions fs
+			JOIN forms f ON f.id = fs.form_id
+			WHERE fs.user_id IN ? AND f.workspace_id = ?
+			ORDER BY fs.created_at DESC NULLS LAST
+		`, userIDs, wsID).Scan(&submissionRows).Error
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch applications", "details": err.Error()})
+			return
+		}
+	}
+
+	for _, row := range submissionRows {
+		applicant, exists := applicantMap[row.UserID]
+		if !exists {
+			continue
+		}
 		applicant.Applications = append(applicant.Applications, application{
 			FormID:        row.FormID,
 			FormName:      row.FormName,
@@ -166,10 +187,14 @@ func GetApplicantsCRM(c *gin.Context) {
 		applicant.TotalForms++
 	}
 
-	// Convert map to slice
+	// Only include applicants who have at least one application in this workspace,
+	// matching the previous query's behavior (it only returned ba_users joined via
+	// form_submissions/forms scoped to this workspace).
 	var applicants []ApplicantCRM
 	for _, a := range applicantMap {
-		applicants = append(applicants, *a)
+		if a.TotalForms > 0 {
+			applicants = append(applicants, *a)
+		}
 	}
 
 	c.JSON(http.StatusOK, applicants)
@@ -217,8 +242,8 @@ func GetApplicantDetail(c *gin.Context) {
 	}
 
 	var applicant ApplicantDetail
-	err = database.DB.Raw(`
-		SELECT 
+	err = database.AuthDB.Raw(`
+		SELECT
 			bu.id,
 			bu.email,
 			bu.name,
@@ -227,11 +252,11 @@ func GetApplicantDetail(c *gin.Context) {
 			bu.updated_at::text as updated_at,
 			bu.email_verified,
 			(
-				SELECT MAX(s.created_at)::text 
-				FROM ba_sessions s 
+				SELECT MAX(s.created_at)::text
+				FROM session s
 				WHERE s.user_id = bu.id
 			) as last_login_at
-		FROM ba_users bu
+		FROM "user" bu
 		WHERE bu.id = ? AND bu.user_type LIKE 'applicant%'
 	`, applicantID).Scan(&applicant).Error
 
@@ -401,7 +426,7 @@ func UpdateApplicant(c *gin.Context) {
 
 	// Find the applicant
 	var applicant models.BetterAuthUser
-	if err := database.DB.Where("id = ?", applicantID).First(&applicant).Error; err != nil {
+	if err := database.AuthDB.Where("id = ?", applicantID).First(&applicant).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Applicant not found"})
 		return
 	}
@@ -451,14 +476,14 @@ func UpdateApplicant(c *gin.Context) {
 
 	// Apply updates
 	if len(updates) > 0 {
-		if err := database.DB.Model(&applicant).Updates(updates).Error; err != nil {
+		if err := database.AuthDB.Model(&applicant).Updates(updates).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update applicant"})
 			return
 		}
 	}
 
 	// Fetch updated applicant
-	if err := database.DB.Where("id = ?", applicantID).First(&applicant).Error; err != nil {
+	if err := database.AuthDB.Where("id = ?", applicantID).First(&applicant).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch updated applicant"})
 		return
 	}
@@ -527,7 +552,7 @@ func ImportBAUsersToWorkspace(c *gin.Context) {
 
 	// Get all ba_users, optionally filtered by user_type
 	var baUsers []models.BetterAuthUser
-	query := database.DB.Model(&models.BetterAuthUser{})
+	query := database.AuthDB.Model(&models.BetterAuthUser{})
 	if req.UserType != "" {
 		query = query.Where("user_type LIKE ?", req.UserType+"%")
 	}
@@ -641,9 +666,9 @@ func ResetApplicantPassword(c *gin.Context) {
 		Name  *string `gorm:"column:name"`
 	}
 
-	if err := database.DB.Raw(`
-		SELECT id, email, name 
-		FROM ba_users 
+	if err := database.AuthDB.Raw(`
+		SELECT id, email, name
+		FROM "user"
 		WHERE id = ? AND user_type = 'applicant'
 	`, req.ApplicantID).Scan(&applicant).Error; err != nil || applicant.ID == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Applicant not found"})
@@ -660,9 +685,9 @@ func ResetApplicantPassword(c *gin.Context) {
 		return
 	}
 
-	// Update password in ba_accounts
-	result := database.DB.Exec(`
-		UPDATE ba_accounts 
+	// Update password in the Better Auth "account" table
+	result := database.AuthDB.Exec(`
+		UPDATE account
 		SET password = $1, updated_at = NOW()
 		WHERE user_id = $2 AND provider_id = 'credential'
 	`, hashedPassword, req.ApplicantID)
@@ -678,8 +703,8 @@ func ResetApplicantPassword(c *gin.Context) {
 	}
 
 	// Clear the password_reset_requested flag after successful reset
-	database.DB.Exec(`
-		UPDATE ba_users 
+	database.AuthDB.Exec(`
+		UPDATE "user"
 		SET metadata = metadata - 'password_reset_requested',
 		updated_at = NOW()
 		WHERE id = $1
@@ -748,9 +773,9 @@ func SetApplicantPassword(c *gin.Context) {
 		Name  *string `gorm:"column:name"`
 	}
 
-	if err := database.DB.Raw(`
-		SELECT id, email, name 
-		FROM ba_users 
+	if err := database.AuthDB.Raw(`
+		SELECT id, email, name
+		FROM "user"
 		WHERE id = ? AND user_type = 'applicant'
 	`, req.ApplicantID).Scan(&applicant).Error; err != nil || applicant.ID == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Applicant not found"})
@@ -764,9 +789,9 @@ func SetApplicantPassword(c *gin.Context) {
 		return
 	}
 
-	// Update password in ba_accounts
-	result := database.DB.Exec(`
-		UPDATE ba_accounts 
+	// Update password in the Better Auth "account" table
+	result := database.AuthDB.Exec(`
+		UPDATE account
 		SET password = $1, updated_at = NOW()
 		WHERE user_id = $2 AND provider_id = 'credential'
 	`, hashedPassword, req.ApplicantID)
@@ -782,8 +807,8 @@ func SetApplicantPassword(c *gin.Context) {
 	}
 
 	// Clear the password_reset_requested flag after successful password set
-	database.DB.Exec(`
-		UPDATE ba_users 
+	database.AuthDB.Exec(`
+		UPDATE "user"
 		SET metadata = metadata - 'password_reset_requested',
 		updated_at = NOW()
 		WHERE id = $1

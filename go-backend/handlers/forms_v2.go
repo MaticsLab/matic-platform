@@ -604,7 +604,7 @@ func GetMySubmissionsV2(c *gin.Context) {
 
 	// Get user info
 	var user models.BetterAuthUser
-	database.DB.First(&user, "id = ?", userID)
+	database.AuthDB.First(&user, "id = ?", userID)
 
 	result := models.UserFormSubmissions{
 		UserID:      user.ID,
@@ -684,7 +684,7 @@ func StartSubmissionV2(c *gin.Context) {
 	// Also create in legacy table_rows for backward compatibility
 	if form.LegacyTableID != nil {
 		var user models.BetterAuthUser
-		database.DB.First(&user, "id = ?", userID)
+		database.AuthDB.First(&user, "id = ?", userID)
 
 		legacyRow := models.Row{
 			TableID:  *form.LegacyTableID,
@@ -998,7 +998,7 @@ func syncToLegacyRow(submission models.FormSubmission) {
 
 	// Get user email for _applicant_email
 	var user models.BetterAuthUser
-	if database.DB.First(&user, "id = ?", submission.UserID).Error == nil {
+	if database.AuthDB.First(&user, "id = ?", submission.UserID).Error == nil {
 		data["_applicant_email"] = user.Email
 	}
 

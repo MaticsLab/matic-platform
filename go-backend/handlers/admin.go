@@ -118,9 +118,9 @@ func ListAuthUsers(c *gin.Context) {
 		// any authenticated Better Auth user to view the list, not just workspace members
 		// This makes sense because CRM users might not be workspace members yet
 
-		// Verify the user exists in ba_users (basic auth check)
+		// Verify the user exists in the Better Auth "user" table (basic auth check)
 		var userExists bool
-		userCheckErr := database.DB.Raw("SELECT EXISTS(SELECT 1 FROM ba_users WHERE id = ?)", requestingUserID).Scan(&userExists).Error
+		userCheckErr := database.AuthDB.Raw("SELECT EXISTS(SELECT 1 FROM \"user\" WHERE id = ?)", requestingUserID).Scan(&userExists).Error
 
 		fmt.Printf("🔍 Better Auth user check: userExists=%v, userCheckErr=%v, requestingUserID=%s\n", userExists, userCheckErr, requestingUserID)
 

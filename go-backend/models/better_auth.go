@@ -21,7 +21,7 @@ type BetterAuthUser struct {
 
 // TableName returns the table name for BetterAuthUser
 func (BetterAuthUser) TableName() string {
-	return "ba_users"
+	return "user"
 }
 
 // BetterAuthSession represents a session in the Better Auth system
@@ -42,7 +42,7 @@ type BetterAuthSession struct {
 
 // TableName returns the table name for BetterAuthSession
 func (BetterAuthSession) TableName() string {
-	return "ba_sessions"
+	return "session"
 }
 
 // IsExpired checks if the session has expired
@@ -83,7 +83,7 @@ type BetterAuthAccount struct {
 
 // TableName returns the table name for BetterAuthAccount
 func (BetterAuthAccount) TableName() string {
-	return "ba_accounts"
+	return "account"
 }
 
 // BetterAuthOrganization represents an organization in the Better Auth system
@@ -98,7 +98,7 @@ type BetterAuthOrganization struct {
 
 // TableName returns the table name for BetterAuthOrganization
 func (BetterAuthOrganization) TableName() string {
-	return "ba_organizations"
+	return "organization"
 }
 
 // BetterAuthMember represents an organization membership
@@ -116,5 +116,21 @@ type BetterAuthMember struct {
 
 // TableName returns the table name for BetterAuthMember
 func (BetterAuthMember) TableName() string {
-	return "ba_members"
+	return "member"
+}
+
+// BetterAuthVerification represents a verification token (email verification,
+// password reset, magic link) in the Better Auth system
+type BetterAuthVerification struct {
+	ID         string    `json:"id" gorm:"primaryKey;column:id"`
+	Identifier string    `json:"identifier" gorm:"column:identifier"`
+	Value      string    `json:"value" gorm:"column:value"`
+	ExpiresAt  time.Time `json:"expiresAt" gorm:"column:expires_at"`
+	CreatedAt  time.Time `json:"createdAt" gorm:"column:created_at"`
+	UpdatedAt  time.Time `json:"updatedAt" gorm:"column:updated_at"`
+}
+
+// TableName returns the table name for BetterAuthVerification
+func (BetterAuthVerification) TableName() string {
+	return "verification"
 }
