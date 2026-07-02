@@ -8,9 +8,30 @@ const MAIN_DOMAINS = [
   'maticsapp.com',
   'www.maticsapp.com',
   'forms.maticsapp.com',
+  'build.maticsapp.com',
   'localhost:3000',
   'localhost',
 ]
+
+// The staff dashboard lives on its own subdomain — root maticsapp.com is marketing-only.
+const DASHBOARD_DOMAIN = 'build.maticsapp.com'
+const MARKETING_DOMAIN = 'maticsapp.com'
+const MARKETING_HOSTS = [APP_DOMAIN, MARKETING_DOMAIN, 'www.maticsapp.com']
+
+// Routes that only belong on the dashboard domain (the staff app + its auth flow)
+const DASHBOARD_ROUTE_PREFIXES = [
+  '/workspace',
+  '/auth',
+  '/login',
+  '/sso',
+  '/forgot-password',
+  '/gmail-connected',
+  '/accept-invitation',
+  '/security',
+]
+
+// Routes that only belong on the marketing domain
+const MARKETING_ROUTE_PREFIXES = ['/pricing', '/company', '/privacy', '/terms']
 
 // Public routes that don't require staff access (auth, public portal, legal pages, etc.)
 const PUBLIC_ROUTES = [
@@ -49,11 +70,30 @@ export async function middleware(request: NextRequest) {
 
   // Check if this is a main domain (not a custom subdomain)
   const isMainDomain = MAIN_DOMAINS.includes(hostname) || isVercelPreview(hostname)
-  
+
   // For now, let client-side handle auth redirects
   // Middleware session checks were causing redirect loops
   // TODO: Re-enable after Better Auth session endpoint is stable
-  
+
+  // build.maticsapp.com is the dashboard-only domain — send bare "/" into the
+  // workspace resolver, and bounce marketing pages back to the marketing domain.
+  if (hostname === DASHBOARD_DOMAIN) {
+    if (url.pathname === '/') {
+      return NextResponse.redirect(new URL('/workspace', request.url))
+    }
+    if (MARKETING_ROUTE_PREFIXES.some(route => url.pathname.startsWith(route))) {
+      const target = new URL(url.pathname + url.search, `https://${MARKETING_DOMAIN}`)
+      return NextResponse.redirect(target)
+    }
+    return NextResponse.next()
+  }
+
+  // The marketing domain is marketing-only — bounce dashboard/auth routes to build.
+  if (MARKETING_HOSTS.includes(hostname) && DASHBOARD_ROUTE_PREFIXES.some(route => url.pathname.startsWith(route))) {
+    const target = new URL(url.pathname + url.search, `https://${DASHBOARD_DOMAIN}`)
+    return NextResponse.redirect(target)
+  }
+
   // Handle forms.maticsapp.com - rewrite to /apply/{slug}
   if (hostname === 'forms.maticsapp.com' && url.pathname !== '/' && !url.pathname.startsWith('/apply')) {
     const slug = url.pathname.slice(1) // Remove leading slash

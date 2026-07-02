@@ -75,7 +75,7 @@ const COLOR_PRESETS = [
   { name: 'Fuchsia', value: '#D946EF' },
 ]
 
-const APP_DOMAIN = 'maticapp.com'
+const APP_DOMAIN = 'maticsapp.com'
 
 type SettingsSection = 'general' | 'branding' | 'domain' | 'users' | 'integrations'
 

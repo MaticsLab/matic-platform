@@ -33,7 +33,7 @@ const COLOR_PRESETS = [
   { name: 'Fuchsia', value: '#D946EF' },
 ]
 
-const APP_DOMAIN = 'maticapp.com'
+const APP_DOMAIN = 'maticsapp.com'
 
 export function WorkspaceSettingsModal({ isOpen, onClose, workspace, onUpdate }: WorkspaceSettingsModalProps) {
   const [name, setName] = useState(workspace.name)
