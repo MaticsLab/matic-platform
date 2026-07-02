@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { useSession } from '@/components/auth/provider'
 import { workspacesClient } from '@/lib/api/workspaces-client'
+import { organizationsClient } from '@/lib/api/organizations-client'
+import { Button } from '@/ui-components/button'
+import { Input } from '@/ui-components/input'
+import { Label } from '@/ui-components/label'
 
 type LastWorkspaceValue = { slug?: string } | string
 
@@ -23,14 +27,26 @@ function readLastWorkspaceSlug(): string | null {
   return null
 }
 
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 export default function WorkspaceRootPage() {
   const router = useRouter()
   const { data, isPending } = useSession()
   const [resolving, setResolving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [needsOnboarding, setNeedsOnboarding] = useState(false)
+  const [workspaceName, setWorkspaceName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (isPending || resolving) return
+    if (isPending || resolving || needsOnboarding) return
 
     if (!data?.session || !data?.user) {
       router.replace('/auth?mode=login&redirect=/workspace')
@@ -59,7 +75,8 @@ export default function WorkspaceRootPage() {
           return
         }
 
-        setErrorMessage('No accessible workspace found for this account.')
+        // No workspace yet — this is expected for a brand-new account, not an error.
+        setNeedsOnboarding(true)
       } catch {
         if (!isMounted) return
         setErrorMessage('Unable to load workspaces right now. Please try again.')
@@ -73,7 +90,36 @@ export default function WorkspaceRootPage() {
     return () => {
       isMounted = false
     }
-  }, [data, isPending, resolving, router])
+  }, [data, isPending, resolving, needsOnboarding, router])
+
+  const handleCreateWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!workspaceName.trim()) return
+
+    setCreating(true)
+    setCreateError(null)
+
+    try {
+      const slug = slugify(workspaceName) || `workspace-${Date.now()}`
+
+      const organization = await organizationsClient.create({
+        name: workspaceName,
+        slug,
+      })
+
+      const workspace = await workspacesClient.create({
+        organization_id: organization.id,
+        name: workspaceName,
+        slug,
+      })
+
+      localStorage.setItem('lastWorkspace', JSON.stringify(workspace))
+      router.replace(`/workspace/${workspace.slug}/applications`)
+    } catch (err: any) {
+      setCreateError(err?.message || 'Failed to create workspace. Please try again.')
+      setCreating(false)
+    }
+  }
 
   if (errorMessage) {
     return (
@@ -87,6 +133,36 @@ export default function WorkspaceRootPage() {
           >
             Sign in again
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (needsOnboarding) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-sm">
+          <h1 className="text-xl font-semibold text-gray-900 mb-1">Create your workspace</h1>
+          <p className="text-gray-600 mb-6 text-sm">
+            You don&apos;t have a workspace yet. Give it a name to get started.
+          </p>
+          <form onSubmit={handleCreateWorkspace} className="space-y-4">
+            <div>
+              <Label htmlFor="workspace-name">Workspace name</Label>
+              <Input
+                id="workspace-name"
+                value={workspaceName}
+                onChange={(e) => setWorkspaceName(e.target.value)}
+                placeholder="Acme Inc."
+                autoFocus
+                disabled={creating}
+              />
+            </div>
+            {createError && <p className="text-sm text-red-600">{createError}</p>}
+            <Button type="submit" disabled={creating || !workspaceName.trim()} className="w-full">
+              {creating ? 'Creating...' : 'Create workspace'}
+            </Button>
+          </form>
         </div>
       </div>
     )
