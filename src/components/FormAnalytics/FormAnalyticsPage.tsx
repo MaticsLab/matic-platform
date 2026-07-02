@@ -10,7 +10,7 @@ import {
 import {
   Users, CheckCircle2, Clock, FileText, TrendingUp,
   AlertCircle, Mail, Download, RefreshCw, ChevronRight,
-  Calendar, Activity, BarChart2, Zap, Layers, PencilLine, Settings,
+  Calendar, Activity, BarChart2, Zap, PencilLine, Settings,
   ChevronDown, Search, ArrowUpDown, ArrowUp, ArrowDown,
   List, LayoutGrid, CalendarDays, X, Loader2
 } from 'lucide-react'
@@ -20,7 +20,6 @@ import { recommendationsClient, type RecommendationRequest } from '@/lib/api/rec
 import { buildLabelMap, normalizeValueToString, stripHtml } from '@/lib/form-data-normalizer'
 import { FullEmailComposer } from '@/components/ApplicationsHub/Applications/Review/FullEmailComposer'
 import { ApplicationDetailSheet } from '@/components/ApplicationsHub/Applications/Review/v2/ApplicationDetailSheet'
-import { useBreadcrumbs } from '@/hooks/useBreadcrumbs'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/ui-components/button'
 import { ApplicationSettingsModal } from '../ApplicationsHub/Applications/Configuration/ApplicationSettingsModal'
@@ -515,55 +514,6 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
   const params = useParams()
   const router = useRouter()
   const workspaceSlug = params?.slug as string
-
-  // Breadcrumb items
-  const breadcrumbItems = useMemo(() => [
-    { label: 'Forms', href: `/workspace/${workspaceSlug}/applications`, icon: Layers },
-    { label: formName || 'Form', href: `/workspace/${workspaceSlug}/applications/${formId}`, icon: BarChart2 },
-  ], [workspaceSlug, formId, formName])
-
-  // Breadcrumb action buttons
-  const breadcrumbActions = useMemo(() => (
-    <>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          if (workspaceSlug && formId) {
-            router.push(`/workspace/${workspaceSlug}/applications/${formId}/analytics`)
-          }
-        }}
-        title="Review Submissions"
-      >
-        <FileText className="w-4 h-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          if (workspaceSlug && formId) {
-            router.push(`/workspace/${workspaceSlug}/portal-editor?formId=${formId}`)
-          }
-        }}
-        title="Form Editor"
-      >
-        <PencilLine className="w-4 h-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setIsAppSettingsModalOpen(true)}
-        title="Form Settings"
-      >
-        <Settings className="w-4 h-4" />
-      </Button>
-    </>
-  ), [workspaceSlug, formId, router])
-
-  const breadcrumbOptions = useMemo(() => ({ actions: breadcrumbActions }), [breadcrumbActions])
-
-  // Breadcrumbs
-  useBreadcrumbs(breadcrumbItems, breadcrumbOptions)
 
   const load = useCallback(async () => {
     try {
@@ -1089,6 +1039,33 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
             <p className="text-xs text-gray-500 mt-0.5">Real-time submission insights & user management</p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (workspaceSlug && formId) {
+                  router.push(`/workspace/${workspaceSlug}/applications/${formId}/analytics`)
+                }
+              }}
+              title="Review Submissions"
+            >
+              <FileText className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (workspaceSlug && formId) {
+                  router.push(`/workspace/${workspaceSlug}/portal-editor?formId=${formId}`)
+                }
+              }}
+              title="Form Editor"
+            >
+              <PencilLine className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setIsAppSettingsModalOpen(true)} title="Form Settings">
+              <Settings className="w-4 h-4" />
+            </Button>
             <button
               onClick={handleExport}
               disabled={submissionsLoading}

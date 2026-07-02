@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { Plus, Loader2, Inbox, Link2 } from 'lucide-react'
-import { useBreadcrumbs } from '@/hooks/useBreadcrumbs'
 import { Button } from '@/ui-components/button'
 import {
   Dialog,
@@ -61,19 +60,6 @@ export function ApplicationsHub({ workspaceId, workspaceSlug: workspaceSlugProp 
   const [newAppName, setNewAppName] = useState('')
   const [newAppDescription, setNewAppDescription] = useState('')
   const [isCreating, setIsCreating] = useState(false)
-
-  // Breadcrumbs
-  const breadcrumbItems = useMemo(() => [
-    { label: 'Forms', href: `/workspace/${workspaceSlug}/applications` }
-  ], [workspaceSlug])
-  const breadcrumbActions = useMemo(() => (
-    <Button onClick={() => setIsCreateDialogOpen(true)}>
-      <Plus className="w-4 h-4 mr-2" />
-      New Form
-    </Button>
-  ), [])
-  const breadcrumbOptions = useMemo(() => ({ actions: breadcrumbActions }), [breadcrumbActions])
-  useBreadcrumbs(breadcrumbItems, breadcrumbOptions)
 
   // Fetch forms
   useEffect(() => {

@@ -4,8 +4,6 @@ import { useEffect, useState, Suspense } from 'react'
 import { useParams } from 'next/navigation'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
-import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
-import { BreadcrumbBar } from '@/components/BreadcrumbBar'
 import { ApplicationManager } from '@/components/ApplicationsHub/Applications/ApplicationManager'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import type { Workspace } from '@/lib/api/workspaces-client'
@@ -46,14 +44,11 @@ function FormAnalyticsPageContent() {
   }
 
   return (
-    <BreadcrumbProvider workspaceSlug={slug}>
-      <NavigationLayout workspaceSlug={workspace.slug}>
-        <div className="flex flex-col h-full">
-          <BreadcrumbBar />
-          <ApplicationManager formId={formId} workspaceId={workspace.id} />
-        </div>
-      </NavigationLayout>
-    </BreadcrumbProvider>
+    <NavigationLayout workspaceSlug={workspace.slug}>
+      <div className="flex flex-col h-full">
+        <ApplicationManager formId={formId} workspaceId={workspace.id} />
+      </div>
+    </NavigationLayout>
   )
 }
 

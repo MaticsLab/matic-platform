@@ -17,7 +17,6 @@ import { workspacesClient } from '@/lib/api/workspaces-client'
 import { toast } from 'sonner'
 import type { Workspace } from '@/types/workspaces'
 import { SearchProvider, SearchPanel } from './Search'
-import { useTabContext } from './WorkspaceTabProvider'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/ui-components/sidebar'
 
 interface NavigationLayoutProps {
@@ -48,7 +47,6 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
   // Workspace and organization hooks
   const { workspaces, currentWorkspace, setCurrentWorkspaceBySlug } = useWorkspaceDiscovery()
   const { organizations, currentOrganization, switchToOrganization } = useOrganizationDiscovery()
-  const { tabManager } = useTabContext()
 
   // Set current workspace on slug change
   useEffect(() => {
@@ -158,7 +156,6 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
       <SearchPanel
         workspaceId={currentWorkspace?.id}
         workspaceSlug={currentWorkspace?.slug}
-        tabManager={tabManager}
       />
       
       {/* Settings Sidebar */}

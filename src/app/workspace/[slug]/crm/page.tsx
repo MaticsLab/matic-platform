@@ -4,8 +4,6 @@ import { useEffect, useState, Suspense } from 'react'
 import { useParams } from 'next/navigation'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
-import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
-import { BreadcrumbBar } from '@/components/BreadcrumbBar'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import type { Workspace } from '@/lib/api/workspaces-client'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
@@ -49,12 +47,9 @@ function CRMPageContent() {
   }
 
   return (
-    <BreadcrumbProvider workspaceSlug={slug}>
-      <NavigationLayout workspaceSlug={workspace.slug}>
-        <BreadcrumbBar />
-        <ApplicantCRMPage workspaceId={workspace.id} workspaceSlug={workspace.slug} />
-      </NavigationLayout>
-    </BreadcrumbProvider>
+    <NavigationLayout workspaceSlug={workspace.slug}>
+      <ApplicantCRMPage workspaceId={workspace.id} workspaceSlug={workspace.slug} />
+    </NavigationLayout>
   )
 }
 

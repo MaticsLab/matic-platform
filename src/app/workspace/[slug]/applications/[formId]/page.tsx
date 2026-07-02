@@ -4,8 +4,6 @@ import { useEffect, useState, Suspense } from 'react'
 import { useParams } from 'next/navigation'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
-import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
-import { BreadcrumbBar } from '@/components/BreadcrumbBar'
 import { FormAnalyticsPage } from '@/components/FormAnalytics/FormAnalyticsPage'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import type { Workspace } from '@/lib/api/workspaces-client'
@@ -51,17 +49,14 @@ function ApplicationDetailPageContent() {
   }
 
   return (
-    <BreadcrumbProvider workspaceSlug={slug}>
-      <NavigationLayout workspaceSlug={workspace.slug}>
-        <div className="flex flex-col h-full">
-          <BreadcrumbBar />
-          <FormAnalyticsPage
-            workspaceId={workspace.id}
-            formId={formId}
-          />
-        </div>
-      </NavigationLayout>
-    </BreadcrumbProvider>
+    <NavigationLayout workspaceSlug={workspace.slug}>
+      <div className="flex flex-col h-full">
+        <FormAnalyticsPage
+          workspaceId={workspace.id}
+          formId={formId}
+        />
+      </div>
+    </NavigationLayout>
   )
 }
 

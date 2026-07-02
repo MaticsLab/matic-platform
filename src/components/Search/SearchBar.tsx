@@ -21,17 +21,16 @@ import {
   GraduationCap,
   Users
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useSearch } from './SearchProvider'
 import { performSemanticSearch } from '@/lib/api/semantic-search-client'
 import { isReportQueryLocal } from '@/lib/api/reports-client'
 import type { SemanticSearchResult } from '@/types/search'
-import type { TabManager } from '@/lib/tab-manager'
 
 interface SearchBarProps {
   workspaceId?: string
   workspaceSlug?: string
-  tabManager?: TabManager | null
   onExpandToPanel: () => void
 }
 
@@ -47,8 +46,9 @@ interface SearchResult {
   badge?: string
 }
 
-export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPanel }: SearchBarProps) {
-  const { 
+export function SearchBar({ workspaceId, workspaceSlug, onExpandToPanel }: SearchBarProps) {
+  const router = useRouter()
+  const {
     query, 
     setQuery, 
     isDropdownOpen, 
@@ -66,20 +66,11 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
   const dropdownRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Navigate using tab manager
-  const navigateTo = useCallback((url: string, title: string, type: 'form' | 'custom' = 'custom') => {
-    if (tabManager && workspaceId) {
-      tabManager.addTab({
-        id: `${type}-${workspaceId}-${Date.now()}`,
-        title,
-        url,
-        type,
-        workspaceId,
-      })
-    }
+  const navigateTo = useCallback((url: string) => {
+    router.push(url)
     closeDropdown()
     setQuery('')
-  }, [tabManager, workspaceId, closeDropdown, setQuery])
+  }, [router, closeDropdown, setQuery])
 
   // Get placeholder text based on context
   const getPlaceholder = () => {
@@ -116,7 +107,7 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
         icon: Plus,
         type: 'action',
         category: 'Quick Actions',
-        action: () => navigateTo(`/workspace/${workspaceSlug}/forms?action=create`, 'New Form', 'custom')
+        action: () => navigateTo(`/workspace/${workspaceSlug}/forms?action=create`)
       },
       {
         id: 'nav-activities',
@@ -125,7 +116,7 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
         icon: Layout,
         type: 'navigation',
         category: 'Navigate',
-        action: () => navigateTo(`/workspace/${workspaceSlug}`, 'Activities', 'custom')
+        action: () => navigateTo(`/workspace/${workspaceSlug}`)
       },
       {
         id: 'nav-applications',
@@ -134,7 +125,7 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
         icon: GraduationCap,
         type: 'navigation',
         category: 'Navigate',
-        action: () => navigateTo(`/workspace/${workspaceSlug}/applications`, 'Portals', 'custom')
+        action: () => navigateTo(`/workspace/${workspaceSlug}/applications`)
       }
     ]
   }, [workspaceSlug, navigateTo])
@@ -189,7 +180,7 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
         type: 'ai-action',
         category: 'AI Suggestion',
         isAI: true,
-        action: () => navigateTo(`/workspace/${workspaceSlug}/forms?action=create`, 'New Form', 'custom')
+        action: () => navigateTo(`/workspace/${workspaceSlug}/forms?action=create`)
       }
     }
 
@@ -259,7 +250,7 @@ export function SearchBar({ workspaceId, workspaceSlug, tabManager, onExpandToPa
       }
     }
     
-    navigateTo(url, title, type)
+    navigateTo(url)
   }, [workspaceSlug, navigateTo])
 
   // Filter results by query using fuzzy matching

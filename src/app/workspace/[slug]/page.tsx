@@ -4,8 +4,6 @@ import { useEffect, useState, Suspense } from 'react'
 import { useParams } from 'next/navigation'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
-import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
-import { BreadcrumbBar } from '@/components/BreadcrumbBar'
 import { WorkspaceHome } from '@/components/WorkspaceHome'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { saveLastWorkspace } from '@/lib/utils'
@@ -83,14 +81,11 @@ function WorkspacePageContent() {
   }
 
   return (
-    <BreadcrumbProvider workspaceSlug={slug}>
-      <NavigationLayout workspaceSlug={workspace.slug}>
-        <div className="flex flex-col h-full">
-          <BreadcrumbBar />
-          <WorkspaceHome workspaceId={workspaceId} workspaceSlug={workspace.slug} workspaceName={workspace.name} />
-        </div>
-      </NavigationLayout>
-    </BreadcrumbProvider>
+    <NavigationLayout workspaceSlug={workspace.slug}>
+      <div className="flex flex-col h-full">
+        <WorkspaceHome workspaceId={workspaceId} workspaceSlug={workspace.slug} workspaceName={workspace.name} />
+      </div>
+    </NavigationLayout>
   )
 }
 

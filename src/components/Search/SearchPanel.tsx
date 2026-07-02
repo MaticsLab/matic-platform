@@ -19,18 +19,17 @@ import {
   Clock,
   Zap
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useClickOutside, useEventListener } from '@/lib/event-utils'
 import { useSearch } from './SearchProvider'
 import { performSemanticSearch } from '@/lib/api/semantic-search-client'
 import { generateReport, isReportQueryLocal } from '@/lib/api/reports-client'
 import type { SemanticSearchResult, AIReport, AIReportDataPoint } from '@/types/search'
-import type { TabManager } from '@/lib/tab-manager'
 
 interface SearchPanelProps {
   workspaceId?: string
   workspaceSlug?: string
-  tabManager?: TabManager | null
 }
 
 interface SearchResult {
@@ -71,7 +70,8 @@ const DataPointCard: React.FC<{ dataPoint: AIReportDataPoint }> = ({ dataPoint }
   )
 }
 
-export function SearchPanel({ workspaceId, workspaceSlug, tabManager }: SearchPanelProps) {
+export function SearchPanel({ workspaceId, workspaceSlug }: SearchPanelProps) {
+  const router = useRouter()
   const { isPanelOpen, closePanel, query, setQuery } = useSearch()
   const [localQuery, setLocalQuery] = useState(query)
   const [results, setResults] = useState<SearchResult[]>([])
@@ -91,19 +91,10 @@ export function SearchPanel({ workspaceId, workspaceSlug, tabManager }: SearchPa
     }
   }, [isPanelOpen, query])
 
-  // Navigate using tab manager
-  const navigateTo = useCallback((url: string, title: string, type: 'form' | 'custom' = 'custom') => {
-    if (tabManager && workspaceId) {
-      tabManager.addTab({
-        id: `${type}-${workspaceId}-${Date.now()}`,
-        title,
-        url,
-        type,
-        workspaceId,
-      })
-    }
+  const navigateTo = useCallback((url: string) => {
+    router.push(url)
     closePanel()
-  }, [tabManager, workspaceId, closePanel])
+  }, [router, closePanel])
 
   // Icon helper
   const getIconForType = (entityType: string): React.ComponentType<any> => {
@@ -120,35 +111,24 @@ export function SearchPanel({ workspaceId, workspaceSlug, tabManager }: SearchPa
   // Navigate to search result
   const navigateToResult = useCallback((result: SemanticSearchResult) => {
     if (!workspaceSlug) return
-    
+
     let url = ''
-    let title = result.title
-    let type: 'form' | 'custom' = 'custom'
-    
+
     switch (result.entityType) {
-      case 'table':
-        // Redirect table searches to workspace overview
-        url = `/workspace/${workspaceSlug}`
-        type = 'custom'
-        break
       case 'form':
         url = `/workspace/${workspaceSlug}/forms/${result.entityId}`
-        type = 'form'
-        break
-      case 'row':
-        // Redirect row searches to workspace overview
-        url = `/workspace/${workspaceSlug}`
-        type = 'custom'
         break
       case 'submission':
         url = `/workspace/${workspaceSlug}/forms/${result.tableId}/submissions/${result.entityId}`
-        type = 'form'
         break
+      case 'table':
+      case 'row':
       default:
+        // Redirect table/row searches to workspace overview
         url = `/workspace/${workspaceSlug}`
     }
-    
-    navigateTo(url, title, type)
+
+    navigateTo(url)
   }, [workspaceSlug, navigateTo])
 
   // Perform search with report generation
@@ -227,7 +207,7 @@ export function SearchPanel({ workspaceId, workspaceSlug, tabManager }: SearchPa
   const handleReportAction = (action: string, target: string) => {
     if (action === 'navigate' && workspaceSlug) {
       const url = target.startsWith('/') ? target : `/workspace/${workspaceSlug}/${target}`
-      navigateTo(url, 'View', 'custom')
+      navigateTo(url)
     }
   }
 

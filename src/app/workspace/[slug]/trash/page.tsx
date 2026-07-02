@@ -4,8 +4,6 @@ import { useEffect, useState, Suspense } from 'react'
 import { useParams } from 'next/navigation'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
-import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
-import { BreadcrumbBar } from '@/components/BreadcrumbBar'
 import { WorkspaceItemsList } from '@/components/WorkspaceItemsList'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { saveLastWorkspace } from '@/lib/utils'
@@ -51,22 +49,19 @@ function TrashPageContent() {
   }
 
   return (
-    <BreadcrumbProvider workspaceSlug={slug}>
-      <NavigationLayout workspaceSlug={workspace.slug}>
-        <div className="flex flex-col h-full bg-[#faf9f7]">
-          <BreadcrumbBar />
-          <div className="px-10 py-8">
-            <h1 className="mb-6 text-[26px] font-extrabold tracking-tight text-[#1b1b17]">Trash</h1>
-            <WorkspaceItemsList
-              workspaceId={workspace.id}
-              workspaceSlug={slug}
-              filter="trash"
-              emptyMessage="Nothing in the trash — archived forms and tables show up here."
-            />
-          </div>
+    <NavigationLayout workspaceSlug={workspace.slug}>
+      <div className="flex flex-col h-full bg-[#faf9f7]">
+        <div className="px-10 py-8">
+          <h1 className="mb-6 text-[26px] font-extrabold tracking-tight text-[#1b1b17]">Trash</h1>
+          <WorkspaceItemsList
+            workspaceId={workspace.id}
+            workspaceSlug={slug}
+            filter="trash"
+            emptyMessage="Nothing in the trash — archived forms and tables show up here."
+          />
         </div>
-      </NavigationLayout>
-    </BreadcrumbProvider>
+      </div>
+    </NavigationLayout>
   )
 }
 
