@@ -81,7 +81,7 @@ export function Navigation({ variant = 'dark' }: NavigationProps) {
   const handleWorkspaceClick = (e: React.MouseEvent) => {
     e.preventDefault()
     const slug = getStoredWorkspaceSlug() ?? workspaceSlug
-    router.push(slug ? `/workspace/${slug}/applications` : '/workspace')
+    router.push(slug ? `/workspace/${slug}` : '/workspace')
     setIsMobileMenuOpen(false)
   }
 

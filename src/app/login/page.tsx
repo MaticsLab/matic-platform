@@ -80,11 +80,11 @@ function LoginContent() {
           try {
             const workspace = JSON.parse(lastWorkspace)
             console.log('[Login] Redirecting to last workspace:', workspace.slug)
-            router.replace(`/workspace/${workspace.slug}/applications`)
+            router.replace(`/workspace/${workspace.slug}`)
             return
           } catch (e) {
             console.log('[Login] Redirecting to last workspace:', lastWorkspace)
-            router.replace(`/workspace/${lastWorkspace}/applications`)
+            router.replace(`/workspace/${lastWorkspace}`)
             return
           }
         }

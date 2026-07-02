@@ -57,6 +57,7 @@ export function SignUpTab() {
           email: values.email,
           password: values.password,
           callbackURL: "/login",
+          userType: "staff",
         },
         {
           onError: (error) => {

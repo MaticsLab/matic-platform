@@ -7,6 +7,7 @@ import {
   Code2,
   Globe,
   Home,
+  LayoutGrid,
   Users,
   ChevronsUpDown,
   User,
@@ -115,7 +116,8 @@ export function AppSidebar({
   }
 
   const navItems = [
-    { title: 'Forms', icon: Home, slug: 'applications', path: '/applications' },
+    { title: 'Home', icon: Home, slug: 'home', path: '' },
+    { title: 'Forms', icon: LayoutGrid, slug: 'applications', path: '/applications' },
     { title: 'CRM', icon: Users, slug: 'crm', path: '/crm' },
   ]
 
@@ -159,7 +161,10 @@ export function AppSidebar({
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
-                const isActive = pathname?.includes(item.path) || false
+                const workspace = currentWorkspace || { slug: workspaceId }
+                const isActive = item.path
+                  ? pathname?.includes(item.path) || false
+                  : pathname === `/workspace/${workspace.slug}`
                 return (
                   <SidebarMenuItem key={item.slug}>
                     <SidebarMenuButton

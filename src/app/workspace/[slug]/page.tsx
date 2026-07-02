@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState, Suspense } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { NavigationLayout } from '@/components/NavigationLayout'
 import { BreadcrumbProvider } from '@/components/BreadcrumbProvider'
 import { BreadcrumbBar } from '@/components/BreadcrumbBar'
+import { WorkspaceHome } from '@/components/WorkspaceHome'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { saveLastWorkspace } from '@/lib/utils'
 import type { Workspace } from '@/lib/api/workspaces-client'
@@ -14,7 +15,6 @@ import { LoadingOverlay } from '@/components/LoadingOverlay'
 
 function WorkspacePageContent() {
   const params = useParams()
-  const router = useRouter()
   const slug = params.slug as string
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [loading, setLoading] = useState(true)
@@ -26,30 +26,18 @@ function WorkspacePageContent() {
     }
   }, [slug])
 
-  // Redirect to Forms (applications) page by default
-  useEffect(() => {
-    if (workspace && slug) {
-      router.replace(`/workspace/${slug}/applications`)
-    }
-  }, [workspace, slug, router])
-
   async function loadWorkspace() {
     try {
       setLoading(true)
       setError(null)
       const data = await workspacesClient.getBySlug(slug)
-      
+
       if (!data) {
         throw new Error('Workspace not found')
       }
-      
-      setWorkspace(data)
-      
-      // Save this as the last visited workspace
-      saveLastWorkspace(slug)
 
-      // Redirect to Forms (applications) page by default
-      router.replace(`/workspace/${slug}/applications`)
+      setWorkspace(data)
+      saveLastWorkspace(slug)
     } catch (err: any) {
       console.error('Failed to load workspace:', err)
       const errorMessage = err?.message || err?.error || 'Failed to load workspace'
@@ -78,10 +66,8 @@ function WorkspacePageContent() {
     )
   }
 
-  // Ensure workspace.id is a string
   const workspaceId = typeof workspace.id === 'string' ? workspace.id : String(workspace.id)
-  
-  // Validate workspaceId before rendering
+
   if (!workspaceId || workspaceId === 'undefined' || workspaceId === 'null') {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
@@ -96,7 +82,16 @@ function WorkspacePageContent() {
     )
   }
 
-  return <LoadingOverlay message="Loading workspace..." />
+  return (
+    <BreadcrumbProvider workspaceSlug={slug}>
+      <NavigationLayout workspaceSlug={workspace.slug}>
+        <div className="flex flex-col h-full">
+          <BreadcrumbBar />
+          <WorkspaceHome workspaceId={workspaceId} workspaceSlug={workspace.slug} />
+        </div>
+      </NavigationLayout>
+    </BreadcrumbProvider>
+  )
 }
 
 export default function WorkspacePage() {
