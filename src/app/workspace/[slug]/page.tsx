@@ -87,7 +87,7 @@ function WorkspacePageContent() {
       <NavigationLayout workspaceSlug={workspace.slug}>
         <div className="flex flex-col h-full">
           <BreadcrumbBar />
-          <WorkspaceHome workspaceId={workspaceId} workspaceSlug={workspace.slug} />
+          <WorkspaceHome workspaceId={workspaceId} workspaceSlug={workspace.slug} workspaceName={workspace.name} />
         </div>
       </NavigationLayout>
     </BreadcrumbProvider>

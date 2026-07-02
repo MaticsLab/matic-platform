@@ -537,6 +537,21 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				endingPages.PUT("/reorder", handlers.ReorderEndings)       // Reorder priorities
 			}
 
+			// Recently Viewed (forms + tables, per-user per-workspace)
+			recentlyViewed := protected.Group("/recently-viewed")
+			{
+				recentlyViewed.POST("", handlers.RecordRecentView)
+				recentlyViewed.GET("", handlers.ListRecentViews)
+			}
+
+			// Starred items (forms + tables, per-user per-workspace)
+			starredItems := protected.Group("/starred-items")
+			{
+				starredItems.POST("", handlers.StarItem)
+				starredItems.DELETE("", handlers.UnstarItem)
+				starredItems.GET("", handlers.ListStarredItems)
+			}
+
 			// Search
 			search := protected.Group("/search")
 			{

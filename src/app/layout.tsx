@@ -1,6 +1,6 @@
 import './globals.css'
 import type { Metadata } from 'next'
-import { Inter, Instrument_Serif } from 'next/font/google'
+import { Inter, Instrument_Serif, Hanken_Grotesk } from 'next/font/google'
 import { Providers } from './providers'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -8,6 +8,11 @@ const instrumentSerif = Instrument_Serif({
   weight: '400',
   subsets: ['latin'],
   variable: '--font-serif',
+  display: 'swap',
+})
+const hankenGrotesk = Hanken_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-hanken-grotesk',
   display: 'swap',
 })
 
@@ -23,7 +28,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="light" suppressHydrationWarning>
-      <body className={`${inter.className} ${instrumentSerif.variable}`}>
+      <body className={`${inter.className} ${instrumentSerif.variable} ${hankenGrotesk.variable}`}>
         <Providers>
           {children}
         </Providers>

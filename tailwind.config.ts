@@ -12,6 +12,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         serif: ['var(--font-serif)', 'Georgia', 'serif'],
+        'hanken-grotesk': ['var(--font-hanken-grotesk)', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -1,203 +1,191 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { FileText, Database, Plus, Loader2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { FileText, Database, Plus, Mic, ArrowUp, UserPlus, Sparkles } from 'lucide-react'
 import { useSession } from '@/components/auth/provider'
-import { goClient } from '@/lib/api/go-client'
-import { formsClient } from '@/lib/api/forms-client'
-import { tablesGoClient } from '@/lib/api/tables-go-client'
-import type { Form } from '@/types/forms'
-import type { DataTable } from '@/types/data-tables'
-import { toast } from 'sonner'
+import { useQuickCreate } from '@/hooks/useQuickCreate'
+import { recentlyViewedClient, type RecentlyViewedEntry } from '@/lib/api/recently-viewed-client'
+import { WorkspaceItemsList, type WorkspaceItem } from './WorkspaceItemsList'
+import { InviteToWorkspaceSidebarV2 } from './InviteToWorkspaceSidebarV2'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui-components/dropdown-menu'
+import { cn } from '@/lib/utils'
 
 interface WorkspaceHomeProps {
   workspaceId: string
   workspaceSlug: string
+  workspaceName?: string
 }
 
-type WorkspaceItem =
-  | { kind: 'form'; id: string; name: string; updatedAt: string; status: Form['status'] }
-  | { kind: 'table'; id: string; name: string; updatedAt: string; rowCount: number }
+const CREATE_TABS = [
+  { key: 'app', label: 'App', icon: Sparkles },
+  { key: 'database', label: 'Database', icon: Database },
+  { key: 'form', label: 'Form', icon: FileText },
+] as const
 
-export function WorkspaceHome({ workspaceId, workspaceSlug }: WorkspaceHomeProps) {
-  const router = useRouter()
+export function WorkspaceHome({ workspaceId, workspaceSlug, workspaceName }: WorkspaceHomeProps) {
   const { data } = useSession()
   const displayName = data?.user?.name?.split(' ')[0] || data?.user?.email?.split('@')[0] || 'there'
 
-  const [items, setItems] = useState<WorkspaceItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [creatingForm, setCreatingForm] = useState(false)
-  const [creatingTable, setCreatingTable] = useState(false)
+  const { handleCreateForm, creatingForm, handleCreateTable, creatingTable } = useQuickCreate({
+    workspaceId,
+    workspaceSlug,
+  })
+
+  const [activeCreateTab, setActiveCreateTab] = useState<(typeof CREATE_TABS)[number]['key']>('app')
+  const [showInvite, setShowInvite] = useState(false)
+  const [recentViews, setRecentViews] = useState<RecentlyViewedEntry[]>([])
+  const [resolvedItems, setResolvedItems] = useState<WorkspaceItem[]>([])
 
   useEffect(() => {
-    let isMounted = true
-
-    async function load() {
-      try {
-        setLoading(true)
-        const [forms, tables] = await Promise.all([
-          formsClient.list(workspaceId).catch(() => [] as Form[]),
-          tablesGoClient.getTablesByWorkspace(workspaceId).catch(() => [] as DataTable[]),
-        ])
-
-        if (!isMounted) return
-
-        const formItems: WorkspaceItem[] = forms.map((f) => ({
-          kind: 'form',
-          id: f.id,
-          name: f.name,
-          updatedAt: (f as any).updated_at || f.created_at,
-          status: f.status,
-        }))
-        const tableItems: WorkspaceItem[] = tables
-          .filter((t) => !t.is_archived && !t.is_hidden)
-          .map((t) => ({
-            kind: 'table',
-            id: t.id,
-            name: t.name,
-            updatedAt: (t as any).updated_at || '',
-            rowCount: t.row_count,
-          }))
-
-        const combined = [...formItems, ...tableItems].sort(
-          (a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
-        )
-        setItems(combined)
-      } finally {
-        if (isMounted) setLoading(false)
-      }
-    }
-
-    load()
-    return () => {
-      isMounted = false
-    }
+    recentlyViewedClient.list(workspaceId, 8).then(setRecentViews).catch(() => {})
   }, [workspaceId])
 
-  const handleCreateForm = async () => {
-    setCreatingForm(true)
-    try {
-      const form = await goClient.post<Form>('/forms', {
-        workspace_id: workspaceId,
-        name: 'Untitled form',
-        description: '',
-        status: 'draft',
-        is_public: false,
-        settings: {},
-        submit_settings: {},
-      })
-      router.push(`/workspace/${workspaceSlug}/applications/${form.id}`)
-    } catch (err) {
-      console.error('Failed to create form:', err)
-      toast.error('Failed to create form')
-      setCreatingForm(false)
-    }
-  }
-
-  const handleCreateTable = async () => {
-    setCreatingTable(true)
-    try {
-      const userId = data?.user?.id || ''
-      await tablesGoClient.createTable({ workspace_id: workspaceId, name: 'Untitled table' }, userId)
-      toast.success('Table created')
-      router.push(`/workspace/${workspaceSlug}/applications`)
-    } catch (err) {
-      console.error('Failed to create table:', err)
-      toast.error('Failed to create table')
-    } finally {
-      setCreatingTable(false)
-    }
-  }
-
-  const handleOpenItem = (item: WorkspaceItem) => {
-    if (item.kind === 'form') {
-      router.push(`/workspace/${workspaceSlug}/applications/${item.id}`)
-    } else {
-      router.push(`/workspace/${workspaceSlug}/applications`)
-    }
-  }
+  const recentItems = useMemo(() => {
+    const itemMap = new Map(resolvedItems.map((item) => [`${item.kind}:${item.id}`, item]))
+    return recentViews
+      .map((view) => itemMap.get(`${view.entity_type}:${view.entity_id}`))
+      .filter((item): item is WorkspaceItem => !!item)
+      .slice(0, 4)
+  }, [recentViews, resolvedItems])
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#fafafa]">
-      {/* Hero */}
-      <div className="border-b border-neutral-200 bg-white px-8 py-14">
-        <div className="mx-auto max-w-2xl text-center">
-          <h1 className="text-[26px] font-semibold tracking-tight text-neutral-900 mb-8">
-            What do you want to create?
-          </h1>
-          <div className="flex items-center justify-center gap-3">
-            <button
-              onClick={handleCreateForm}
-              disabled={creatingForm}
-              className="group flex items-center gap-2.5 rounded-xl border border-neutral-200 bg-white px-5 py-3 text-[14px] font-medium text-neutral-800 shadow-sm transition-all duration-150 hover:border-neutral-300 hover:shadow-md disabled:opacity-60"
-            >
-              {creatingForm ? (
-                <Loader2 className="h-4 w-4 animate-spin text-neutral-500" />
-              ) : (
-                <FileText className="h-4 w-4 text-blue-600" />
-              )}
-              Form
-            </button>
-            <button
-              onClick={handleCreateTable}
-              disabled={creatingTable}
-              className="group flex items-center gap-2.5 rounded-xl border border-neutral-200 bg-white px-5 py-3 text-[14px] font-medium text-neutral-800 shadow-sm transition-all duration-150 hover:border-neutral-300 hover:shadow-md disabled:opacity-60"
-            >
-              {creatingTable ? (
-                <Loader2 className="h-4 w-4 animate-spin text-neutral-500" />
-              ) : (
-                <Database className="h-4 w-4 text-emerald-600" />
-              )}
-              Table
-            </button>
+    <div className="flex-1 overflow-y-auto bg-[#faf9f7] font-hanken-grotesk">
+      {/* Hero — decorative only, no NL-driven creation backend exists yet */}
+      <div className="relative overflow-hidden px-10 pt-9 pb-[78px] bg-[linear-gradient(120deg,#4f46c9_0%,#5b5bd6_42%,#6d7ff0_100%)]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_140%_at_85%_-20%,rgba(255,255,255,0.28),transparent_55%)]" />
+
+        <div className="relative mx-auto flex max-w-[760px] flex-col items-center gap-3.5">
+          <h2 className="m-0 text-[20px] font-bold tracking-tight text-white">What do you want to create?</h2>
+
+          <div className="inline-flex gap-1 rounded-[11px] border border-white/20 bg-white/[0.14] p-1">
+            {CREATE_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveCreateTab(tab.key)}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-[8px] px-3.5 py-1.5 text-[13.5px] font-semibold transition-colors',
+                  activeCreateTab === tab.key
+                    ? 'bg-white text-[#3f3e35] shadow-[0_1px_3px_rgba(0,0,0,0.15)]'
+                    : 'text-white/90 hover:bg-white/10'
+                )}
+              >
+                <tab.icon className="h-[15px] w-[15px]" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Decorative prompt card — no backend exists for natural-language creation yet */}
+          <div className="w-full rounded-2xl bg-white px-4 pb-3 pt-4 shadow-[0_14px_40px_-12px_rgba(30,26,90,0.45)]">
+            <div className="min-h-[44px] px-1 pb-3 pt-1 text-[15.5px] text-[#a5a49a]">
+              Describe what you want to build…
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex gap-1.5">
+                <button className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border border-[#ececE7] bg-[#f6f5f2] text-[#6c6b61]">
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                <button className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] text-[#8a897f]">
+                  <Mic className="h-[18px] w-[18px]" />
+                </button>
+                <button className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-[#f5b301] text-[#3a2e00] shadow-[0_2px_6px_rgba(245,179,1,0.4)]">
+                  <ArrowUp className="h-[19px] w-[19px]" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Welcome + grid */}
-      <div className="mx-auto max-w-5xl px-8 py-10">
-        <h2 className="text-[22px] font-semibold tracking-tight text-neutral-900 mb-6">
-          Welcome, {displayName}
-        </h2>
+      {/* Content sheet */}
+      <div className="relative -mt-11 rounded-t-[24px] bg-[#faf9f7] px-10 pb-[60px] pt-8">
+        <div className="mb-7 flex items-center justify-between">
+          <h1 className="m-0 text-[30px] font-extrabold tracking-tight text-[#1b1b17]">Welcome, {displayName}</h1>
+          <button
+            onClick={() => setShowInvite(true)}
+            className="flex items-center gap-2 rounded-[10px] border border-[#e6e5df] bg-white px-3.5 py-2 text-[14px] font-semibold text-[#3f3e35] hover:bg-[#f6f5f2]"
+          >
+            <UserPlus className="h-[15px] w-[15px] text-[#8a897f]" />
+            Invite members
+          </button>
+        </div>
 
-        {loading ? (
-          <div className="flex items-center gap-2 text-neutral-500 text-[14px] py-12 justify-center">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading your workspace...
-          </div>
-        ) : items.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-neutral-200 bg-white py-16 text-center">
-            <p className="text-[14px] text-neutral-500">
-              Nothing here yet — create your first form or table above.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((item) => (
-              <button
-                key={`${item.kind}-${item.id}`}
-                onClick={() => handleOpenItem(item)}
-                className="flex flex-col items-start gap-3 rounded-xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition-all duration-150 hover:border-neutral-300 hover:shadow-md"
-              >
+        {recentItems.length > 0 && (
+          <div className="mb-9">
+            <h3 className="mb-3.5 text-[15px] font-bold text-[#54534a]">Recently viewed</h3>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {recentItems.map((item) => (
                 <div
-                  className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                    item.kind === 'form' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'
-                  }`}
+                  key={`${item.kind}:${item.id}`}
+                  className="flex items-center gap-3 rounded-[14px] border border-[#ecebe5] bg-white p-3"
                 >
-                  {item.kind === 'form' ? <FileText className="h-4.5 w-4.5" /> : <Database className="h-4.5 w-4.5" />}
+                  <div
+                    className={cn(
+                      'flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px]',
+                      item.kind === 'form' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'
+                    )}
+                  >
+                    {item.kind === 'form' ? <FileText className="h-4 w-4" /> : <Database className="h-4 w-4" />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-[14px] font-semibold text-[#25241d]">{item.name}</p>
+                    <p className="text-[12.5px] text-[#98978c]">
+                      {item.kind === 'form' ? item.status : `${item.rowCount} rows`}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 w-full">
-                  <p className="truncate text-[14px] font-medium text-neutral-900">{item.name}</p>
-                  <p className="text-[12px] text-neutral-500">
-                    {item.kind === 'form' ? item.status : `${item.rowCount} rows`}
-                  </p>
-                </div>
-              </button>
-            ))}
+              ))}
+            </div>
           </div>
         )}
+
+        <div className="mb-3.5 flex items-center gap-2">
+          <h3 className="m-0 text-[15px] font-bold text-[#54534a]">My workspace</h3>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                disabled={creatingForm || creatingTable}
+                className="flex h-6 w-6 items-center justify-center rounded-md text-[#8a897f] hover:bg-[#e6e5df] hover:text-[#54534a] disabled:opacity-50"
+                aria-label="Create new"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={handleCreateForm} disabled={creatingForm}>
+                <FileText className="h-4 w-4 text-blue-600" />
+                New form
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleCreateTable} disabled={creatingTable}>
+                <Database className="h-4 w-4 text-emerald-600" />
+                New table
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <WorkspaceItemsList
+          workspaceId={workspaceId}
+          workspaceSlug={workspaceSlug}
+          filter="all"
+          emptyMessage="Nothing here yet — create your first form or table above."
+          onItemsLoaded={(items) => setResolvedItems(items)}
+        />
       </div>
+
+      <InviteToWorkspaceSidebarV2
+        isOpen={showInvite}
+        onClose={() => setShowInvite(false)}
+        workspaceId={workspaceId}
+        workspaceName={workspaceName || 'Workspace'}
+      />
     </div>
   )
 }

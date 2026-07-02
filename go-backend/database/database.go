@@ -101,6 +101,10 @@ func AutoMigrate() error {
 		&models.EmbeddingQueue{},
 		&models.SemanticFieldType{},
 
+		// Recently viewed + starred items (home page redesign)
+		&models.RecentlyViewed{},
+		&models.StarredItem{},
+
 		// Change requests (006_change_requests.sql)
 		&models.ChangeRequest{},
 		&models.ChangeApproval{},
