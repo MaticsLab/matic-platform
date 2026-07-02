@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { useSession } from '@/components/auth/provider'
@@ -35,28 +35,36 @@ function slugify(value: string): string {
 export default function WorkspaceRootPage() {
   const router = useRouter()
   const { data, isPending } = useSession()
-  const [resolving, setResolving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  // Guards against re-running on every re-render of this component (e.g. when
+  // useSession() returns a new object reference with the same underlying user).
+  // A ref survives re-renders without itself triggering one, unlike state.
+  const hasStartedRef = useRef(false)
+
+  const userId = data?.user?.id
+
   useEffect(() => {
-    if (isPending || resolving) return
+    if (isPending) return
 
     if (!data?.session || !data?.user) {
       router.replace('/auth?mode=login&redirect=/workspace')
       return
     }
 
+    if (hasStartedRef.current) return
+
     const lastSlug = readLastWorkspaceSlug()
     if (lastSlug) {
+      hasStartedRef.current = true
       router.replace(`/workspace/${lastSlug}`)
       return
     }
 
-    let isMounted = true
+    hasStartedRef.current = true
 
     const resolveOrCreateWorkspace = async () => {
       try {
-        setResolving(true)
         const workspaces = await workspacesClient.list()
         let workspace = Array.isArray(workspaces) && workspaces.length > 0 ? workspaces[0] : null
 
@@ -75,24 +83,21 @@ export default function WorkspaceRootPage() {
           })
         }
 
-        if (!isMounted || !workspace?.slug) return
+        if (!workspace?.slug) {
+          throw new Error('Workspace create/list returned no slug')
+        }
 
         localStorage.setItem('lastWorkspace', JSON.stringify(workspace))
         router.replace(`/workspace/${workspace.slug}`)
-      } catch {
-        if (!isMounted) return
+      } catch (err) {
+        console.error('[Workspace Resolver] Failed to resolve or create workspace:', err)
+        hasStartedRef.current = false
         setErrorMessage('Unable to load your workspace right now. Please try again.')
-      } finally {
-        if (isMounted) setResolving(false)
       }
     }
 
     resolveOrCreateWorkspace()
-
-    return () => {
-      isMounted = false
-    }
-  }, [data, isPending, resolving, router])
+  }, [isPending, data?.session, userId, router])
 
   if (errorMessage) {
     return (
