@@ -321,6 +321,25 @@ func CreateWorkspace(c *gin.Context) {
 		return
 	}
 
+	// Add the creator as an active workspace_members owner — every "list my
+	// workspaces" / "get workspace by slug" query joins through this table, so
+	// without it the creator can't see their own workspace.
+	ownerMember := models.WorkspaceMember{
+		ID:          uuid.New(),
+		WorkspaceID: workspace.ID,
+		BAUserID:    &baUserID,
+		Role:        "owner",
+		Status:      "active",
+	}
+
+	if err := database.DB.Create(&ownerMember).Error; err != nil {
+		database.DB.Delete(&workspace)
+		database.AuthDB.Delete(&models.BetterAuthMember{}, "id = ?", baMember.ID)
+		database.AuthDB.Delete(&models.BetterAuthOrganization{}, "id = ?", baOrg.ID)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add workspace owner: " + err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusCreated, workspace)
 }
 
