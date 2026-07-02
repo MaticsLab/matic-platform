@@ -63,7 +63,10 @@ export function ProtectedRoute({
           return
         }
       }
-      // If no last workspace, will need to fetch user's workspaces - handled by workspace discovery
+      // No cached workspace — fall through to the resolver, which finds the user's
+      // first workspace or shows the "create your workspace" onboarding form.
+      router.push('/workspace')
+      return
     }
   }, [data, isPending, redirectTo, requireOrganization, pathname, router])
 

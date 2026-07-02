@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
+import { ArrowRight, Loader2 } from 'lucide-react'
 import { useSession } from '@/components/auth/provider'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { organizationsClient } from '@/lib/api/organizations-client'
-import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
-import { Label } from '@/ui-components/label'
 
 type LastWorkspaceValue = { slug?: string } | string
 
@@ -139,29 +137,59 @@ export default function WorkspaceRootPage() {
   }
 
   if (needsOnboarding) {
+    const initial = workspaceName.trim().charAt(0).toUpperCase()
+
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-sm">
-          <h1 className="text-xl font-semibold text-gray-900 mb-1">Create your workspace</h1>
-          <p className="text-gray-600 mb-6 text-sm">
-            You don&apos;t have a workspace yet. Give it a name to get started.
-          </p>
-          <form onSubmit={handleCreateWorkspace} className="space-y-4">
-            <div>
-              <Label htmlFor="workspace-name">Workspace name</Label>
-              <Input
-                id="workspace-name"
-                value={workspaceName}
-                onChange={(e) => setWorkspaceName(e.target.value)}
-                placeholder="Acme Inc."
-                autoFocus
-                disabled={creating}
-              />
-            </div>
-            {createError && <p className="text-sm text-red-600">{createError}</p>}
-            <Button type="submit" disabled={creating || !workspaceName.trim()} className="w-full">
-              {creating ? 'Creating...' : 'Create workspace'}
-            </Button>
+      <div className="min-h-screen flex items-center justify-center bg-[#fafafa] p-6">
+        <div className="w-full max-w-[380px] animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div
+            className="mx-auto mb-6 flex h-12 w-12 items-center justify-center rounded-xl text-lg font-semibold text-white shadow-sm transition-colors duration-300"
+            style={{ backgroundColor: initial ? '#171717' : '#d4d4d4' }}
+          >
+            {initial || ''}
+          </div>
+
+          <div className="text-center mb-8">
+            <h1 className="text-[22px] font-semibold tracking-tight text-neutral-900 mb-1.5">
+              Create your workspace
+            </h1>
+            <p className="text-[14px] text-neutral-500 leading-relaxed">
+              This is where your team&apos;s forms and data will live.
+            </p>
+          </div>
+
+          <form onSubmit={handleCreateWorkspace} className="space-y-3">
+            <Input
+              id="workspace-name"
+              value={workspaceName}
+              onChange={(e) => setWorkspaceName(e.target.value)}
+              placeholder="Acme Inc."
+              autoFocus
+              disabled={creating}
+              className="h-11 rounded-lg border-neutral-200 bg-white px-3.5 text-[15px] shadow-sm placeholder:text-neutral-400 focus-visible:ring-2 focus-visible:ring-neutral-900/10 focus-visible:border-neutral-400"
+            />
+
+            {createError && (
+              <p className="text-[13px] text-red-600 px-0.5">{createError}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={creating || !workspaceName.trim()}
+              className="group flex h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-neutral-900 text-[14px] font-medium text-white shadow-sm transition-all duration-150 hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400"
+            >
+              {creating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating workspace
+                </>
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
+                </>
+              )}
+            </button>
           </form>
         </div>
       </div>
@@ -169,10 +197,10 @@ export default function WorkspaceRootPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center bg-[#fafafa]">
       <div className="text-center">
-        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
-        <p className="text-gray-600">Loading workspace...</p>
+        <Loader2 className="h-5 w-5 animate-spin mx-auto mb-3 text-neutral-400" />
+        <p className="text-[14px] text-neutral-500">Loading workspace...</p>
       </div>
     </div>
   )

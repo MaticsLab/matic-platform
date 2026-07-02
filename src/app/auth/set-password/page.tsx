@@ -96,8 +96,9 @@ function SetPasswordForm() {
             return
           }
         }
-        // If no last workspace stored, redirect to home which will handle workspace discovery
-        router.push('/')
+        // If no last workspace stored, redirect to the resolver, which finds the
+        // user's first workspace or shows the onboarding form for new accounts.
+        router.push('/workspace')
       }, 2000)
     } catch (err: unknown) {
       console.error('Password update error:', err)

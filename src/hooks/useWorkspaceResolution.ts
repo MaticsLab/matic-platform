@@ -108,12 +108,13 @@ export function useWorkspaceResolution() {
         }
       }
 
-      // 4. Navigate if we found a workspace
+      // 4. Navigate if we found a workspace, otherwise send them to the resolver,
+      // which shows the "create your workspace" onboarding form for new accounts.
       if (workspace?.slug) {
         router.push(`/workspace/${workspace.slug}`)
         return workspace.slug
       } else {
-        setError('No workspaces available')
+        router.push('/workspace')
         return null
       }
     } catch (err) {
