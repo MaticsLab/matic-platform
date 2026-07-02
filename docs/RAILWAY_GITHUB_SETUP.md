@@ -99,7 +99,7 @@ npm run db:migrate
 - Frontend: GET /
 - Backend: GET /health
 - Auth route: GET /api/auth/get-session (or a sign-in flow from UI)
-- Portal auth route: /api/portal-auth/* endpoints
+- Staff and applicant users share this same /api/auth/* instance, distinguished by userType
 
 ## Notes
 

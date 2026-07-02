@@ -16,7 +16,7 @@ import {
 import { Input } from "@/ui-components/input"
 import { PasswordInput } from "@/ui-components/password-input"
 import { Button } from "@/ui-components/button"
-import { authClient } from "@/lib/auth/auth-client"
+import { authClient } from "@/auth/client/main"
 import { toast } from "sonner"
 
 const signUpSchema = z

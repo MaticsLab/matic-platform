@@ -60,7 +60,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { organizationAPI, useSession } from '@/lib/better-auth-client'
+import { organizationAPI, useSession } from '@/auth/client/main'
 
 interface WorkspaceSettingsPanelProps {
   isOpen: boolean

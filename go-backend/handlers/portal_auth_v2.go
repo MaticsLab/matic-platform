@@ -304,7 +304,7 @@ func PortalSignupV2(c *gin.Context) {
 }
 
 // PortalLoginV2 authenticates an applicant and returns session
-// DEPRECATED: Login now handled by Better Auth (/api/portal-auth/sign-in)
+// DEPRECATED: Login now handled by Better Auth (/api/auth/sign-in)
 // POST /api/v1/portal/v2/login
 func PortalLoginV2(c *gin.Context) {
 	type PortalLoginV2Request struct {

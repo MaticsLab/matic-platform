@@ -1,5 +1,5 @@
 import { goFetch } from './go-client'
-import { portalBetterAuthClient } from '@/auth/client/portal'
+import { getSessionToken } from '@/auth/client/main'
 
 // ==================== TYPES ====================
 
@@ -130,8 +130,7 @@ export const submissionsClient = {
     // Get portal session token from Better Auth
     let authHeader: Record<string, string> = {}
     try {
-      const session = await portalBetterAuthClient.getSession()
-      const token = session?.data?.session?.token
+      const token = await getSessionToken()
       if (token) {
         authHeader = { 'Authorization': `Bearer ${token}` }
       }
@@ -189,4 +188,3 @@ export interface PortalSignupResponse {
   existing?: boolean
 }
 
-// Legacy token-based auth removed - use portalBetterAuthClient from @/lib/portal-better-auth-client

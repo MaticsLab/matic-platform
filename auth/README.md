@@ -7,36 +7,32 @@ Centralized Better Auth setup for Matic Platform.
 ```
 auth/
 ├── config/              # Configuration files
-│   ├── main.ts         # Main platform auth config
-│   └── portal.ts       # Portal auth config
+│   └── main.ts         # Better Auth config (staff + applicants)
 ├── lib/                # Shared utilities
-│   ├── database.ts     # Database pool management
 │   ├── email.ts        # Email sending (Resend)
 │   └── helpers.ts      # Auth helpers
-├── server/             # Server-side auth instances
-│   ├── main.ts         # Export main auth instance
-│   └── portal.ts       # Export portal auth instance
+├── server/             # Server-side auth instance
+│   └── main.ts         # Export auth instance
 ├── client/             # Client-side exports
-│   ├── main.ts         # Main app client
-│   └── portal.ts       # Portal client
+│   └── main.ts         # Auth client
 └── types/              # TypeScript types
     └── index.ts        # Shared auth types
 ```
+
+Staff and applicant users share a single Better Auth instance/cookie,
+distinguished by the `userType` field on the `user` table (`'staff'` vs
+`'applicant'`). There is no separate portal auth surface.
 
 ## Usage
 
 ### Server-side (API Routes)
 ```typescript
 import { auth } from '@/auth/server/main'
-// or
-import { portalAuth } from '@/auth/server/portal'
 ```
 
 ### Client-side (React Components)
 ```typescript
 import { authClient, useSession } from '@/auth/client/main'
-// or
-import { portalAuthClient } from '@/auth/client/portal'
 ```
 
 ## Environment Variables
@@ -73,7 +69,7 @@ This project now bootstraps Better Auth from scratch. Do not import or migrate a
 3. Set `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`.
 4. Run `npx --yes auth@latest generate --yes --config auth/config/main.ts` to generate the schema from the current auth config.
 5. Run `npm run auth:migrate` to create the Better Auth tables.
-6. Start the app and verify `/api/auth/*` and `/api/portal-auth/*` routes.
+6. Start the app and verify `/api/auth/*` routes.
 
 Notes:
 - The schema is now generated directly from the current Better Auth config.

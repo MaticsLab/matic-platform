@@ -1,6 +1,6 @@
 "use client"
 
-import { authClient } from "@/lib/auth/auth-client"
+import { authClient } from "@/auth/client/main"
 import { Button } from "@/ui-components/button"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"

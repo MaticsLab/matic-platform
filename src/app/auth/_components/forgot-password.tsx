@@ -13,7 +13,7 @@ import {
 } from "@/ui-components/form"
 import { Input } from "@/ui-components/input"
 import { Button } from "@/ui-components/button"
-import { authClient } from "@/lib/auth/auth-client"
+import { authClient } from "@/auth/client/main"
 import { toast } from "sonner"
 import { useState } from "react"
 

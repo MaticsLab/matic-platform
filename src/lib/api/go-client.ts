@@ -105,8 +105,8 @@ export async function goFetch<T>(
     const error = await response.json().catch(() => ({ error: 'Unknown error' }))
     
     // Handle 401 Unauthorized - redirect to login if in browser
-    // IMPORTANT: Do NOT redirect on portal/applicant pages — portal uses its own auth
-    // (Better Auth cookies via portalBetterAuthClient, not staff session cookies)
+    // IMPORTANT: Do NOT redirect on portal/applicant pages — an unauthenticated
+    // applicant visiting a public form is expected, not a staff session expiring
     if (response.status === 401 && typeof window !== 'undefined') {
       const currentPath = window.location.pathname + window.location.search
       const hostname = window.location.hostname

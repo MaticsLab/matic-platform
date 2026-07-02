@@ -7,7 +7,8 @@
  */
 
 import { createAuthClient } from "better-auth/react";
-import { organizationClient, multiSessionClient, magicLinkClient } from "better-auth/client/plugins";
+import { organizationClient, multiSessionClient, magicLinkClient, inferAdditionalFields } from "better-auth/client/plugins";
+import type { auth } from "../server/main";
 
 export const authClient = createAuthClient({
   basePath: "/api/auth",
@@ -15,6 +16,7 @@ export const authClient = createAuthClient({
     organizationClient(),
     multiSessionClient(),
     magicLinkClient(),
+    inferAdditionalFields<typeof auth>(),
   ],
   fetchOptions: {
     credentials: "include",
@@ -86,6 +88,19 @@ export const updateUser = authClient.updateUser;
 export const listSessions = authClient.listSessions;
 export const revokeSession = authClient.revokeSession;
 export const revokeOtherSessions = authClient.revokeOtherSessions;
+
+/**
+ * Get the current session token for attaching as a Bearer header
+ * (e.g. for Go backend requests that can't rely on cookies alone).
+ */
+export const getSessionToken = async (): Promise<string | null> => {
+  try {
+    const session = await authClient.getSession();
+    return session?.data?.session?.token || null;
+  } catch {
+    return null;
+  }
+};
 
 // Type exports
 export type Session = typeof authClient.$Infer.Session;

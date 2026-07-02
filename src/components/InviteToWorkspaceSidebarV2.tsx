@@ -44,7 +44,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { organizationAPI } from '@/lib/better-auth-client'
+import { organizationAPI } from '@/auth/client/main'
 
 interface InviteToWorkspaceSidebarV2Props {
   isOpen: boolean

@@ -7,7 +7,7 @@
  * that goFetch does for staff authentication.
  */
 
-import { getPortalSessionToken } from '@/auth/client/portal'
+import { getSessionToken } from '@/auth/client/main'
 
 // Get API URL (same logic as goFetch but without the redirect behavior)
 const getApiUrl = () => {
@@ -34,7 +34,7 @@ async function portalFetch<T>(
   const url = `${apiUrl}${endpoint}`
 
   // Get portal session token
-  const sessionToken = await getPortalSessionToken()
+  const sessionToken = await getSessionToken()
 
   const response = await fetch(url, {
     ...options,

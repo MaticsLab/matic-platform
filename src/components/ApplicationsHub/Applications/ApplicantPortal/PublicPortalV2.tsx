@@ -15,7 +15,7 @@ import { Form } from '@/types/forms'
 import { Field, PortalConfig, Section } from '@/types/portal'
 import { cn } from '@/lib/utils'
 import { applyTranslationsToConfig, applyTranslationsToField, normalizeTranslations } from '@/lib/portal-translations'
-import { portalBetterAuthClient } from '@/auth/client/portal'
+import { authClient } from '@/auth/client/main'
 import { toast } from 'sonner'
 import { TranslationProvider } from '@/lib/i18n/TranslationProvider'
 import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector'
@@ -189,6 +189,13 @@ const getApiUrl = () => {
   return 'https://api.maticsapp.com/api/v1'
 }
 
+// Staff and applicants now share one Better Auth cookie, so a staff member's
+// own session must not be treated as a portal login (e.g. clicking their own
+// public share link should still show the applicant sign-in screen).
+function isApplicantSessionUser(user: any): boolean {
+  return (user?.userType || user?.user_type) === 'applicant'
+}
+
 export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isCheckingAuth, setIsCheckingAuth] = useState(true) // Add loading state for auth check
@@ -285,7 +292,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     // Create initial draft submission if none exists and user has started filling form
     if (form?.id && email && !applicationRowId && Object.keys(data).length > 0) {
       try {
-        const session = await portalBetterAuthClient.getSession()
+        const session = await authClient.getSession()
         const sessionToken = session?.data?.session?.token
         
         if (sessionToken) {
@@ -331,7 +338,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     if (!form?.id) return false
     
     try {
-      const session = await portalBetterAuthClient.getSession()
+      const session = await authClient.getSession()
       const sessionToken = session?.data?.session?.token
       
       if (!sessionToken) {
@@ -493,8 +500,8 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
             
             if (verified === 'true' && formIdParam === formData.id) {
               // Verify magic link was successful (using portal-specific auth client)
-              const session = await portalBetterAuthClient.getSession()
-              if (session?.data?.session && session?.data?.user?.id) {
+              const session = await authClient.getSession()
+              if (session?.data?.session && session?.data?.user?.id && isApplicantSessionUser(session.data.user)) {
                 setEmail(email)
                 const betterAuthUserId = session.data.user.id
                 
@@ -544,14 +551,14 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
             } else {
               // Check for existing Better Auth session (portal-specific)
               console.log('[PublicPortalV2] Checking for existing Better Auth session...')
-              const session = await portalBetterAuthClient.getSession()
-              console.log('[PublicPortalV2] Session check result:', { 
+              const session = await authClient.getSession()
+              console.log('[PublicPortalV2] Session check result:', {
                 hasSession: !!session?.data?.session,
                 hasUser: !!session?.data?.user,
-                userId: session?.data?.user?.id 
+                userId: session?.data?.user?.id
               })
-              
-              if (session?.data?.session && session?.data?.user?.id) {
+
+              if (session?.data?.session && session?.data?.user?.id && isApplicantSessionUser(session.data.user)) {
                 const betterAuthUserId = session.data.user.id
                 const userEmail = session.data.user.email
                 
@@ -658,7 +665,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     try {
       // Magic link works for both signup and login - Better Auth handles it automatically
       // Using portal-specific auth client to avoid conflicts with main app sessions
-      const result = await (portalBetterAuthClient.signIn as any).magicLink({
+      const result = await (authClient.signIn as any).magicLink({
         email: emailAddress,
         callbackURL: `${window.location.origin}/apply/${slug}?verified=true&formId=${form.id}`,
       })
@@ -697,7 +704,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       if (isLogin) {
         // Use Better Auth for authentication (cookie-based session)
         console.log('[PublicPortalV2] Calling Better Auth sign-in...')
-        const betterAuthResult = await portalBetterAuthClient.signIn.email({
+        const betterAuthResult = await authClient.signIn.email({
           email,
           password,
         })
@@ -720,6 +727,12 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
           name: betterAuthUser.name
         })
 
+        if (!isApplicantSessionUser(betterAuthUser)) {
+          toast.error('This account is not an applicant account. Please use a different email to apply.')
+          setIsLoading(false)
+          return
+        }
+
         // Set authentication state
         setIsAuthenticated(true)
         setApplicantName(betterAuthUser.name || betterAuthUser.email)
@@ -730,7 +743,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         try {
           // Get session token from the login result
           console.log('[PublicPortalV2] Getting session token...')
-          const session = await portalBetterAuthClient.getSession()
+          const session = await authClient.getSession()
           console.log('[PublicPortalV2] Session retrieved:', {
             hasSession: !!session,
             hasData: !!session?.data,
@@ -833,7 +846,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         })
 
         // Step 1: Create user with Better Auth SDK
-        const signupResult = await portalBetterAuthClient.signUp.email({
+        const signupResult = await authClient.signUp.email({
           email,
           password,
           name: displayName,
@@ -866,7 +879,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         const baseUrl = getApiUrl()
         try {
           // Get session token after signup
-          const session = await portalBetterAuthClient.getSession()
+          const session = await authClient.getSession()
           const sessionToken = session?.data?.session?.token
           const dataRes = await fetch(
             `${baseUrl}/portal/forms/${formIdToUse}/my-submission`,
@@ -985,7 +998,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       const baseUrl = getApiUrl()
       
       // Get Better Auth session token
-      const session = await portalBetterAuthClient.getSession()
+      const session = await authClient.getSession()
       const sessionToken = session?.data?.session?.token
       
       if (!sessionToken) {
