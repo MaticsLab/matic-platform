@@ -9,9 +9,7 @@ import { useSession, signOut as betterAuthSignOut } from '@/auth/client/main'
 import { AppSidebar } from './AppSidebar'  // Explicit capitalized import
 import { WorkspaceSettingsSidebar } from './WorkspaceSettingsSidebar'
 import { ProfileSidebar } from './ProfileSidebar'
-import { InviteToWorkspaceSidebarV2 } from './InviteToWorkspaceSidebarV2'
-import { WorkspaceSettingsPanel } from './WorkspaceSettingsPanel'
-import { UpdatePasswordDialog } from './UpdatePasswordDialog'
+import { OrganizationMembersSheet } from './OrganizationMembersSheet'
 import { ApiKeyDialog } from './ApiKeyDialog'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { toast } from 'sonner'
@@ -38,8 +36,7 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
   // State management
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showProfileSidebar, setShowProfileSidebar] = useState(false)
-  const [showInviteSidebar, setShowInviteSidebar] = useState(false)
-  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
+  const [showMembersSheet, setShowMembersSheet] = useState(false)
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false)
   const [fullWorkspace, setFullWorkspace] = useState<Workspace | null>(null)
   const [devMode, setDevMode] = useState(false)
@@ -130,9 +127,8 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
               handleSignOut={handleSignOut}
               handleOpenSettings={handleOpenSettings}
               setShowProfileSidebar={setShowProfileSidebar}
-              setShowPasswordDialog={setShowPasswordDialog}
               setShowApiKeyDialog={setShowApiKeyDialog}
-              setShowInviteSidebar={setShowInviteSidebar}
+              setShowMembersSheet={setShowMembersSheet}
               devMode={devMode}
               setDevMode={setDevMode}
             />
@@ -175,21 +171,16 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
       />
 
       {/* Dialogs */}
-      <UpdatePasswordDialog
-        isOpen={showPasswordDialog}
-        onClose={() => setShowPasswordDialog(false)}
-      />
-
       <ApiKeyDialog
         isOpen={showApiKeyDialog}
         onClose={() => setShowApiKeyDialog(false)}
       />
 
-      {/* Workspace Settings Panel */}
-      {currentWorkspace && showInviteSidebar && (
-        <WorkspaceSettingsPanel
-          isOpen={showInviteSidebar}
-          onClose={() => setShowInviteSidebar(false)}
+      {/* Organization Members Sheet */}
+      {currentWorkspace && showMembersSheet && (
+        <OrganizationMembersSheet
+          isOpen={showMembersSheet}
+          onClose={() => setShowMembersSheet(false)}
           workspaceId={(currentWorkspace as any).ba_organization_id || currentWorkspace.id}
           workspaceName={currentWorkspace.name}
         />

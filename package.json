@@ -19,6 +19,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.88",
     "@ai-sdk/react": "^2.0.117",
+    "@better-auth/infra": "^0.3.4",
     "@better-auth/passkey": "^1.6.23",
     "@better-auth/stripe": "^1.6.23",
     "@dnd-kit/core": "^6.3.1",

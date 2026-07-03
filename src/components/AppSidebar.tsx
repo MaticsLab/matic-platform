@@ -14,7 +14,6 @@ import {
   Settings2,
   LogOut,
   Key,
-  Lock,
   UserPlus,
   Plus,
   Sparkles,
@@ -69,9 +68,8 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   handleSignOut?: () => void
   handleOpenSettings?: () => void
   setShowProfileSidebar?: (open: boolean) => void
-  setShowPasswordDialog?: (open: boolean) => void
   setShowApiKeyDialog?: (open: boolean) => void
-  setShowInviteSidebar?: (open: boolean) => void
+  setShowMembersSheet?: (open: boolean) => void
   devMode?: boolean
   setDevMode?: (enabled: boolean) => void
 }
@@ -85,9 +83,8 @@ export function AppSidebar({
   handleSignOut,
   handleOpenSettings,
   setShowProfileSidebar,
-  setShowPasswordDialog,
   setShowApiKeyDialog,
-  setShowInviteSidebar,
+  setShowMembersSheet,
   devMode = false,
   setDevMode,
   ...props
@@ -201,17 +198,13 @@ export function AppSidebar({
               Create organization
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setShowInviteSidebar?.(true)}>
+            <DropdownMenuItem onClick={() => setShowMembersSheet?.(true)}>
               <UserPlus className="h-4 w-4" />
               Manage members
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setShowProfileSidebar?.(true)}>
               <User className="h-4 w-4" />
               Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setShowPasswordDialog?.(true)}>
-              <Lock className="h-4 w-4" />
-              Change password
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setShowApiKeyDialog?.(true)}>
               <Key className="h-4 w-4" />

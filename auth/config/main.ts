@@ -17,12 +17,16 @@ import { passkey } from "@better-auth/passkey";
 import { admin as adminPlugin } from "better-auth/plugins/admin";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { stripe } from "@better-auth/stripe";
+import { dash, sentinel } from "@better-auth/infra";
 import Stripe from "stripe";
 import { db } from "@/drizzle/db";
 import { getBaseURL, getTrustedOrigins, getCookieConfig, getCookieDomain } from "../lib/helpers";
 import { sendPasswordResetEmail } from "@/lib/emails/password-reset-email";
 import { sendMagicLink } from "@/lib/emails/magic-link-email";
 import { sendOrganizationInviteEmail } from "@/lib/emails/organization-invite-email";
+import { sendEmailVerificationEmail } from "@/lib/emails/email-verification";
+import { sendChangeEmailConfirmation } from "@/lib/emails/change-email-confirmation";
+import { sendDeleteAccountEmail } from "@/lib/emails/delete-account-email";
 import { ac, admin, user as userRole } from "@/lib/auth/permissions";
 import { STRIPE_PLANS } from "@/lib/auth/stripe-plans";
 
@@ -63,6 +67,18 @@ export function createMainAuthConfig() {
       },
     },
     trustedOrigins: getTrustedOrigins(),
+    emailVerification: {
+      sendVerificationEmail: async ({ user, url }) => {
+        await sendEmailVerificationEmail({
+          user: {
+            email: user.email ?? "",
+            name: user.name || user.email?.split('@')[0] || "User",
+          },
+          url,
+        });
+      },
+      sendOnSignUp: false, // don't change existing signup UX — this only backs changeEmail + the resend-verification button
+    },
     socialProviders: {
       google: {
         clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -176,6 +192,8 @@ export function createMainAuthConfig() {
           plans: STRIPE_PLANS,
         },
       }),
+      dash({ apiKey: process.env.BETTER_AUTH_API_KEY! }),
+      sentinel({ apiKey: process.env.BETTER_AUTH_API_KEY! }),
     ],
     user: {
       // Table/column names now come directly from the Drizzle schema
@@ -197,6 +215,31 @@ export function createMainAuthConfig() {
           required: false,
           defaultValue: "applicant",
           input: true,
+        },
+      },
+      changeEmail: {
+        enabled: true,
+        sendChangeEmailConfirmation: async ({ user, newEmail, url }) => {
+          await sendChangeEmailConfirmation({
+            user: {
+              email: user.email ?? "",
+              name: user.name || user.email?.split('@')[0] || "User",
+            },
+            newEmail,
+            url,
+          });
+        },
+      },
+      deleteUser: {
+        enabled: true,
+        sendDeleteAccountVerification: async ({ user, url }) => {
+          await sendDeleteAccountEmail({
+            user: {
+              email: user.email ?? "",
+              name: user.name || user.email?.split('@')[0] || "User",
+            },
+            url,
+          });
         },
       },
     },

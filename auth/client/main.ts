@@ -7,7 +7,9 @@
  */
 
 import { createAuthClient } from "better-auth/react";
-import { organizationClient, multiSessionClient, magicLinkClient, inferAdditionalFields } from "better-auth/client/plugins";
+import { organizationClient, multiSessionClient, magicLinkClient, twoFactorClient, inferAdditionalFields } from "better-auth/client/plugins";
+import { passkeyClient } from "@better-auth/passkey/client";
+import { dashClient, sentinelClient } from "@better-auth/infra/client";
 import type { auth } from "../server/main";
 
 export const authClient = createAuthClient({
@@ -16,6 +18,10 @@ export const authClient = createAuthClient({
     organizationClient(),
     multiSessionClient(),
     magicLinkClient(),
+    twoFactorClient(),
+    passkeyClient(),
+    dashClient(),
+    sentinelClient(),
     inferAdditionalFields<typeof auth>(),
   ],
   fetchOptions: {
@@ -101,6 +107,27 @@ export const getSessionToken = async (): Promise<string | null> => {
     return null;
   }
 };
+
+// Two-factor authentication
+export const twoFactorAPI = {
+  enable: authClient.twoFactor.enable,
+  disable: authClient.twoFactor.disable,
+  getTotpUri: authClient.twoFactor.getTotpUri,
+  verifyTotp: authClient.twoFactor.verifyTotp,
+  generateBackupCodes: authClient.twoFactor.generateBackupCodes,
+};
+
+// Passkey management
+export const passkeyAPI = {
+  addPasskey: authClient.passkey.addPasskey,
+  deletePasskey: authClient.passkey.deletePasskey,
+  useListPasskeys: authClient.useListPasskeys,
+};
+
+// Email verification / change-email / delete-user
+export const sendVerificationEmail = authClient.sendVerificationEmail;
+export const changeEmail = authClient.changeEmail;
+export const deleteUser = authClient.deleteUser;
 
 // Type exports
 export type Session = typeof authClient.$Infer.Session;

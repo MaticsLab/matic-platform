@@ -6,7 +6,7 @@ import { useSession } from '@/components/auth/provider'
 import { useQuickCreate } from '@/hooks/useQuickCreate'
 import { recentlyViewedClient, type RecentlyViewedEntry } from '@/lib/api/recently-viewed-client'
 import { WorkspaceItemsList, type WorkspaceItem } from './WorkspaceItemsList'
-import { InviteToWorkspaceSidebarV2 } from './InviteToWorkspaceSidebarV2'
+import { OrganizationMembersSheet } from './OrganizationMembersSheet'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -180,7 +180,7 @@ export function WorkspaceHome({ workspaceId, workspaceSlug, workspaceName }: Wor
         />
       </div>
 
-      <InviteToWorkspaceSidebarV2
+      <OrganizationMembersSheet
         isOpen={showInvite}
         onClose={() => setShowInvite(false)}
         workspaceId={workspaceId}
