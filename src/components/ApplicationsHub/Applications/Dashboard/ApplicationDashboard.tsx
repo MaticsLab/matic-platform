@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { 
-  BarChart3, Users, FileText, Clock, Eye, ThumbsUp, ThumbsDown, 
+  BarChart3, Users, FileText, Clock, Eye, ThumbsUp, ThumbsDown,
   Star, User, Loader2, TrendingUp, TrendingDown, AlertTriangle,
-  Sparkles, Brain, Target, Zap, ChevronRight, ArrowRight, 
+  Sparkles, Target, Zap, ChevronRight, ArrowRight,
   CheckCircle2, XCircle, Timer, Award, Lightbulb, BarChart2,
   PieChart, Activity, Filter, RefreshCw
 } from 'lucide-react'
@@ -63,7 +63,6 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
   const [stages, setStages] = useState<StageData[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [formSettings, setFormSettings] = useState<any>({})
-  const [showAIInsights, setShowAIInsights] = useState(true)
   const [reviewersMap, setReviewersMap] = useState<Record<string, { name: string; email: string }>>({})
 
   useEffect(() => {
@@ -365,11 +364,7 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Stage Analytics</h2>
-          <p className="text-gray-500 mt-1">Overview of all workflow stages and AI-powered insights</p>
-        </div>
-        <div className="flex items-center gap-2 bg-gradient-to-r from-purple-50 to-blue-50 px-4 py-2 rounded-full border border-purple-200">
-          <Sparkles className="w-4 h-4 text-purple-600" />
-          <span className="text-sm font-medium text-purple-700">AI Insights Enabled</span>
+          <p className="text-gray-500 mt-1">Overview of all workflow stages and pipeline health</p>
         </div>
       </div>
 
@@ -426,13 +421,13 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
         </div>
       </div>
 
-      {/* AI Insights Panel */}
+      {/* Insights Panel — computed from live pipeline data, not a model */}
       <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl p-6 mb-8 text-white">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-            <Brain className="w-5 h-5" />
+            <BarChart3 className="w-5 h-5" />
           </div>
-          <h3 className="text-lg font-semibold">AI Insights & Recommendations</h3>
+          <h3 className="text-lg font-semibold">Insights & Recommendations</h3>
         </div>
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
@@ -458,7 +453,7 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
                 ? "High-quality applicant pool with strong average scores above 70%."
                 : stats.avgScore >= 50
                 ? "Moderate score distribution. Consider reviewing rubric criteria alignment."
-                : "Lower than expected scores. AI suggests reviewing scoring consistency."}
+                : "Lower than expected scores. Consider reviewing scoring consistency."}
             </p>
           </div>
           <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
@@ -645,8 +640,8 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-semibold text-gray-900">Reviewer Activity</h3>
             <Badge className="bg-purple-100 text-purple-700">
-              <Brain className="w-3 h-3 mr-1" />
-              AI Monitored
+              <Activity className="w-3 h-3 mr-1" />
+              Live
             </Badge>
           </div>
           <span className="text-sm text-gray-500">{reviewerMetrics.length} reviewers</span>

@@ -23,6 +23,9 @@ interface FullEmailComposerProps {
   initialBody?: string;
   templateId?: string;
   onSent?: () => void;
+  /** Called when the user wants to create a signature and none exist yet.
+   *  When omitted, the "Create one in settings" link is hidden rather than shown as a dead link. */
+  onOpenEmailSettings?: () => void;
 }
 
 export function FullEmailComposer({
@@ -35,7 +38,8 @@ export function FullEmailComposer({
   initialSubject = '',
   initialBody = '',
   templateId,
-  onSent
+  onSent,
+  onOpenEmailSettings
 }: FullEmailComposerProps) {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);
@@ -484,18 +488,20 @@ export function FullEmailComposer({
                           <div className="p-3 text-sm text-gray-500">Loading signatures...</div>
                         ) : signatures.length === 0 ? (
                           <div className="p-3 text-sm text-gray-500">
-                            No signatures available. 
-                            <a 
-                              href="#" 
-                              onClick={(e) => {
-                                e.preventDefault();
-                                setShowSignatureDropdown(false);
-                                // You could open email settings here
-                              }}
-                              className="text-blue-600 hover:underline ml-1"
-                            >
-                              Create one in settings
-                            </a>
+                            No signatures available.
+                            {onOpenEmailSettings && (
+                              <a
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setShowSignatureDropdown(false);
+                                  onOpenEmailSettings();
+                                }}
+                                className="text-blue-600 hover:underline ml-1"
+                              >
+                                Create one in settings
+                              </a>
+                            )}
                           </div>
                         ) : (
                           signatures.map((signature) => (

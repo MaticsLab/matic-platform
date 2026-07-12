@@ -1,13 +1,14 @@
 'use client'
 
-import { useState } from 'react';
-import { 
-  User, 
-  Settings, 
-  Smartphone, 
-  LogOut, 
+import { useState, useEffect } from 'react';
+import {
+  User,
+  Settings,
+  Smartphone,
+  LogOut,
   KeyRound,
   Camera,
+  Loader2,
   Monitor,
   Clock,
   MapPin,
@@ -15,26 +16,29 @@ import {
   Sun
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/ui-components/avatar';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from '@/ui-components/dropdown-menu';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogFooter 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
 } from '@/ui-components/dialog';
 import { Button } from '@/ui-components/button';
 import { Input } from '@/ui-components/input';
 import { Label } from '@/ui-components/label';
 import { useTheme } from 'next-themes';
+import { authClient } from '@/auth/client/main';
+import { storageClient } from '@/lib/api/storage-client';
+import { ChangePasswordForm } from '@/components/auth/change-password-form';
+import { toast } from 'sonner';
 
 interface UserMenuProps {
   user: {
@@ -48,58 +52,113 @@ interface UserMenuProps {
   onOpenSettings?: () => void;
 }
 
-// Mock session data - in real app this would come from Better Auth
-const mockSessions = [
-  {
-    id: '1',
-    device: 'MacBook Pro',
-    browser: 'Chrome',
-    location: 'Chicago, IL',
-    lastActive: '2 minutes ago',
-    isCurrent: true
-  },
-  {
-    id: '2',
-    device: 'iPhone 14',
-    browser: 'Safari',
-    location: 'Chicago, IL',
-    lastActive: '1 hour ago',
-    isCurrent: false
-  }
-];
+interface DeviceSession {
+  id: string;
+  token: string;
+  userAgent: string;
+  ipAddress: string | null;
+  lastActive: Date;
+  isCurrent: boolean;
+}
+
+function getDeviceLabel(userAgent: string): string {
+  const ua = userAgent.toLowerCase();
+  if (ua.includes('iphone') || (ua.includes('mobile') && ua.includes('android'))) return 'Phone';
+  if (ua.includes('ipad') || ua.includes('tablet')) return 'Tablet';
+  return 'Computer';
+}
 
 export function UserMenu({ user, onSignOut, textColor = '#BCE7F4', onOpenSettings }: UserMenuProps) {
   const [showSessions, setShowSessions] = useState(false);
   const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [showPhotoUpload, setShowPhotoUpload] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [sessions, setSessions] = useState<DeviceSession[]>([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+  const [revokingToken, setRevokingToken] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const { theme, setTheme } = useTheme();
 
-  const handlePasswordReset = async () => {
-    if (newPassword !== confirmPassword) {
-      alert('Passwords do not match!');
+  useEffect(() => {
+    if (!showSessions) return;
+    let cancelled = false;
+    setIsLoadingSessions(true);
+    Promise.all([authClient.listSessions(), authClient.getSession()])
+      .then(([sessionsRes, currentRes]) => {
+        if (cancelled) return;
+        const currentToken = currentRes?.data?.session?.token;
+        const list = (sessionsRes.data ?? []).map((s: any) => ({
+          id: s.id,
+          token: s.token,
+          userAgent: s.userAgent || 'Unknown device',
+          ipAddress: s.ipAddress ?? null,
+          lastActive: new Date(s.updatedAt || s.createdAt),
+          isCurrent: s.token === currentToken,
+        }));
+        setSessions(list);
+      })
+      .catch((error) => {
+        console.error('Failed to load sessions:', error);
+        toast.error('Failed to load sessions');
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingSessions(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showSessions]);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
       return;
     }
-    // In real app, call Better Auth API
-    alert('Password reset successfully!');
-    setShowPasswordReset(false);
-    setNewPassword('');
-    setConfirmPassword('');
-  };
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image must be less than 2MB');
+      return;
+    }
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // In real app, upload to storage and update user profile
-      alert('Photo uploaded successfully!');
+    setIsUploadingPhoto(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `avatars/${user.id}_${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await storageClient
+        .from('user-assets')
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = storageClient.from('user-assets').getPublicUrl(filePath);
+
+      const result = await authClient.updateUser({ image: publicUrl });
+      if (result.error) throw new Error(result.error.message || 'Failed to update photo');
+
+      toast.success('Photo updated');
       setShowPhotoUpload(false);
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Avatar upload error:', error);
+      toast.error(error.message || 'Failed to upload photo');
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
-  const handleRevokeSession = (sessionId: string) => {
-    // In real app, call Better Auth API to revoke session
-    alert(`Session ${sessionId} revoked`);
+  const handleRevokeSession = async (deviceSession: DeviceSession) => {
+    setRevokingToken(deviceSession.token);
+    try {
+      await authClient.revokeSession({ token: deviceSession.token });
+      toast.success('Session revoked');
+      setSessions((prev) => prev.filter((s) => s.token !== deviceSession.token));
+    } catch (error) {
+      console.error('Failed to revoke session:', error);
+      toast.error('Failed to revoke session');
+    } finally {
+      setRevokingToken(null);
+    }
   };
 
   return (
@@ -157,7 +216,7 @@ export function UserMenu({ user, onSignOut, textColor = '#BCE7F4', onOpenSetting
           
           <DropdownMenuItem onClick={() => setShowPasswordReset(true)}>
             <KeyRound className="mr-2 h-4 w-4" />
-            <span>Reset Password</span>
+            <span>Change Password</span>
           </DropdownMenuItem>
           
           <DropdownMenuItem onClick={() => setShowSessions(true)}>
@@ -185,50 +244,60 @@ export function UserMenu({ user, onSignOut, textColor = '#BCE7F4', onOpenSetting
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            {mockSessions.map((session) => (
-              <div key={session.id} className="flex items-start justify-between p-4 rounded-lg border bg-card">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    {session.device.includes('iPhone') ? (
-                      <Smartphone className="h-5 w-5 text-primary" />
-                    ) : (
-                      <Monitor className="h-5 w-5 text-primary" />
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">{session.device}</p>
-                      {session.isCurrent && (
-                        <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full">
-                          Current
-                        </span>
+            {isLoadingSessions ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : sessions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No active sessions found</p>
+            ) : (
+              sessions.map((deviceSession) => (
+                <div key={deviceSession.id} className="flex items-start justify-between p-4 rounded-lg border bg-card">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      {getDeviceLabel(deviceSession.userAgent) === 'Phone' ? (
+                        <Smartphone className="h-5 w-5 text-primary" />
+                      ) : (
+                        <Monitor className="h-5 w-5 text-primary" />
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground">{session.browser}</p>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {session.location}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {session.lastActive}
-                      </span>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{getDeviceLabel(deviceSession.userAgent)}</p>
+                        {deviceSession.isCurrent && (
+                          <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full">
+                            Current
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        {deviceSession.ipAddress && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {deviceSession.ipAddress}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {deviceSession.lastActive.toLocaleString()}
+                        </span>
+                      </div>
                     </div>
                   </div>
+                  {!deviceSession.isCurrent && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRevokeSession(deviceSession)}
+                      disabled={revokingToken === deviceSession.token}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      {revokingToken === deviceSession.token ? 'Revoking...' : 'Revoke'}
+                    </Button>
+                  )}
                 </div>
-                {!session.isCurrent && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRevokeSession(session.id)}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    Revoke
-                  </Button>
-                )}
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -237,43 +306,13 @@ export function UserMenu({ user, onSignOut, textColor = '#BCE7F4', onOpenSetting
       <Dialog open={showPasswordReset} onOpenChange={setShowPasswordReset}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reset Password</DialogTitle>
+            <DialogTitle>Change Password</DialogTitle>
             <DialogDescription>
-              Enter your new password below. Make sure it's strong and secure.
+              Enter your current password and choose a new one.
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-password">New Password</Label>
-              <Input
-                id="new-password"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter new password"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm Password</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm new password"
-              />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPasswordReset(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handlePasswordReset}>
-              Reset Password
-            </Button>
-          </DialogFooter>
+
+          <ChangePasswordForm email={user.email} />
         </DialogContent>
       </Dialog>
 
@@ -297,12 +336,17 @@ export function UserMenu({ user, onSignOut, textColor = '#BCE7F4', onOpenSetting
               </Avatar>
               
               <div className="w-full">
-                <Label 
-                  htmlFor="photo-upload" 
-                  className="flex items-center justify-center gap-2 px-4 py-2 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent transition-colors"
+                <Label
+                  htmlFor="photo-upload"
+                  className="flex items-center justify-center gap-2 px-4 py-2 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent transition-colors aria-disabled:pointer-events-none aria-disabled:opacity-50"
+                  aria-disabled={isUploadingPhoto}
                 >
-                  <Camera className="h-5 w-5" />
-                  <span>Click to upload photo</span>
+                  {isUploadingPhoto ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Camera className="h-5 w-5" />
+                  )}
+                  <span>{isUploadingPhoto ? 'Uploading...' : 'Click to upload photo'}</span>
                 </Label>
                 <Input
                   id="photo-upload"
@@ -310,6 +354,7 @@ export function UserMenu({ user, onSignOut, textColor = '#BCE7F4', onOpenSetting
                   accept="image/*"
                   className="hidden"
                   onChange={handlePhotoUpload}
+                  disabled={isUploadingPhoto}
                 />
                 <p className="text-xs text-muted-foreground text-center mt-2">
                   JPG, PNG or GIF (max. 2MB)

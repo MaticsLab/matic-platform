@@ -103,22 +103,10 @@ export interface ApplicationDetailProps {
   fields?: Array<{ id: string; label: string; type: string; config?: Record<string, any>; name?: string; section_id?: string }>;
   sections?: Array<{ id: string; name: string; description?: string; sort_order: number }>;
   onActivityCreated?: () => void;
-}
-
-export interface PipelineHeaderProps {
-  activeTab: string;
-  onTabChange: (tab: string) => void;
-  applications: Application[];
-  filterStatus: ApplicationStatus | 'all';
-  onFilterChange: (status: ApplicationStatus | 'all') => void;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  committee: string;
-  onCommitteeChange: (value: string) => void;
-  onOpenPipelineActivity: () => void;
-  onDownload?: () => void;
-  workspaceSlug?: string;
-  formId?: string;
+  /** True when rendered for an anonymous external reviewer (via a review token link)
+   *  rather than a signed-in staff member. Hides staff-only controls: resetting the
+   *  applicant's password, Google Drive sync, and other reviewers' contact info. */
+  isExternalReviewer?: boolean;
 }
 
 export interface PipelineActivityPanelProps {

@@ -505,6 +505,7 @@ export function PipelineActivityPanel({
               );
             }
           }}
+          onOpenEmailSettings={() => setShowEmailSettings(true)}
         />
       )}
 

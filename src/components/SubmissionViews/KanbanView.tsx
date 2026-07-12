@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { MoreHorizontal, Plus, Mail, Eye, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Plus, Eye } from 'lucide-react';
 import { Button } from '@/ui-components/button';
 import { Badge } from '@/ui-components/badge';
 import { Card } from '@/ui-components/card';
@@ -176,15 +176,6 @@ export function KanbanView({
                             }}>
                               <Eye className="mr-2 h-4 w-4" />
                               View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
-                              <Mail className="mr-2 h-4 w-4" />
-                              Send Email
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600" onClick={(e) => e.stopPropagation()}>
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

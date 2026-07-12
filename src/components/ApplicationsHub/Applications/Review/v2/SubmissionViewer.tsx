@@ -32,9 +32,10 @@ interface SubmissionViewerProps {
   workspaceId: string;
   workspaceSlug?: string;
   formId: string;
+  isExternalReviewer?: boolean;
 }
 
-export function SubmissionViewer({ workspaceId, workspaceSlug, formId }: SubmissionViewerProps) {
+export function SubmissionViewer({ workspaceId, workspaceSlug, formId, isExternalReviewer = false }: SubmissionViewerProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [form, setForm] = useState<Form | null>(null);
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
@@ -121,6 +122,7 @@ export function SubmissionViewer({ workspaceId, workspaceSlug, formId }: Submiss
                 formId={formId}
                 fields={(form as any)?.fields || []}
                 sections={(form as any)?.sections || []}
+                isExternalReviewer={isExternalReviewer}
               />
             </div>
           </div>

@@ -53,9 +53,6 @@ export function ReviewPanel({
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
   const [expandedRecommendations, setExpandedRecommendations] = useState<Set<string>>(new Set());
   
-  // TODO: Rubrics should be fetched from the workflow/form configuration
-  const rubrics: any[] = []; // Placeholder - empty for now
-  
   // Fetch recommendations for this submission
   useEffect(() => {
     const fetchRecommendations = async () => {
@@ -89,15 +86,12 @@ export function ReviewPanel({
     }
   };
   
-  // Get the active rubric (first one for now)
-  const activeRubric = rubrics.length > 0 ? rubrics[0] : null;
-  
   // Calculate total score
   const totalScore = useMemo(() => {
     return Object.values(scores).reduce((sum, val) => sum + (val || 0), 0);
   }, [scores]);
-  
-  const maxScore = activeRubric?.max_score || 100;
+
+  const maxScore = 100;
   
   // Timer effect
   useState(() => {
@@ -153,18 +147,6 @@ export function ReviewPanel({
     return sections;
   }, [(form as any)?.fields]);
   
-  // Get rubric categories
-  const rubricCategories = useMemo(() => {
-    if (!activeRubric?.categories) return [];
-    return activeRubric.categories.map((c: any) => ({
-      id: c.id || c.name,
-      name: c.name,
-      description: c.description,
-      maxScore: c.max_points || 10,
-      weight: c.weight || 1
-    }));
-  }, [activeRubric]);
-
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
@@ -485,61 +467,28 @@ export function ReviewPanel({
               </div>
             </div>
             
-            {/* Rubric Scoring */}
-            {rubricCategories.length > 0 ? (
-              <div className="space-y-4">
-                <h3 className="font-medium text-gray-900 flex items-center gap-2">
-                  <Star className="w-4 h-4" />
-                  Scoring Criteria
-                </h3>
-                
-                {rubricCategories.map((category: any) => (
-                  <div key={category.id} className="space-y-2 p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-900">{category.name}</h4>
-                        {category.description && (
-                          <p className="text-xs text-gray-500">{category.description}</p>
-                        )}
-                      </div>
-                      <span className="text-sm font-medium text-gray-600">
-                        {scores[category.id] || 0} / {category.maxScore}
-                      </span>
-                    </div>
-                    <Slider
-                      value={[scores[category.id] || 0]}
-                      max={category.maxScore}
-                      step={1}
-                      onValueChange={([value]) => handleScoreChange(category.id, value)}
-                      className="py-2"
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              /* Simple scoring if no rubric */
-              <div className="space-y-4">
-                <h3 className="font-medium text-gray-900 flex items-center gap-2">
-                  <Star className="w-4 h-4" />
-                  Overall Score
-                </h3>
-                <div className="space-y-2 p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-900">Score</span>
-                    <span className="text-sm font-medium text-gray-600">
-                      {scores['overall'] || 0} / 100
-                    </span>
-                  </div>
-                  <Slider
-                    value={[scores['overall'] || 0]}
-                    max={100}
-                    step={1}
-                    onValueChange={([value]) => handleScoreChange('overall', value)}
-                    className="py-2"
-                  />
+            {/* Overall Score */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                <Star className="w-4 h-4" />
+                Overall Score
+              </h3>
+              <div className="space-y-2 p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-900">Score</span>
+                  <span className="text-sm font-medium text-gray-600">
+                    {scores['overall'] || 0} / 100
+                  </span>
                 </div>
+                <Slider
+                  value={[scores['overall'] || 0]}
+                  max={100}
+                  step={1}
+                  onValueChange={([value]) => handleScoreChange('overall', value)}
+                  className="py-2"
+                />
               </div>
-            )}
+            </div>
             
             {/* Comments */}
             <div className="space-y-2">

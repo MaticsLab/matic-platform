@@ -7,13 +7,15 @@ interface ReviewWorkspaceV2Props {
   workspaceSlug?: string;
   formId: string | null;
   onViewChange?: (view: string) => void;
+  isExternalReviewer?: boolean;
 }
 
-export function ReviewWorkspaceV2({ 
-  workspaceId, 
+export function ReviewWorkspaceV2({
+  workspaceId,
   workspaceSlug,
-  formId, 
-  onViewChange 
+  formId,
+  onViewChange,
+  isExternalReviewer = false
 }: ReviewWorkspaceV2Props) {
   // Handle null formId
   if (!formId) {
@@ -32,6 +34,7 @@ export function ReviewWorkspaceV2({
       workspaceId={workspaceId}
       workspaceSlug={workspaceSlug}
       formId={formId}
+      isExternalReviewer={isExternalReviewer}
     />
   );
 }

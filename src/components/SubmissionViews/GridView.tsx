@@ -6,8 +6,6 @@ import {
   ChevronUp,
   MoreHorizontal,
   Eye,
-  Trash2,
-  Mail,
   CheckSquare,
   Square,
 } from 'lucide-react';
@@ -364,15 +362,6 @@ export function GridView({
                       <DropdownMenuItem onClick={() => onSubmissionClick(submission)}>
                         <Eye className="mr-2 h-4 w-4" />
                         View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Mail className="mr-2 h-4 w-4" />
-                        Send Email
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-red-600">
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

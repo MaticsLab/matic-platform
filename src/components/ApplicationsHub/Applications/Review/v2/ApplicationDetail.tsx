@@ -48,8 +48,6 @@ import type { TableFileResponse } from '@/types/files';
 import { recommendationsClient, RecommendationRequest } from '@/lib/api/recommendations-client';
 import { googleDriveClient } from '@/lib/api/integrations-client';
 import { RefreshCw } from 'lucide-react';
-import { QuickReminderPanel } from '../QuickReminderPanel';
-import { FullEmailComposer } from '../FullEmailComposer';
 import { EmailNovelEditor } from '../EmailNovelEditor';
 import { EmailAIComposer } from '../EmailAIComposer';
 import type { EditorInstance } from '@/lib/novel';
@@ -494,7 +492,8 @@ export function ApplicationDetail({
   formId,
   fields = [],
   sections = [],
-  onActivityCreated
+  onActivityCreated,
+  isExternalReviewer = false
 }: ApplicationDetailProps) {
   const [showActivityPanel, setShowActivityPanel] = useState(false); // Toggle between details and activity
   const [showRecommendersPanel, setShowRecommendersPanel] = useState(false); // Toggle recommenders panel
@@ -589,8 +588,6 @@ export function ApplicationDetail({
   const [selectedReminderAccount, setSelectedReminderAccount] = useState<string>('');
   
   // Email composer state
-  const [showQuickReminder, setShowQuickReminder] = useState(false);
-  const [showFullComposer, setShowFullComposer] = useState(false);
   const [signatures, setSignatures] = useState<EmailSignature[]>([]);
   const [isLoadingSignatures, setIsLoadingSignatures] = useState(false);
   const [showSignatureDropdown, setShowSignatureDropdown] = useState(false);
@@ -1637,15 +1634,17 @@ export function ApplicationDetail({
                     <div className="flex items-center gap-2 mt-1.5">
                       <Mail className="h-3.5 w-3.5 text-muted-foreground" />
                       <span className="text-sm text-muted-foreground">{application.email}</span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setShowResetPasswordModal(true)}
-                        className="h-6 px-2 text-xs hover:bg-blue-50 hover:text-blue-700"
-                      >
-                        <KeyRound className="h-3 w-3 mr-1" />
-                        Reset Password
-                      </Button>
+                      {!isExternalReviewer && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setShowResetPasswordModal(true)}
+                          className="h-6 px-2 text-xs hover:bg-blue-50 hover:text-blue-700"
+                        >
+                          <KeyRound className="h-3 w-3 mr-1" />
+                          Reset Password
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1726,8 +1725,8 @@ export function ApplicationDetail({
               </Card>
             )}
 
-            {/* Reviewers Section - Compact */}
-            {Array.isArray(application.assignedTo) && application.assignedTo.length > 0 && reviewersMap && (
+            {/* Reviewers Section - Compact (internal staff only — hides peer reviewers' contact info from external reviewers) */}
+            {!isExternalReviewer && Array.isArray(application.assignedTo) && application.assignedTo.length > 0 && reviewersMap && (
               <Card className="mb-4 shadow-none border-gray-100">
                 <CardHeader className="p-3 pb-2">
                   <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
@@ -2080,32 +2079,36 @@ export function ApplicationDetail({
               <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
                 <h2 className="text-sm font-semibold text-gray-900">Documents</h2>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleSyncAllSubmissionsToDrive}
-                    disabled={isSyncingAllSubmissionsToDrive || !formId}
-                  >
-                    {isSyncingAllSubmissionsToDrive ? (
-                      <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4 mr-1.5" />
-                    )}
-                    Sync All
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleSyncRecommendationDocumentsToDrive}
-                    disabled={isSyncingRecommendationsToDrive}
-                  >
-                    {isSyncingRecommendationsToDrive ? (
-                      <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
-                    ) : (
-                      <Folder className="w-4 h-4 mr-1.5" />
-                    )}
-                    Sync Drive
-                  </Button>
+                  {!isExternalReviewer && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSyncAllSubmissionsToDrive}
+                        disabled={isSyncingAllSubmissionsToDrive || !formId}
+                      >
+                        {isSyncingAllSubmissionsToDrive ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                        ) : (
+                          <RefreshCw className="w-4 h-4 mr-1.5" />
+                        )}
+                        Sync All
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSyncRecommendationDocumentsToDrive}
+                        disabled={isSyncingRecommendationsToDrive}
+                      >
+                        {isSyncingRecommendationsToDrive ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                        ) : (
+                          <Folder className="w-4 h-4 mr-1.5" />
+                        )}
+                        Sync Drive
+                      </Button>
+                    </>
+                  )}
                   <button
                     onClick={() => setShowDocumentsPanel(false)}
                     className="p-1.5 hover:bg-gray-100 rounded transition-colors"
@@ -2454,34 +2457,38 @@ export function ApplicationDetail({
                 Documents
               </h2>
               <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={handleSyncAllSubmissionsToDrive}
-                  disabled={isSyncingAllSubmissionsToDrive || !formId}
-                >
-                  {isSyncingAllSubmissionsToDrive ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3 w-3" />
-                  )}
-                  <span className="ml-1">Sync All</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={handleSyncRecommendationDocumentsToDrive}
-                  disabled={isSyncingRecommendationsToDrive}
-                >
-                  {isSyncingRecommendationsToDrive ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Folder className="h-3 w-3" />
-                  )}
-                  <span className="ml-1">Sync Drive</span>
-                </Button>
+                {!isExternalReviewer && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={handleSyncAllSubmissionsToDrive}
+                      disabled={isSyncingAllSubmissionsToDrive || !formId}
+                    >
+                      {isSyncingAllSubmissionsToDrive ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3 w-3" />
+                      )}
+                      <span className="ml-1">Sync All</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={handleSyncRecommendationDocumentsToDrive}
+                      disabled={isSyncingRecommendationsToDrive}
+                    >
+                      {isSyncingRecommendationsToDrive ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Folder className="h-3 w-3" />
+                      )}
+                      <span className="ml-1">Sync Drive</span>
+                    </Button>
+                  </>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -2612,7 +2619,8 @@ export function ApplicationDetail({
         )}
 
         {/* Activity Panel - Replaces details in sidebar (left), or shows on right in modal/fullscreen */}
-        {showActivityPanel && viewMode !== 'fullscreen' ? (
+        {/* Internal staff comms + email composer — never shown to external reviewers */}
+        {!isExternalReviewer && showActivityPanel && viewMode !== 'fullscreen' ? (
           <div className="flex-1 flex flex-col overflow-hidden border-l border-gray-100">
             {/* Activity Header */}
             <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between flex-shrink-0">
@@ -2779,31 +2787,12 @@ export function ApplicationDetail({
               {/* Bottom Toolbar */}
               <div className="flex items-center justify-between pt-2 border-t">
                 <div className="flex items-center gap-1">
-                  <button className="px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded transition-colors flex items-center gap-1">
-                    Email
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  </button>
-                  <button 
+                  <button
                     onClick={() => setShowAIComposer(true)}
                     className="p-1.5 hover:bg-gray-200 rounded transition-colors text-purple-600"
                     title="AI Email Composer"
                   >
                     <Sparkles className="w-4 h-4" />
-                  </button>
-                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                    <AtSign className="w-4 h-4" />
-                  </button>
-                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                    <Paperclip className="w-4 h-4" />
-                  </button>
-                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                    <Smile className="w-4 h-4" />
-                  </button>
-                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                    <PenTool className="w-4 h-4" />
-                  </button>
-                  <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                    <Settings className="w-4 h-4" />
                   </button>
                   <div className="relative">
                     <button
@@ -2881,21 +2870,23 @@ export function ApplicationDetail({
 
         {/* Action Buttons - Vertical Icons - Always visible, positioned after left panel */}
         <div className="flex flex-col items-center gap-2 p-2 border-l border-gray-200 bg-gray-50 flex-shrink-0">
-          <button 
-            onClick={() => {
-              setShowActivityPanel(!showActivityPanel);
-              setShowRecommendersPanel(false);
-              setShowDocumentsPanel(false);
-            }}
-            className={cn(
-              "p-1.5 hover:bg-gray-100 rounded transition-colors",
-              showActivityPanel && "bg-blue-50"
-            )}
-            title="Activity"
-          >
-            <MessageSquare className="w-4 h-4 text-gray-500" />
-          </button>
-          <button 
+          {!isExternalReviewer && (
+            <button
+              onClick={() => {
+                setShowActivityPanel(!showActivityPanel);
+                setShowRecommendersPanel(false);
+                setShowDocumentsPanel(false);
+              }}
+              className={cn(
+                "p-1.5 hover:bg-gray-100 rounded transition-colors",
+                showActivityPanel && "bg-blue-50"
+              )}
+              title="Activity"
+            >
+              <MessageSquare className="w-4 h-4 text-gray-500" />
+            </button>
+          )}
+          <button
             onClick={() => {
               setShowRecommendersPanel(!showRecommendersPanel);
               setShowActivityPanel(false);
@@ -2936,8 +2927,9 @@ export function ApplicationDetail({
         </div>
 
         {/* Activity Panel - Show on the right in modal/fullscreen */}
-        {((viewMode === 'modal' || viewMode === 'fullscreen') && !showActivityPanel && !showRecommendersPanel && !showDocumentsPanel) || 
-         (viewMode === 'fullscreen' && showActivityPanel) ? (
+        {/* Internal staff comms + email composer — never shown to external reviewers */}
+        {!isExternalReviewer && (((viewMode === 'modal' || viewMode === 'fullscreen') && !showActivityPanel && !showRecommendersPanel && !showDocumentsPanel) ||
+         (viewMode === 'fullscreen' && showActivityPanel)) ? (
           <div className="w-96 flex flex-col overflow-hidden border-l border-gray-200">
             {/* Activity Header */}
             <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
@@ -2955,16 +2947,6 @@ export function ApplicationDetail({
                     <X className="w-4 h-4 text-gray-500" />
                   </button>
                 )}
-                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
-                  <Search className="w-4 h-4 text-gray-500" />
-                </button>
-                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors relative">
-                  <Bell className="w-4 h-4 text-gray-500" />
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">1</span>
-                </button>
-                <button className="p-1.5 hover:bg-gray-100 rounded transition-colors">
-                  <Settings className="w-4 h-4 text-gray-500" />
-                </button>
               </div>
             </div>
 
@@ -3146,31 +3128,12 @@ export function ApplicationDetail({
                 {/* Bottom Toolbar */}
                 <div className="flex items-center justify-between pt-2 border-t">
                   <div className="flex items-center gap-1">
-                    <button className="px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded transition-colors flex items-center gap-1">
-                      Email
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    </button>
-                  <button 
-                    onClick={() => setShowAIComposer(true)}
-                    className="p-1.5 hover:bg-gray-200 rounded transition-colors text-purple-600"
-                    title="AI Email Composer"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                  </button>
-                    <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                      <AtSign className="w-4 h-4" />
-                    </button>
-                    <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                      <Paperclip className="w-4 h-4" />
-                    </button>
-                    <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                      <Smile className="w-4 h-4" />
-                    </button>
-                    <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                      <PenTool className="w-4 h-4" />
-                    </button>
-                    <button className="p-1.5 hover:bg-gray-200 rounded transition-colors text-gray-600">
-                      <Settings className="w-4 h-4" />
+                    <button
+                      onClick={() => setShowAIComposer(true)}
+                      className="p-1.5 hover:bg-gray-200 rounded transition-colors text-purple-600"
+                      title="AI Email Composer"
+                    >
+                      <Sparkles className="w-4 h-4" />
                     </button>
                     <div className="relative">
                       <button
@@ -3264,41 +3227,6 @@ export function ApplicationDetail({
         />
       )}
 
-      {/* Quick Reminder Panel */}
-      {workspaceId && application.id && (
-        <QuickReminderPanel
-          open={showQuickReminder}
-          onClose={() => setShowQuickReminder(false)}
-          workspaceId={workspaceId}
-          formId={formId || undefined}
-          submissionId={application.id}
-          recipientEmail={application.email || ''}
-          recipientName={application.name}
-          onSent={() => {
-            if (onActivityCreated) {
-              onActivityCreated();
-            }
-          }}
-        />
-      )}
-
-      {/* Full Email Composer */}
-      {workspaceId && (
-        <FullEmailComposer
-          open={showFullComposer}
-          onClose={() => setShowFullComposer(false)}
-          workspaceId={workspaceId}
-          formId={formId || undefined}
-          submissionId={application.id}
-          recipientEmails={application.email ? [application.email] : []}
-          onSent={() => {
-            if (onActivityCreated) {
-              onActivityCreated();
-            }
-          }}
-        />
-      )}
-
       {/* AI Email Composer */}
       <EmailAIComposer
         open={showAIComposer}
@@ -3321,8 +3249,8 @@ export function ApplicationDetail({
         }}
       />
 
-      {/* Reset Password Dialog */}
-      <Dialog open={showResetPasswordModal} onOpenChange={(open) => !open && handleCloseResetModal()}>
+      {/* Reset Password Dialog — never reachable by external reviewers (trigger button is hidden above), gated again here as defense in depth */}
+      <Dialog open={!isExternalReviewer && showResetPasswordModal} onOpenChange={(open) => !open && handleCloseResetModal()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">

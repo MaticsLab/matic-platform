@@ -67,9 +67,10 @@ export default function ExternalReviewPage({ params }: { params: { token: string
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <ReviewWorkspaceV2 
+      <ReviewWorkspaceV2
         workspaceId={workspaceId}
         formId={formId}
+        isExternalReviewer
       />
     </div>
   )
