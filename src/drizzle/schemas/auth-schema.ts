@@ -188,5 +188,9 @@ export const memberRelations = relations(member, ({ one }) => ({
 
 export const invitationRelations = relations(invitation, ({ one }) => ({
   organization: one(organization, { fields: [invitation.organizationId], references: [organization.id] }),
-  inviter: one(user, { fields: [invitation.inviterId], references: [user.id] }),
+  // Named `user`, not `inviter` — Better Auth's join system (organization plugin +
+  // @better-auth/infra's dash()) requests joins by literal model name ("user"), and
+  // Drizzle's relational query builder looks up that exact key. The API's public
+  // `inviter` field name is a separate remapping done at Better Auth's route layer.
+  user: one(user, { fields: [invitation.inviterId], references: [user.id] }),
 }))
