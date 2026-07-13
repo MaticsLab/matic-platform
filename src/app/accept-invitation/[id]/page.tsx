@@ -64,22 +64,28 @@ export default function AcceptInvitationPage() {
         return
       }
 
-      // Map the Better Auth invitation data to our interface
+      // Map the Better Auth invitation data to our interface. getInvitation's response
+      // includes organizationName/organizationSlug/inviterEmail alongside the base
+      // invitation fields (see better-auth's crud-invites.mjs) — no separate lookup needed.
+      const data = result.data as typeof result.data & {
+        organizationName?: string
+        organizationSlug?: string
+        inviterEmail?: string
+      }
       const mappedInvitation: InvitationDetails = {
-        id: result.data.id,
-        email: result.data.email,
-        role: result.data.role,
-        status: result.data.status,
-        expiresAt: result.data.expiresAt ? result.data.expiresAt.toString() : undefined,
+        id: data.id,
+        email: data.email,
+        role: data.role,
+        status: data.status,
+        expiresAt: data.expiresAt ? data.expiresAt.toString() : undefined,
         organization: {
-          id: result.data.organizationId || 'unknown',
-          name: 'Unknown Organization', // Better Auth may not include org details
+          id: data.organizationId || 'unknown',
+          name: data.organizationName || 'this organization',
           description: undefined
         },
         inviter: {
           user: {
-            name: 'Unknown',
-            email: 'unknown@example.com'
+            email: data.inviterEmail || ''
           }
         }
       }

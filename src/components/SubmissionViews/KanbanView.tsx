@@ -22,9 +22,13 @@ interface KanbanViewProps {
   onStatusChange?: (submissionId: string, newStatus: string) => void;
 }
 
+// Column ids are the real ApplicationStatus values (types.ts), lowercased with
+// spaces replaced by hyphens — must stay in sync with that normalization below.
 const DEFAULT_COLUMNS = [
   { id: 'submitted', label: 'Submitted', color: 'bg-blue-100 border-blue-300' },
-  { id: 'in-review', label: 'In Review', color: 'bg-yellow-100 border-yellow-300' },
+  { id: 'initial-review', label: 'Initial Review', color: 'bg-yellow-100 border-yellow-300' },
+  { id: 'under-review', label: 'Under Review', color: 'bg-yellow-100 border-yellow-300' },
+  { id: 'final-review', label: 'Final Review', color: 'bg-orange-100 border-orange-300' },
   { id: 'approved', label: 'Approved', color: 'bg-green-100 border-green-300' },
   { id: 'rejected', label: 'Rejected', color: 'bg-red-100 border-red-300' },
 ];

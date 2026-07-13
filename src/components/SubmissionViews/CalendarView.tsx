@@ -26,9 +26,12 @@ interface CalendarViewProps {
   onSubmissionClick: (submission: Submission) => void;
 }
 
+// Keys are ApplicationStatus values (types.ts) lowercased with spaces -> hyphens.
 const STATUS_COLORS: Record<string, string> = {
   submitted: 'bg-blue-500',
-  'in-review': 'bg-yellow-500',
+  'initial-review': 'bg-yellow-500',
+  'under-review': 'bg-yellow-500',
+  'final-review': 'bg-orange-500',
   approved: 'bg-green-500',
   rejected: 'bg-red-500',
   pending: 'bg-gray-500',

@@ -43,9 +43,12 @@ interface GridViewProps {
   onSort: (field: string) => void;
 }
 
+// Keys are ApplicationStatus values (types.ts) lowercased with spaces -> hyphens.
 const STATUS_COLORS: Record<string, string> = {
   submitted: 'bg-blue-100 text-blue-800',
-  'in-review': 'bg-yellow-100 text-yellow-800',
+  'initial-review': 'bg-yellow-100 text-yellow-800',
+  'under-review': 'bg-yellow-100 text-yellow-800',
+  'final-review': 'bg-orange-100 text-orange-800',
   approved: 'bg-green-100 text-green-800',
   rejected: 'bg-red-100 text-red-800',
   pending: 'bg-gray-100 text-gray-800',

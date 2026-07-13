@@ -107,16 +107,7 @@ export function SearchBar({ workspaceId, workspaceSlug, onExpandToPanel }: Searc
         icon: Plus,
         type: 'action',
         category: 'Quick Actions',
-        action: () => navigateTo(`/workspace/${workspaceSlug}/forms?action=create`)
-      },
-      {
-        id: 'nav-activities',
-        title: 'Activities',
-        subtitle: 'Manage activities and events',
-        icon: Layout,
-        type: 'navigation',
-        category: 'Navigate',
-        action: () => navigateTo(`/workspace/${workspaceSlug}`)
+        action: () => navigateTo(`/workspace/${workspaceSlug}/applications`)
       },
       {
         id: 'nav-applications',
@@ -180,7 +171,7 @@ export function SearchBar({ workspaceId, workspaceSlug, onExpandToPanel }: Searc
         type: 'ai-action',
         category: 'AI Suggestion',
         isAI: true,
-        action: () => navigateTo(`/workspace/${workspaceSlug}/forms?action=create`)
+        action: () => navigateTo(`/workspace/${workspaceSlug}/applications`)
       }
     }
 

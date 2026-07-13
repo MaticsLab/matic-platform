@@ -392,7 +392,7 @@ export function EmailManagementDashboard({
                               <td className="px-4 py-3 text-sm">{email.subject}</td>
                               <td className="px-4 py-3">
                                 <span className="text-xs px-2 py-1 bg-gray-100 rounded">
-                                  Gmail
+                                  {email.source === 'gmail' ? 'Gmail' : 'Resend'}
                                 </span>
                               </td>
                               <td className="px-4 py-3">

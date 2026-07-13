@@ -19,10 +19,10 @@ export function sendChangeEmailConfirmation({
         <p>You requested to change your account email to <strong>${newEmail}</strong>. Click the button below to confirm this change:</p>
         <a href="${url}" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; margin: 16px 0;">Confirm Email Change</a>
         <p>If you didn't request this, please ignore this email and your email will remain unchanged.</p>
-        <p style="color: #666; font-size: 14px; margin-top: 20px;">This link will expire in 24 hours.</p>
+        <p style="color: #666; font-size: 14px; margin-top: 20px;">This link will expire in 1 hour.</p>
         <p>Best regards,<br>Matic Platform Team</p>
       </div>
     `,
-    text: `Hello ${user.name},\n\nYou requested to change your account email to ${newEmail}. Click this link to confirm: ${url}\n\nIf you didn't request this, please ignore this email.\n\nThis link will expire in 24 hours.\n\nBest regards,\nMatic Platform Team`,
+    text: `Hello ${user.name},\n\nYou requested to change your account email to ${newEmail}. Click this link to confirm: ${url}\n\nIf you didn't request this, please ignore this email.\n\nThis link will expire in 1 hour.\n\nBest regards,\nMatic Platform Team`,
   })
 }

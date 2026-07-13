@@ -34,9 +34,12 @@ interface GalleryViewProps {
   onSelectionChange: (ids: Set<string>) => void;
 }
 
+// Keys are ApplicationStatus values (types.ts) lowercased with spaces -> hyphens.
 const STATUS_COLORS: Record<string, string> = {
   submitted: 'bg-blue-100 text-blue-800 border-blue-300',
-  'in-review': 'bg-yellow-100 text-yellow-800 border-yellow-300',
+  'initial-review': 'bg-yellow-100 text-yellow-800 border-yellow-300',
+  'under-review': 'bg-yellow-100 text-yellow-800 border-yellow-300',
+  'final-review': 'bg-orange-100 text-orange-800 border-orange-300',
   approved: 'bg-green-100 text-green-800 border-green-300',
   rejected: 'bg-red-100 text-red-800 border-red-300',
   pending: 'bg-gray-100 text-gray-800 border-gray-300',

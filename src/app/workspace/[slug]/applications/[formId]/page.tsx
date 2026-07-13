@@ -9,7 +9,7 @@ import { workspacesClient } from '@/lib/api/workspaces-client'
 import type { Workspace } from '@/lib/api/workspaces-client'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
 
-function ApplicationDetailPageContent() {
+function FormAnalyticsRouteContent() {
   const params = useParams()
   const slug = params.slug as string
   const formId = params.formId as string
@@ -22,12 +22,12 @@ function ApplicationDetailPageContent() {
 
       try {
         setLoading(true)
-        console.log('[ApplicationDetailPage] Loading workspace for slug:', slug)
+        console.log('[FormAnalyticsRoute] Loading workspace for slug:', slug)
         const ws = await workspacesClient.getBySlug(slug)
         if (!ws) throw new Error('Workspace not found')
         setWorkspace(ws)
       } catch (error) {
-        console.error('[ApplicationDetailPage] Failed to load workspace:', error)
+        console.error('[FormAnalyticsRoute] Failed to load workspace:', error)
       } finally {
         setLoading(false)
       }
@@ -60,11 +60,11 @@ function ApplicationDetailPageContent() {
   )
 }
 
-export default function ApplicationDetailPage() {
+export default function FormAnalyticsRoute() {
   return (
     <Suspense fallback={<LoadingOverlay />}>
       <ProtectedRoute>
-        <ApplicationDetailPageContent />
+        <FormAnalyticsRouteContent />
       </ProtectedRoute>
     </Suspense>
   )
