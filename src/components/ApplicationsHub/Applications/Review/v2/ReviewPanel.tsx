@@ -258,18 +258,18 @@ export function ReviewPanel({
               <div className="mt-6 pt-4 border-t space-y-3">
                 <h3 className="font-medium text-gray-900 flex items-center gap-2">
                   <UserPlus className="w-4 h-4" />
-                  Letters of Recommendation
+                  References
                   {recommendations.length > 0 && (
                     <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
                       {recommendations.filter(r => r.status === 'submitted').length}/{recommendations.length} received
                     </span>
                   )}
                 </h3>
-                
+
                 {loadingRecommendations ? (
                   <div className="flex items-center gap-2 text-sm text-gray-500">
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    Loading recommendations...
+                    Loading references...
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -417,7 +417,7 @@ export function ReviewPanel({
                                     if (key === 'relationship') {
                                       return (
                                         <div key={key} className="space-y-1">
-                                          <label className="text-xs font-medium text-gray-700">How do you know the applicant?</label>
+                                          <label className="text-xs font-medium text-gray-700">Relationship to applicant</label>
                                           <p className="text-sm text-gray-900">{String(value)}</p>
                                         </div>
                                       );
@@ -499,7 +499,7 @@ export function ReviewPanel({
               <Textarea
                 value={comments}
                 onChange={(e) => setComments(e.target.value)}
-                placeholder="Add your review notes, feedback, or recommendations..."
+                placeholder="Add your review notes or feedback..."
                 className="min-h-[120px] resize-none"
               />
             </div>

@@ -752,7 +752,7 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
       tabs.push({ id: 'checkins', label: 'Recommended Check-ins', count: checkIns.length })
     }
 
-    tabs.push({ id: 'recommendations', label: 'Letters of Recommendation', count: recommendationRows.length })
+    tabs.push({ id: 'recommendations', label: 'References', count: recommendationRows.length })
 
     return tabs
   }, [data?.check_ins, data?.field_breakdowns, recommendationRows.length])
@@ -884,7 +884,7 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
     setSavingRecommenderEmail(true)
     try {
       await recommendationsClient.update(req.id, { recommender_email: nextEmail })
-      toast.success('Recommender email updated')
+      toast.success('Reference email updated')
       cancelEditRecommenderEmail()
       await loadRecommendationRows()
     } catch (err: any) {
@@ -921,7 +921,7 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
 
   const sendRemindersForRows = useCallback(async (rows: ApplicantRecommendationRow[]) => {
     if (rows.length === 0) {
-      toast.error('Select at least one applicant with pending recommendation requests')
+      toast.error('Select at least one applicant with pending reference requests')
       return
     }
 
@@ -1373,7 +1373,7 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
           <div>
             <SectionHeader
               icon={<Mail className="w-4 h-4" />}
-              title={`Letters of Recommendation (${recommendationRows.length})`}
+              title={`References (${recommendationRows.length})`}
               action={
                 <div className="flex items-center gap-2">
                   <button
@@ -1415,8 +1415,8 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
             ) : recommendationRows.length === 0 ? (
               <div className="bg-white border border-gray-200 rounded-xl p-8 flex flex-col items-center gap-2">
                 <Mail className="w-8 h-8 text-gray-400" />
-                <p className="text-sm text-gray-700 font-medium">No pending recommendation reminders</p>
-                <p className="text-xs text-gray-400">Applicants with pending recommendation requests will appear here.</p>
+                <p className="text-sm text-gray-700 font-medium">No pending reference reminders</p>
+                <p className="text-xs text-gray-400">Applicants with pending reference requests will appear here.</p>
               </div>
             ) : (
               <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -1426,7 +1426,7 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                     <input
                       value={recommendationSearch}
                       onChange={(e) => setRecommendationSearch(e.target.value)}
-                      placeholder="Search recommender or applicant..."
+                      placeholder="Search by reference or applicant..."
                       className="w-full pl-8 pr-8 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
                     />
                     {recommendationSearch && (
@@ -1444,7 +1444,7 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                         : 'text-gray-600 bg-white border-gray-200 hover:bg-gray-50'
                     )}
                   >
-                    {showAllRecommenders ? 'Showing all recommenders' : 'Show all recommenders'}
+                    {showAllRecommenders ? 'Showing all references' : 'Show all references'}
                   </button>
                   <button
                     onClick={() => setRecommendationGrouping(prev => prev === 'applicant' ? 'recommender' : 'applicant')}
@@ -1484,9 +1484,9 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                           className="rounded border-gray-300 bg-white text-blue-600 cursor-pointer"
                         />
                       </th>
-                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Recommender</th>
+                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Reference</th>
                       <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Applicants</th>
-                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Pending Letters</th>
+                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Pending Requests</th>
                       <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Last Reminder</th>
                       <th className="px-4 py-3" />
                     </tr>
@@ -1557,7 +1557,7 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
                         />
                       </th>
                       <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Applicant</th>
-                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Recommenders</th>
+                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">References</th>
                       <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Last Reminder</th>
                       <th className="px-4 py-3" />
                     </tr>

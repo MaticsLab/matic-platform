@@ -146,7 +146,7 @@ export type PortalConfig = {
     }
     // Email settings for outbound emails (recommendations, notifications)
     emailSettings?: {
-      senderName?: string          // Custom sender name (e.g., "Scholarship Office")
+      senderName?: string          // Custom sender name (e.g., "Admissions Office")
       replyToEmail?: string        // Optional reply-to email address
     }
   }

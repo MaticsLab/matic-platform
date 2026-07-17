@@ -18,7 +18,6 @@ import {
   PanelRightOpen,
   Globe,
   ChevronDown,
-  GraduationCap,
   Users
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -112,8 +111,8 @@ export function SearchBar({ workspaceId, workspaceSlug, onExpandToPanel }: Searc
       {
         id: 'nav-applications',
         title: 'Portals',
-        subtitle: 'Manage scholarships and applications',
-        icon: GraduationCap,
+        subtitle: 'Manage forms and applications',
+        icon: FileText,
         type: 'navigation',
         category: 'Navigate',
         action: () => navigateTo(`/workspace/${workspaceSlug}/applications`)
@@ -132,7 +131,7 @@ export function SearchBar({ workspaceId, workspaceSlug, onExpandToPanel }: Searc
   // Icon helper
   const getIconForType = (entityType: string, hubType?: string): React.ComponentType<any> => {
     // Hub-specific icons
-    if (hubType === 'applications') return GraduationCap
+    if (hubType === 'applications') return FileText
     if (hubType === 'activities') return Layout
     
     // Entity type icons

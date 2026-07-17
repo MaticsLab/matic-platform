@@ -632,7 +632,7 @@ export function ReviewerManagement({ formId, workspaceId, onClose }: ReviewerMan
                 <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
                   <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-1">No reviewers yet</h3>
-                  <p className="text-sm text-gray-500 mb-4">Invite committee members to start reviewing</p>
+                  <p className="text-sm text-gray-500 mb-4">Invite reviewers to start reviewing</p>
                   <button onClick={() => setActiveView('invite')} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
                     <UserPlus className="w-4 h-4" />Invite Reviewer
                   </button>
@@ -828,11 +828,11 @@ export function ReviewerManagement({ formId, workspaceId, onClose }: ReviewerMan
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
-                      <input type="text" value={newReviewerName} onChange={(e) => setNewReviewerName(e.target.value)} placeholder="Dr. Jane Smith" className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" autoFocus />
+                      <input type="text" value={newReviewerName} onChange={(e) => setNewReviewerName(e.target.value)} placeholder="Jane Smith" className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" autoFocus />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
-                      <input type="email" value={newReviewerEmail} onChange={(e) => setNewReviewerEmail(e.target.value)} placeholder="reviewer@university.edu" className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <input type="email" value={newReviewerEmail} onChange={(e) => setNewReviewerEmail(e.target.value)} placeholder="reviewer@example.com" className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                     
                     {/* Stage Assignments Section */}

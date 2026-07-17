@@ -22,13 +22,13 @@ interface Recommender {
 const sampleRecommenders: Recommender[] = [
   {
     id: '1',
-    name: 'Dr. Sarah Johnson',
+    name: 'Sarah Johnson',
     status: 'submitted',
     submittedDate: 'Feb 12, 2025',
   },
   {
     id: '2',
-    name: 'Prof. Michael Chen',
+    name: 'Michael Chen',
     status: 'pending',
   },
 ]
@@ -102,7 +102,7 @@ export function CompactRecommendations({
       <Card className="p-4 sm:p-6 border border-gray-200">
         <div className="flex items-center gap-2">
           <UserCheck className="w-5 h-5 text-gray-700" />
-          <h2 className="text-lg text-gray-900">Recommendations</h2>
+          <h2 className="text-lg text-gray-900">References</h2>
         </div>
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
@@ -124,7 +124,7 @@ export function CompactRecommendations({
       >
         <div className="flex items-center gap-2 flex-wrap">
           <UserCheck className="w-5 h-5 text-gray-700" />
-          <h2 className="text-lg text-gray-900">Recommendations</h2>
+          <h2 className="text-lg text-gray-900">References</h2>
           <Badge variant="outline" className="text-xs">
             {submittedCount}/{recommenders.length}
           </Badge>

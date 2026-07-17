@@ -401,7 +401,7 @@ export function ApplicationSettingsModal({ open, onOpenChange, formId, workspace
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2"><Label>utm_source</Label><Input value={settings.urlUtmSource} onChange={(e) => updateSetting('urlUtmSource', e.target.value)} placeholder="newsletter" /></div>
                         <div className="space-y-2"><Label>utm_medium</Label><Input value={settings.urlUtmMedium} onChange={(e) => updateSetting('urlUtmMedium', e.target.value)} placeholder="email" /></div>
-                        <div className="space-y-2"><Label>utm_campaign</Label><Input value={settings.urlUtmCampaign} onChange={(e) => updateSetting('urlUtmCampaign', e.target.value)} placeholder="spring_2026" /></div>
+                        <div className="space-y-2"><Label>utm_campaign</Label><Input value={settings.urlUtmCampaign} onChange={(e) => updateSetting('urlUtmCampaign', e.target.value)} placeholder="campaign_2026" /></div>
                       </div>
                     </div>
                   )}
@@ -527,7 +527,7 @@ export function ApplicationSettingsModal({ open, onOpenChange, formId, workspace
             <div className="rounded-xl border border-gray-200 bg-white p-6 flex items-center justify-between">
               <div>
                 <p className="font-semibold text-gray-900">Backfill existing documents</p>
-                <p className="text-sm text-gray-500 mt-1">Scan all submissions and upload historical recommendation and submission files into applicant subfolders.</p>
+                <p className="text-sm text-gray-500 mt-1">Scan all submissions and upload historical supporting documents into applicant subfolders.</p>
               </div>
               <Button
                 variant="outline"

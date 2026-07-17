@@ -926,7 +926,7 @@ export function ApplicationDetail({
             const doc = response.uploaded_document;
             if (doc.url) {
               docs.push({
-                name: doc.name || doc.filename || `Recommendation from ${rec.recommender_name}`,
+                name: doc.name || doc.filename || `Reference from ${rec.recommender_name}`,
                 url: doc.url,
                 contentType: doc.content_type || doc.mime_type || 'application/pdf',
                 recommenderName: rec.recommender_name,
@@ -1945,7 +1945,7 @@ export function ApplicationDetail({
         {viewMode === 'fullscreen' && showRecommendersPanel && (
           <div className="w-80 flex flex-col overflow-hidden border-l border-gray-200">
               <div className="px-4 py-2 border-b flex items-center justify-between flex-shrink-0">
-                <h2 className="text-sm font-semibold text-gray-900">Recommenders</h2>
+                <h2 className="text-sm font-semibold text-gray-900">References</h2>
                 <button 
                   onClick={() => setShowRecommendersPanel(false)}
                   className="p-1.5 hover:bg-gray-100 rounded transition-colors"
@@ -2009,7 +2009,7 @@ export function ApplicationDetail({
                   </div>
                 ) : recommendations.length === 0 ? (
                   <div className="text-center py-8 text-sm text-gray-500">
-                    No recommendation requests found
+                    No reference requests found
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -2243,7 +2243,7 @@ export function ApplicationDetail({
             <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between flex-shrink-0">
               <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
                 <UserPlus className="h-3.5 w-3.5" />
-                Recommenders
+                References
               </h2>
               <Button 
                 variant="ghost"
@@ -2310,7 +2310,7 @@ export function ApplicationDetail({
                 </div>
               ) : recommendations.length === 0 ? (
                 <div className="text-center py-8 text-sm text-gray-500">
-                  No recommendation requests found
+                  No reference requests found
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -2418,7 +2418,7 @@ export function ApplicationDetail({
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-gray-900 truncate">
-                                  {uploadedDocument.name || uploadedDocument.filename || 'Recommendation Letter'}
+                                  {uploadedDocument.name || uploadedDocument.filename || 'Reference Letter'}
                                 </p>
                                 <p className="text-xs text-gray-500">
                                   {uploadedDocument.content_type || uploadedDocument.mime_type || 'Document'}
@@ -2896,7 +2896,7 @@ export function ApplicationDetail({
               "p-1.5 hover:bg-gray-100 rounded transition-colors relative",
               showRecommendersPanel && "bg-blue-50"
             )}
-            title="Recommenders"
+            title="References"
           >
             <UserPlus className="w-4 h-4 text-gray-500" />
             {recommendations.length > 0 && (

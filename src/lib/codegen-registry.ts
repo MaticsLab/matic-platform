@@ -3081,6 +3081,7 @@ export async function getApplicationStep(
       data.Name ||
       data.fullName ||
       data["Full Name"] ||
+      data.applicantName ||
       data.studentName ||
       null;
 

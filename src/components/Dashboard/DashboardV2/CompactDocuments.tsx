@@ -24,7 +24,7 @@ interface Document {
 const sampleDocuments: Document[] = [
   {
     id: '1',
-    name: 'Official Transcript',
+    name: 'Resume',
     status: 'submitted',
     uploadedDate: 'Feb 10, 2025',
     fileSize: '2.3 MB',

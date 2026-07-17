@@ -42,7 +42,7 @@ const FIELD_TYPES: { value: string; label: string; icon: React.ReactNode; descri
   { value: 'callout', label: 'Callout Box', icon: <AlertCircle className="w-4 h-4" />, description: 'Highlighted message' },
   { value: 'group', label: 'Group', icon: <Grid3x3 className="w-4 h-4" />, description: 'Field group' },
   { value: 'repeater', label: 'Repeater', icon: <Repeat2 className="w-4 h-4" />, description: 'Repeatable section' },
-  { value: 'recommendation', label: 'Recommendation', icon: <UserPlus className="w-4 h-4" />, description: 'Request letters of recommendation' },
+  { value: 'recommendation', label: 'Reference', icon: <UserPlus className="w-4 h-4" />, description: 'Request references/recommendations' },
 ]
 
 const CALLOUT_COLORS = [
@@ -919,23 +919,23 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
               {selectedField.type === 'recommendation' && (
                 <div className="space-y-4 pt-2">
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Number of Recommenders</Label>
-                    <Select 
-                      value={String(selectedField.config?.numRecommenders || 2)} 
+                    <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Number of References</Label>
+                    <Select
+                      value={String(selectedField.config?.numRecommenders || 2)}
                       onValueChange={(v) => handleConfigUpdate('numRecommenders', parseInt(v))}
                     >
                       <SelectTrigger className="bg-gray-50/50 border-gray-200">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">1 Recommender</SelectItem>
-                        <SelectItem value="2">2 Recommenders</SelectItem>
-                        <SelectItem value="3">3 Recommenders</SelectItem>
-                        <SelectItem value="4">4 Recommenders</SelectItem>
-                        <SelectItem value="5">5 Recommenders</SelectItem>
+                        <SelectItem value="1">1 Reference</SelectItem>
+                        <SelectItem value="2">2 References</SelectItem>
+                        <SelectItem value="3">3 References</SelectItem>
+                        <SelectItem value="4">4 References</SelectItem>
+                        <SelectItem value="5">5 References</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-500">How many letters of recommendation are required</p>
+                    <p className="text-xs text-gray-500">How many references are required</p>
                   </div>
                   
                   <div className="space-y-3">
@@ -962,7 +962,7 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                           onChange={(e) => handleConfigUpdate('fixedDeadline', e.target.value)} 
                           className="bg-gray-50/50 border-gray-200"
                         />
-                        <p className="text-xs text-gray-500">All recommenders must submit by this date and time</p>
+                        <p className="text-xs text-gray-500">All references must submit by this date and time</p>
                       </div>
                     ) : (
                       <div className="space-y-2">
@@ -982,24 +982,24 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
 
                   <div className="space-y-2">
                     <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Email Subject</Label>
-                    <Input 
-                      value={selectedField.config?.emailSubject || 'Letter of Recommendation Request'} 
-                      onChange={(e) => handleConfigUpdate('emailSubject', e.target.value)} 
+                    <Input
+                      value={selectedField.config?.emailSubject || 'Reference Request'}
+                      onChange={(e) => handleConfigUpdate('emailSubject', e.target.value)}
                       className="bg-gray-50/50 border-gray-200"
-                      placeholder="Letter of Recommendation Request"
+                      placeholder="Reference Request"
                     />
                   </div>
 
                   <div className="space-y-2">
                     <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Email Message</Label>
-                    <MergeTagTextarea 
-                      value={selectedField.config?.emailMessage || 'You have been requested to provide a letter of recommendation for {{applicant_name}} ({{applicant_email}}). Please click the link below to submit your recommendation.'} 
-                      onChange={(v) => handleConfigUpdate('emailMessage', v)} 
-                      placeholder="Enter the email message for recommenders..."
+                    <MergeTagTextarea
+                      value={selectedField.config?.emailMessage || 'You have been requested to provide a reference for {{applicant_name}} ({{applicant_email}}). Please click the link below to submit your reference.'}
+                      onChange={(v) => handleConfigUpdate('emailMessage', v)}
+                      placeholder="Enter the email message for references..."
                       standardTags={[
                         { id: 'applicant_name', label: 'Applicant Name' },
                         { id: 'applicant_email', label: 'Applicant Email' },
-                        { id: 'recommender_name', label: 'Recommender Name' },
+                        { id: 'recommender_name', label: 'Reference Name' },
                         { id: 'deadline', label: 'Deadline' },
                       ]}
                       fields={allFields.filter(f => f.id !== selectedField.id).map(f => ({
@@ -1090,7 +1090,7 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="space-y-0.5">
                       <Label className="text-sm font-medium">Require Relationship</Label>
-                      <p className="text-xs text-gray-500">Ask how recommender knows applicant</p>
+                      <p className="text-xs text-gray-500">Ask how the reference knows the applicant</p>
                     </div>
                     <Switch 
                       checked={selectedField.config?.requireRelationship || false} 
@@ -1101,7 +1101,7 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="space-y-0.5">
                       <Label className="text-sm font-medium">Allow File Upload</Label>
-                      <p className="text-xs text-gray-500">Let recommender upload PDF/Word document</p>
+                      <p className="text-xs text-gray-500">Let the reference upload a PDF/Word document</p>
                     </div>
                     <Switch 
                       checked={selectedField.config?.showFileUpload !== false} 
@@ -1112,7 +1112,7 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                   {/* Recommendation Questions Editor */}
                   <div className="space-y-3 pt-4 border-t border-gray-200">
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Questions for Recommender</Label>
+                      <Label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Questions for Reference</Label>
                       <Button
                         type="button"
                         variant="outline"
@@ -1136,7 +1136,7 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
                       </Button>
                     </div>
                     <p className="text-xs text-gray-500">
-                      Customize the questions recommenders will answer. Leave empty to use default questions.
+                      Customize the questions references will answer. Leave empty to use default questions.
                     </p>
                     
                     {(selectedField.config?.questions || []).length === 0 ? (

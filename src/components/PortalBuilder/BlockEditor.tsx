@@ -141,7 +141,7 @@ const BLOCK_COMMANDS: BlockCommand[] = [
   { id: 'rating', label: 'Rating', description: 'Star rating (1-5)', icon: <Star className="w-4 h-4" />, fieldType: 'rating', category: 'Advanced', keywords: ['stars', 'score'] },
   { id: 'group', label: 'Group', description: 'Field group', icon: <Layers className="w-4 h-4" />, fieldType: 'group', category: 'Advanced', defaultConfig: { columns: 2 } },
   { id: 'repeater', label: 'Repeater', description: 'Repeatable section', icon: <Repeat className="w-4 h-4" />, fieldType: 'repeater', category: 'Advanced', defaultConfig: { minItems: 0, maxItems: 10 } },
-  { id: 'recommendation', label: 'Recommendation', description: 'Request letters of recommendation', icon: <UserPlus className="w-4 h-4" />, fieldType: 'recommendation', category: 'Advanced', keywords: ['letter', 'reference', 'lor'] },
+  { id: 'recommendation', label: 'Reference', description: 'Request references/recommendations', icon: <UserPlus className="w-4 h-4" />, fieldType: 'recommendation', category: 'Advanced', keywords: ['letter', 'reference', 'recommendation', 'lor'] },
 ];
 
 const CATEGORIES = ['Basic', 'Selection', 'Date & Time', 'Media', 'Layout', 'Advanced'];

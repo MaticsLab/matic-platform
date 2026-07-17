@@ -82,7 +82,7 @@ export function WelcomeSection({
     
   const displayText = welcomeText
     ? parseText(welcomeText, submissionData, email)
-    : "Here's an overview of your scholarship application."
+    : "Here's an overview of your application."
   
   return (
     <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-6">

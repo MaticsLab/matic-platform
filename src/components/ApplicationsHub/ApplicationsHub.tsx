@@ -228,7 +228,7 @@ export function ApplicationsHub({ workspaceId, workspaceSlug: workspaceSlugProp 
               <Label htmlFor="name">Form Name*</Label>
               <Input
                 id="name"
-                placeholder="Summer Program 2024"
+                placeholder="2026 Application Cycle"
                 value={newAppName}
                 onChange={(e) => setNewAppName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateApplication()}

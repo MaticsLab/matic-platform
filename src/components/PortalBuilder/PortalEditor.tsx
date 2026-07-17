@@ -76,7 +76,7 @@ const INITIAL_CONFIG: PortalConfig = {
     }
   ],
   settings: {
-    name: 'Scholarship Portal',
+    name: 'Application Portal',
     themeColor: '#3B82F6',
     logoUrl: '',
     font: 'inter',
@@ -333,7 +333,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
 
         // Otherwise, use the forms list we already fetched in parallel
         if (!fullForm && forms && forms.length > 0) {
-            const portalForm = forms.find((f: any) => f.name === 'Scholarship Portal') || forms[0]
+            const portalForm = forms.find((f: any) => f.name === 'Application Portal') || forms[0]
             
             if (portalForm) {
                 setFormId(portalForm.id)

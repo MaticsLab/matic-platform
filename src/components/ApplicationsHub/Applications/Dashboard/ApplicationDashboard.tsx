@@ -97,7 +97,7 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
           const metadata = (sub as any).metadata || {}
           return {
             id: sub.id,
-            name: (sub as any).data?.['Full Name'] || (sub as any).data?.studentName || 'Unknown',
+            name: (sub as any).data?.['Full Name'] || (sub as any).data?.applicantName || (sub as any).data?.studentName || 'Unknown',
             stageId: metadata.current_stage_id || null,
             status: sub.status,
             score: metadata.total_score || null,
@@ -143,7 +143,7 @@ export function ApplicationDashboard({ workspaceId, formId }: ApplicationDashboa
     const metadata = realtimeApp.metadata
     return {
       id: realtimeApp.id,
-      name: data['Full Name'] || data?.studentName || 'Unknown',
+      name: data['Full Name'] || data?.applicantName || data?.studentName || 'Unknown',
       stageId: metadata.current_stage_id || null,
       status: metadata.status || 'pending',
       score: metadata.total_score || null,

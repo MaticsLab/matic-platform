@@ -99,7 +99,7 @@ const STATIC_FIELD_GROUPS: FieldGroup[] = [
     icon: Sparkles,
     color: 'purple',
     items: [
-      { type: 'recommendation', label: 'Recommendation', icon: UserPlus, description: 'Request letters of recommendation', color: 'purple' },
+      { type: 'recommendation', label: 'Reference', icon: UserPlus, description: 'Request references/recommendations', color: 'purple' },
     ]
   }
 ]

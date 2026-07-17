@@ -168,11 +168,11 @@ export function PriorityActions({
       {
         id: 'sample-3',
         type: 'request_recommendation',
-        label: 'Request a recommendation',
-        description: 'Ask a mentor or supervisor for a letter of recommendation',
+        label: 'Request a reference',
+        description: 'Ask a manager or colleague to submit a reference on your behalf',
         icon: 'user',
         deadline: '2024-04-01T05:00:00Z',
-        actions: [{ id: 'action-3', label: 'Request Letter', type: 'navigate' }],
+        actions: [{ id: 'action-3', label: 'Request Reference', type: 'navigate' }],
         optional: true
       }
     ]

@@ -62,7 +62,7 @@ export function RecommendationRenderer({
   const [errorMessages, setErrorMessages] = useState<Record<string, string>>({});
   
   // Safely get label and description as strings
-  const fieldLabel = safeFieldString(field.label) || 'Letters of Recommendation';
+  const fieldLabel = safeFieldString(field.label) || 'References';
   const fieldDescription = safeFieldString(field.description);
   
   // Parse value - can be array of recommenders or empty
@@ -313,7 +313,7 @@ export function RecommendationRenderer({
                       Full Name *
                     </Label>
                     <Input
-                      placeholder="Dr. Jane Smith"
+                      placeholder="Jane Smith"
                       value={rec.name}
                       onChange={(e) => handleUpdateRecommender(rec.id, 'name', e.target.value)}
                       disabled={disabled || isSent}
@@ -329,7 +329,7 @@ export function RecommendationRenderer({
                     </Label>
                     <Input
                       type="email"
-                      placeholder="jane.smith@university.edu"
+                      placeholder="jane.smith@example.com"
                       value={rec.email}
                       onChange={(e) => handleUpdateRecommender(rec.id, 'email', e.target.value)}
                       disabled={disabled || isSent}
@@ -344,7 +344,7 @@ export function RecommendationRenderer({
                       Relationship
                     </Label>
                     <Input
-                      placeholder="e.g., Professor, Supervisor, Manager"
+                      placeholder="e.g., Manager, Supervisor, Colleague"
                       value={rec.relationship}
                       onChange={(e) => handleUpdateRecommender(rec.id, 'relationship', e.target.value)}
                       disabled={disabled || isSent}

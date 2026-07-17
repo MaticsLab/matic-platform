@@ -472,10 +472,10 @@ export default function RecommendPage() {
               {(data?.show_file_upload || (!data?.questions || data.questions.length === 0)) && (
                 <div className="space-y-2">
                   <Label htmlFor="document">
-                    Upload Letter Document {data?.show_file_upload ? '(Optional)' : ''}
+                    Upload Document {data?.show_file_upload ? '(Optional)' : ''}
                   </Label>
                   <p className="text-sm text-slate-500 mb-2">
-                    You can upload a PDF or Word document with your letter of recommendation.
+                    You can upload a PDF or Word document with your recommendation.
                   </p>
                   <FileUpload 
                     value={responses['document']}
@@ -487,7 +487,7 @@ export default function RecommendPage() {
               {/* Show message if no questions configured */}
               {(!data?.questions || data.questions.length === 0) && !data?.require_relationship && (
                 <div className="text-center py-8 text-slate-500">
-                  <p>Please upload your letter of recommendation using the file upload above.</p>
+                  <p>Please upload your recommendation using the file upload above.</p>
                 </div>
               )}
 
@@ -511,7 +511,7 @@ export default function RecommendPage() {
 
         {/* Footer */}
         <p className="text-center text-sm text-slate-500 mt-6">
-          Your recommendation will be kept confidential and shared only with the review committee.
+          Your recommendation will be kept confidential and shared only with the reviewers.
         </p>
       </div>
     </div>

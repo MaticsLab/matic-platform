@@ -264,7 +264,7 @@ function TaskForm({
               <SelectItem value="complete_application">Complete Application</SelectItem>
               <SelectItem value="complete_field">Complete Field</SelectItem>
               <SelectItem value="upload_document">Upload Document</SelectItem>
-              <SelectItem value="request_recommendation">Request Recommendation</SelectItem>
+              <SelectItem value="request_recommendation">Request Reference</SelectItem>
               <SelectItem value="verify_information">Verify Information</SelectItem>
               <SelectItem value="custom">Custom Task</SelectItem>
             </SelectContent>
