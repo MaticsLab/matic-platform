@@ -1,18 +1,16 @@
 'use client'
 
 import { Card } from '@/ui-components/card'
-import { UserCheck, ChevronDown, ChevronUp, CheckCircle, Clock, XCircle, Loader2 } from 'lucide-react'
+import { UserCheck, ChevronDown, ChevronUp, CheckCircle, Clock, XCircle } from 'lucide-react'
 import { Badge } from '@/ui-components/badge'
-import { useState, useEffect } from 'react'
-import { recommendationsClient } from '@/lib/api/recommendations-client'
+import { useState } from 'react'
 
 interface CompactRecommendationsProps {
-  formId: string
-  rowId?: string
+  recommendations?: Recommender[]
   isPreview?: boolean
 }
 
-interface Recommender {
+export interface Recommender {
   id: string
   name: string
   status: 'submitted' | 'pending' | 'not-sent'
@@ -34,53 +32,11 @@ const sampleRecommenders: Recommender[] = [
 ]
 
 export function CompactRecommendations({
-  formId,
-  rowId,
+  recommendations,
   isPreview = false
 }: CompactRecommendationsProps) {
   const [isExpanded, setIsExpanded] = useState(false)
-  const [recommenders, setRecommenders] = useState<Recommender[]>(isPreview ? sampleRecommenders : [])
-  const [isLoading, setIsLoading] = useState(!isPreview && !!rowId)
-
-  // Fetch real recommendations when not in preview mode
-  useEffect(() => {
-    if (isPreview || !rowId) return
-
-    const fetchRecommendations = async () => {
-      try {
-        setIsLoading(true)
-        const requests = await recommendationsClient.listFromPortal(rowId)
-        
-        // Transform API response to Recommender format
-        const transformed: Recommender[] = requests.map(req => ({
-          id: req.id,
-          name: req.recommender_name,
-          status: req.status === 'submitted' ? 'submitted' : 
-                  req.status === 'pending' ? 'pending' : 'not-sent',
-          submittedDate: req.submitted_at 
-            ? new Date(req.submitted_at).toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric', 
-                year: 'numeric' 
-              })
-            : undefined
-        }))
-        
-        setRecommenders(transformed)
-      } catch (error: any) {
-        // Silently handle 404s and network errors - endpoint may not exist yet
-        // Only log unexpected errors
-        if (error?.status && error.status !== 404 && error.status !== 401) {
-          console.error('Failed to fetch recommendations:', error)
-        }
-        setRecommenders([])
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchRecommendations()
-  }, [isPreview, rowId])
+  const recommenders = isPreview ? sampleRecommenders : (recommendations ?? [])
 
   const submittedCount = recommenders.filter(r => r.status === 'submitted').length
   const pendingRecs = recommenders.filter(r => r.status !== 'submitted')
@@ -96,22 +52,7 @@ export function CompactRecommendations({
     }
   }
 
-  // Show loading spinner while fetching
-  if (isLoading) {
-    return (
-      <Card className="p-4 sm:p-6 border border-gray-200">
-        <div className="flex items-center gap-2">
-          <UserCheck className="w-5 h-5 text-gray-700" />
-          <h2 className="text-lg text-gray-900">References</h2>
-        </div>
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-        </div>
-      </Card>
-    )
-  }
-
-  // Hide if no recommendations (and not loading)
+  // Hide if no recommendations
   if (recommenders.length === 0) {
     return null
   }

@@ -5,7 +5,7 @@ import { WelcomeSection } from '@/components/Dashboard/DashboardV2/WelcomeSectio
 import { PriorityActions } from '@/components/Dashboard/DashboardV2/PriorityActions'
 import { NextDeadline } from '@/components/Dashboard/DashboardV2/NextDeadline'
 import { CompactDocuments } from '@/components/Dashboard/DashboardV2/CompactDocuments'
-import { CompactRecommendations } from '@/components/Dashboard/DashboardV2/CompactRecommendations'
+import { CompactRecommendations, type Recommender } from '@/components/Dashboard/DashboardV2/CompactRecommendations'
 import { PortalConfig } from '@/types/portal'
 import type { DashboardSettings } from '@/types/dashboard'
 
@@ -23,6 +23,7 @@ interface DashboardV2Props {
   dashboardSettings?: DashboardSettings
   welcomeTitle?: string
   welcomeText?: string
+  recommendations?: Recommender[]
   applicantId?: string
   applicantName?: string
   onNameUpdate?: (newName: string) => void
@@ -43,6 +44,7 @@ export function DashboardV2({
   dashboardSettings,
   welcomeTitle,
   welcomeText,
+  recommendations,
   applicantId,
   applicantName,
   onNameUpdate,
@@ -99,9 +101,8 @@ export function DashboardV2({
               rowId={rowId}
               isPreview={isPreview}
             />
-            <CompactRecommendations 
-              formId={formId}
-              rowId={rowId}
+            <CompactRecommendations
+              recommendations={recommendations}
               isPreview={isPreview}
             />
           </div>
