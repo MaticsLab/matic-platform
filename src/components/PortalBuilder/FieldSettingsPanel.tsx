@@ -1376,8 +1376,8 @@ export function FieldSettingsPanel({ selectedField, onUpdate, onClose, allFields
             <AccordionContent className="px-4 pb-4 space-y-4 pt-3">
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="space-y-0.5">
-                    <Label className="text-sm font-medium">Required field</Label>
-                    <p className="text-xs text-gray-500">User must fill this field</p>
+                    <Label className="text-sm font-medium">Required Field</Label>
+                    <p className="text-xs text-gray-500">Applicant must fill this field</p>
                 </div>
                 <Switch 
                   checked={selectedField.required} 

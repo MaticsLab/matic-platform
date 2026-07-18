@@ -92,7 +92,7 @@ export function DashboardHeader({
                       onClick={onLogout}
                     >
                       <LogOut className="w-3 h-3 sm:w-4 sm:h-4" />
-                      <span className="hidden sm:inline">Logout</span>
+                      <span className="hidden sm:inline">Sign Out</span>
                     </Button>
                   </div>
                 </>

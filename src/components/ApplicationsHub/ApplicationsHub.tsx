@@ -147,7 +147,7 @@ export function ApplicationsHub({ workspaceId, workspaceSlug: workspaceSlugProp 
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 text-white text-sm font-medium hover:bg-white/30 transition-colors w-fit"
           >
             <Plus className="w-3.5 h-3.5" />
-            create new form
+            Create new form
           </button>
         </div>
       </div>
@@ -238,7 +238,7 @@ export function ApplicationsHub({ workspaceId, workspaceSlug: workspaceSlugProp 
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
-                placeholder="Brief description of this application..."
+                placeholder="Brief description of this form..."
                 value={newAppDescription}
                 onChange={(e) => setNewAppDescription(e.target.value)}
                 rows={3}

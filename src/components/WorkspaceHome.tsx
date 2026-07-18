@@ -60,18 +60,22 @@ export function WorkspaceHome({ workspaceId, workspaceSlug, workspaceName }: Wor
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_140%_at_85%_-20%,rgba(255,255,255,0.28),transparent_55%)]" />
 
         <div className="relative mx-auto flex max-w-[760px] flex-col items-center gap-3.5">
-          <h2 className="m-0 text-[20px] font-bold tracking-tight text-white">What do you want to create?</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="m-0 text-[20px] font-bold tracking-tight text-white">What do you want to create?</h2>
+            <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-semibold text-white">Coming soon</span>
+          </div>
 
           <div className="inline-flex gap-1 rounded-[11px] border border-white/20 bg-white/[0.14] p-1">
             {CREATE_TABS.map((tab) => (
               <button
                 key={tab.key}
+                disabled
                 onClick={() => setActiveCreateTab(tab.key)}
                 className={cn(
-                  'flex items-center gap-1.5 rounded-[8px] px-3.5 py-1.5 text-[13.5px] font-semibold transition-colors',
+                  'flex items-center gap-1.5 rounded-[8px] px-3.5 py-1.5 text-[13.5px] font-semibold transition-colors cursor-not-allowed',
                   activeCreateTab === tab.key
                     ? 'bg-white text-[#3f3e35] shadow-[0_1px_3px_rgba(0,0,0,0.15)]'
-                    : 'text-white/90 hover:bg-white/10'
+                    : 'text-white/90'
                 )}
               >
                 <tab.icon className="h-[15px] w-[15px]" />
@@ -80,22 +84,22 @@ export function WorkspaceHome({ workspaceId, workspaceSlug, workspaceName }: Wor
             ))}
           </div>
 
-          {/* Decorative prompt card — no backend exists for natural-language creation yet */}
-          <div className="w-full rounded-2xl bg-white px-4 pb-3 pt-4 shadow-[0_14px_40px_-12px_rgba(30,26,90,0.45)]">
+          {/* Preview only — no backend exists for natural-language creation yet. Disabled + labeled "Coming soon" so it doesn't read as a broken input. */}
+          <div className="w-full rounded-2xl bg-white px-4 pb-3 pt-4 shadow-[0_14px_40px_-12px_rgba(30,26,90,0.45)] opacity-60 cursor-not-allowed">
             <div className="min-h-[44px] px-1 pb-3 pt-1 text-[15.5px] text-[#a5a49a]">
               Describe what you want to build…
             </div>
             <div className="flex items-center justify-between">
               <div className="flex gap-1.5">
-                <button className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border border-[#ececE7] bg-[#f6f5f2] text-[#6c6b61]">
+                <button disabled className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border border-[#ececE7] bg-[#f6f5f2] text-[#6c6b61] cursor-not-allowed">
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
               <div className="flex items-center gap-3">
-                <button className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] text-[#8a897f]">
+                <button disabled className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] text-[#8a897f] cursor-not-allowed">
                   <Mic className="h-[18px] w-[18px]" />
                 </button>
-                <button className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-[#f5b301] text-[#3a2e00] shadow-[0_2px_6px_rgba(245,179,1,0.4)]">
+                <button disabled className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-[#f5b301] text-[#3a2e00] shadow-[0_2px_6px_rgba(245,179,1,0.4)] cursor-not-allowed">
                   <ArrowUp className="h-[19px] w-[19px]" />
                 </button>
               </div>

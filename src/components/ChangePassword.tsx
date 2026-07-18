@@ -253,11 +253,11 @@ export function ChangePassword() {
                   className="text-sm font-medium cursor-pointer flex items-center gap-2"
                 >
                   <Shield className="h-4 w-4 text-primary" />
-                  Sign out all other devices
+                  Sign out other sessions
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  For security, we recommend signing out all other sessions when you change your password. 
-                  You'll stay logged in on this device.
+                  For security, we recommend signing out other sessions when you change your password.
+                  You'll stay signed in on this device.
                 </p>
               </div>
             </div>

@@ -63,12 +63,12 @@ export function AuthPageRenderer({
   const title = pageSettings?.title
     || (isSignup ? settings.signupTitle : settings.loginTitle)
     || settings.name
-    || (isSignup ? 'Sign up for your account' : 'Log in to your account')
+    || (isSignup ? 'Sign up for your account' : 'Sign in to your account')
   const description = pageSettings?.description
     || (isSignup ? settings.signupDescription : settings.loginDescription)
     || (isSignup
         ? 'Please sign up to continue your application.'
-        : 'Please log in to continue your application.'
+        : 'Please sign in to continue your application.'
       )
   // Dynamic button text based on password input
   // Use useMemo to ensure it updates when password changes
@@ -81,9 +81,9 @@ export function AuthPageRenderer({
       return 'Email me a signup link'
     }
     
-    // For login: if password is provided, show "Log In", otherwise show "Email me a login link"
+    // For login: if password is provided, show "Sign In", otherwise show "Email me a login link"
     if (password && password.trim().length > 0) {
-      return pageSettings?.buttonText || 'Log In'
+      return pageSettings?.buttonText || 'Sign In'
     }
     return 'Email me a login link'
   }, [isSignup, password, pageSettings?.buttonText])
@@ -539,7 +539,7 @@ export function AuthPageRenderer({
               className="font-medium text-gray-900 hover:underline underline-offset-4"
               type="button"
             >
-              {type === 'login' ? 'Sign up' : 'Log in'}
+              {type === 'login' ? 'Sign up' : 'Sign in'}
             </button>
           </p>
         )}

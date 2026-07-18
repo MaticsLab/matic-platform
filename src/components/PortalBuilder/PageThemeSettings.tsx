@@ -228,7 +228,7 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
           </div>
 
           <div className="space-y-2">
-            <Label>Questions Background Color</Label>
+            <Label>Questions background color</Label>
             <div className="flex items-center gap-3">
               <div 
                 className="w-10 h-10 rounded-lg border border-gray-200 shadow-sm"
@@ -249,7 +249,7 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
           </div>
 
           <div className="space-y-2">
-            <Label>Primary Color</Label>
+            <Label>Primary color</Label>
             <div className="flex items-center gap-3">
               <div 
                 className="w-10 h-10 rounded-lg border border-gray-200 shadow-sm"

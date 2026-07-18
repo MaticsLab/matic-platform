@@ -162,7 +162,7 @@ export function ChangePasswordForm({ email }: { email: string }) {
               <FormControl>
                 <Checkbox checked={field.value} onCheckedChange={field.onChange} />
               </FormControl>
-              <FormLabel className="!mt-0">Log out other sessions</FormLabel>
+              <FormLabel className="!mt-0">Sign out other sessions</FormLabel>
             </FormItem>
           )}
         />

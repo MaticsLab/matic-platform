@@ -427,7 +427,7 @@ export function ReviewerManagement({ formId, workspaceId, onClose }: ReviewerMan
         r.id === id ? { ...r, status: 'removed' as const, removed: true, removed_at: new Date().toISOString() } : r
       )
       await saveReviewers(updatedReviewers)
-      showToast('Reviewer archived. Reassign applications manually from the review workspace.', 'success')
+      showToast('Reviewer archived. Reassign applications manually from the review screen.', 'success')
     }
     
     setShowDeleteDialog(false)
@@ -1018,12 +1018,12 @@ export function ReviewerManagement({ formId, workspaceId, onClose }: ReviewerMan
                         {isLoadingSubmissions ? (
                           <div className="p-4 text-center text-gray-500 text-sm"><RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />Loading...</div>
                         ) : submissions.length === 0 ? (
-                          <div className="p-4 text-center text-gray-500 text-sm">No submissions available</div>
+                          <div className="p-4 text-center text-gray-500 text-sm">No applications available</div>
                         ) : (
                           <div className="divide-y divide-gray-100">
                             {submissions.map(sub => {
                               const data = typeof sub.data === 'string' ? JSON.parse(sub.data) : sub.data
-                              const name = data.personal?.firstName ? `${data.personal.firstName} ${data.personal.lastName}` : `Submission #${sub.id.substring(0, 8)}`
+                              const name = data.personal?.firstName ? `${data.personal.firstName} ${data.personal.lastName}` : `Application #${sub.id.substring(0, 8)}`
                               const isSelected = selectedSubmissionIds.includes(sub.id)
                               const assignedReviewers = sub.metadata?.assigned_reviewers || []
                               const isAssigned = assignedReviewers.length > 0

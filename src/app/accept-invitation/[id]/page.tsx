@@ -80,7 +80,7 @@ export default function AcceptInvitationPage() {
         expiresAt: data.expiresAt ? data.expiresAt.toString() : undefined,
         organization: {
           id: data.organizationId || 'unknown',
-          name: data.organizationName || 'this organization',
+          name: data.organizationName || 'this workspace',
           description: undefined
         },
         inviter: {
@@ -233,7 +233,7 @@ export default function AcceptInvitationPage() {
           </CardHeader>
           <CardContent className="text-center">
             <p className="text-gray-600 mb-4">
-              Please contact the organization administrator for a new invitation.
+              Please contact the workspace administrator for a new invitation.
             </p>
             <Button 
               variant="outline" 
@@ -288,7 +288,7 @@ export default function AcceptInvitationPage() {
           {/* Invitation Details */}
           <div className="bg-gray-50 p-4 rounded-lg space-y-3">
             <div>
-              <p className="text-sm font-medium text-gray-700">Organization</p>
+              <p className="text-sm font-medium text-gray-700">Workspace</p>
               <p className="text-lg font-semibold">{invitation.organization.name}</p>
               {invitation.organization.description && (
                 <p className="text-sm text-gray-600">{invitation.organization.description}</p>
@@ -361,7 +361,7 @@ export default function AcceptInvitationPage() {
           
           {/* Footer note */}
           <p className="text-xs text-gray-500 text-center">
-            By accepting, you agree to join this organization and collaborate with the team.
+            By accepting, you agree to join this workspace and collaborate with the team.
           </p>
         </CardContent>
       </Card>

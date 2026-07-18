@@ -603,7 +603,7 @@ export function WorkspaceSettingsSidebar({ isOpen, onClose, workspace, onUpdate 
                       </Button>
                     </div>
                     <p className="text-sm text-gray-500">
-                      Manage all users in the system. When deleting a user, you can optionally reassign their data to another user.
+                      Manage all users across the platform — not limited to this workspace. When deleting a user, you can optionally reassign their data to another user.
                     </p>
                     
                     {isLoadingUsers ? (

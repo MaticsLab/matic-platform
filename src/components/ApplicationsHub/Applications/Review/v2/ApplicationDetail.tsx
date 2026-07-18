@@ -1453,7 +1453,7 @@ export function ApplicationDetail({
       return;
     }
     onDelete?.(application.id);
-    toast.error('Application deleted');
+    toast.success('Application deleted');
     setShowDeleteConfirm(false);
     onClose();
   };

@@ -382,7 +382,7 @@ export function PipelineActivityPanel({
             <textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Write a pipeline note..."
+              placeholder="Write a comment..."
               rows={2}
               className="w-full px-0 py-2 bg-transparent border-0 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 resize-none text-sm"
             />

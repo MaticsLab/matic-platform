@@ -29,7 +29,7 @@ export default function Error({
             Try again
           </Button>
           <Button onClick={() => window.location.href = '/'} variant="outline">
-            Go Home
+            Go home
           </Button>
         </div>
       </div>

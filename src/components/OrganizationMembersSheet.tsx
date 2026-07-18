@@ -315,12 +315,12 @@ function InviteMemberDialog({
       <DialogTrigger asChild>
         <Button>
           <UserPlus className="h-4 w-4 mr-2" />
-          Invite member
+          Invite Member
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Invite member</DialogTitle>
+          <DialogTitle>Invite Member</DialogTitle>
           <DialogDescription>Send an invitation to join this workspace.</DialogDescription>
         </DialogHeader>
         <Form {...form}>

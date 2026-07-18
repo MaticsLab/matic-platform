@@ -225,7 +225,7 @@ export function AppSidebar({
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut} className="text-red-600">
               <LogOut className="h-4 w-4" />
-              Logout
+              Sign Out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

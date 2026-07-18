@@ -48,7 +48,7 @@ export default function ExternalReviewPage({ params }: { params: { token: string
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          <p className="text-gray-600">Loading review workspace...</p>
+          <p className="text-gray-600">Loading review screen...</p>
         </div>
       </div>
     )

@@ -49,7 +49,7 @@ export function SignInTab({
   const passwordValue = form.watch('password')
   const buttonText = useMemo(() => {
     if (passwordValue && passwordValue.length > 0) {
-      return 'Log In';
+      return 'Sign In';
     }
     return 'Email me a login link';
   }, [passwordValue])
