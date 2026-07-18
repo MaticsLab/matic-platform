@@ -87,7 +87,6 @@ export function createMainAuthConfig() {
       }
     },
     plugins: [
-      nextCookies(),
       organization({
         allowUserToCreateOrganization: true,
         creatorRole: "owner",
@@ -194,6 +193,10 @@ export function createMainAuthConfig() {
       }),
       dash({ apiKey: process.env.BETTER_AUTH_API_KEY! }),
       sentinel({ apiKey: process.env.BETTER_AUTH_API_KEY! }),
+      // Must be last: the cookie-integration plugin needs to run after every
+      // other plugin's hooks so their Set-Cookie headers are forwarded to
+      // Next.js's cookie store. See Better Auth's own runtime warning.
+      nextCookies(),
     ],
     user: {
       // Table/column names now come directly from the Drizzle schema
