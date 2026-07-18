@@ -25,12 +25,9 @@ export function Footer({ variant = 'dark' }: FooterProps) {
               isDark ? '' : 'text-gray-900'
             }`}
           >
-            You&apos;re doing important work.
-            <br />
-            We built this for you.
+            Ready to simplify your application process?
           </h3>
           <p className={`mt-4 text-sm max-w-md leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-            If that sounds like you,{' '}
             <Link
               href="/auth"
               className={`transition-colors ${
@@ -39,7 +36,7 @@ export function Footer({ variant = 'dark' }: FooterProps) {
                   : 'text-gray-900 border-b border-gray-900 hover:text-gray-600 hover:border-gray-600'
               }`}
             >
-              try MaticsApp for free
+              Start with MaticsApp for free
             </Link>
             {' →'}
           </p>

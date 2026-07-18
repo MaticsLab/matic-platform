@@ -6,20 +6,20 @@ import Image from "next/image"
 const FEATURES = [
   {
     label: "Forms",
-    heading: "Forms that work as hard as you do.",
-    body: "Conditional logic. File uploads. Field validation. Set it up once, and let it run. Every response lands exactly where you need it.",
+    heading: "Forms that adapt to every applicant.",
+    body: "Conditional logic, file uploads, and validation rules — build it once and let it run. Every submission lands exactly where your team needs it.",
     image: "/hero/section3-1b.png",
   },
   {
     label: "Tables",
-    heading: "One table. Not twelve tabs.",
-    body: "Your data is already there. Matics just puts it somewhere you can actually use it.",
+    heading: "One table. Not a dozen spreadsheets.",
+    body: "Every submission becomes structured data automatically — searchable, sortable, and ready to export whenever you need it.",
     image: "/hero/section3-2b.png",
   },
   {
     label: "Reviews",
     heading: "Reviews without the chaos.",
-    body: "Set it up once, run it every cycle. Your reviewers know what to do. No more chasing anyone through email.",
+    body: "Assign reviewers, collect scores and references, and track every decision in one shared pipeline — no more chasing anyone over email.",
     image: "/hero/section3-2b.png",
   },
 ]
@@ -63,7 +63,7 @@ export function ScrollFeatures() {
       >
         <div className="pt-10 pb-6 text-center">
           <h2 className="font-sans font-bold text-lg md:text-xl text-gray-900 tracking-tight">
-            We built this for people like you.
+            Everything you need to run your application process.
           </h2>
         </div>
 
@@ -86,7 +86,7 @@ export function ScrollFeatures() {
               >
                 {FEATURES.map((feature, index) => (
                   <Image
-                    key={feature.image}
+                    key={feature.label}
                     src={feature.image}
                     alt={feature.label}
                     fill

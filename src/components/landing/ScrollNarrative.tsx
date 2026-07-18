@@ -96,8 +96,8 @@ export function ScrollNarrative() {
                 className="text-white/55 text-sm md:text-base leading-relaxed"
                 style={{ opacity: sub0Opacity }}
               >
-                You&apos;re doing important work. Real work. And somehow it still
-                lives in a Google Sheet.
+                Every application still starts the same way — in a
+                spreadsheet.
               </p>
             </div>
 
@@ -106,8 +106,8 @@ export function ScrollNarrative() {
                 className="text-white/55 text-sm md:text-base leading-relaxed"
                 style={{ opacity: sub1Opacity }}
               >
-                You didn&apos;t sign up to manage spreadsheets, email chains, and
-                good intentions.
+                Spreadsheets and email chains weren&apos;t built to manage
+                applications.
               </p>
             </div>
 
@@ -123,8 +123,8 @@ export function ScrollNarrative() {
                   willChange: "transform, opacity",
                 }}
               >
-                You didn&apos;t sign up to manage spreadsheets, email chains, and
-                good intentions.
+                Spreadsheets and email chains weren&apos;t built to manage
+                applications.
               </p>
 
               <p
@@ -137,8 +137,7 @@ export function ScrollNarrative() {
                   willChange: "transform, opacity",
                 }}
               >
-                You need one tool that actually keeps up with you. Not five that
-                slow you down.
+                One platform for the whole process — start to decision.
               </p>
             </div>
           </div>

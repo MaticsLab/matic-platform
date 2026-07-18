@@ -165,9 +165,9 @@ export default function HomePage() {
                 animation: loaded ? 'fade-up 1s ease-out 0.6s both' : 'none',
               }}
             >
-              You care about people.
+              Collect applications.
               <br />
-              Your tools should too.
+              Review them faster.
             </h1>
           </div>
 
@@ -181,10 +181,10 @@ export default function HomePage() {
               }}
             >
               <h2 className="font-serif text-xl md:text-2xl leading-snug text-white mb-3 drop-shadow-sm">
-                One place to collect, organize, and act.
+                Build the form. Assign reviewers. Track every decision.
               </h2>
               <p className="text-white/70 text-sm leading-relaxed mb-5">
-                Less time on data. More time on people.
+                No more spreadsheets, email chains, or lost submissions.
               </p>
               <Link
                 href="/auth"
@@ -227,7 +227,7 @@ export default function HomePage() {
         {/* Heading */}
         <div className="px-6 md:px-16 lg:px-24 py-6 flex items-center justify-center">
           <p className="text-center text-lg md:text-xl font-bold text-gray-900 leading-snug">
-            Give your users a place that feels like it was made for them.
+            A branded application portal your applicants will actually enjoy using.
           </p>
         </div>
 
@@ -277,9 +277,9 @@ export default function HomePage() {
           </div>
 
           <h2 className="font-serif text-[clamp(2rem,5.5vw,5rem)] leading-[1.1] tracking-tight text-gray-900">
-            You&apos;re already doing the hard part.
+            Every application. Every reviewer. Every decision.
             <br />
-            <span className="text-gray-400">Managing it shouldn&apos;t be the hard part too.</span>
+            <span className="text-gray-400">All in one place.</span>
           </h2>
         </div>
       </section>
@@ -288,13 +288,12 @@ export default function HomePage() {
       <section className="px-6 md:px-12 lg:px-24 py-32 md:py-44 border-t border-gray-100">
         <div className="max-w-3xl">
           <h2 className="font-serif text-3xl md:text-5xl tracking-tight leading-tight text-gray-900 mb-6">
-            Your people are waiting on you.
+            Set up your first form.
             <br />
-            Don&apos;t make them wait on your tools.
+            Start reviewing applications today.
           </h2>
           <p className="text-gray-500 text-base md:text-lg mb-10 max-w-xl leading-relaxed">
-            Start free. No credit card. Be up and running before your next
-            meeting.
+            Free to start. No credit card required.
           </p>
           <Link
             href="/auth"
