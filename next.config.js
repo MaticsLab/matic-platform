@@ -37,6 +37,12 @@ const nextConfig = {
   
   // Webpack optimization
   webpack: (config, { isServer }) => {
+    // Avoid webpack's WASM-based xxhash64 content hasher — it has a known crash
+    // ("Cannot read properties of undefined (reading 'length')" in WasmHash._updateWithBuffer)
+    // that reproduced reliably on Railway's build machines while building locally clean.
+    // sha256 is the traditional, non-WASM webpack hash implementation.
+    config.output.hashFunction = 'sha256'
+
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
       '@': path.resolve(__dirname, 'src'),
