@@ -7,6 +7,7 @@ import { useWorkspaceDiscovery } from '@/hooks/useWorkspaceDiscovery'
 import { useOrganizationDiscovery } from '@/hooks/useOrganizationDiscovery'
 import { useSession, signOut as betterAuthSignOut } from '@/auth/client/main'
 import { AppSidebar } from './AppSidebar'  // Explicit capitalized import
+import { AppSidebarSkeleton } from './AppSidebarSkeleton'
 import { WorkspaceSettingsSidebar } from './WorkspaceSettingsSidebar'
 import { ProfileSidebar } from './ProfileSidebar'
 import { OrganizationMembersSheet } from './OrganizationMembersSheet'
@@ -42,7 +43,7 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
   const [devMode, setDevMode] = useState(false)
   
   // Workspace and organization hooks
-  const { workspaces, currentWorkspace, setCurrentWorkspaceBySlug } = useWorkspaceDiscovery()
+  const { workspaces, currentWorkspace, loading: workspacesLoading, setCurrentWorkspaceBySlug } = useWorkspaceDiscovery()
   const { organizations, currentOrganization, switchToOrganization } = useOrganizationDiscovery()
 
   // Set current workspace on slug change
@@ -117,7 +118,7 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
       <SidebarProvider defaultOpen={sidebarDefaultOpen}>
         <div className="h-screen w-full overflow-hidden flex">
           {/* Sidebar */}
-          {currentWorkspace && (
+          {currentWorkspace ? (
             <AppSidebar
               workspaceId={currentWorkspace.id}
               currentWorkspace={currentWorkspace}
@@ -132,7 +133,9 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
               devMode={devMode}
               setDevMode={setDevMode}
             />
-          )}
+          ) : workspacesLoading ? (
+            <AppSidebarSkeleton />
+          ) : null}
 
           {/* Main content - proper SidebarInset as direct sibling */}
           <SidebarInset className="flex-1 flex flex-col overflow-hidden min-w-0">
