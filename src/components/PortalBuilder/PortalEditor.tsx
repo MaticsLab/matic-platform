@@ -1345,7 +1345,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         <div className="flex-1 flex overflow-hidden">
             {/* Left Sidebar - Navigation or Theme */}
             {showThemeSidebar ? (
-              <div className="w-[380px] min-w-[380px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10">
+              <div className="w-[272px] min-w-[272px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10">
                 <div className="px-4 py-3 border-b border-gray-100">
                   <h2 className="text-sm font-semibold text-gray-900">Theme Settings</h2>
                 </div>
@@ -1366,7 +1366,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                 </div>
               </div>
             ) : (
-              <div className="w-[380px] min-w-[380px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 overflow-y-auto overflow-x-hidden">
+              <div className="w-[272px] min-w-[272px] bg-white border-r border-gray-200 flex flex-col shadow-sm z-10 overflow-y-auto overflow-x-hidden">
                 <UnifiedSidebar
                   sections={config.sections}
                   activeSectionId={activeSectionId}

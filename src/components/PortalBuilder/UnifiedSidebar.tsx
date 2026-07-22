@@ -190,7 +190,7 @@ export function UnifiedSidebar({
           }
         }}
         className={cn(
-          "group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-all w-full max-w-full",
+          "group flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-all w-full max-w-full",
           isActive 
             ? cn("shadow-sm border", variant.activeBg, variant.border)
             : "hover:bg-gray-50",
@@ -252,8 +252,8 @@ export function UnifiedSidebar({
   return (
     <div className="h-full flex flex-col bg-white overflow-y-auto overflow-x-hidden min-h-0 w-full">
       {/* Header */}
-      <div className="px-3 py-3 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
-        <h3 className="text-sm font-semibold text-gray-900">Portal Structure</h3>
+      <div className="px-3 py-2.5 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+        <h3 className="text-sm font-semibold text-gray-900">Pages</h3>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-7 gap-1">
@@ -306,7 +306,7 @@ export function UnifiedSidebar({
               onSelectSection('')
             }}
             className={cn(
-              "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors text-left",
+              "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm transition-colors text-left",
               activeSpecialPage === 'signup' 
                 ? "bg-green-50 text-green-900 border border-green-200" 
                 : "text-gray-700 hover:bg-gray-50"
@@ -333,7 +333,7 @@ export function UnifiedSidebar({
                 onSelectSection('')
               }}
               className={cn(
-                "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors text-left",
+                "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm transition-colors text-left",
                 activeSpecialPage === 'review' 
                   ? "bg-purple-50 text-purple-900 border border-purple-200" 
                   : "text-gray-700 hover:bg-gray-50"
