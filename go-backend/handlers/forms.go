@@ -120,23 +120,31 @@ func GetForm(c *gin.Context) {
 func GetFormBySlug(c *gin.Context) {
 	slugOrId := c.Param("slug")
 	var table models.Table
-	query := database.DB.Where("icon = ?", "form")
+
+	// Each branch below starts a fresh database.DB.Where(...) rather than
+	// chaining off one shared `query` variable — GORM's chain short-circuits
+	// once a prior call on the SAME session returns ErrRecordNotFound, so a
+	// shared query silently skips every check after the first failed one
+	// instead of actually running it. That previously made this whole
+	// fallback chain fail for any form without a custom_slug: the
+	// custom_slug check would miss (as it does for most forms), and the
+	// slug check right after it would never even run.
 
 	// Try to find by UUID ID first (in case slug is actually a form ID)
 	if _, err := uuid.Parse(slugOrId); err == nil {
-		if err := query.Where("id = ?", slugOrId).First(&table).Error; err == nil {
+		if err := database.DB.Where("icon = ?", "form").Where("id = ?", slugOrId).First(&table).Error; err == nil {
 			goto found
 		}
 	}
 
 	// Try custom_slug first (preferred for public URLs)
-	if err := query.Where("custom_slug = ?", slugOrId).First(&table).Error; err == nil {
+	if err := database.DB.Where("icon = ?", "form").Where("custom_slug = ?", slugOrId).First(&table).Error; err == nil {
 		goto found
 	}
 
 	// Fall back to auto-generated slug
-	if err := query.Where("slug = ?", slugOrId).First(&table).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
+	if err := database.DB.Where("icon = ?", "form").Where("slug = ?", slugOrId).First(&table).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found [DEPLOY-MARKER-9f3a1c]"})
 		return
 	}
 
@@ -943,24 +951,25 @@ func GetFormBySubdomainSlug(c *gin.Context) {
 		return
 	}
 
-	// Find the form within this workspace
+	// Find the form within this workspace. Each branch starts a fresh
+	// database.DB.Where(...) rather than chaining off one shared `query` —
+	// see the identical fix (and its comment) in GetFormBySlug above.
 	var table models.Table
-	query := database.DB.Where("workspace_id = ? AND icon = ?", workspace.ID, "form")
 
 	// Try to find by UUID ID first
 	if _, err := uuid.Parse(slugOrId); err == nil {
-		if err := query.Where("id = ?", slugOrId).First(&table).Error; err == nil {
+		if err := database.DB.Where("workspace_id = ? AND icon = ?", workspace.ID, "form").Where("id = ?", slugOrId).First(&table).Error; err == nil {
 			goto found
 		}
 	}
 
 	// Try custom_slug
-	if err := query.Where("custom_slug = ?", slugOrId).First(&table).Error; err == nil {
+	if err := database.DB.Where("workspace_id = ? AND icon = ?", workspace.ID, "form").Where("custom_slug = ?", slugOrId).First(&table).Error; err == nil {
 		goto found
 	}
 
 	// Fall back to auto-generated slug
-	if err := query.Where("slug = ?", slugOrId).First(&table).Error; err != nil {
+	if err := database.DB.Where("workspace_id = ? AND icon = ?", workspace.ID, "form").Where("slug = ?", slugOrId).First(&table).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found in this workspace"})
 		return
 	}
