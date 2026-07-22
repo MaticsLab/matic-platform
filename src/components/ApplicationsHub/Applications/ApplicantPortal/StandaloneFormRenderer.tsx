@@ -112,10 +112,7 @@ export function StandaloneFormRenderer({
   } as React.CSSProperties
 
   const formColumn = (
-    <div
-      className="standalone-form-fields px-6 py-9 sm:px-10 sm:py-9"
-      style={{ background: isCardOnImage || isFullBackground ? '#fff' : questionsBackgroundColor }}
-    >
+    <div className="standalone-form-fields w-full max-w-xl px-6 py-10 sm:px-10 lg:px-16">
       <div className="flex items-center justify-between mb-8 gap-3">
         <div className="flex items-center gap-2 min-w-0">
           {showLogo && logoUrls.map((url, i) => (
@@ -197,7 +194,7 @@ export function StandaloneFormRenderer({
   )
 
   const imageColumn = (
-    <div className="relative w-full h-full min-h-[180px] bg-blue-200">
+    <div className="relative w-full h-full bg-blue-200">
       {formTheme.coverImageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={formTheme.coverImageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -206,69 +203,74 @@ export function StandaloneFormRenderer({
     </div>
   )
 
-  // Full background / card-on-image: form floats over a full-bleed photo
+  // Full background / card-on-image: photo fills the entire viewport, form
+  // floats in a centered white card on top — no boxed/padded outer wrapper.
   if (isFullBackground || isCardOnImage) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 sm:p-8" style={{ fontFamily: selectedFont.fontFamily }}>
-        <div className="relative w-full max-w-[720px] rounded-2xl overflow-hidden">
-          <div className="absolute inset-0">
-            {formTheme.coverImageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={formTheme.coverImageUrl} alt="" className="w-full h-full object-cover" />
-            )}
-            <div className="absolute inset-0" style={{ background: overlayBackground }} />
-          </div>
-          <div className={cn('relative', isCardOnImage ? 'p-6 sm:p-10' : '')}>
-            <div className="rounded-2xl overflow-hidden shadow-xl" style={{ background: '#fff', opacity: 0.98 }}>
-              {formColumn}
-            </div>
+      <div className="min-h-screen relative flex items-center justify-center" style={{ fontFamily: selectedFont.fontFamily }}>
+        <div className="absolute inset-0">
+          {formTheme.coverImageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={formTheme.coverImageUrl} alt="" className="w-full h-full object-cover" />
+          )}
+          <div className="absolute inset-0" style={{ background: overlayBackground }} />
+        </div>
+        <div className={cn('relative z-10 w-full max-w-xl', isCardOnImage && 'p-6 sm:p-10')}>
+          <div className="rounded-2xl overflow-hidden shadow-xl" style={{ background: '#fff' }}>
+            {formColumn}
           </div>
         </div>
       </div>
     )
   }
 
-  // Banner top: image strip above the form, always stacked (no side-by-side variant)
+  // Banner top: full-width image strip above the form, no boxed wrapper.
   if (isBannerTop) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 sm:p-8" style={{ background: '#f1f5f9', fontFamily: selectedFont.fontFamily }}>
-        <div className="w-full max-w-[640px] bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div className="h-[180px]">{imageColumn}</div>
-          {formColumn}
-        </div>
+      <div className="min-h-screen flex flex-col" style={{ background: questionsBackgroundColor, fontFamily: selectedFont.fontFamily }}>
+        <div className="w-full h-[220px] flex-shrink-0 relative overflow-hidden">{imageColumn}</div>
+        <div className="flex-1 flex items-center justify-center">{formColumn}</div>
       </div>
     )
   }
 
-  // None: single centered column, no image
+  // None: single centered column, full height, no image.
   if (!showImage) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 sm:p-8" style={{ background: '#f1f5f9', fontFamily: selectedFont.fontFamily }}>
-        <div className="w-full max-w-[640px] bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          {formColumn}
-        </div>
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: questionsBackgroundColor, fontFamily: selectedFont.fontFamily }}
+      >
+        {formColumn}
       </div>
     )
   }
 
-  // Left / right: two-column split. DOM order controls desktop column placement;
-  // the image gets `order-first` only when it's NOT already first in the DOM, so
-  // it still collapses to a top banner on mobile regardless of desktop position.
+  // Left / right: full-bleed split, image spans the full window height edge to
+  // edge on desktop and collapses to a top banner on mobile — mirrors the
+  // existing split-screen auth pages (AuthPageRenderer.tsx), not a boxed card.
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 sm:p-8" style={{ background: '#f1f5f9', fontFamily: selectedFont.fontFamily }}>
-      <div className="w-full max-w-[880px] bg-white border border-gray-200 rounded-2xl overflow-hidden grid grid-cols-1 md:grid-cols-[1.15fr_0.85fr]">
-        {isImageLeft ? (
-          <>
-            <div className="md:col-start-1">{imageColumn}</div>
-            <div className="md:col-start-2">{formColumn}</div>
-          </>
-        ) : (
-          <>
-            <div className="order-2 md:order-1">{formColumn}</div>
-            <div className="order-1 md:order-2">{imageColumn}</div>
-          </>
-        )}
+    <div className="min-h-screen flex flex-col lg:flex-row" style={{ fontFamily: selectedFont.fontFamily }}>
+      {isImageLeft && (
+        <>
+          <div className="w-full h-56 relative overflow-hidden lg:hidden">{imageColumn}</div>
+          <div className="hidden lg:block lg:w-[42%] relative overflow-hidden">{imageColumn}</div>
+        </>
+      )}
+
+      <div
+        className="w-full lg:w-[58%] flex items-center justify-center"
+        style={{ background: questionsBackgroundColor }}
+      >
+        {formColumn}
       </div>
+
+      {!isImageLeft && (
+        <>
+          <div className="w-full h-56 relative overflow-hidden order-first lg:hidden">{imageColumn}</div>
+          <div className="hidden lg:block lg:w-[42%] relative overflow-hidden">{imageColumn}</div>
+        </>
+      )}
     </div>
   )
 }
