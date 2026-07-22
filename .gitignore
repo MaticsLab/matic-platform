@@ -39,6 +39,8 @@ go-backend/.env*
 
 # Go
 go-backend/matic-server
+go-backend/main
+go-backend/matic-platform
 go-backend/tmp/
 *.exe
 *.exe~
@@ -48,6 +50,13 @@ go-backend/tmp/
 *.test
 *.out
 go.work
+
+# Logs
+*.log
+logs/
+
+# Backup files
+*.bak
 
 # IDE
 .vscode/
