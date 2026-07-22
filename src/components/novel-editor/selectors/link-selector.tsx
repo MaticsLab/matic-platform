@@ -1,7 +1,6 @@
 import { Button } from "@/components/novel-editor/ui/button";
-import { PopoverContent } from "@/components/novel-editor/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/novel-editor/ui/popover";
 import { cn } from "@/lib/utils";
-import { Popover, PopoverTrigger } from "@radix-ui/react-popover";
 import { Check, Trash } from "lucide-react";
 import { useEditor } from "@/lib/novel";
 import { useEffect, useRef } from "react";

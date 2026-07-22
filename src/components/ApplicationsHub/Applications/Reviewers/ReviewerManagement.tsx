@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { 
-  Users, CheckCircle, RefreshCw, Search, Mail, 
-  Link as LinkIcon, Shield, Clock, 
+import * as DialogPrimitive from '@radix-ui/react-dialog'
+import {
+  Users, CheckCircle, RefreshCw, Search, Mail,
+  Link as LinkIcon, Shield, Clock,
   UserPlus, Send, ExternalLink,
   Sparkles, Target, BarChart3, ArrowRight, Copy, Trash2,
   ChevronDown
@@ -13,6 +14,7 @@ import { goClient } from '@/lib/api/go-client'
 import { Form } from '@/types/forms'
 import { workflowsClient, ReviewerType as WorkflowReviewerType, ApplicationStage } from '@/lib/api/workflows-client'
 import { showToast } from '@/lib/toast'
+import { Dialog, DialogPortal, DialogOverlay } from '@/ui-components/dialog'
 
 // Stage assignment - a reviewer can have different roles on different stages
 interface StageAssignment {
@@ -1122,7 +1124,13 @@ export function ReviewerManagement({ formId, workspaceId, onClose }: ReviewerMan
 
       {/* Assign More Modal */}
       {showAssignModal && assignToExistingReviewer && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <Dialog open onOpenChange={(open) => { if (!open) resetInviteForm() }}>
+          <DialogPortal>
+            <DialogOverlay className="backdrop-blur-sm" />
+            <DialogPrimitive.Content
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 outline-none"
+              onClick={(e) => { if (e.target === e.currentTarget) resetInviteForm() }}
+            >
           <div className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl">
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <div>
@@ -1247,12 +1255,20 @@ export function ReviewerManagement({ formId, workspaceId, onClose }: ReviewerMan
               </button>
             </div>
           </div>
-        </div>
+            </DialogPrimitive.Content>
+          </DialogPortal>
+        </Dialog>
       )}
 
       {/* Delete Reviewer Confirmation Dialog */}
       {showDeleteDialog && reviewerToDelete && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <Dialog open onOpenChange={(open) => { if (!open) { setShowDeleteDialog(false); setReviewerToDelete(null) } }}>
+          <DialogPortal>
+            <DialogOverlay />
+            <DialogPrimitive.Content
+              className="fixed inset-0 z-50 flex items-center justify-center outline-none"
+              onClick={(e) => { if (e.target === e.currentTarget) { setShowDeleteDialog(false); setReviewerToDelete(null) } }}
+            >
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Remove Reviewer</h3>
             <p className="text-sm text-gray-600 mb-4">
@@ -1317,12 +1333,35 @@ export function ReviewerManagement({ formId, workspaceId, onClose }: ReviewerMan
               </button>
             </div>
           </div>
-        </div>
+            </DialogPrimitive.Content>
+          </DialogPortal>
+        </Dialog>
       )}
 
       {/* Reassign Application Modal */}
       {showReassignModal && reassignSubmissionId && reassignFromReviewerId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowReassignModal(false)
+              setReassignSubmissionId(null)
+              setReassignFromReviewerId(null)
+            }
+          }}
+        >
+          <DialogPortal>
+            <DialogOverlay />
+            <DialogPrimitive.Content
+              className="fixed inset-0 z-50 flex items-center justify-center outline-none"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setShowReassignModal(false)
+                  setReassignSubmissionId(null)
+                  setReassignFromReviewerId(null)
+                }
+              }}
+            >
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Reassign Application</h3>
             <p className="text-sm text-gray-600 mb-4">
@@ -1409,7 +1448,9 @@ export function ReviewerManagement({ formId, workspaceId, onClose }: ReviewerMan
               </button>
             </div>
           </div>
-        </div>
+            </DialogPrimitive.Content>
+          </DialogPortal>
+        </Dialog>
       )}
     </div>
   )

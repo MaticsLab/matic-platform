@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { Mail, Send, Clock, FileText, Users, ChevronRight, Plus, Tag, Link2, CheckCircle, AlertCircle, Eye, RefreshCw, Trash2, Settings, ChevronDown, Search, X, Layers, Folder, User } from 'lucide-react'
 import { goClient } from '@/lib/api/go-client'
 import { emailClient, GmailConnection, SentEmail, EmailTemplate, SendEmailRequest } from '@/lib/api/email-client'
@@ -13,6 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/ui-components/popover'
+import { Dialog, DialogPortal, DialogOverlay } from '@/ui-components/dialog'
 import { Input } from '@/ui-components/input'
 import { Checkbox } from '@/ui-components/checkbox'
 
@@ -1092,7 +1094,13 @@ export function CommunicationsCenter({ workspaceId, formId, workflowId }: Commun
 
       {/* Save Template Dialog */}
       {showTemplateDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <Dialog open onOpenChange={(open) => { if (!open) setShowTemplateDialog(false) }}>
+          <DialogPortal>
+            <DialogOverlay />
+            <DialogPrimitive.Content
+              className="fixed inset-0 z-50 flex items-center justify-center outline-none"
+              onClick={(e) => { if (e.target === e.currentTarget) setShowTemplateDialog(false) }}
+            >
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Save as Template</h3>
             <div className="space-y-4">
@@ -1126,7 +1134,9 @@ export function CommunicationsCenter({ workspaceId, formId, workflowId }: Commun
               </button>
             </div>
           </div>
-        </div>
+            </DialogPrimitive.Content>
+          </DialogPortal>
+        </Dialog>
       )}
 
       {/* Email Settings Dialog */}

@@ -14,8 +14,7 @@ import {
 import { EditorBubbleItem, useEditor } from "@/lib/novel";
 
 import { Button } from "@/components/novel-editor/ui/button";
-import { PopoverContent, PopoverTrigger } from "@/components/novel-editor/ui/popover";
-import { Popover } from "@radix-ui/react-popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/novel-editor/ui/popover";
 
 // Use any to avoid tiptap version conflicts between novel's bundled version and project version
 export type SelectorItem = {

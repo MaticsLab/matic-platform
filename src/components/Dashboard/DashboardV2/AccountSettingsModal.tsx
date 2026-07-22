@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X, User, Lock, Loader2, Check, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
+import { Dialog, DialogPortal, DialogOverlay } from '@/ui-components/dialog'
 import { useApplicantProfile } from '@/hooks/useApplicantProfile'
 import { portalAuthClient } from '@/lib/api/portal-auth-client'
 import { toast } from 'sonner'
@@ -115,16 +117,16 @@ export function AccountSettingsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        {/* Header */}
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogPortal>
+        <DialogOverlay className="backdrop-blur-sm" />
+        <DialogPrimitive.Content
+          className="fixed inset-0 z-50 flex items-center justify-center outline-none"
+          onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+        >
+        {/* Modal */}
+        <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+          {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h2 className="text-lg font-semibold text-gray-900">Account Settings</h2>
           <button 
@@ -321,7 +323,9 @@ export function AccountSettingsModal({
             </div>
           )}
         </div>
-      </div>
-    </div>
+        </div>
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    </Dialog>
   )
 }
