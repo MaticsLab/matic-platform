@@ -748,6 +748,16 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const labelInputRef = useRef<HTMLTextAreaElement | null>(null);
+  // Pin the height immediately on mount/label change — otherwise the box only
+  // gets its correct (compact) height reactively once the user types, leaving
+  // a taller-than-needed gap on first render.
+  useEffect(() => {
+    const el = labelInputRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    }
+  }, [field.label]);
   const {
     attributes,
     listeners,
@@ -904,15 +914,15 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
       <div className="pt-10 pb-3 px-2">
         <div className="space-y-2">
           {/* Editable Label & Description */}
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
+          <div className="space-y-0.5">
+            <div className="flex items-start gap-1.5">
               <textarea
                 ref={labelInputRef}
                 value={field.label}
                 onChange={(e) => onUpdate({ label: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
                 onFocus={() => onSelect()}
-                className="text-sm font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 text-gray-900 resize-none overflow-hidden"
+                className="text-base font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 focus:bg-gray-100 focus:px-1.5 focus:-mx-1.5 focus:rounded text-gray-900 resize-none overflow-hidden transition-colors"
                 style={{ fieldSizing: 'content', minWidth: '4ch', maxWidth: '100%' } as React.CSSProperties}
                 placeholder="Field label..."
                 rows={1}
@@ -922,7 +932,7 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
                   target.style.height = target.scrollHeight + 'px';
                 }}
               />
-              {field.required && <span className="text-red-500 text-sm flex-shrink-0">*</span>}
+              {field.required && <span className="text-red-500 text-sm flex-shrink-0 leading-[1.5rem]">*</span>}
             </div>
             {/* Description - show when selected, has value, or user clicks to add */}
             {(isSelected || field.description) ? (
@@ -932,7 +942,7 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
                 onChange={(e) => onUpdate({ description: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
                 onFocus={() => onSelect()}
-                className="w-full text-xs bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 text-gray-500"
+                className="w-full text-xs bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 focus:bg-gray-100 focus:px-1.5 focus:-mx-1.5 focus:rounded text-gray-500 transition-colors"
                 placeholder="Add a description (help text shown below field)..."
               />
             ) : null}
@@ -1075,6 +1085,16 @@ function Block({
   const blockRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const labelTextareaRef = useRef<HTMLTextAreaElement>(null);
+  // Pin the height immediately on mount/label change — otherwise the box only
+  // gets its correct (compact) height reactively once the user types, leaving
+  // a taller-than-needed gap on first render.
+  useEffect(() => {
+    const el = labelTextareaRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    }
+  }, [field.label]);
 
   const isLayoutField = ['heading', 'paragraph', 'divider', 'callout'].includes(field.type);
   const isContainerField = ['group', 'repeater'].includes(field.type);
@@ -1587,8 +1607,8 @@ function Block({
         ) : (
           <div className="space-y-2">
             {/* Editable Label & Description */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
+            <div className="space-y-0.5">
+              <div className="flex items-start gap-1.5">
                 <textarea
                   ref={labelTextareaRef}
                   value={field.label}
@@ -1606,7 +1626,7 @@ function Block({
                     onSelect()
                   }}
                   onFocus={() => onSelect()}
-                  className="text-sm font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 resize-none overflow-hidden"
+                  className="text-base font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 focus:bg-gray-100 focus:px-1.5 focus:-mx-1.5 focus:rounded resize-none overflow-hidden transition-colors"
                   style={{
                     color: resolvedTheme?.questionsColor || '#111827',
                     fieldSizing: 'content',
@@ -1621,7 +1641,7 @@ function Block({
                     target.style.height = target.scrollHeight + 'px';
                   }}
                 />
-                {field.required && <span className="text-red-500 text-sm flex-shrink-0">*</span>}
+                {field.required && <span className="text-red-500 text-sm flex-shrink-0 leading-[1.5rem]">*</span>}
               </div>
               {/* Description - show when selected, has value, or user clicks to add */}
               {(isSelected || field.description) ? (
@@ -1642,7 +1662,7 @@ function Block({
                     onSelect()
                   }}
                   onFocus={() => onSelect()}
-                  className="w-full text-xs bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0"
+                  className="w-full text-xs bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 focus:bg-gray-100 focus:px-1.5 focus:-mx-1.5 focus:rounded transition-colors"
                   style={{ color: resolvedTheme?.answersColor || '#6b7280' }}
                   placeholder="Add a description (help text shown below field)..."
                 />

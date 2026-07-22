@@ -250,7 +250,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         try {
           await formsClient.updateStructure(formId, configRef.current)
           setHasUnsavedChanges(false)
-          toast.success('Changes saved', { duration: 2000 })
+          // No toast — the header's "Saved" indicator covers this, and a toast
+          // on nearly every field edit was the single biggest source of noise.
         } catch (error) {
           console.error('Autosave failed:', error)
           // Don't show error toast for autosave - user can manually save
@@ -276,7 +277,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
       try {
         await formsClient.updateStructure(formId, configRef.current)
         setHasUnsavedChanges(false)
-        toast.success('Auto-saved', { duration: 1500 })
+        // No toast — see the header "Saved" indicator instead.
       } catch (error) {
         console.error('Autosave failed:', error)
       } finally {
@@ -1310,9 +1311,15 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                 <Settings className="w-5 h-5" />
               </Button>
               
+              {/* Save status — replaces the old per-save toast, which fired on
+                  nearly every edit and got noisy fast. Ambient text instead. */}
+              <span className="text-xs text-gray-400 min-w-[50px] text-right select-none">
+                {isSaving ? 'Saving…' : !hasUnsavedChanges ? 'Saved' : ''}
+              </span>
+
               {/* Preview Button */}
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={() => {
                   setIsPreview(!isPreview)

@@ -313,7 +313,6 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
       if (error) throw error
       const { data: { publicUrl } } = storageClient.from('workspace-assets').getPublicUrl(fileName)
       onUpdate({ formTheme: { ...formTheme, logoUrls: [publicUrl, ...(formTheme.logoUrls?.slice(1) || [])] } })
-      toast.success('Logo uploaded')
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload logo')
     } finally {
@@ -341,7 +340,6 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
       if (error) throw error
       const { data: { publicUrl } } = storageClient.from('workspace-assets').getPublicUrl(fileName)
       onUpdate({ formTheme: { ...formTheme, logoUrls: [formTheme.logoUrls?.[0], publicUrl].filter(Boolean) as string[] } })
-      toast.success('Logo uploaded')
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload logo')
     } finally {
@@ -375,7 +373,6 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
       if (error) throw error
       const { data: { publicUrl } } = storageClient.from('workspace-assets').getPublicUrl(fileName)
       onUpdate({ formTheme: { ...formTheme, coverImageUrl: publicUrl } })
-      toast.success('Cover image uploaded')
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload cover image')
     } finally {
@@ -447,7 +444,6 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
           signupPageMediaType: mediaType
         } as any)
       }
-      toast.success(`Background ${mediaType} uploaded successfully`)
     } catch (error: any) {
       console.error('Media upload error:', error)
       toast.error(error.message || 'Failed to upload media')
@@ -494,7 +490,6 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
       } else {
         onUpdate({ logoUrl: publicUrl })
       }
-      toast.success('Logo uploaded successfully')
     } catch (error: any) {
       console.error('Logo upload error:', error)
       toast.error(error.message || 'Failed to upload logo')
