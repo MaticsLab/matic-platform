@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { X, Mail, ChevronDown, Plus, Trash2, Edit2, Check, Settings, Users, User, Shield, Globe, Eye } from 'lucide-react'
 import { emailClient, GmailAccount, EmailSignature, EmailTemplate } from '@/lib/api/email-client'
-import { supabase } from '@/lib/supabase'
 import { RichTextEditor } from '@/components/PortalBuilder/RichTextEditor'
 
 interface EmailSettingsDialogProps {

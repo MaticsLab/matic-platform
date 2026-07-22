@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { invitationsClient } from '@/lib/api/invitations-client'
 import { Button } from '@/ui-components/button'
 import {
