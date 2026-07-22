@@ -750,25 +750,15 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	}
 
 	// ============================================================
-	// API V2 ROUTES - New Unified Form Schema
+	// API V2 ROUTES - Unified form-submission autosave
+	// (the rest of the "v2" form/field CRUD surface had zero live
+	// callers and was deleted; see forms.go for the handlers)
 	// ============================================================
 	apiV2 := r.Group("/api/v2")
 	apiV2.Use(middleware.AuthMiddleware(cfg)) // Require auth for all v2 routes
 	{
-		// Forms (admin)
-		apiV2.GET("/forms", handlers.ListFormsV2)
-		apiV2.POST("/forms", handlers.CreateFormV2)
-		apiV2.GET("/forms/:id", handlers.GetFormV2)
-		apiV2.PATCH("/forms/:id", handlers.UpdateFormV2)
 		apiV2.GET("/submissions/:id", handlers.GetSubmissionV2)
 		apiV2.PUT("/submissions/:id/responses", handlers.SaveResponsesV2)
-		apiV2.POST("/submissions/:id/submit", handlers.SubmitSubmissionV2)
-	}
-
-	// Public V2 routes (no auth required for form viewing)
-	apiV2Public := r.Group("/api/v2")
-	{
-		apiV2Public.GET("/forms/by-slug/:workspace_slug/:form_slug", handlers.GetFormBySlugV2)
 	}
 
 	// Public diagnostics endpoints (debug only - no auth required)

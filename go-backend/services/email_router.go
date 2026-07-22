@@ -230,7 +230,7 @@ func (r *EmailRouter) sendViaResend(ctx context.Context, req EmailSendRequest) (
 			Success:      false,
 			ServiceType:  ServiceTypeResend,
 			ErrorMessage: errorMsg,
-		}, fmt.Errorf(errorMsg)
+		}, fmt.Errorf("%s", errorMsg)
 	}
 
 	// Parse successful response

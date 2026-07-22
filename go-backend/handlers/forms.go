@@ -16,6 +16,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 // rowSelectColumns defines the columns to select for Row queries
@@ -2565,4 +2567,295 @@ func UpdateSubmissionMetadata(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, row)
+}
+
+// ==================== UNIFIED FORM SCHEMA (relocated from forms_v2.go) ====================
+// The rest of forms_v2.go's surface (form/field CRUD, publish, admin submission listing,
+// start/submit/getMySubmissions) had zero live frontend callers and was deleted outright.
+// These functions remain because DynamicApplicationForm.tsx's autosave flow on the public
+// /apply/[slug] page depends on them (submissionsV2Client.get/.saveResponses), and
+// ListFormFieldsV2/GetFormSubmissionByID/ListFormFields are wired into live /api/v1 routes.
+
+// ListFormFieldsV2 lists all fields for a form
+// GET /api/v1/forms/:id/fields
+func ListFormFieldsV2(c *gin.Context) {
+	formID := c.Param("id")
+
+	var fields []models.FormField
+	if err := database.DB.
+		Where("form_id = ?", formID).
+		Order("sort_order ASC").
+		Find(&fields).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, fields)
+}
+
+// GetSubmissionV2 gets a submission with all responses
+// GET /api/v2/submissions/:id
+func GetSubmissionV2(c *gin.Context) {
+	submissionID := c.Param("id")
+	userID := c.GetString("ba_user_id")
+
+	var submission models.FormSubmission
+	query := database.DB.
+		Preload("Form").
+		Preload("Form.Fields", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC")
+		}).
+		Preload("Responses").
+		Preload("Responses.Field")
+
+	if err := query.First(&submission, "id = ?", submissionID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
+		return
+	}
+
+	// Check ownership (unless admin) - UserID is string now
+	if userID != "" && submission.UserID != userID {
+		// TODO: Check if user is admin of workspace
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	c.JSON(http.StatusOK, submission)
+}
+
+// SaveResponsesV2 saves/updates responses for a submission
+// PUT /api/v2/submissions/:id/responses
+func SaveResponsesV2(c *gin.Context) {
+	submissionID := c.Param("id")
+	userID := c.GetString("ba_user_id")
+
+	submissionUUID, err := uuid.Parse(submissionID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid submission ID"})
+		return
+	}
+
+	var submission models.FormSubmission
+	if err := database.DB.
+		Preload("Form").
+		Preload("Form.Fields").
+		First(&submission, "id = ?", submissionID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
+		return
+	}
+
+	// Check ownership - UserID is string now
+	if userID != "" && submission.UserID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	var input struct {
+		Responses map[string]any `json:"responses"` // field_key -> value
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Build field lookup by key
+	fieldsByKey := make(map[string]models.FormField)
+	for _, f := range submission.Form.Fields {
+		fieldsByKey[f.FieldKey] = f
+	}
+
+	// Process each response
+	for fieldKey, value := range input.Responses {
+		field, exists := fieldsByKey[fieldKey]
+		if !exists {
+			continue // Skip unknown fields
+		}
+
+		// Find or create response
+		var response models.FormResponse
+		err := database.DB.First(&response, "submission_id = ? AND field_id = ?", submissionID, field.ID).Error
+
+		if err != nil {
+			// Create new response
+			response = models.FormResponse{
+				SubmissionID: submissionUUID,
+				FieldID:      field.ID,
+			}
+		} else {
+			// Save history before updating
+			history := models.FormResponseHistory{
+				ResponseID:            response.ID,
+				PreviousValueText:     response.ValueText,
+				PreviousValueNumber:   response.ValueNumber,
+				PreviousValueBoolean:  response.ValueBoolean,
+				PreviousValueDate:     response.ValueDate,
+				PreviousValueDatetime: response.ValueDatetime,
+				PreviousValueJSON:     response.ValueJSON,
+				PreviousValueType:     &response.ValueType,
+				ChangeReason:          stringPtr("autosave"),
+			}
+			if userID != "" {
+				history.ChangedBy = &userID
+			}
+			database.DB.Create(&history)
+		}
+
+		// Set the typed value
+		response.SetValue(value, field.FieldType)
+
+		// Save response
+		if err := database.DB.Save(&response).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	// Update submission timestamps and progress
+	submission.LastSavedAt = time.Now()
+	if submission.Status == "draft" {
+		submission.Status = "in_progress"
+	}
+
+	// Calculate completion percentage
+	var requiredCount, answeredCount int64
+	database.DB.Model(&models.FormField{}).
+		Where("form_id = ? AND required = true", submission.FormID).
+		Count(&requiredCount)
+
+	database.DB.Model(&models.FormResponse{}).
+		Joins("JOIN form_fields ON form_responses.field_id = form_fields.id").
+		Where("form_responses.submission_id = ? AND form_fields.required = true", submissionID).
+		Where("form_responses.value_text IS NOT NULL OR form_responses.value_number IS NOT NULL OR form_responses.value_boolean IS NOT NULL OR form_responses.value_date IS NOT NULL OR form_responses.value_datetime IS NOT NULL OR form_responses.value_json IS NOT NULL").
+		Count(&answeredCount)
+
+	if requiredCount > 0 {
+		submission.CompletionPercentage = int(float64(answeredCount) / float64(requiredCount) * 100)
+	} else {
+		submission.CompletionPercentage = 100
+	}
+
+	database.DB.Save(&submission)
+
+	// Sync to legacy table_rows
+	if submission.LegacyRowID != nil {
+		syncToLegacyRow(submission)
+	}
+
+	c.JSON(http.StatusOK, submission)
+}
+
+func stringPtr(s string) *string {
+	return &s
+}
+
+// syncToLegacyRow syncs submission responses to legacy table_rows.data
+func syncToLegacyRow(submission models.FormSubmission) {
+	if submission.LegacyRowID == nil {
+		return
+	}
+
+	// Load responses with fields
+	var responses []models.FormResponse
+	database.DB.Preload("Field").Where("submission_id = ?", submission.ID).Find(&responses)
+
+	// Build data object
+	data := make(map[string]any)
+
+	// Get user email for _applicant_email
+	var user models.BetterAuthUser
+	if database.AuthDB.First(&user, "id = ?", submission.UserID).Error == nil {
+		data["_applicant_email"] = user.Email
+	}
+
+	for _, r := range responses {
+		if r.Field != nil {
+			data[r.Field.FieldKey] = r.GetValue()
+			// Also store by legacy field ID if linked
+			if r.Field.LegacyFieldID != nil {
+				data[r.Field.LegacyFieldID.String()] = r.GetValue()
+			}
+		}
+	}
+
+	// Marshal and update
+	if jsonData, err := json.Marshal(data); err == nil {
+		database.DB.Model(&models.Row{}).Where("id = ?", submission.LegacyRowID).Update("data", datatypes.JSON(jsonData))
+	}
+}
+
+// GetFormSubmissionByID gets a single submission with its responses
+// GET /api/v1/form-submissions/:id
+func GetFormSubmissionByID(c *gin.Context) {
+	submissionID := c.Param("id")
+
+	var submission models.FormSubmission
+	if err := database.DB.Preload("Responses.Field").First(&submission, "id = ?", submissionID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, submission)
+}
+
+// ListFormFields gets all fields for a form
+// GET /api/v1/form-fields?form_id=xxx
+func ListFormFields(c *gin.Context) {
+	formID := c.Query("form_id")
+	if formID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "form_id is required"})
+		return
+	}
+
+	var fields []models.FormField
+	if err := database.DB.Where("form_id = ?", formID).Order("sort_order ASC").Find(&fields).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Convert to old format for compatibility
+	type LegacyField struct {
+		ID        string                 `json:"id"`
+		Name      string                 `json:"name"`
+		FieldType string                 `json:"field_type"`
+		Position  int                    `json:"position"`
+		Config    map[string]interface{} `json:"config,omitempty"`
+	}
+
+	legacyFields := make([]LegacyField, len(fields))
+	for i, field := range fields {
+		config := map[string]interface{}{
+			"required":    field.Required,
+			"placeholder": field.Placeholder,
+			"description": field.Description,
+		}
+
+		// Add validation rules
+		if field.Validation != nil {
+			var validation map[string]interface{}
+			json.Unmarshal(field.Validation, &validation)
+			config["validation"] = validation
+		}
+
+		// Add options for select/radio/checkbox fields
+		if field.Options != nil {
+			var options []interface{}
+			json.Unmarshal(field.Options, &options)
+			config["options"] = options
+		}
+
+		legacyFields[i] = LegacyField{
+			ID:        field.ID.String(),
+			Name:      field.Label,
+			FieldType: field.FieldType,
+			Position:  field.SortOrder,
+			Config:    config,
+		}
+	}
+
+	c.JSON(http.StatusOK, legacyFields)
 }
