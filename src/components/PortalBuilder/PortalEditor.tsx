@@ -1,10 +1,11 @@
 'use client'
  
 import { useState, useEffect, useRef, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { GoogleDriveIntegration } from '@/components/Integrations/GoogleDriveIntegration'
 import { DndProvider } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
-import { 
+import {
   Layout, Settings, FileText, Plus, Save, Eye,
   ChevronLeft, Monitor, Smartphone, Palette, Lock, Loader2, X, CheckCircle2,
   BookOpen, CheckCircle, Eye as EyeIcon, ScrollText, ArrowLeft, Home, ChevronDown, Clock, UserPlus
@@ -14,20 +15,14 @@ import { Button } from '@/ui-components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui-components/tabs'
 import { ScrollArea } from '@/ui-components/scroll-area'
 import { Separator } from '@/ui-components/separator'
-import { FormBuilder } from './FormBuilder'
-import { BlockEditor } from './BlockEditor'
+import { Skeleton } from '@/ui-components/skeleton'
 import { SectionList } from './SectionList'
 import { FieldToolbox } from './FieldToolbox'
-import { FieldSettingsPanel } from './FieldSettingsPanel'
 import { ConditionBuilder } from './ConditionBuilder'
 import { ShareTab } from './ShareTab'
 import { SignUpPreview } from './SignUpPreview'
-import { AuthPageRenderer } from '@/components/Portal/AuthPageRenderer'
-import { ReviewPreview } from './ReviewPreview'
 import { UnifiedSidebar } from './UnifiedSidebar'
 import { PageThemeSettings } from './PageThemeSettings'
-import { CoverBlockEditor } from './CoverBlockEditor'
-import { NovelCoverEditorV2 } from '@/components/novel-editor/cover-editor'
 import { DEFAULT_ENDING_TEMPLATE } from '@/lib/ending-templates'
 import { BlockRenderer } from '@/components/EndingPages/BlockRenderer'
 import { PropertyInput } from '@/components/EndingPages/PropertyInput'
@@ -63,6 +58,31 @@ import {
 import { translateContent, translateResource, translateResourceIncremental } from '@/lib/ai/translation'
 import { LANGUAGES, getLanguageName } from '@/lib/languages'
 import type { TranslationResource, PortalTranslations } from '@/lib/i18n/types'
+
+// Code-split the canvas editors — only one of these five ever renders at a
+// time (see the ternary in the canvas JSX below), but all five previously
+// shipped in this page's initial JS unconditionally. NovelCoverEditorV2 alone
+// pulls in katex, react-moveable, and the tiptap/prosemirror stack.
+const CanvasLoading = () => (
+  <div className="flex items-center justify-center h-full min-h-[400px]">
+    <Loader2 className="w-6 h-6 text-gray-300 animate-spin" />
+  </div>
+)
+const FormBuilder = dynamic(() => import('./FormBuilder').then(m => m.FormBuilder), { loading: CanvasLoading })
+const BlockEditor = dynamic(() => import('./BlockEditor').then(m => m.BlockEditor), { loading: CanvasLoading })
+const NovelCoverEditorV2 = dynamic(() => import('@/components/novel-editor/cover-editor').then(m => m.NovelCoverEditorV2), { loading: CanvasLoading })
+const AuthPageRenderer = dynamic(() => import('@/components/Portal/AuthPageRenderer').then(m => m.AuthPageRenderer), { loading: CanvasLoading })
+const ReviewPreview = dynamic(() => import('./ReviewPreview').then(m => m.ReviewPreview), { loading: CanvasLoading })
+const FieldSettingsPanel = dynamic(() => import('./FieldSettingsPanel').then(m => m.FieldSettingsPanel), {
+  loading: () => (
+    <div className="p-4 space-y-3">
+      <Skeleton className="h-4 w-24" />
+      <Skeleton className="h-9 w-full" />
+      <Skeleton className="h-9 w-full" />
+      <Skeleton className="h-20 w-full" />
+    </div>
+  ),
+})
 
 const INITIAL_CONFIG: PortalConfig = {
   sections: [

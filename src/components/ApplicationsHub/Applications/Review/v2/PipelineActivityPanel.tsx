@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { Application, ActivityItem, PipelineActivityPanelProps } from './types';
 import { 
   X, Mail, ChevronDown, Send, Plus, Sparkles, Paperclip, 
@@ -18,9 +19,12 @@ import { EmailSettingsDialog } from '../../Communications/EmailSettingsDialog';
 import { EmailConnectionStatus } from '@/components/Email/EmailConnectionStatus';
 import { useEmailConnection } from '@/hooks/useEmailConnection';
 import { Checkbox } from '@/ui-components/checkbox';
-import { FullEmailComposer } from '../FullEmailComposer';
 import { CampaignComposer } from '../CampaignComposer';
 import { EmailManagementDashboard } from '../EmailManagementDashboard';
+
+// Same heavy Novel/tiptap-backed composer as FormAnalyticsPage — already
+// genuinely gated below (`workspaceId && applications.length === 1 &&`).
+const FullEmailComposer = dynamic(() => import('../FullEmailComposer').then(m => m.FullEmailComposer))
 
 export function PipelineActivityPanel({ 
   applications, 

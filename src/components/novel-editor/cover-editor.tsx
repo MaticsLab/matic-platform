@@ -33,8 +33,17 @@ import { uploadFn } from "./image-upload"
 import { TextButtons } from "./selectors/text-buttons"
 import { slashCommand, suggestionItems } from "./slash-command"
 
-// @ts-ignore
-const hljs = require("highlight.js")
+// Curated language set instead of the bare `highlight.js` package, whose main
+// entry unconditionally registers all ~190 bundled languages (including many
+// obscure ones this app has no use for, adding hundreds of KB for nothing).
+// Reuses the same `common` set CodeBlockLowlight is configured with below, so
+// a code block highlights identically whether typed live or redisplayed here
+// after save.
+import hljs from 'highlight.js/lib/core'
+import { common } from 'lowlight'
+for (const [name, language] of Object.entries(common)) {
+  hljs.registerLanguage(name, language)
+}
 
 // @ts-ignore - type compatibility between novel's bundled tiptap and project's tiptap
 const extensions = [...defaultExtensions, slashCommand] as any

@@ -1,12 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { goClient } from '@/lib/api/go-client';
 import { Form, isLayoutField } from '@/types/forms';
 import { ViewContainer } from '@/components/SubmissionViews';
-import { ApplicationDetail } from './ApplicationDetail';
 import { cn } from '@/lib/utils';
+
+// ApplicationDetail (3,400+ lines) only mounts once a submission is selected
+// (see `selectedSubmission &&` below) — code-split it out of this page's
+// initial bundle.
+const ApplicationDetail = dynamic(() => import('./ApplicationDetail').then(m => m.ApplicationDetail), {
+  loading: () => <div className="h-full w-full animate-pulse bg-gray-50" />,
+});
 
 interface Submission {
   id: string;

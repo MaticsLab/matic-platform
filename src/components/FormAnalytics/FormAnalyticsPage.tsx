@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import {
   AreaChart, Area,
   BarChart, Bar,
@@ -18,7 +19,6 @@ import { formsClient } from '@/lib/api/forms-client'
 import { goClient } from '@/lib/api/go-client'
 import { recommendationsClient, type RecommendationRequest } from '@/lib/api/recommendations-client'
 import { buildLabelMap, normalizeValueToString, stripHtml } from '@/lib/form-data-normalizer'
-import { FullEmailComposer } from '@/components/ApplicationsHub/Applications/Review/FullEmailComposer'
 import { ApplicationDetailSheet } from '@/components/ApplicationsHub/Applications/Review/v2/ApplicationDetailSheet'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/ui-components/button'
@@ -32,6 +32,12 @@ import type {
 } from '@/types/form-analytics'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+
+// FullEmailComposer pulls in the Novel/tiptap editor stack (katex, react-moveable —
+// ~440KB combined) via EmailNovelEditor. It's only ever shown once the user opens
+// the composer, so code-split it (paired with the `emailOpen &&` gate added at
+// its render site below, since this call site previously rendered it unconditionally).
+const FullEmailComposer = dynamic(() => import('@/components/ApplicationsHub/Applications/Review/FullEmailComposer').then(m => m.FullEmailComposer))
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
 
@@ -1880,18 +1886,20 @@ export function FormAnalyticsPage({ formId, workspaceId }: Props) {
       </div>
 
       {/* Email Composer */}
-      <FullEmailComposer
-        open={emailOpen}
-        onClose={() => setEmailOpen(false)}
-        workspaceId={workspaceId}
-        formId={formId}
-        recipientEmails={emailRecipients}
-        initialSubject="Following up on your application"
-        onSent={() => {
-          setEmailOpen(false)
-          toast.success('Email sent successfully')
-        }}
-      />
+      {emailOpen && (
+        <FullEmailComposer
+          open={emailOpen}
+          onClose={() => setEmailOpen(false)}
+          workspaceId={workspaceId}
+          formId={formId}
+          recipientEmails={emailRecipients}
+          initialSubject="Following up on your application"
+          onSent={() => {
+            setEmailOpen(false)
+            toast.success('Email sent successfully')
+          }}
+        />
+      )}
 
       {/* Submission Detail Panel */}
       {detailApp && (

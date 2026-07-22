@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter, usePathname } from 'next/navigation'
 import { clearLastWorkspace, saveLastWorkspace } from '@/lib/utils'
 import { useWorkspaceDiscovery, type WorkspaceDiscoverySeed } from '@/hooks/useWorkspaceDiscovery'
@@ -8,15 +9,18 @@ import { useOrganizationDiscovery, type OrganizationDiscoverySeed } from '@/hook
 import { useSession, signOut as betterAuthSignOut } from '@/auth/client/main'
 import { AppSidebar } from './AppSidebar'  // Explicit capitalized import
 import { AppSidebarSkeleton } from './AppSidebarSkeleton'
-import { WorkspaceSettingsSidebar } from './WorkspaceSettingsSidebar'
 import { ProfileSidebar } from './ProfileSidebar'
-import { OrganizationMembersSheet } from './OrganizationMembersSheet'
 import { ApiKeyDialog } from './ApiKeyDialog'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { toast } from 'sonner'
 import type { Workspace } from '@/types/workspaces'
 import { SearchProvider, SearchPanel } from './Search'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/ui-components/sidebar'
+
+// Code-split: both are already gated behind a real open/closed condition at
+// their call sites below, so neither loads until the user actually opens it.
+const WorkspaceSettingsSidebar = dynamic(() => import('./WorkspaceSettingsSidebar').then(m => m.WorkspaceSettingsSidebar))
+const OrganizationMembersSheet = dynamic(() => import('./OrganizationMembersSheet').then(m => m.OrganizationMembersSheet))
 
 interface NavigationLayoutProps {
   children: React.ReactNode

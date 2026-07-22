@@ -1,10 +1,16 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { Sheet, SheetPortal, SheetOverlay } from '@/ui-components/sheet';
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { X } from 'lucide-react';
-import { ApplicationDetail } from './ApplicationDetail';
 import type { Application, ReviewersMap } from './types';
+
+// ApplicationDetail (3,400+ lines) only mounts once the sheet is open —
+// code-split it out of this page's initial bundle.
+const ApplicationDetail = dynamic(() => import('./ApplicationDetail').then(m => m.ApplicationDetail), {
+  loading: () => <div className="h-full w-full animate-pulse bg-gray-50" />,
+});
 
 interface ApplicationDetailSheetProps {
   open: boolean;
