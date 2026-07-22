@@ -27,6 +27,28 @@ const getApiUrl = () => {
 
 const GO_API_URL = getApiUrl()
 
+/**
+ * Server-side only: forwards the incoming request's raw Cookie header to the
+ * outgoing Go-backend fetch. `credentials: 'include'` is a browser-fetch-spec
+ * concept (pulls from the browser's own cookie jar) — Node's fetch has no such
+ * jar, so it's a no-op server-side, and nothing gets sent without this. This
+ * is also more reliable than the Bearer-token fallback below: it forwards
+ * whatever format Better Auth's cookie actually is (compact/jwt/jwe cache),
+ * which the Go backend's cookie-parsing path already knows how to handle,
+ * rather than depending on the exact shape of `auth.api.getSession()`'s
+ * returned session object.
+ */
+async function getServerCookieHeader(): Promise<string | null> {
+  if (typeof window !== 'undefined') return null
+  try {
+    const { headers } = await import('next/headers')
+    const headersList = await headers()
+    return headersList.get('cookie')
+  } catch {
+    return null
+  }
+}
+
 export class GoAPIError extends Error {
   constructor(
     message: string,
@@ -90,6 +112,15 @@ export async function goFetch<T>(
 
   if (shouldAttachBearerToken) {
     ;(requestHeaders as Record<string, string>).Authorization = `Bearer ${sessionToken}`
+  }
+
+  // Server-side (Server Components/layouts): explicitly forward the incoming
+  // request's cookie header — credentials: 'include' below does nothing here.
+  if (typeof window === 'undefined') {
+    const cookieHeader = await getServerCookieHeader()
+    if (cookieHeader) {
+      ;(requestHeaders as Record<string, string>).Cookie = cookieHeader
+    }
   }
 
   // Make request with credentials: 'include' to send Better Auth session cookies
