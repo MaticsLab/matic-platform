@@ -503,33 +503,10 @@ func CreateForm(c *gin.Context) {
 		return
 	}
 
-	// Generate slug from name
-	slug := generateSlug(input.Name)
-
-	// Check for duplicate slug in workspace
-	var existing models.Table
-	if err := database.DB.Where("workspace_id = ? AND slug = ?", input.WorkspaceID, slug).First(&existing).Error; err == nil {
-		// Slug exists, append a number
-		counter := 1
-		for {
-			newSlug := slug + "-" + fmt.Sprintf("%d", counter)
-			if err := database.DB.Where("workspace_id = ? AND slug = ?", input.WorkspaceID, newSlug).First(&existing).Error; err != nil {
-				slug = newSlug
-				break
-			}
-			counter++
-			if counter > 100 {
-				// Fallback to UUID-based slug
-				slug = slug + "-" + uuid.New().String()[:8]
-				break
-			}
-		}
-	}
-
 	table := models.Table{
 		WorkspaceID: input.WorkspaceID,
 		Name:        input.Name,
-		Slug:        slug,
+		Slug:        generateUniqueSlug(generateSlug(input.Name)),
 		Description: input.Description,
 		Settings:    mapToJSON(input.Settings),
 		Icon:        "form",
@@ -541,7 +518,7 @@ func CreateForm(c *gin.Context) {
 		table.BACreatedBy = &baUserID // Better Auth user ID (TEXT)
 	}
 
-	if err := database.DB.Create(&table).Error; err != nil {
+	if err := createTableWithUniqueSlug(&table); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

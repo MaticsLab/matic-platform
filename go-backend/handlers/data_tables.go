@@ -156,33 +156,10 @@ func CreateDataTable(c *gin.Context) {
 		icon = "table"
 	}
 
-	// Generate slug from name
-	slug := generateSlug(input.Name)
-
-	// Check for duplicate slug in workspace
-	var existing models.Table
-	if err := database.DB.Where("workspace_id = ? AND slug = ?", input.WorkspaceID, slug).First(&existing).Error; err == nil {
-		// Slug exists, append a number
-		counter := 1
-		for {
-			newSlug := slug + "-" + fmt.Sprintf("%d", counter)
-			if err := database.DB.Where("workspace_id = ? AND slug = ?", input.WorkspaceID, newSlug).First(&existing).Error; err != nil {
-				slug = newSlug
-				break
-			}
-			counter++
-			if counter > 100 {
-				// Fallback to UUID-based slug
-				slug = slug + "-" + uuid.New().String()[:8]
-				break
-			}
-		}
-	}
-
 	table := models.Table{
 		WorkspaceID: input.WorkspaceID,
 		Name:        input.Name,
-		Slug:        slug,
+		Slug:        generateUniqueSlug(generateSlug(input.Name)),
 		Description: input.Description,
 		Icon:        icon,
 		Color:       "#10B981", // Default green color
@@ -191,7 +168,7 @@ func CreateDataTable(c *gin.Context) {
 		BACreatedBy: &userID, // Better Auth user ID (TEXT)
 	}
 
-	if err := database.DB.Create(&table).Error; err != nil {
+	if err := createTableWithUniqueSlug(&table); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

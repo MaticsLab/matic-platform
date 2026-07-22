@@ -2,12 +2,18 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"hash/fnv"
 	"regexp"
 	"strings"
 	"unicode"
 
+	"github.com/Jsanchez767/matic-platform/database"
+	"github.com/Jsanchez767/matic-platform/models"
+	"github.com/google/uuid"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 // hashString creates a consistent int64 hash from a string
@@ -56,6 +62,44 @@ func generateSlug(name string) string {
 	}
 
 	return slug
+}
+
+// generateUniqueSlug returns a slug derived from baseSlug that isn't already
+// taken in data_tables. The uniqueness constraint on that table's slug column
+// (idx_data_tables_slug) is global, not scoped per workspace — public form
+// URLs (forms.maticsapp.com/{slug}) resolve a form by slug alone with no
+// workspace in the path, so two workspaces can never share one. Checking only
+// within the calling workspace misses collisions with every other workspace's
+// forms/tables and lets the INSERT below hit the constraint unrecovered.
+func generateUniqueSlug(baseSlug string) string {
+	var existing models.Table
+	if err := database.DB.Where("slug = ?", baseSlug).First(&existing).Error; err != nil {
+		return baseSlug
+	}
+	for counter := 1; counter <= 100; counter++ {
+		candidate := fmt.Sprintf("%s-%d", baseSlug, counter)
+		if err := database.DB.Where("slug = ?", candidate).First(&existing).Error; err != nil {
+			return candidate
+		}
+	}
+	return baseSlug + "-" + uuid.New().String()[:8]
+}
+
+// createTableWithUniqueSlug inserts table, regenerating its slug and retrying
+// if the insert loses a race against a concurrent request claiming the same
+// slug. generateUniqueSlug's own check narrows this to a rare race rather
+// than the common case, but can't eliminate it — check-then-insert isn't
+// atomic.
+func createTableWithUniqueSlug(table *models.Table) error {
+	baseSlug := table.Slug
+	for attempt := 0; attempt < 5; attempt++ {
+		err := database.DB.Create(table).Error
+		if err == nil || !errors.Is(err, gorm.ErrDuplicatedKey) {
+			return err
+		}
+		table.Slug = baseSlug + "-" + uuid.New().String()[:8]
+	}
+	return database.DB.Create(table).Error
 }
 
 // toSnakeCase converts a string to snake_case
