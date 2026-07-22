@@ -144,7 +144,7 @@ func GetFormBySlug(c *gin.Context) {
 
 	// Fall back to auto-generated slug
 	if err := database.DB.Where("icon = ?", "form").Where("slug = ?", slugOrId).First(&table).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found [DEPLOY-MARKER-9f3a1c]"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Form not found"})
 		return
 	}
 
