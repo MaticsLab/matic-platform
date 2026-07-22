@@ -4,31 +4,13 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/auth/client/main'
-import type { Workspace as APIWorkspace } from '@/lib/api/workspaces-client'
+import {
+  toDiscoveryWorkspace,
+  type DiscoveryWorkspace as Workspace,
+  type WorkspaceDiscoverySeed,
+} from './workspace-discovery-shared'
 
-interface Workspace {
-  id: string
-  name: string
-  slug: string
-  plan: string
-}
-
-export interface WorkspaceDiscoverySeed {
-  workspaces: Workspace[]
-  currentWorkspace: Workspace | null
-}
-
-/** Maps the raw API workspace shape to this hook's minimal shape — shared so a
- * server-fetched seed (see WorkspaceDiscoverySeed) lines up exactly with what
- * the client-side fetch would have produced. */
-export function toDiscoveryWorkspace(workspace: APIWorkspace): Workspace {
-  return {
-    id: workspace.id,
-    name: workspace.name,
-    slug: workspace.slug,
-    plan: 'free', // TODO: Add plan field to backend
-  }
-}
+export type { WorkspaceDiscoverySeed }
 
 export function useWorkspaceDiscovery(seed?: WorkspaceDiscoverySeed) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(seed?.workspaces ?? [])

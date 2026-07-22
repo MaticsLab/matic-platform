@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { workspacesClient } from '@/lib/api/workspaces-client'
 import { organizationsClient } from '@/lib/api/organizations-client'
-import { toDiscoveryWorkspace } from '@/hooks/useWorkspaceDiscovery'
+import { toDiscoveryWorkspace } from '@/hooks/workspace-discovery-shared'
 import { NavigationLayout } from '@/components/NavigationLayout'
 
 /**

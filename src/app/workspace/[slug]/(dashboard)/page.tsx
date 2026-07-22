@@ -1,77 +1,14 @@
-'use client'
-
-import { useEffect, useState, Suspense } from 'react'
-import { useParams } from 'next/navigation'
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
-import { NavigationLayout } from '@/components/NavigationLayout'
-import { WorkspaceHome } from '@/components/WorkspaceHome'
 import { workspacesClient } from '@/lib/api/workspaces-client'
-import { saveLastWorkspace } from '@/lib/utils'
-import type { Workspace } from '@/lib/api/workspaces-client'
-import { toast } from 'sonner'
-import { LoadingOverlay } from '@/components/LoadingOverlay'
+import { WorkspaceHome } from '@/components/WorkspaceHome'
 
-function WorkspacePageContent() {
-  const params = useParams()
-  const slug = params.slug as string
-  const [workspace, setWorkspace] = useState<Workspace | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export default async function WorkspacePage({ params }: { params: { slug: string } }) {
+  const workspace = await workspacesClient.getBySlug(params.slug)
 
-  useEffect(() => {
-    if (slug) {
-      loadWorkspace()
-    }
-  }, [slug])
-
-  async function loadWorkspace() {
-    try {
-      setLoading(true)
-      setError(null)
-      const data = await workspacesClient.getBySlug(slug)
-
-      if (!data) {
-        throw new Error('Workspace not found')
-      }
-
-      setWorkspace(data)
-      saveLastWorkspace(slug)
-    } catch (err: any) {
-      console.error('Failed to load workspace:', err)
-      const errorMessage = err?.message || err?.error || 'Failed to load workspace'
-      setError(errorMessage)
-      toast.error(`Failed to load workspace: ${errorMessage}`)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  if (loading) {
-    return <LoadingOverlay message="Loading workspace..." />
-  }
-
-  if (error || !workspace) {
+  if (!workspace) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2 text-gray-900">Workspace Not Found</h1>
-          <p className="text-gray-600 mb-4">{error || 'Not Found'}</p>
-          <a href="/?login=true" className="text-blue-600 hover:underline">
-            Back to Login
-          </a>
-        </div>
-      </div>
-    )
-  }
-
-  const workspaceId = typeof workspace.id === 'string' ? workspace.id : String(workspace.id)
-
-  if (!workspaceId || workspaceId === 'undefined' || workspaceId === 'null') {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2 text-gray-900">Invalid Workspace</h1>
-          <p className="text-gray-600 mb-4">Workspace ID is missing or invalid</p>
           <a href="/?login=true" className="text-blue-600 hover:underline">
             Back to Login
           </a>
@@ -81,20 +18,8 @@ function WorkspacePageContent() {
   }
 
   return (
-    <NavigationLayout workspaceSlug={workspace.slug}>
-      <div className="flex flex-col h-full">
-        <WorkspaceHome workspaceId={workspaceId} workspaceSlug={workspace.slug} workspaceName={workspace.name} />
-      </div>
-    </NavigationLayout>
-  )
-}
-
-export default function WorkspacePage() {
-  return (
-    <Suspense fallback={<LoadingOverlay />}>
-      <ProtectedRoute>
-        <WorkspacePageContent />
-      </ProtectedRoute>
-    </Suspense>
+    <div className="flex flex-col h-full">
+      <WorkspaceHome workspaceId={workspace.id} workspaceSlug={workspace.slug} workspaceName={workspace.name} />
+    </div>
   )
 }

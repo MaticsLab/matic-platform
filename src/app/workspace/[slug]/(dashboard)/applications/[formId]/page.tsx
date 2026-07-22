@@ -1,44 +1,8 @@
-'use client'
-
-import { useEffect, useState, Suspense } from 'react'
-import { useParams } from 'next/navigation'
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
-import { NavigationLayout } from '@/components/NavigationLayout'
-import { FormAnalyticsPage } from '@/components/FormAnalytics/FormAnalyticsPage'
 import { workspacesClient } from '@/lib/api/workspaces-client'
-import type { Workspace } from '@/lib/api/workspaces-client'
-import { LoadingOverlay } from '@/components/LoadingOverlay'
+import { ApplicationManager } from '@/components/ApplicationsHub/Applications/ApplicationManager'
 
-function FormAnalyticsRouteContent() {
-  const params = useParams()
-  const slug = params.slug as string
-  const formId = params.formId as string
-  const [workspace, setWorkspace] = useState<Workspace | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    async function loadWorkspace() {
-      if (!slug) return
-
-      try {
-        setLoading(true)
-        console.log('[FormAnalyticsRoute] Loading workspace for slug:', slug)
-        const ws = await workspacesClient.getBySlug(slug)
-        if (!ws) throw new Error('Workspace not found')
-        setWorkspace(ws)
-      } catch (error) {
-        console.error('[FormAnalyticsRoute] Failed to load workspace:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadWorkspace()
-  }, [slug])
-
-  if (loading) {
-    return <LoadingOverlay message="Loading analytics..." />
-  }
+export default async function SubmissionsRoute({ params }: { params: { slug: string; formId: string } }) {
+  const workspace = await workspacesClient.getBySlug(params.slug)
 
   if (!workspace) {
     return (
@@ -49,23 +13,8 @@ function FormAnalyticsRouteContent() {
   }
 
   return (
-    <NavigationLayout workspaceSlug={workspace.slug}>
-      <div className="flex flex-col h-full">
-        <FormAnalyticsPage
-          workspaceId={workspace.id}
-          formId={formId}
-        />
-      </div>
-    </NavigationLayout>
-  )
-}
-
-export default function FormAnalyticsRoute() {
-  return (
-    <Suspense fallback={<LoadingOverlay />}>
-      <ProtectedRoute>
-        <FormAnalyticsRouteContent />
-      </ProtectedRoute>
-    </Suspense>
+    <div className="flex flex-col h-full">
+      <ApplicationManager formId={params.formId} workspaceId={workspace.id} />
+    </div>
   )
 }
