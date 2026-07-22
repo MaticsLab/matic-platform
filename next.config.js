@@ -43,6 +43,17 @@ const nextConfig = {
     // sha256 is the traditional, non-WASM webpack hash implementation.
     config.output.hashFunction = 'sha256'
 
+    // The sha256 switch above didn't fully avoid this class of crash — it
+    // recurred with Node's own crypto Hash.update() ("data argument must be
+    // string/Buffer... Received undefined") right after a commit that deleted
+    // a large number of files. That's the real signature of a stale
+    // persistent filesystem cache (.next/cache/webpack) still holding a
+    // reference to a module/asset that no longer exists on disk, which then
+    // gets hashed as undefined regardless of which hash algorithm runs.
+    // Disabling the cross-build persistent cache (in-memory only, scoped to a
+    // single build) removes the possibility of stale references entirely.
+    config.cache = { type: 'memory' }
+
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
       '@': path.resolve(__dirname, 'src'),
