@@ -72,17 +72,27 @@ func generateSlug(name string) string {
 // within the calling workspace misses collisions with every other workspace's
 // forms/tables and lets the INSERT below hit the constraint unrecovered.
 func generateUniqueSlug(baseSlug string) string {
-	var existing models.Table
-	if err := database.DB.Where("slug = ?", baseSlug).First(&existing).Error; err != nil {
+	if !slugExists(baseSlug) {
 		return baseSlug
 	}
 	for counter := 1; counter <= 100; counter++ {
 		candidate := fmt.Sprintf("%s-%d", baseSlug, counter)
-		if err := database.DB.Where("slug = ?", candidate).First(&existing).Error; err != nil {
+		if !slugExists(candidate) {
 			return candidate
 		}
 	}
 	return baseSlug + "-" + uuid.New().String()[:8]
+}
+
+// slugExists uses a struct local to this call, not shared across checks —
+// GORM's First() treats a non-zero primary key already on the destination as
+// part of the query (WHERE ... AND id = <that value>), so reusing one
+// `existing` variable across a loop of First() calls silently ANDs in
+// whichever row the previous iteration happened to find, and every check
+// after the first one falsely reports "available".
+func slugExists(slug string) bool {
+	var existing models.Table
+	return database.DB.Where("slug = ?", slug).First(&existing).Error == nil
 }
 
 // createTableWithUniqueSlug inserts table, regenerating its slug and retrying
