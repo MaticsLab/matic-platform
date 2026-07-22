@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { PublicPortalV2 } from '@/components/ApplicationsHub/Applications/ApplicantPortal/PublicPortalV2'
+import { formCacheTag } from '@/lib/portal/form-cache-tags'
 
 const BASE_URL = process.env.NEXT_PUBLIC_GO_API_URL || 'http://localhost:8080/api/v1'
 import { APP_DOMAIN } from '@/constants/app-domain'
@@ -23,11 +24,15 @@ const toAbsoluteUrl = (url?: string | null) => {
 
 async function getFormMetadata(slug: string, subdomain?: string) {
   try {
-    const endpoint = subdomain 
+    const endpoint = subdomain
       ? `${BASE_URL}/forms/by-subdomain/${subdomain}/${slug}`
       : `${BASE_URL}/forms/by-slug/${slug}`
-    
-    const response = await fetch(endpoint, { cache: 'no-store' })
+
+    // Public form config changes rarely (only on publish) — cache it instead
+    // of hitting the backend on every request. formCacheTag(slug) is
+    // invalidated instantly on publish (see PortalEditor.tsx's handleSave);
+    // the 60s window is just the fallback if that ping is ever missed.
+    const response = await fetch(endpoint, { next: { revalidate: 60, tags: [formCacheTag(slug)] } })
     if (response.ok) {
       return await response.json()
     }
