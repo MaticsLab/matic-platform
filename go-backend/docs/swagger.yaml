@@ -1,0 +1,1775 @@
+basePath: /api/v1
+definitions:
+  handlers.CreateDataTableInput:
+    properties:
+      description:
+        type: string
+      icon:
+        type: string
+      name:
+        type: string
+      settings:
+        additionalProperties: true
+        type: object
+      workspace_id:
+        type: string
+    required:
+    - name
+    - workspace_id
+    type: object
+  handlers.CreateFormInput:
+    properties:
+      description:
+        type: string
+      is_published:
+        type: boolean
+      name:
+        type: string
+      settings:
+        additionalProperties: true
+        type: object
+      workspace_id:
+        type: string
+    required:
+    - name
+    - workspace_id
+    type: object
+  handlers.CreateTableColumnInput:
+    properties:
+      is_primary:
+        description: Maps to is_primary in DB
+        type: boolean
+      is_visible:
+        type: boolean
+      label:
+        description: Display label (defaults to name if not provided)
+        type: string
+      linked_table_id:
+        description: For link columns
+        type: string
+      name:
+        description: TableID is optional in body - we use URL param instead
+        type: string
+      options:
+        additionalProperties: true
+        type: object
+      position:
+        type: integer
+      type:
+        type: string
+      validation:
+        additionalProperties: true
+        type: object
+      width:
+        type: integer
+    required:
+    - name
+    - type
+    type: object
+  handlers.CreateTableRowInput:
+    properties:
+      data:
+        additionalProperties: true
+        type: object
+      position:
+        type: integer
+    required:
+    - data
+    type: object
+  handlers.FieldInput:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/handlers.FieldInput'
+        type: array
+      config:
+        additionalProperties: true
+        description: Additional config like dynamicOptions, sourceField, etc.
+        type: object
+      id:
+        type: string
+      label:
+        type: string
+      options:
+        items:
+          type: string
+        type: array
+      placeholder:
+        type: string
+      position:
+        type: integer
+      required:
+        type: boolean
+      type:
+        type: string
+      validation:
+        additionalProperties: true
+        type: object
+      width:
+        description: Can be string ("full", "half") or number
+    type: object
+  handlers.FormDTO:
+    properties:
+      created_at:
+        type: string
+      custom_slug:
+        type: string
+      description:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/models.Field'
+        type: array
+      id:
+        type: string
+      is_published:
+        type: boolean
+      name:
+        type: string
+      preview_description:
+        type: string
+      preview_image_url:
+        type: string
+      preview_title:
+        description: Preview/Share metadata
+        type: string
+      settings:
+        additionalProperties: true
+        type: object
+      slug:
+        type: string
+      updated_at:
+        type: string
+      view_id:
+        type: string
+      workspace_id:
+        type: string
+    type: object
+  handlers.FormListItemDTO:
+    properties:
+      created_at:
+        type: string
+      custom_slug:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      is_published:
+        type: boolean
+      name:
+        type: string
+      preview_description:
+        type: string
+      preview_image_url:
+        type: string
+      preview_title:
+        type: string
+      slug:
+        type: string
+      submission_count:
+        description: 'Optional: count of submissions'
+        type: integer
+      updated_at:
+        type: string
+      view_id:
+        type: string
+      workspace_id:
+        type: string
+    type: object
+  handlers.PortalFormDTO:
+    properties:
+      created_at:
+        type: string
+      custom_slug:
+        type: string
+      description:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/models.Field'
+        type: array
+      id:
+        type: string
+      is_published:
+        type: boolean
+      name:
+        type: string
+      preview_description:
+        type: string
+      preview_image_url:
+        type: string
+      preview_title:
+        description: Preview/Share metadata
+        type: string
+      settings:
+        additionalProperties: true
+        type: object
+      slug:
+        type: string
+      updated_at:
+        type: string
+      view_id:
+        type: string
+      workspace_id:
+        type: string
+      workspace_name:
+        type: string
+      workspace_subdomain:
+        type: string
+    type: object
+  handlers.SectionInput:
+    properties:
+      blocks:
+        description: Ending section blocks
+        items:
+          additionalProperties: true
+          type: object
+        type: array
+      conditions:
+        items:
+          additionalProperties: true
+          type: object
+        type: array
+      content:
+        description: Cover section content (Novel editor)
+        type: string
+      description:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/handlers.FieldInput'
+        type: array
+      id:
+        type: string
+      sectionType:
+        type: string
+      title:
+        type: string
+    type: object
+  handlers.SubmitFormInput:
+    properties:
+      data:
+        additionalProperties: true
+        type: object
+      email:
+        type: string
+      save_draft:
+        description: If true, don't mark as submitted
+        type: boolean
+    required:
+    - data
+    type: object
+  handlers.UpdateDataTableInput:
+    properties:
+      description:
+        type: string
+      icon:
+        type: string
+      name:
+        type: string
+      settings:
+        additionalProperties: true
+        type: object
+    type: object
+  handlers.UpdateFormCustomSlugInput:
+    properties:
+      custom_slug:
+        description: Can be null to remove custom slug
+        type: string
+    type: object
+  handlers.UpdateFormInput:
+    properties:
+      description:
+        type: string
+      is_published:
+        type: boolean
+      name:
+        type: string
+      preview_description:
+        type: string
+      preview_image_url:
+        type: string
+      preview_title:
+        description: Preview/Share metadata
+        type: string
+      settings:
+        additionalProperties: true
+        type: object
+      slug:
+        type: string
+    type: object
+  handlers.UpdateFormStructureInput:
+    properties:
+      sections:
+        items:
+          $ref: '#/definitions/handlers.SectionInput'
+        type: array
+      settings:
+        additionalProperties: true
+        type: object
+      translations:
+        additionalProperties: true
+        type: object
+    type: object
+  handlers.UpdateTableColumnInput:
+    properties:
+      description:
+        type: string
+      is_primary:
+        type: boolean
+      is_visible:
+        type: boolean
+      label:
+        type: string
+      linked_table_id:
+        type: string
+      name:
+        type: string
+      options:
+        additionalProperties: true
+        type: object
+      placeholder:
+        type: string
+      position:
+        type: integer
+      type:
+        type: string
+      validation:
+        additionalProperties: true
+        type: object
+      width:
+        type: integer
+    type: object
+  handlers.UpdateTableRowInput:
+    properties:
+      change_reason:
+        description: Optional reason for the change
+        type: string
+      data:
+        additionalProperties: true
+        type: object
+      position:
+        type: integer
+    type: object
+  models.Field:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/models.Field'
+        type: array
+      config:
+        description: Instance configuration (merged with registry default_config)
+        items:
+          type: integer
+        type: array
+      created_at:
+        type: string
+      description:
+        description: Field description
+        type: string
+      field_type:
+        allOf:
+        - $ref: '#/definitions/models.FieldTypeRegistry'
+        description: Relationships (populated when preloading)
+      field_type_id:
+        description: References field_type_registry.id
+        type: string
+      formula:
+        description: Calculated field formula
+        type: string
+      formula_dependencies:
+        description: Fields formula depends on
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      is_display_field:
+        description: Use as display in links
+        type: boolean
+      is_primary:
+        description: Primary display field
+        type: boolean
+      is_searchable:
+        description: Include in search
+        type: boolean
+      is_visible:
+        description: Show in table view
+        type: boolean
+      label:
+        description: Display name
+        type: string
+      linked_column_id:
+        description: Display column for link
+        type: string
+      linked_table_id:
+        description: For link fields
+        type: string
+      name:
+        description: Internal key
+        type: string
+      parent_field_id:
+        description: For nested fields (group/repeater children)
+        type: string
+      position:
+        description: Display order
+        type: integer
+      rollup_function:
+        description: Aggregation function for rollups
+        type: string
+      sample_values:
+        description: Cached sample values
+        items:
+          type: integer
+        type: array
+      search_weight:
+        description: Search ranking weight
+        type: number
+      section_id:
+        description: Form section this field belongs to (matches settings.sections[].id)
+        type: string
+      semantic_type:
+        description: name, email, phone, status, date, etc.
+        type: string
+      settings:
+        description: Type-specific settings (legacy)
+        items:
+          type: integer
+        type: array
+      table_id:
+        type: string
+      type:
+        description: text, number, select, link, etc. (legacy, use field_type_id)
+        type: string
+      updated_at:
+        type: string
+      validation:
+        description: Validation rules (legacy)
+        items:
+          type: integer
+        type: array
+      width:
+        description: Column width in pixels
+        type: integer
+    type: object
+  models.FieldTypeRegistry:
+    properties:
+      ai_schema:
+        description: AI Integration
+        items:
+          type: integer
+        type: array
+      category:
+        description: primitive, container, layout, special
+        type: string
+      color:
+        type: string
+      config_schema:
+        items:
+          type: integer
+        type: array
+      created_at:
+        type: string
+      default_config:
+        description: Default settings for new fields
+        items:
+          type: integer
+        type: array
+      default_semantic_type:
+        description: Semantic type mapping
+        type: string
+      description:
+        type: string
+      form_renderer:
+        type: string
+      icon:
+        type: string
+      id:
+        description: '''text'', ''email'', ''repeater'', etc.'
+        type: string
+      input_schema:
+        description: Schema definitions (JSON Schema format)
+        items:
+          type: integer
+        type: array
+      is_container:
+        description: Behavior flags
+        type: boolean
+      is_editable:
+        type: boolean
+      is_filterable:
+        type: boolean
+      is_searchable:
+        type: boolean
+      is_sortable:
+        type: boolean
+      label:
+        type: string
+      require_reason:
+        type: boolean
+      review_renderer:
+        type: string
+      storage_schema:
+        items:
+          type: integer
+        type: array
+      supports_pii:
+        type: boolean
+      table_renderer:
+        description: Rendering hints
+        type: string
+      track_changes:
+        description: Edit tracking settings
+        type: boolean
+      updated_at:
+        type: string
+    type: object
+  models.Row:
+    properties:
+      ba_created_by:
+        description: Better Auth user ID (TEXT)
+        type: string
+      ba_updated_by:
+        description: Better Auth user ID (TEXT)
+        type: string
+      created_at:
+        type: string
+      data:
+        items:
+          type: integer
+        type: array
+      id:
+        type: string
+      is_archived:
+        type: boolean
+      metadata:
+        items:
+          type: integer
+        type: array
+      position:
+        description: bigint in database
+        type: integer
+      stage_group_id:
+        type: string
+      table_id:
+        type: string
+      tags:
+        items:
+          type: integer
+        type: array
+      updated_at:
+        type: string
+    type: object
+  models.Table:
+    properties:
+      ai_settings:
+        description: AI suggestion settings
+        items:
+          type: integer
+        type: array
+      approval_settings:
+        description: Change approval config
+        items:
+          type: integer
+        type: array
+      ba_created_by:
+        description: Better Auth user ID (TEXT)
+        type: string
+      color:
+        type: string
+      columns:
+        description: Relationships
+        items:
+          $ref: '#/definitions/models.Field'
+        type: array
+      created_at:
+        type: string
+      custom_slug:
+        description: Optional custom URL for public portals
+        type: string
+      dashboard_layout:
+        description: Applicant dashboard configuration (builder-defined layout for
+          portal users)
+        items:
+          type: integer
+        type: array
+      description:
+        type: string
+      entity_type:
+        description: person, event, application, etc.
+        type: string
+      history_settings:
+        description: Version history config
+        items:
+          type: integer
+        type: array
+      hub_type:
+        description: activities, applications, data
+        type: string
+      icon:
+        type: string
+      id:
+        type: string
+      import_metadata:
+        items:
+          type: integer
+        type: array
+      import_source:
+        description: Where data was imported from
+        type: string
+      is_archived:
+        type: boolean
+      is_hidden:
+        description: Hide from navigation and overview for all users
+        type: boolean
+      name:
+        type: string
+      preview_description:
+        type: string
+      preview_image_url:
+        type: string
+      preview_title:
+        description: Share preview metadata (for forms/portals)
+        type: string
+      row_count:
+        type: integer
+      rows:
+        items:
+          $ref: '#/definitions/models.Row'
+        type: array
+      settings:
+        items:
+          type: integer
+        type: array
+      slug:
+        type: string
+      updated_at:
+        type: string
+      views:
+        items:
+          $ref: '#/definitions/models.View'
+        type: array
+      workspace_id:
+        type: string
+    type: object
+  models.View:
+    properties:
+      ba_created_by:
+        description: Better Auth user ID (TEXT)
+        type: string
+      config:
+        description: 'For portal: sections, translations, theme'
+        items:
+          type: integer
+        type: array
+      created_at:
+        type: string
+      description:
+        type: string
+      filters:
+        items:
+          type: integer
+        type: array
+      grouping:
+        items:
+          type: integer
+        type: array
+      id:
+        type: string
+      is_locked:
+        type: boolean
+      is_shared:
+        type: boolean
+      name:
+        type: string
+      settings:
+        items:
+          type: integer
+        type: array
+      sorts:
+        items:
+          type: integer
+        type: array
+      table_id:
+        type: string
+      type:
+        description: grid, form, kanban, gallery, calendar, timeline, portal
+        type: string
+      updated_at:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    name: Matic Platform Engineering
+  description: |-
+    Go/Gin backend for the Matic Platform. This spec is generated incrementally via swaggo/swag —
+    only the Tables (data_tables.go) and Forms (forms.go) handler domains are annotated so far.
+    See docs/API_CLIENT_CODEGEN.md for how to extend this to other handler domains.
+  title: Matic Platform API
+  version: "1.0"
+paths:
+  /forms:
+    get:
+      description: Lists all forms (tables with icon "form") in a workspace for an
+        authenticated member.
+      parameters:
+      - description: Workspace ID
+        in: query
+        name: workspace_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.FormDTO'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List forms in a workspace
+      tags:
+      - forms
+    post:
+      consumes:
+      - application/json
+      description: Creates a new form (a data table with icon "form") plus its associated
+        form view.
+      parameters:
+      - description: Form to create
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateFormInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.FormDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a form
+      tags:
+      - forms
+  /forms/{id}:
+    delete:
+      description: Deletes a form and, within a transaction, all of its rows (submissions)
+        and fields.
+      parameters:
+      - description: Form ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a form
+      tags:
+      - forms
+    get:
+      description: Returns a single form (backed by a data table with icon "form")
+        with its fields and publish state.
+      parameters:
+      - description: Form ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.FormDTO'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a form by ID
+      tags:
+      - forms
+    patch:
+      consumes:
+      - application/json
+      description: Partially updates a form's name, description, settings, publish
+        state, or preview metadata.
+      parameters:
+      - description: Form ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateFormInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.FormDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a form
+      tags:
+      - forms
+  /forms/{id}/custom-slug:
+    put:
+      consumes:
+      - application/json
+      description: Sets or clears the custom URL slug used for pretty public portal
+        links.
+      parameters:
+      - description: Form ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New custom slug (null to remove)
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateFormCustomSlugInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.FormDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a form's custom slug
+      tags:
+      - forms
+  /forms/{id}/structure:
+    put:
+      consumes:
+      - application/json
+      description: |-
+        Replaces a form's builder structure — settings, sections (with their fields), and translations —
+        rebuilding the underlying table fields to match.
+      parameters:
+      - description: Form ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New form structure
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateFormStructureInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Replace a form's structure
+      tags:
+      - forms
+  /forms/{id}/submission:
+    get:
+      description: |-
+        Looks up a submission for a form by matching an applicant's email against several known
+        field locations in the row/submission data. Used to resume an in-progress application.
+      parameters:
+      - description: Form ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Applicant email
+        in: query
+        name: email
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a form submission by applicant email
+      tags:
+      - forms
+  /forms/{id}/submissions:
+    get:
+      description: |-
+        Lists submissions for a form. Tries the new form_submissions schema first (raw_data),
+        falling back to the legacy table_rows-backed submissions.
+      parameters:
+      - description: Form ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Include submitter user info
+        in: query
+        name: include_user
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List submissions for a form
+      tags:
+      - forms
+  /forms/{id}/submissions/{submission_id}:
+    delete:
+      description: Permanently deletes a single form submission (row) by its ID.
+      parameters:
+      - description: Form ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Submission ID
+        in: path
+        name: submission_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a form submission
+      tags:
+      - forms
+  /forms/{id}/submit:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new submission (row) for a published form and queues
+        it for semantic embedding.
+      parameters:
+      - description: Form ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Submission data
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.SubmitFormInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Row'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Submit a form
+      tags:
+      - forms
+  /forms/by-slug/{slug}:
+    get:
+      description: Resolves a form by its auto-generated slug, custom_slug, or (if
+        a UUID is passed) its ID.
+      parameters:
+      - description: Form slug, custom slug, or ID
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.FormDTO'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a form by slug
+      tags:
+      - forms
+  /forms/by-subdomain/{subdomain}/{slug}:
+    get:
+      description: |-
+        Resolves a form for pretty public portal URLs of the form {subdomain}.maticapp.com/{slug}.
+        Auto-creates a form view (unpublished) if one doesn't exist yet.
+      parameters:
+      - description: Workspace custom subdomain
+        in: path
+        name: subdomain
+        required: true
+        type: string
+      - description: Form slug, custom slug, or ID
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.PortalFormDTO'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Resolve a form by workspace subdomain + slug
+      tags:
+      - forms
+  /forms/list:
+    get:
+      description: |-
+        Fast endpoint for the Applications Hub — lists forms in a workspace without loading form
+        fields, and includes submission counts merged from legacy and new-schema submissions.
+      parameters:
+      - description: Workspace ID
+        in: query
+        name: workspace_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.FormListItemDTO'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List forms (optimized)
+      tags:
+      - forms
+  /tables:
+    get:
+      description: |-
+        Lists data tables, optionally filtered to a workspace. When workspace_id is supplied, the
+        caller must be an authenticated member of that workspace; results are further restricted
+        to the member's hub_access list when one is configured.
+      parameters:
+      - description: Workspace ID to filter tables by
+        in: query
+        name: workspace_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Table'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List data tables
+      tags:
+      - tables
+    post:
+      consumes:
+      - application/json
+      description: Creates a new data table in a workspace. A unique slug is derived
+        from the name automatically.
+      parameters:
+      - description: Table to create
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateDataTableInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Table'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a data table
+      tags:
+      - tables
+  /tables/{id}:
+    delete:
+      description: Permanently deletes a data table.
+      parameters:
+      - description: Table ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a data table
+      tags:
+      - tables
+    get:
+      description: Gets a single data table by ID, with its visible (non-layout) fields
+        and recent views preloaded.
+      parameters:
+      - description: Table ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Table'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a data table
+      tags:
+      - tables
+    patch:
+      consumes:
+      - application/json
+      description: Partially updates a data table's name, description, icon, or settings.
+      parameters:
+      - description: Table ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateDataTableInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Table'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a data table
+      tags:
+      - tables
+  /tables/{id}/columns:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new column (field) on a table, resolving defaults from
+        the field type registry.
+      parameters:
+      - description: Table ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Column to create
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateTableColumnInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Field'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a table column
+      tags:
+      - tables
+  /tables/{id}/columns/{column_id}:
+    delete:
+      parameters:
+      - description: Table ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Column ID
+        in: path
+        name: column_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a table column
+      tags:
+      - tables
+    patch:
+      consumes:
+      - application/json
+      description: Partially updates a column's metadata and config (width, visibility,
+        validation, etc).
+      parameters:
+      - description: Table ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Column ID
+        in: path
+        name: column_id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateTableColumnInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Field'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a table column
+      tags:
+      - tables
+  /tables/{id}/rows:
+    get:
+      description: Retrieves rows for a table with pagination (default limit 100,
+        max 500).
+      parameters:
+      - description: Table ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Max rows to return (1-500, default 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Row offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List rows for a table
+      tags:
+      - tables
+    post:
+      consumes:
+      - application/json
+      description: Creates a new row in a table and queues it for version history
+        and semantic embedding.
+      parameters:
+      - description: Table ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Row to create
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateTableRowInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Row'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a table row
+      tags:
+      - tables
+  /tables/{id}/rows/{row_id}:
+    delete:
+      parameters:
+      - description: Table ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Row ID
+        in: path
+        name: row_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a table row
+      tags:
+      - tables
+    get:
+      description: Retrieves a single row by ID, scoped to its parent table.
+      parameters:
+      - description: Table ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Row ID
+        in: path
+        name: row_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Row'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a table row
+      tags:
+      - tables
+    patch:
+      consumes:
+      - application/json
+      description: Updates a row's data/position within a transaction, recording a
+        version and field-change diff.
+      parameters:
+      - description: Table ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Row ID
+        in: path
+        name: row_id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateTableRowInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Row'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a table row
+      tags:
+      - tables
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: 'Better Auth session token, sent as "Authorization: Bearer <token>"
+      or via session cookie.'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

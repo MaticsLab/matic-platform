@@ -5,10 +5,13 @@ import (
 	"strings"
 
 	"github.com/Jsanchez767/matic-platform/config"
+	_ "github.com/Jsanchez767/matic-platform/docs" // swaggo-generated OpenAPI spec (swag init)
 	"github.com/Jsanchez767/matic-platform/handlers"
 	"github.com/Jsanchez767/matic-platform/middleware"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func SetupRouter(cfg *config.Config) *gin.Engine {
@@ -81,6 +84,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			},
 		})
 	})
+
+	// Swagger UI + spec, generated via swag init (see docs/API_CLIENT_CODEGEN.md).
+	// Currently only covers the tables and forms handler domains.
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Health check
 	r.GET("/health", func(c *gin.Context) {

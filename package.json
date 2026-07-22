@@ -11,10 +11,20 @@
     "lint": "eslint .",
     "backend": "cd backend && bash run_server.sh",
     "auth:generate": "npx @better-auth/cli generate --config auth/config/main.ts",
+    "generate:api-client": "orval",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
+  },
+  "overrides": {
+    "@stoplight/spectral-core": {
+      "ajv": "8.17.1",
+      "ajv-errors": "3.0.0"
+    },
+    "@stoplight/better-ajv-errors": {
+      "ajv": "8.17.1"
+    }
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.88",
@@ -146,6 +156,7 @@
     "eslint": "^9.39.2",
     "eslint-config-next": "^15.5.21",
     "happy-dom": "^20.6.2",
+    "orval": "^7.13.2",
     "shadcn": "^3.7.0",
     "tsx": "^4.21.0",
     "vitest": "^4.0.17"

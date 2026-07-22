@@ -25,6 +25,15 @@ import (
 // Always use explicit Select() to avoid "column created_by does not exist" errors
 const rowSelectColumns = "id, table_id, data, metadata, is_archived, position, stage_group_id, tags, ba_created_by, ba_updated_by, created_at, updated_at"
 
+// GetForm godoc
+// @Summary      Get a form by ID
+// @Description  Returns a single form (backed by a data table with icon "form") with its fields and publish state.
+// @Tags         forms
+// @Produce      json
+// @Param        id   path      string  true  "Form ID"
+// @Success      200  {object}  FormDTO
+// @Failure      404  {object}  map[string]string
+// @Router       /forms/{id} [get]
 // GetForm returns a single form by ID
 func GetForm(c *gin.Context) {
 	id := c.Param("id")
@@ -97,6 +106,15 @@ func GetForm(c *gin.Context) {
 	c.JSON(http.StatusOK, form)
 }
 
+// GetFormBySlug godoc
+// @Summary      Get a form by slug
+// @Description  Resolves a form by its auto-generated slug, custom_slug, or (if a UUID is passed) its ID.
+// @Tags         forms
+// @Produce      json
+// @Param        slug  path      string  true  "Form slug, custom slug, or ID"
+// @Success      200  {object}  FormDTO
+// @Failure      404  {object}  map[string]string
+// @Router       /forms/by-slug/{slug} [get]
 // GetFormBySlug returns a form by its slug or custom_slug
 // Supports both auto-generated slug and custom_slug
 func GetFormBySlug(c *gin.Context) {
@@ -191,6 +209,17 @@ type FormDTO struct {
 	PreviewImageURL    *string `json:"preview_image_url,omitempty"`
 }
 
+// ListForms godoc
+// @Summary      List forms in a workspace
+// @Description  Lists all forms (tables with icon "form") in a workspace for an authenticated member.
+// @Tags         forms
+// @Produce      json
+// @Param        workspace_id  query     string  true  "Workspace ID"
+// @Success      200  {array}   FormDTO
+// @Failure      400  {object}  map[string]string
+// @Failure      401  {object}  map[string]string
+// @Failure      403  {object}  map[string]string
+// @Router       /forms [get]
 func ListForms(c *gin.Context) {
 	// List all forms (tables) in a workspace
 	workspaceID := c.Query("workspace_id")
@@ -313,6 +342,19 @@ type FormListItemDTO struct {
 	SubmissionCount    int        `json:"submission_count,omitempty"` // Optional: count of submissions
 }
 
+// ListFormsOptimized godoc
+// @Summary      List forms (optimized)
+// @Description  Fast endpoint for the Applications Hub — lists forms in a workspace without loading form
+// @Description  fields, and includes submission counts merged from legacy and new-schema submissions.
+// @Tags         forms
+// @Produce      json
+// @Param        workspace_id  query     string  true  "Workspace ID"
+// @Success      200  {array}   FormListItemDTO
+// @Failure      400  {object}  map[string]string
+// @Failure      401  {object}  map[string]string
+// @Failure      403  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /forms/list [get]
 // ListFormsOptimized - Fast endpoint for Applications Hub
 // Returns only essential fields without loading all form fields
 func ListFormsOptimized(c *gin.Context) {
@@ -496,6 +538,17 @@ type CreateFormInput struct {
 	IsPublished bool                   `json:"is_published"`
 }
 
+// CreateForm godoc
+// @Summary      Create a form
+// @Description  Creates a new form (a data table with icon "form") plus its associated form view.
+// @Tags         forms
+// @Accept       json
+// @Produce      json
+// @Param        input  body      CreateFormInput  true  "Form to create"
+// @Success      201  {object}  FormDTO
+// @Failure      400  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /forms [post]
 func CreateForm(c *gin.Context) {
 	var input CreateFormInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -565,6 +618,19 @@ type UpdateFormInput struct {
 	PreviewImageURL    *string `json:"preview_image_url"`
 }
 
+// UpdateForm godoc
+// @Summary      Update a form
+// @Description  Partially updates a form's name, description, settings, publish state, or preview metadata.
+// @Tags         forms
+// @Accept       json
+// @Produce      json
+// @Param        id     path      string           true  "Form ID"
+// @Param        input  body      UpdateFormInput  true  "Fields to update"
+// @Success      200  {object}  FormDTO
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /forms/{id} [patch]
 func UpdateForm(c *gin.Context) {
 	id := c.Param("id")
 
@@ -667,6 +733,15 @@ func UpdateForm(c *gin.Context) {
 	c.JSON(http.StatusOK, form)
 }
 
+// DeleteForm godoc
+// @Summary      Delete a form
+// @Description  Deletes a form and, within a transaction, all of its rows (submissions) and fields.
+// @Tags         forms
+// @Param        id   path  string  true  "Form ID"
+// @Success      204  "No Content"
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /forms/{id} [delete]
 func DeleteForm(c *gin.Context) {
 	id := c.Param("id")
 
@@ -745,6 +820,20 @@ func isValidCustomSlug(slug string) bool {
 	return true
 }
 
+// UpdateFormCustomSlug godoc
+// @Summary      Update a form's custom slug
+// @Description  Sets or clears the custom URL slug used for pretty public portal links.
+// @Tags         forms
+// @Accept       json
+// @Produce      json
+// @Param        id     path      string                      true  "Form ID"
+// @Param        input  body      UpdateFormCustomSlugInput   true  "New custom slug (null to remove)"
+// @Success      200  {object}  FormDTO
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      409  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /forms/{id}/custom-slug [put]
 // UpdateFormCustomSlug updates the custom URL slug for a form/portal
 func UpdateFormCustomSlug(c *gin.Context) {
 	id := c.Param("id")
@@ -830,6 +919,17 @@ type PortalFormDTO struct {
 	WorkspaceSubdomain *string `json:"workspace_subdomain,omitempty"`
 }
 
+// GetFormBySubdomainSlug godoc
+// @Summary      Resolve a form by workspace subdomain + slug
+// @Description  Resolves a form for pretty public portal URLs of the form {subdomain}.maticapp.com/{slug}.
+// @Description  Auto-creates a form view (unpublished) if one doesn't exist yet.
+// @Tags         forms
+// @Produce      json
+// @Param        subdomain  path      string  true  "Workspace custom subdomain"
+// @Param        slug       path      string  true  "Form slug, custom slug, or ID"
+// @Success      200  {object}  PortalFormDTO
+// @Failure      404  {object}  map[string]string
+// @Router       /forms/by-subdomain/{subdomain}/{slug} [get]
 // GetFormBySubdomainSlug resolves a form using subdomain + slug combination
 // This supports pretty URLs like: {subdomain}.maticapp.com/{slug}
 func GetFormBySubdomainSlug(c *gin.Context) {
@@ -926,6 +1026,17 @@ found:
 
 // Form Submission Handlers
 
+// ListFormSubmissions godoc
+// @Summary      List submissions for a form
+// @Description  Lists submissions for a form. Tries the new form_submissions schema first (raw_data),
+// @Description  falling back to the legacy table_rows-backed submissions.
+// @Tags         forms
+// @Produce      json
+// @Param        id            path      string  true   "Form ID"
+// @Param        include_user  query     bool    false  "Include submitter user info"
+// @Success      200  {array}   map[string]interface{}
+// @Failure      500  {object}  map[string]string
+// @Router       /forms/{id}/submissions [get]
 func ListFormSubmissions(c *gin.Context) {
 	formID := c.Param("id")
 	includeUser := c.Query("include_user") == "true"
@@ -1489,6 +1600,17 @@ func listFormSubmissionsNewSchema(c *gin.Context, form models.Form, includeUser 
 	c.JSON(http.StatusOK, results)
 }
 
+// DeleteFormSubmission godoc
+// @Summary      Delete a form submission
+// @Description  Permanently deletes a single form submission (row) by its ID.
+// @Tags         forms
+// @Produce      json
+// @Param        id             path  string  true  "Form ID"
+// @Param        submission_id  path  string  true  "Submission ID"
+// @Success      200  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /forms/{id}/submissions/{submission_id} [delete]
 // DeleteFormSubmission deletes a single form submission (row) by its ID
 func DeleteFormSubmission(c *gin.Context) {
 	formID := c.Param("id")
@@ -1587,6 +1709,19 @@ type SubmitFormInput struct {
 	SaveDraft bool                   `json:"save_draft"` // If true, don't mark as submitted
 }
 
+// SubmitForm godoc
+// @Summary      Submit a form
+// @Description  Creates a new submission (row) for a published form and queues it for semantic embedding.
+// @Tags         forms
+// @Accept       json
+// @Produce      json
+// @Param        id     path      string           true  "Form ID"
+// @Param        input  body      SubmitFormInput  true  "Submission data"
+// @Success      201  {object}  models.Row
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /forms/{id}/submit [post]
 func SubmitForm(c *gin.Context) {
 	formID := c.Param("id")
 	fmt.Printf("📝 SubmitForm: incoming submission for form/table %s\n", formID)
@@ -2197,6 +2332,20 @@ type UpdateFormStructureInput struct {
 	Translations map[string]interface{} `json:"translations"`
 }
 
+// UpdateFormStructure godoc
+// @Summary      Replace a form's structure
+// @Description  Replaces a form's builder structure — settings, sections (with their fields), and translations —
+// @Description  rebuilding the underlying table fields to match.
+// @Tags         forms
+// @Accept       json
+// @Produce      json
+// @Param        id     path      string                     true  "Form ID"
+// @Param        input  body      UpdateFormStructureInput   true  "New form structure"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /forms/{id}/structure [put]
 func UpdateFormStructure(c *gin.Context) {
 	id := c.Param("id")
 
@@ -2396,6 +2545,18 @@ func UpdateFormStructure(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Form structure updated", "fields_count": len(newFields)})
 }
 
+// GetFormSubmission godoc
+// @Summary      Get a form submission by applicant email
+// @Description  Looks up a submission for a form by matching an applicant's email against several known
+// @Description  field locations in the row/submission data. Used to resume an in-progress application.
+// @Tags         forms
+// @Produce      json
+// @Param        id     path      string  true  "Form ID"
+// @Param        email  query     string  true  "Applicant email"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Router       /forms/{id}/submission [get]
 func GetFormSubmission(c *gin.Context) {
 	formID := c.Param("id")
 	email := c.Query("email")

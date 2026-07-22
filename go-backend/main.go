@@ -2,6 +2,19 @@ package main
 
 // Portal submission routes updated - force rebuild 2026-02-12
 
+// @title Matic Platform API
+// @version 1.0
+// @description Go/Gin backend for the Matic Platform. This spec is generated incrementally via swaggo/swag —
+// @description only the Tables (data_tables.go) and Forms (forms.go) handler domains are annotated so far.
+// @description See docs/API_CLIENT_CODEGEN.md for how to extend this to other handler domains.
+// @contact.name Matic Platform Engineering
+// @host localhost:8080
+// @BasePath /api/v1
+// @schemes http https
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Better Auth session token, sent as "Authorization: Bearer <token>" or via session cookie.
 import (
 	"context"
 	"log"

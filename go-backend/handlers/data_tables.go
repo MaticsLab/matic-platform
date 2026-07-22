@@ -17,6 +17,20 @@ import (
 
 // Data Table Handlers
 
+// ListDataTables godoc
+// @Summary      List data tables
+// @Description  Lists data tables, optionally filtered to a workspace. When workspace_id is supplied, the
+// @Description  caller must be an authenticated member of that workspace; results are further restricted
+// @Description  to the member's hub_access list when one is configured.
+// @Tags         tables
+// @Produce      json
+// @Param        workspace_id  query     string  false  "Workspace ID to filter tables by"
+// @Success      200  {array}   models.Table
+// @Failure      400  {object}  map[string]string
+// @Failure      401  {object}  map[string]string
+// @Failure      403  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /tables [get]
 func ListDataTables(c *gin.Context) {
 	workspaceID := c.Query("workspace_id")
 
@@ -71,6 +85,15 @@ func ListDataTables(c *gin.Context) {
 	c.JSON(http.StatusOK, tables)
 }
 
+// GetDataTable godoc
+// @Summary      Get a data table
+// @Description  Gets a single data table by ID, with its visible (non-layout) fields and recent views preloaded.
+// @Tags         tables
+// @Produce      json
+// @Param        id   path      string  true  "Table ID"
+// @Success      200  {object}  models.Table
+// @Failure      404  {object}  map[string]string
+// @Router       /tables/{id} [get]
 func GetDataTable(c *gin.Context) {
 	id := c.Param("id")
 
@@ -137,6 +160,18 @@ type CreateDataTableInput struct {
 	Settings    map[string]interface{} `json:"settings"`
 }
 
+// CreateDataTable godoc
+// @Summary      Create a data table
+// @Description  Creates a new data table in a workspace. A unique slug is derived from the name automatically.
+// @Tags         tables
+// @Accept       json
+// @Produce      json
+// @Param        input  body      CreateDataTableInput  true  "Table to create"
+// @Success      201  {object}  models.Table
+// @Failure      400  {object}  map[string]string
+// @Failure      401  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /tables [post]
 func CreateDataTable(c *gin.Context) {
 	var input CreateDataTableInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -183,6 +218,19 @@ type UpdateDataTableInput struct {
 	Settings    *map[string]interface{} `json:"settings"`
 }
 
+// UpdateDataTable godoc
+// @Summary      Update a data table
+// @Description  Partially updates a data table's name, description, icon, or settings.
+// @Tags         tables
+// @Accept       json
+// @Produce      json
+// @Param        id     path      string                 true  "Table ID"
+// @Param        input  body      UpdateDataTableInput   true  "Fields to update"
+// @Success      200  {object}  models.Table
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /tables/{id} [patch]
 func UpdateDataTable(c *gin.Context) {
 	id := c.Param("id")
 
@@ -219,6 +267,15 @@ func UpdateDataTable(c *gin.Context) {
 	c.JSON(http.StatusOK, table)
 }
 
+// DeleteDataTable godoc
+// @Summary      Delete a data table
+// @Description  Permanently deletes a data table.
+// @Tags         tables
+// @Param        id   path  string  true  "Table ID"
+// @Success      204  "No Content"
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /tables/{id} [delete]
 func DeleteDataTable(c *gin.Context) {
 	id := c.Param("id")
 
@@ -238,6 +295,17 @@ func DeleteDataTable(c *gin.Context) {
 
 // Table Row Handlers
 
+// ListTableRows godoc
+// @Summary      List rows for a table
+// @Description  Retrieves rows for a table with pagination (default limit 100, max 500).
+// @Tags         tables
+// @Produce      json
+// @Param        id      path      string  true   "Table ID"
+// @Param        limit   query     int     false  "Max rows to return (1-500, default 100)"
+// @Param        offset  query     int     false  "Row offset for pagination"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]string
+// @Router       /tables/{id}/rows [get]
 // ListTableRows retrieves all rows for a table with preloaded relationships
 // Optimized to prevent N+1 queries by preloading related data
 func ListTableRows(c *gin.Context) {
@@ -288,6 +356,18 @@ func ListTableRows(c *gin.Context) {
 	})
 }
 
+// GetTableRow godoc
+// @Summary      Get a table row
+// @Description  Retrieves a single row by ID, scoped to its parent table.
+// @Tags         tables
+// @Produce      json
+// @Param        id      path      string  true  "Table ID"
+// @Param        row_id  path      string  true  "Row ID"
+// @Success      200  {object}  models.Row
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /tables/{id}/rows/{row_id} [get]
 // GetTableRow retrieves a single row by ID
 // GET /api/v1/tables/:id/rows/:row_id
 func GetTableRow(c *gin.Context) {
@@ -325,6 +405,20 @@ type CreateTableRowInput struct {
 	Position int64                  `json:"position"`
 }
 
+// CreateTableRow godoc
+// @Summary      Create a table row
+// @Description  Creates a new row in a table and queues it for version history and semantic embedding.
+// @Tags         tables
+// @Accept       json
+// @Produce      json
+// @Param        id     path      string                true  "Table ID"
+// @Param        input  body      CreateTableRowInput   true  "Row to create"
+// @Success      201  {object}  models.Row
+// @Failure      400  {object}  map[string]string
+// @Failure      401  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /tables/{id}/rows [post]
 func CreateTableRow(c *gin.Context) {
 	tableID := c.Param("id")
 
@@ -401,6 +495,20 @@ type UpdateTableRowInput struct {
 	ChangeReason string                  `json:"change_reason"` // Optional reason for the change
 }
 
+// UpdateTableRow godoc
+// @Summary      Update a table row
+// @Description  Updates a row's data/position within a transaction, recording a version and field-change diff.
+// @Tags         tables
+// @Accept       json
+// @Produce      json
+// @Param        id      path      string                true  "Table ID"
+// @Param        row_id  path      string                true  "Row ID"
+// @Param        input   body      UpdateTableRowInput   true  "Fields to update"
+// @Success      200  {object}  models.Row
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /tables/{id}/rows/{row_id} [patch]
 // UpdateTableRow updates a row with full version history tracking
 // Follows the row-edit-flow spec: transaction-wrapped update with diff computation
 func UpdateTableRow(c *gin.Context) {
@@ -554,6 +662,15 @@ func UpdateTableRow(c *gin.Context) {
 	c.JSON(http.StatusOK, row)
 }
 
+// DeleteTableRow godoc
+// @Summary      Delete a table row
+// @Tags         tables
+// @Param        id      path  string  true  "Table ID"
+// @Param        row_id  path  string  true  "Row ID"
+// @Success      204  "No Content"
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /tables/{id}/rows/{row_id} [delete]
 func DeleteTableRow(c *gin.Context) {
 	tableID := c.Param("id")
 	rowID := c.Param("row_id")
@@ -588,6 +705,19 @@ type CreateTableColumnInput struct {
 	Validation    map[string]interface{} `json:"validation"`
 }
 
+// CreateTableColumn godoc
+// @Summary      Create a table column
+// @Description  Creates a new column (field) on a table, resolving defaults from the field type registry.
+// @Tags         tables
+// @Accept       json
+// @Produce      json
+// @Param        id     path      string                   true  "Table ID"
+// @Param        input  body      CreateTableColumnInput   true  "Column to create"
+// @Success      201  {object}  models.Field
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /tables/{id}/columns [post]
 func CreateTableColumn(c *gin.Context) {
 	tableID := c.Param("id")
 
@@ -696,6 +826,20 @@ type UpdateTableColumnInput struct {
 	Placeholder   *string                 `json:"placeholder"`
 }
 
+// UpdateTableColumn godoc
+// @Summary      Update a table column
+// @Description  Partially updates a column's metadata and config (width, visibility, validation, etc).
+// @Tags         tables
+// @Accept       json
+// @Produce      json
+// @Param        id         path      string                   true  "Table ID"
+// @Param        column_id  path      string                   true  "Column ID"
+// @Param        input      body      UpdateTableColumnInput   true  "Fields to update"
+// @Success      200  {object}  models.Field
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /tables/{id}/columns/{column_id} [patch]
 func UpdateTableColumn(c *gin.Context) {
 	tableID := c.Param("id")
 	columnID := c.Param("column_id")
@@ -769,6 +913,15 @@ func UpdateTableColumn(c *gin.Context) {
 	c.JSON(http.StatusOK, field)
 }
 
+// DeleteTableColumn godoc
+// @Summary      Delete a table column
+// @Tags         tables
+// @Param        id         path  string  true  "Table ID"
+// @Param        column_id  path  string  true  "Column ID"
+// @Success      204  "No Content"
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /tables/{id}/columns/{column_id} [delete]
 func DeleteTableColumn(c *gin.Context) {
 	tableID := c.Param("id")
 	columnID := c.Param("column_id")
