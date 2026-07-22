@@ -51,6 +51,23 @@ export interface WorkspaceUpdate {
 export type MemberRole = 'owner' | 'admin' | 'editor' | 'viewer'
 export type MemberStatus = 'pending' | 'active' | 'declined' | 'expired'
 
+// Shape returned by GET /workspaces/:id/members-with-auth — joins workspace_members
+// (AppDB) with the Better Auth user record (AuthDB) server-side, since these live in
+// separate physical databases.
+export interface WorkspaceMemberWithAuth {
+  id: string
+  workspace_id: string
+  ba_user_id: string | null
+  role: MemberRole
+  created_at: string
+  updated_at: string
+  user_name: string | null
+  user_email: string
+  user_image?: string | null
+  user_email_verified: boolean
+  user_created_at: string
+}
+
 export interface WorkspaceMember {
   id: string
   workspace_id: string

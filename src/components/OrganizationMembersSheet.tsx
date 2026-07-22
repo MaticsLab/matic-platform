@@ -24,7 +24,7 @@ import { Badge } from '@/ui-components/badge'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { LoadingSwap } from '@/components/ui/loading-swap'
-import { BetterAuthActionButton } from '@/components/auth/better-auth-action-button'
+import { ActionButton } from '@/components/ui/action-button'
 import {
   Select,
   SelectContent,
@@ -50,23 +50,10 @@ import {
   FormMessage,
 } from '@/ui-components/form'
 import { UserPlus, Loader2 } from 'lucide-react'
-import { organizationAPI, useSession } from '@/auth/client/main'
+import { useSession } from '@/auth/client/main'
+import { membersClient, invitationsClient } from '@/lib/api/invitations-client'
+import type { WorkspaceMemberWithAuth, WorkspaceInvitation, MemberRole } from '@/types/workspaces'
 import { toast } from 'sonner'
-
-interface Member {
-  id: string
-  userId: string
-  role: 'owner' | 'admin' | 'member'
-  user: { id: string; name: string; email: string; image?: string | null }
-}
-
-interface Invitation {
-  id: string
-  email: string
-  role: string
-  status: string
-  expiresAt: Date
-}
 
 interface OrganizationMembersSheetProps {
   isOpen: boolean
@@ -78,13 +65,16 @@ interface OrganizationMembersSheetProps {
 const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
   owner: 'default',
   admin: 'secondary',
-  member: 'outline',
+  editor: 'outline',
+  viewer: 'outline',
 }
+
+const ASSIGNABLE_ROLES: MemberRole[] = ['admin', 'editor', 'viewer']
 
 export function OrganizationMembersSheet({ isOpen, onClose, workspaceId, workspaceName }: OrganizationMembersSheetProps) {
   const { data: session } = useSession()
-  const [members, setMembers] = useState<Member[]>([])
-  const [invitations, setInvitations] = useState<Invitation[]>([])
+  const [members, setMembers] = useState<WorkspaceMemberWithAuth[]>([])
+  const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([])
   const [loading, setLoading] = useState(true)
   const [inviteOpen, setInviteOpen] = useState(false)
 
@@ -93,13 +83,13 @@ export function OrganizationMembersSheet({ isOpen, onClose, workspaceId, workspa
     setLoading(true)
     try {
       const [membersRes, invitationsRes] = await Promise.all([
-        organizationAPI.listMembers({ query: { organizationId: workspaceId } }),
-        organizationAPI.listInvitations({ query: { organizationId: workspaceId } }),
+        membersClient.listWithAuth(workspaceId),
+        invitationsClient.listForWorkspace(workspaceId),
       ])
-      setMembers((membersRes.data?.members as Member[]) ?? [])
-      setInvitations((invitationsRes.data as Invitation[]) ?? [])
+      setMembers(membersRes ?? [])
+      setInvitations(invitationsRes ?? [])
     } catch (error) {
-      console.error('Failed to load organization data:', error)
+      console.error('Failed to load workspace members:', error)
       toast.error('Failed to load members')
     } finally {
       setLoading(false)
@@ -150,62 +140,63 @@ export function OrganizationMembersSheet({ isOpen, onClose, workspaceId, workspa
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {members.map((member) => (
-                      <TableRow key={member.id}>
-                        <TableCell>{member.user.name}</TableCell>
-                        <TableCell>{member.user.email}</TableCell>
-                        <TableCell>
-                          {member.role === 'owner' ? (
-                            <Badge variant={roleBadgeVariant.owner}>owner</Badge>
-                          ) : (
-                            <Select
-                              value={member.role}
-                              onValueChange={async (role) => {
-                                const result = await organizationAPI.updateMemberRole({
-                                  organizationId: workspaceId,
-                                  memberId: member.id,
-                                  role: role as 'admin' | 'member',
-                                })
-                                if (result.error) {
-                                  toast.error(result.error.message || 'Failed to update role')
-                                  return
-                                }
-                                loadData()
-                              }}
-                            >
-                              <SelectTrigger className="w-28">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="admin">admin</SelectItem>
-                                <SelectItem value="member">member</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {member.userId !== session?.user?.id && member.role !== 'owner' && (
-                            <BetterAuthActionButton
-                              variant="ghost"
-                              size="sm"
-                              requireAreYouSure
-                              areYouSureDescription={`Remove ${member.user.name} from ${workspaceName}?`}
-                              successMessage="Member removed"
-                              action={async () => {
-                                const result = await organizationAPI.removeMember({
-                                  organizationId: workspaceId,
-                                  memberIdOrEmail: member.id,
-                                })
-                                loadData()
-                                return result
-                              }}
-                            >
-                              Remove
-                            </BetterAuthActionButton>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {members.map((member) => {
+                      const isSelf = !!session?.user?.id && member.ba_user_id === session.user.id
+                      return (
+                        <TableRow key={member.id}>
+                          <TableCell>{member.user_name || 'Unnamed'}</TableCell>
+                          <TableCell>{member.user_email}</TableCell>
+                          <TableCell>
+                            {member.role === 'owner' ? (
+                              <Badge variant={roleBadgeVariant.owner}>owner</Badge>
+                            ) : (
+                              <Select
+                                value={member.role}
+                                onValueChange={async (role) => {
+                                  try {
+                                    await membersClient.update(member.id, { role: role as MemberRole })
+                                    await loadData()
+                                  } catch (error: any) {
+                                    toast.error(error?.message || 'Failed to update role')
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="w-28">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ASSIGNABLE_ROLES.map((role) => (
+                                    <SelectItem key={role} value={role}>{role}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {!isSelf && member.role !== 'owner' && (
+                              <ActionButton
+                                variant="ghost"
+                                size="sm"
+                                requireAreYouSure
+                                areYouSureDescription={`Remove ${member.user_name || member.user_email} from ${workspaceName}?`}
+                                successMessage="Member removed"
+                                action={async () => {
+                                  try {
+                                    await membersClient.remove(member.id)
+                                    await loadData()
+                                    return { error: false }
+                                  } catch (error: any) {
+                                    return { error: true, message: error?.message || 'Failed to remove member' }
+                                  }
+                                }}
+                              >
+                                Remove
+                              </ActionButton>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </TabsContent>
@@ -235,20 +226,24 @@ export function OrganizationMembersSheet({ isOpen, onClose, workspaceId, workspa
                         <TableCell>
                           <Badge variant="outline">{invitation.role}</Badge>
                         </TableCell>
-                        <TableCell>{new Date(invitation.expiresAt).toLocaleDateString()}</TableCell>
+                        <TableCell>{new Date(invitation.expires_at).toLocaleDateString()}</TableCell>
                         <TableCell className="text-right">
-                          <BetterAuthActionButton
+                          <ActionButton
                             variant="ghost"
                             size="sm"
                             successMessage="Invitation cancelled"
                             action={async () => {
-                              const result = await organizationAPI.cancelInvitation({ invitationId: invitation.id })
-                              loadData()
-                              return result
+                              try {
+                                await invitationsClient.revoke(invitation.id)
+                                await loadData()
+                                return { error: false }
+                              } catch (error: any) {
+                                return { error: true, message: error?.message || 'Failed to cancel invitation' }
+                              }
                             }}
                           >
                             Cancel
-                          </BetterAuthActionButton>
+                          </ActionButton>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -272,7 +267,7 @@ export function OrganizationMembersSheet({ isOpen, onClose, workspaceId, workspa
 
 const inviteSchema = z.object({
   email: z.string().email('Please enter a valid email'),
-  role: z.enum(['member', 'admin']),
+  role: z.enum(['editor', 'viewer', 'admin']),
 })
 
 type InviteForm = z.infer<typeof inviteSchema>
@@ -290,24 +285,20 @@ function InviteMemberDialog({
 }) {
   const form = useForm<InviteForm>({
     resolver: zodResolver(inviteSchema),
-    defaultValues: { email: '', role: 'member' },
+    defaultValues: { email: '', role: 'editor' },
   })
   const { isSubmitting } = form.formState
 
   async function handleSubmit(data: InviteForm) {
-    const result = await organizationAPI.inviteMember({
-      organizationId: workspaceId,
-      email: data.email,
-      role: data.role,
-    })
-    if (result.error) {
-      toast.error(result.error.message || 'Failed to invite member')
-      return
+    try {
+      await invitationsClient.createForWorkspace(workspaceId, { email: data.email, role: data.role })
+      toast.success('Invitation sent')
+      form.reset()
+      onOpenChange(false)
+      onInvited()
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to invite member')
     }
-    toast.success('Invitation sent')
-    form.reset()
-    onOpenChange(false)
-    onInvited()
   }
 
   return (
@@ -315,12 +306,12 @@ function InviteMemberDialog({
       <DialogTrigger asChild>
         <Button>
           <UserPlus className="h-4 w-4 mr-2" />
-          Invite Member
+          Invite member
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Invite Member</DialogTitle>
+          <DialogTitle>Invite member</DialogTitle>
           <DialogDescription>Send an invitation to join this workspace.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -351,8 +342,9 @@ function InviteMemberDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
+                      {ASSIGNABLE_ROLES.map((role) => (
+                        <SelectItem key={role} value={role}>{role}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

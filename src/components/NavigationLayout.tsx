@@ -184,7 +184,7 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
         <OrganizationMembersSheet
           isOpen={showMembersSheet}
           onClose={() => setShowMembersSheet(false)}
-          workspaceId={(currentWorkspace as any).ba_organization_id || currentWorkspace.id}
+          workspaceId={currentWorkspace.id}
           workspaceName={currentWorkspace.name}
         />
       )}

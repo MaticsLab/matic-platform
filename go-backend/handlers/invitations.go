@@ -139,7 +139,7 @@ func CreateInvitation(c *gin.Context) {
 		Status:          "pending",
 		InvitedEmail:    req.Email,
 		BAInvitedBy:     &baInviterID, // Better Auth user ID (TEXT)
-		InviteToken:     token,
+		InviteToken:     &token,
 		InviteExpiresAt: &expiresAt,
 		InvitedAt:       &invitedAt,
 		HubAccess:       req.HubAccess,
@@ -293,7 +293,7 @@ func AcceptInvitation(c *gin.Context) {
 	pendingMember.UserID = acceptingUserID      // Legacy UUID (if available)
 	pendingMember.BAUserID = &baAcceptingUserID // Better Auth user ID (TEXT)
 	pendingMember.Status = "active"
-	pendingMember.InviteToken = "" // Clear the token
+	pendingMember.InviteToken = nil // Clear the token
 	pendingMember.AcceptedAt = &now
 
 	if err := database.DB.Save(&pendingMember).Error; err != nil {
@@ -409,7 +409,7 @@ func ResendInvitation(c *gin.Context) {
 	}
 
 	newExpiresAt := time.Now().Add(7 * 24 * time.Hour)
-	pendingMember.InviteToken = newToken
+	pendingMember.InviteToken = &newToken
 	pendingMember.InviteExpiresAt = &newExpiresAt
 
 	if err := database.DB.Save(&pendingMember).Error; err != nil {
@@ -443,7 +443,7 @@ func DeclineInvitation(c *gin.Context) {
 
 	// Update status to declined
 	pendingMember.Status = "declined"
-	pendingMember.InviteToken = "" // Clear the token
+	pendingMember.InviteToken = nil // Clear the token
 
 	if err := database.DB.Save(&pendingMember).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decline invitation"})

@@ -113,7 +113,12 @@ type WorkspaceMember struct {
 	Status          string     `gorm:"type:varchar(20);default:'active'" json:"status"` // pending, active, declined, expired
 	InvitedEmail    string     `gorm:"index" json:"invited_email,omitempty"`            // Email for pending invites
 	BAInvitedBy     *string    `gorm:"type:text;index" json:"ba_invited_by,omitempty"`  // Better Auth user ID (TEXT)
-	InviteToken     string     `gorm:"uniqueIndex" json:"invite_token,omitempty"`
+	// Pointer, not string: GORM sends Go's zero-value ("") for a plain string when
+	// unset (e.g. for an owner row, which was never "invited"), and a uniqueIndex
+	// treats that empty string as a real, colliding value — only the very first
+	// such row in the whole table would ever insert successfully. A nil pointer
+	// correctly serializes to SQL NULL, which unique indexes exempt from collisions.
+	InviteToken     *string    `gorm:"uniqueIndex" json:"invite_token,omitempty"`
 	InviteExpiresAt *time.Time `json:"invite_expires_at,omitempty"`
 	InvitedAt       *time.Time `json:"invited_at,omitempty"`
 	AcceptedAt      *time.Time `json:"accepted_at,omitempty"`

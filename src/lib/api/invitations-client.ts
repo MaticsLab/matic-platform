@@ -7,6 +7,7 @@
 import { goFetch } from './go-client'
 import type {
   WorkspaceMember,
+  WorkspaceMemberWithAuth,
   WorkspaceInvitation,
   CreateInvitationInput,
   UpdateMemberInput,
@@ -27,10 +28,33 @@ export async function listInvitations(workspaceId: string): Promise<WorkspaceInv
 }
 
 /**
+ * List invitations for a workspace via the nested /workspaces/:id/invitations route
+ * (GetWorkspaceInvitations — a thin wrapper around the same handler as listInvitations,
+ * just scoped by URL path instead of a query param).
+ */
+export async function getWorkspaceInvitations(workspaceId: string): Promise<WorkspaceInvitation[]> {
+  return goFetch<WorkspaceInvitation[]>(`/workspaces/${workspaceId}/invitations`)
+}
+
+/**
  * Create a new invitation
  */
 export async function createInvitation(input: CreateInvitationInput): Promise<WorkspaceInvitation> {
   return goFetch<WorkspaceInvitation>('/invitations', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/**
+ * Create a new invitation via the nested /workspaces/:id/invitations route
+ * (CreateWorkspaceInvitation — injects workspace_id from the URL, so it's omitted here).
+ */
+export async function createWorkspaceInvitation(
+  workspaceId: string,
+  input: Omit<CreateInvitationInput, 'workspace_id'>
+): Promise<WorkspaceInvitation> {
+  return goFetch<WorkspaceInvitation>(`/workspaces/${workspaceId}/invitations`, {
     method: 'POST',
     body: JSON.stringify(input),
   })
@@ -97,6 +121,16 @@ export async function listWorkspaceMembers(workspaceId: string): Promise<Workspa
 }
 
 /**
+ * List workspace members joined with their Better Auth user record (name, email,
+ * image) via the nested /workspaces/:id/members-with-auth route. Excludes
+ * applicant-type users. Prefer this over listWorkspaceMembers for any UI that
+ * displays member name/email.
+ */
+export async function getWorkspaceMembersWithAuth(workspaceId: string): Promise<WorkspaceMemberWithAuth[]> {
+  return goFetch<WorkspaceMemberWithAuth[]>(`/workspaces/${workspaceId}/members-with-auth`)
+}
+
+/**
  * Update a workspace member's role or hub access
  */
 export async function updateWorkspaceMember(
@@ -125,7 +159,9 @@ export async function removeWorkspaceMember(memberId: string): Promise<void> {
 export const invitationsClient = {
   // Invitations
   list: listInvitations,
+  listForWorkspace: getWorkspaceInvitations,
   create: createInvitation,
+  createForWorkspace: createWorkspaceInvitation,
   revoke: revokeInvitation,
   resend: resendInvitation,
   getByToken: getInvitationByToken,
@@ -135,6 +171,7 @@ export const invitationsClient = {
 
 export const membersClient = {
   list: listWorkspaceMembers,
+  listWithAuth: getWorkspaceMembersWithAuth,
   update: updateWorkspaceMember,
   remove: removeWorkspaceMember,
 }
