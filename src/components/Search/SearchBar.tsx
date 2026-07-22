@@ -106,7 +106,7 @@ export function SearchBar({ workspaceId, workspaceSlug, onExpandToPanel }: Searc
         icon: Plus,
         type: 'action',
         category: 'Quick Actions',
-        action: () => navigateTo(`/workspace/${workspaceSlug}/applications`)
+        action: () => navigateTo(`/workspace/${workspaceSlug}`)
       },
       {
         id: 'nav-applications',
@@ -115,7 +115,7 @@ export function SearchBar({ workspaceId, workspaceSlug, onExpandToPanel }: Searc
         icon: FileText,
         type: 'navigation',
         category: 'Navigate',
-        action: () => navigateTo(`/workspace/${workspaceSlug}/applications`)
+        action: () => navigateTo(`/workspace/${workspaceSlug}`)
       }
     ]
   }, [workspaceSlug, navigateTo])
@@ -170,7 +170,7 @@ export function SearchBar({ workspaceId, workspaceSlug, onExpandToPanel }: Searc
         type: 'ai-action',
         category: 'AI Suggestion',
         isAI: true,
-        action: () => navigateTo(`/workspace/${workspaceSlug}/applications`)
+        action: () => navigateTo(`/workspace/${workspaceSlug}`)
       }
     }
 
@@ -187,28 +187,27 @@ export function SearchBar({ workspaceId, workspaceSlug, onExpandToPanel }: Searc
     
     // Route based on hub type first, then entity type
     if (result.hubType === 'applications') {
-      // Applications hub content - route to applications hub
+      // The listing page these all used to route to (with query params the
+      // page never actually read) is gone — forms/submissions now go to the
+      // form's own detail/review page, which still exists.
       switch (result.entityType) {
         case 'form':
-          // Forms in applications hub should open within the hub
-          url = `/workspace/${workspaceSlug}/applications?form=${result.entityId}`
-          title = `${result.title} | Applications`
+          url = `/workspace/${workspaceSlug}/applications/${result.entityId}`
+          title = result.title
           break
         case 'submission':
-          // Submissions in applications hub
-          url = `/workspace/${workspaceSlug}/applications?form=${result.tableId}&submission=${result.entityId}`
-          title = `${result.title} | Applications`
+          url = `/workspace/${workspaceSlug}/applications/${result.tableId}/analytics`
+          title = result.title
           break
         case 'workflow':
         case 'stage':
         case 'rubric':
-          // Workflow-related items route to applications hub
-          url = `/workspace/${workspaceSlug}/applications?workflow=${result.entityId}`
-          title = `${result.title} | Applications`
+          url = `/workspace/${workspaceSlug}`
+          title = `${result.title} | Home`
           break
         default:
-          url = `/workspace/${workspaceSlug}/applications`
-          title = 'Portals'
+          url = `/workspace/${workspaceSlug}`
+          title = 'Home'
       }
     } else if (result.hubType === 'activities') {
       // Activities hub content - redirect to workspace

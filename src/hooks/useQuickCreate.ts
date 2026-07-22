@@ -49,7 +49,9 @@ export function useQuickCreate({ workspaceId, workspaceSlug }: UseQuickCreateArg
       const userId = data?.user?.id || ''
       await tablesGoClient.createTable({ workspace_id: workspaceId, name: 'Untitled table' }, userId)
       toast.success('Table created')
-      router.push(`/workspace/${workspaceSlug}/applications`)
+      // No dedicated table-viewer page exists yet — land back on Home, which
+      // already lists every table.
+      router.push(`/workspace/${workspaceSlug}`)
     } catch (err) {
       console.error('Failed to create table:', err)
       toast.error('Failed to create table')

@@ -23,11 +23,9 @@ const DASHBOARD_ROUTE_PREFIXES = [
   '/workspace',
   '/auth',
   '/login',
-  '/sso',
   '/forgot-password',
   '/gmail-connected',
   '/accept-invitation',
-  '/security',
 ]
 
 // Routes that only belong on the marketing domain

@@ -4,8 +4,6 @@ import * as React from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import {
   Home,
-  LayoutGrid,
-  Users,
   Star,
   Trash2,
   ChevronsUpDown,
@@ -134,8 +132,6 @@ export function AppSidebar({
 
   const navItems = [
     { title: 'Home', icon: Home, slug: 'home', path: '' },
-    { title: 'Forms', icon: LayoutGrid, slug: 'applications', path: '/applications' },
-    { title: 'CRM', icon: Users, slug: 'crm', path: '/crm' },
     { title: 'Starred', icon: Star, slug: 'starred', path: '/starred' },
     { title: 'Trash', icon: Trash2, slug: 'trash', path: '/trash' },
   ]

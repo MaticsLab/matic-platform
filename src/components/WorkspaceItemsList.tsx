@@ -118,7 +118,9 @@ export function WorkspaceItemsList({
     if (item.kind === 'form') {
       router.push(`/workspace/${workspaceSlug}/applications/${item.id}`)
     } else {
-      router.push(`/workspace/${workspaceSlug}/applications`)
+      // No dedicated table-viewer page exists yet — land back on Home, which
+      // already lists every table.
+      router.push(`/workspace/${workspaceSlug}`)
     }
   }
 
