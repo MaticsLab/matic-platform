@@ -1103,7 +1103,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     {/* Sync portal config with other collaborators via Yjs */}
     <PortalConfigSyncBridge config={config} setConfig={setConfig} />
     <DndProvider backend={HTML5Backend}>
-      <div className="flex flex-col h-full bg-gray-100">
+      <div className="portal-builder flex flex-col h-full bg-gray-100">
         {/* Preview Mode Header */}
         {isPreview && (
           <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shadow-sm z-20 shrink-0">

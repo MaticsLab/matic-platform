@@ -912,7 +912,8 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
                 onChange={(e) => onUpdate({ label: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
                 onFocus={() => onSelect()}
-                className="flex-1 text-sm font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 text-gray-900 resize-none overflow-hidden"
+                className="text-sm font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 text-gray-900 resize-none overflow-hidden"
+                style={{ fieldSizing: 'content', minWidth: '4ch', maxWidth: '100%' } as React.CSSProperties}
                 placeholder="Field label..."
                 rows={1}
                 onInput={(e) => {
@@ -921,7 +922,7 @@ function SortableChildField({ field, onDelete, onUpdate, onSelect, isSelected, t
                   target.style.height = target.scrollHeight + 'px';
                 }}
               />
-              {field.required && <span className="text-red-500 text-sm">*</span>}
+              {field.required && <span className="text-red-500 text-sm flex-shrink-0">*</span>}
             </div>
             {/* Description - show when selected, has value, or user clicks to add */}
             {(isSelected || field.description) ? (
@@ -1605,8 +1606,13 @@ function Block({
                     onSelect()
                   }}
                   onFocus={() => onSelect()}
-                  className="flex-1 text-sm font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 resize-none overflow-hidden"
-                  style={{ color: resolvedTheme?.questionsColor || '#111827' }}
+                  className="text-sm font-medium bg-transparent border-none outline-none placeholder:text-gray-400 focus:ring-0 resize-none overflow-hidden"
+                  style={{
+                    color: resolvedTheme?.questionsColor || '#111827',
+                    fieldSizing: 'content',
+                    minWidth: '4ch',
+                    maxWidth: '100%',
+                  } as React.CSSProperties}
                   placeholder="Field label..."
                   rows={1}
                   onInput={(e) => {
@@ -1615,7 +1621,7 @@ function Block({
                     target.style.height = target.scrollHeight + 'px';
                   }}
                 />
-                {field.required && <span className="text-red-500 text-sm">*</span>}
+                {field.required && <span className="text-red-500 text-sm flex-shrink-0">*</span>}
               </div>
               {/* Description - show when selected, has value, or user clicks to add */}
               {(isSelected || field.description) ? (

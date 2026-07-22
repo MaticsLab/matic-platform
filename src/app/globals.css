@@ -186,34 +186,38 @@
   --ring: oklch(0.708 0 0) !important;
 }
 
-/* Ensure inputs and text are visible in light mode - only for portal forms, not builder */
-.light:not(.portal-builder) input:not([role="combobox"]):not([type="checkbox"]):not([type="radio"]),
-.light:not(.portal-builder) textarea,
-.light:not(.portal-builder) select {
+/* Ensure inputs and text are visible in light mode - only for portal forms, not builder.
+   .light lives on <html>, so `.light:not(.portal-builder)` (a same-element check)
+   could never actually match a builder-scoped exemption — `.portal-builder` was
+   never applied anywhere. Excluding by descendant (`:not(.portal-builder *)`)
+   is what the "not builder" comment actually intended. */
+.light input:not([role="combobox"]):not([type="checkbox"]):not([type="radio"]):not(.portal-builder *),
+.light textarea:not(.portal-builder *),
+.light select:not(.portal-builder *) {
   background-color: #f3f3f5 !important;
   color: #111827 !important;
   border-color: rgba(0, 0, 0, 0.1) !important;
 }
 
 /* Style shadcn Select component (SelectTrigger) in portal */
-.light:not(.portal-builder) [data-slot="select-trigger"] {
+.light [data-slot="select-trigger"]:not(.portal-builder *) {
   background-color: #f3f3f5 !important;
   color: #111827 !important;
   border: 1px solid #d1d5db !important;
 }
 
-.light:not(.portal-builder) [data-slot="select-trigger"]:hover {
+.light [data-slot="select-trigger"]:not(.portal-builder *):hover {
   border-color: #9ca3af !important;
 }
 
-.light:not(.portal-builder) [data-slot="select-trigger"]:focus,
-.light:not(.portal-builder) [data-slot="select-trigger"]:focus-visible {
+.light [data-slot="select-trigger"]:not(.portal-builder *):focus,
+.light [data-slot="select-trigger"]:not(.portal-builder *):focus-visible {
   border-color: var(--ring) !important;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
 }
 
-.light:not(.portal-builder) input::placeholder,
-.light:not(.portal-builder) textarea::placeholder {
+.light input:not(.portal-builder *)::placeholder,
+.light textarea:not(.portal-builder *)::placeholder {
   color: #9ca3af !important;
 }
 

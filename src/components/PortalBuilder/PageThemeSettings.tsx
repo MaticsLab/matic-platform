@@ -103,7 +103,9 @@ const IMAGE_POSITIONS: Array<{
   label: string
   col?: boolean
   center?: boolean
-  render: () => React.ReactNode
+  // Only the selected tile shows blue — unselected tiles stay all-gray so the
+  // one active choice reads clearly at a glance instead of every tile looking "on".
+  render: (isSelected: boolean) => React.ReactNode
 }> = [
   {
     value: 'none', label: 'No image', center: true,
@@ -111,40 +113,40 @@ const IMAGE_POSITIONS: Array<{
   },
   {
     value: 'left', label: 'Image left',
-    render: () => (
+    render: (isSelected) => (
       <>
-        <div className="rounded-sm bg-blue-300" style={{ width: '40%' }} />
+        <div className={cn('rounded-sm', isSelected ? 'bg-blue-400' : 'bg-gray-300')} style={{ width: '40%' }} />
         <div className="flex-1 rounded-sm bg-gray-200" />
       </>
     ),
   },
   {
     value: 'right', label: 'Image right',
-    render: () => (
+    render: (isSelected) => (
       <>
         <div className="flex-1 rounded-sm bg-gray-200" />
-        <div className="rounded-sm bg-blue-300" style={{ width: '40%' }} />
+        <div className={cn('rounded-sm', isSelected ? 'bg-blue-400' : 'bg-gray-300')} style={{ width: '40%' }} />
       </>
     ),
   },
   {
     value: 'banner_top', label: 'Banner top', col: true,
-    render: () => (
+    render: (isSelected) => (
       <>
-        <div className="rounded-sm bg-blue-300" style={{ height: '40%' }} />
+        <div className={cn('rounded-sm', isSelected ? 'bg-blue-400' : 'bg-gray-300')} style={{ height: '40%' }} />
         <div className="flex-1 rounded-sm bg-gray-200" />
       </>
     ),
   },
   {
     value: 'full_background', label: 'Full background', center: true,
-    render: () => <div className="w-full h-full rounded-sm bg-blue-300" />,
+    render: (isSelected) => <div className={cn('w-full h-full rounded-sm', isSelected ? 'bg-blue-400' : 'bg-gray-300')} />,
   },
   {
     value: 'card_on_image', label: 'Card on image', center: true,
-    render: () => (
-      <div className="w-full h-full rounded-sm bg-blue-300 flex items-center justify-center">
-        <div className="rounded-sm bg-gray-200" style={{ width: '62%', height: '66%' }} />
+    render: (isSelected) => (
+      <div className={cn('w-full h-full rounded-sm flex items-center justify-center', isSelected ? 'bg-blue-400' : 'bg-gray-300')}>
+        <div className="rounded-sm bg-gray-100" style={{ width: '62%', height: '66%' }} />
       </div>
     ),
   },
@@ -752,7 +754,7 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
                       imagePosition === pos.value ? 'border-2 border-blue-500' : 'border-gray-200 hover:border-gray-300'
                     )}
                   >
-                    {pos.render()}
+                    {pos.render(imagePosition === pos.value)}
                   </button>
                 ))}
               </div>
