@@ -170,51 +170,22 @@ func GetReviewExportData(c *gin.Context) {
 	}
 
 	// Group recommendations by submission_id
-	recsBySubmission := make(map[uuid.UUID][]models.RecommendationSummary)
-	for _, rec := range recommendations {
-		summary := models.RecommendationSummary{
-			ID:                      rec.ID,
-			RecommenderName:         rec.RecommenderName,
-			RecommenderEmail:        rec.RecommenderEmail,
-			RecommenderRelationship: rec.RecommenderRelationship,
-			RecommenderOrganization: rec.RecommenderOrganization,
-			Status:                  rec.Status,
-			RequestedAt:             rec.RequestedAt,
-			SubmittedAt:             rec.SubmittedAt,
-			ExpiresAt:               rec.ExpiresAt,
-			ReminderCount:           rec.ReminderCount,
-		}
-		recsBySubmission[rec.SubmissionID] = append(recsBySubmission[rec.SubmissionID], summary)
-	}
+	recsBySubmission := groupRecommendationsBySubmission(recommendations)
 
 	// Build the final result set
 	results := make([]models.ReviewSubmissionExport, 0, len(rows))
 	for _, row := range rows {
-		// Parse form_data JSONB
-		var formData map[string]interface{}
-		if len(row.FormData) > 0 && string(row.FormData) != "null" {
-			if err := json.Unmarshal(row.FormData, &formData); err != nil {
-				// Log error but continue with empty data
-				fmt.Printf("Warning: Failed to parse form_data for submission %s: %v\n", row.SubmissionID, err)
-				formData = make(map[string]interface{})
-			}
-		} else {
-			formData = make(map[string]interface{})
+		formData, err := parseFormData(row.FormData)
+		if err != nil {
+			// Log error but continue with empty data
+			fmt.Printf("Warning: Failed to parse form_data for submission %s: %v\n", row.SubmissionID, err)
 		}
 
 		// Get recommendations for this submission
 		recs := recsBySubmission[row.SubmissionID]
 
 		// Count recommendation statuses
-		pendingCount := 0
-		submittedCount := 0
-		for _, rec := range recs {
-			if rec.Status == "submitted" {
-				submittedCount++
-			} else if rec.Status == "pending" {
-				pendingCount++
-			}
-		}
+		pendingCount, submittedCount := countRecommendationStatuses(recs)
 
 		// Marshal form data back to JSON for the response
 		formDataJSON, _ := json.Marshal(formData)
@@ -268,4 +239,53 @@ func GetReviewExportCSV(c *gin.Context) {
 		"message":  "CSV generation is handled client-side. Use /review-export endpoint to get JSON data and convert to CSV in the frontend.",
 		"endpoint": "/api/v1/review-export",
 	})
+}
+
+// groupRecommendationsBySubmission groups recommendation requests by their submission ID,
+// converting each into the lighter RecommendationSummary shape used in the export response.
+func groupRecommendationsBySubmission(recommendations []models.RecommendationRequest) map[uuid.UUID][]models.RecommendationSummary {
+	recsBySubmission := make(map[uuid.UUID][]models.RecommendationSummary)
+	for _, rec := range recommendations {
+		summary := models.RecommendationSummary{
+			ID:                      rec.ID,
+			RecommenderName:         rec.RecommenderName,
+			RecommenderEmail:        rec.RecommenderEmail,
+			RecommenderRelationship: rec.RecommenderRelationship,
+			RecommenderOrganization: rec.RecommenderOrganization,
+			Status:                  rec.Status,
+			RequestedAt:             rec.RequestedAt,
+			SubmittedAt:             rec.SubmittedAt,
+			ExpiresAt:               rec.ExpiresAt,
+			ReminderCount:           rec.ReminderCount,
+		}
+		recsBySubmission[rec.SubmissionID] = append(recsBySubmission[rec.SubmissionID], summary)
+	}
+	return recsBySubmission
+}
+
+// countRecommendationStatuses counts how many recommendations in a submission's list
+// are pending vs. submitted.
+func countRecommendationStatuses(recs []models.RecommendationSummary) (pending int, submitted int) {
+	for _, rec := range recs {
+		if rec.Status == "submitted" {
+			submitted++
+		} else if rec.Status == "pending" {
+			pending++
+		}
+	}
+	return pending, submitted
+}
+
+// parseFormData unmarshals a submission's raw JSONB form_data column into a map,
+// treating empty/null input as an empty (not nil) map so callers don't need a
+// separate nil check before marshaling it back out.
+func parseFormData(raw []byte) (map[string]interface{}, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return make(map[string]interface{}), nil
+	}
+	var formData map[string]interface{}
+	if err := json.Unmarshal(raw, &formData); err != nil {
+		return make(map[string]interface{}), err
+	}
+	return formData, nil
 }
