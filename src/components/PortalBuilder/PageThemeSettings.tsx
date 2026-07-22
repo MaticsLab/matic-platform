@@ -76,11 +76,11 @@ function themeToFormTheme(theme: PortalTheme): FormTheme {
   }
 }
 
-function formThemeToThemeInputFields(formTheme?: FormTheme): Omit<PortalThemeInput, 'workspace_id' | 'name'> {
+function formThemeToThemeInputFields(formTheme?: FormTheme, legacyThemeColor?: string): Omit<PortalThemeInput, 'workspace_id' | 'name'> {
   return {
     colors: {
       questions_background_color: formTheme?.questionsBackgroundColor || '#F8FAFC',
-      primary_color: formTheme?.primaryColor || '#0F172A',
+      primary_color: formTheme?.primaryColor || legacyThemeColor || '#0F172A',
       questions_color: formTheme?.questionsColor || '#334155',
       answers_color: formTheme?.answersColor || '#334155',
     },
@@ -207,7 +207,7 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
       const updated = await portalThemesClient.update(appliedTheme.id, {
         workspace_id: appliedTheme.workspace_id,
         name: appliedTheme.name,
-        ...formThemeToThemeInputFields(formTheme),
+        ...formThemeToThemeInputFields(formTheme, settings.themeColor),
       })
       setSavedThemes(prev => prev.map(t => (t.id === updated.id ? updated : t)))
       toast.success(`Saved changes to "${updated.name}"`)
@@ -225,7 +225,7 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
       const created = await portalThemesClient.create({
         workspace_id: workspaceId,
         name,
-        ...formThemeToThemeInputFields(formTheme),
+        ...formThemeToThemeInputFields(formTheme, settings.themeColor),
       })
       setSavedThemes(prev => [...prev, created])
       onUpdate({ themeId: created.id } as any)
@@ -243,7 +243,7 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
       const updated = await portalThemesClient.update(appliedTheme.id, {
         workspace_id: appliedTheme.workspace_id,
         name,
-        ...formThemeToThemeInputFields(formTheme),
+        ...formThemeToThemeInputFields(formTheme, settings.themeColor),
       })
       setSavedThemes(prev => prev.map(t => (t.id === updated.id ? updated : t)))
       toast.success('Theme renamed')
