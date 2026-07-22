@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Lock, Eye as EyeIcon, Rows3, BookOpen,
+  Lock, Eye as EyeIcon, Ticket, BookOpen,
   ChevronDown, GripVertical, Trash2, Settings, Pin, CreditCard, Calendar,
   Clock, MessageSquare, FileText, CheckCircle2, MoreVertical, Plus, Check
 } from 'lucide-react'
@@ -43,7 +43,7 @@ interface UnifiedSidebarProps {
 const SECTION_VARIANTS = {
   form: {
     label: 'Form',
-    icon: Rows3,
+    icon: Ticket,
     bg: 'bg-amber-50',
     fg: 'text-amber-600',
     activeBg: 'bg-amber-100',
@@ -81,7 +81,7 @@ const BASICS_ITEMS = [
     type: 'form' as const,
     title: 'Form',
     description: 'Collect answers with questions and fields',
-    icon: Rows3,
+    icon: Ticket,
     bg: '#FAEEDA',
     fg: '#854F0B',
   },
@@ -177,12 +177,14 @@ export function UnifiedSidebar({
 
   const signinSection = Array.isArray(sections) ? sections.find(s => s.sectionType === 'signin') : undefined
   const hasSignin = !!signinSection
-  const hasEnding = Array.isArray(sections) ? sections.some(s => s.sectionType === 'ending') : false
+  const endingSection = Array.isArray(sections) ? sections.find(s => s.sectionType === 'ending') : undefined
+  const hasEnding = !!endingSection
 
-  // Separate sections by type - covers, forms, and endings render as regular list items.
-  // Sign in is rendered separately (pinned first); Review and Submit is a fixed page (see below).
+  // Separate sections by type - covers and forms render as regular draggable list items.
+  // Sign in is rendered separately (pinned first); Review and Submit and Ending are
+  // fixed, non-draggable pages pinned last (see below).
   const applicationSections = Array.isArray(sections)
-    ? sections.filter(s => s.sectionType === 'form' || s.sectionType === 'cover' || s.sectionType === 'ending' || !s.sectionType)
+    ? sections.filter(s => s.sectionType === 'form' || s.sectionType === 'cover' || !s.sectionType)
     : []
 
   // Drag handlers for form sections - use section ID to track dragged item
@@ -465,14 +467,14 @@ export function UnifiedSidebar({
           )}
 
           {/* ═══════════════════════════════════════════════════════════════════
-              APPLICATION FORM SECTIONS (includes covers, forms, and endings)
+              APPLICATION FORM SECTIONS (covers and forms — freely draggable)
           ═══════════════════════════════════════════════════════════════════ */}
           <div className="space-y-1">
             <AnimatePresence mode="popLayout">
               {applicationSections.map((section) => renderSectionItem(section, true))}
             </AnimatePresence>
 
-            {/* Review and submit — fixed final step */}
+            {/* Review and submit — fixed final step, not draggable */}
             <button
               onClick={() => {
                 onSelectSpecialPage('review')
@@ -485,6 +487,7 @@ export function UnifiedSidebar({
                   : "text-gray-700 hover:bg-gray-50"
               )}
             >
+              <Lock className="w-3 h-3 text-gray-300 flex-shrink-0" />
               <div className="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
                 <EyeIcon className="w-3.5 h-3.5 text-purple-600" />
               </div>
@@ -493,6 +496,42 @@ export function UnifiedSidebar({
                 Final step
               </span>
             </button>
+
+            {/* Ending — optional, pinned last, not draggable */}
+            {hasEnding && endingSection && (
+              <div
+                className={cn(
+                  "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm transition-colors group",
+                  activeSectionId === endingSection.id && !activeSpecialPage
+                    ? "bg-red-50 text-red-900 border border-red-200"
+                    : "text-gray-700 hover:bg-gray-50"
+                )}
+              >
+                <button
+                  onClick={() => {
+                    onSelectSection(endingSection.id)
+                    onSelectSpecialPage(null)
+                  }}
+                  className="flex-1 flex items-center gap-2 min-w-0 text-left"
+                >
+                  <Lock className="w-3 h-3 text-gray-300 flex-shrink-0" />
+                  <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-red-700" />
+                  </div>
+                  <span className="font-medium flex-1 truncate">{endingSection.title || 'Ending'}</span>
+                </button>
+                <span className="text-[11px] text-gray-400 bg-gray-50 border border-gray-200 rounded-md px-2 py-0.5 flex-shrink-0">
+                  After submit
+                </span>
+                <button
+                  onClick={() => onDeleteSection(endingSection.id)}
+                  className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-gray-100 flex-shrink-0"
+                  title="Remove ending page"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-gray-400" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </ScrollArea>
