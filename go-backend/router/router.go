@@ -537,6 +537,18 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				endingPages.PUT("/reorder", handlers.ReorderEndings)       // Reorder priorities
 			}
 
+			// Portal Themes (reusable, workspace-level form themes)
+			portalThemes := protected.Group("/portal-themes")
+			{
+				portalThemes.GET("", handlers.ListPortalThemes) // ?workspace_id=xxx
+				portalThemes.POST("", handlers.CreatePortalTheme)
+				portalThemes.GET("/:id", handlers.GetPortalTheme)
+				portalThemes.PATCH("/:id", handlers.UpdatePortalTheme)
+				portalThemes.DELETE("/:id", handlers.DeletePortalTheme)
+				portalThemes.POST("/:id/duplicate", handlers.DuplicatePortalTheme)
+				portalThemes.POST("/:id/default", handlers.SetDefaultPortalTheme)
+			}
+
 			// Recently Viewed (forms + tables, per-user per-workspace)
 			recentlyViewed := protected.Group("/recently-viewed")
 			{

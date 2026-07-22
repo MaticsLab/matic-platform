@@ -1,28 +1,156 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { Upload, Image as ImageIcon, Loader2, X, Maximize2 } from 'lucide-react'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import {
+  Upload, Image as ImageIcon, Loader2, X, Maximize2,
+  MoreVertical, Pencil, Copy, Star, Trash2, Save, Plus
+} from 'lucide-react'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui-components/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui-components/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui-components/select'
-import { PortalConfig } from '@/types/portal'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui-components/dropdown-menu'
+import { Switch } from '@/ui-components/switch'
+import { Slider } from '@/ui-components/slider'
+import { PortalConfig, PortalTheme } from '@/types/portal'
 import { storageClient } from '@/lib/api/storage-client'
+import { portalThemesClient, PortalThemeInput } from '@/lib/api/portal-themes-client'
+import { GOOGLE_FONTS, DEFAULT_FONT_KEY, getGoogleFont } from '@/lib/fonts'
+import { useGoogleFont } from '@/hooks/useGoogleFont'
+import { meetsWCAGAA } from '@/lib/utils/contrast'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { ColorPicker } from './ColorPicker'
+
+type FormTheme = NonNullable<PortalConfig['settings']['formTheme']>
+type ImagePosition = NonNullable<FormTheme['imagePosition']>
 
 interface PageThemeSettingsProps {
   pageType: 'login' | 'signup' | 'sections'
   settings: PortalConfig['settings']
   onUpdate: (updates: Partial<PortalConfig['settings']>) => void
   formId?: string
+  workspaceId?: string
   onTabChange?: (tab: 'login' | 'signup') => void
 }
 
-export function PageThemeSettings({ pageType: initialPageType, settings, onUpdate, formId, onTabChange }: PageThemeSettingsProps) {
+const THEME_FIELD_KEYS = [
+  'questionsBackgroundColor', 'primaryColor', 'questionsColor', 'answersColor',
+  'showLogo', 'logoUrls', 'font', 'imagePosition',
+  'coverImageUrl', 'coverImageBrightness', 'questionSize',
+] as const
+
+function formThemeEqual(a?: FormTheme, b?: FormTheme): boolean {
+  for (const key of THEME_FIELD_KEYS) {
+    const av = a?.[key]
+    const bv = b?.[key]
+    if (Array.isArray(av) || Array.isArray(bv)) {
+      if (JSON.stringify(av || []) !== JSON.stringify(bv || [])) return false
+    } else if (av !== bv) {
+      return false
+    }
+  }
+  return true
+}
+
+function themeToFormTheme(theme: PortalTheme): FormTheme {
+  return {
+    questionsBackgroundColor: theme.colors.questions_background_color,
+    primaryColor: theme.colors.primary_color,
+    questionsColor: theme.colors.questions_color,
+    answersColor: theme.colors.answers_color,
+    showLogo: theme.logo.enabled,
+    logoUrls: theme.logo.urls,
+    font: theme.font,
+    imagePosition: theme.image.position,
+    coverImageUrl: theme.image.asset_url,
+    coverImageBrightness: theme.image.brightness,
+    questionSize: theme.question_size,
+  }
+}
+
+function formThemeToThemeInputFields(formTheme?: FormTheme): Omit<PortalThemeInput, 'workspace_id' | 'name'> {
+  return {
+    colors: {
+      questions_background_color: formTheme?.questionsBackgroundColor || '#F8FAFC',
+      primary_color: formTheme?.primaryColor || '#0F172A',
+      questions_color: formTheme?.questionsColor || '#334155',
+      answers_color: formTheme?.answersColor || '#334155',
+    },
+    font: formTheme?.font || DEFAULT_FONT_KEY,
+    logo: {
+      enabled: formTheme?.showLogo !== false,
+      urls: formTheme?.logoUrls || [],
+    },
+    image: {
+      position: formTheme?.imagePosition || 'none',
+      asset_url: formTheme?.coverImageUrl,
+      brightness: formTheme?.coverImageBrightness ?? 50,
+    },
+    question_size: formTheme?.questionSize || 'normal',
+  }
+}
+
+const IMAGE_POSITIONS: Array<{
+  value: ImagePosition
+  label: string
+  col?: boolean
+  center?: boolean
+  render: () => React.ReactNode
+}> = [
+  {
+    value: 'none', label: 'No image', center: true,
+    render: () => <div className="w-full h-full rounded-sm bg-gray-200" />,
+  },
+  {
+    value: 'left', label: 'Image left',
+    render: () => (
+      <>
+        <div className="rounded-sm bg-blue-300" style={{ width: '40%' }} />
+        <div className="flex-1 rounded-sm bg-gray-200" />
+      </>
+    ),
+  },
+  {
+    value: 'right', label: 'Image right',
+    render: () => (
+      <>
+        <div className="flex-1 rounded-sm bg-gray-200" />
+        <div className="rounded-sm bg-blue-300" style={{ width: '40%' }} />
+      </>
+    ),
+  },
+  {
+    value: 'banner_top', label: 'Banner top', col: true,
+    render: () => (
+      <>
+        <div className="rounded-sm bg-blue-300" style={{ height: '40%' }} />
+        <div className="flex-1 rounded-sm bg-gray-200" />
+      </>
+    ),
+  },
+  {
+    value: 'full_background', label: 'Full background', center: true,
+    render: () => <div className="w-full h-full rounded-sm bg-blue-300" />,
+  },
+  {
+    value: 'card_on_image', label: 'Card on image', center: true,
+    render: () => (
+      <div className="w-full h-full rounded-sm bg-blue-300 flex items-center justify-center">
+        <div className="rounded-sm bg-gray-200" style={{ width: '62%', height: '66%' }} />
+      </div>
+    ),
+  },
+]
+
+export function PageThemeSettings({ pageType: initialPageType, settings, onUpdate, formId, workspaceId, onTabChange }: PageThemeSettingsProps) {
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>(initialPageType === 'sections' ? 'signup' : initialPageType)
 
   const handleTabChange = (tab: 'login' | 'signup') => {
@@ -37,6 +165,222 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
   const imageInputRef = useRef<HTMLInputElement>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const imageContainerRef = useRef<HTMLDivElement>(null)
+
+  // ── Form Theme (sections) state ──────────────────────────────────────────
+  const [activeThemeTab, setActiveThemeTab] = useState<'current' | 'all'>('current')
+  const [savedThemes, setSavedThemes] = useState<PortalTheme[]>([])
+  const [isLoadingThemes, setIsLoadingThemes] = useState(false)
+  const [isSavingTheme, setIsSavingTheme] = useState(false)
+  const [themeDialogOpen, setThemeDialogOpen] = useState(false)
+  const [themeDialogValue, setThemeDialogValue] = useState('')
+  const [isUploadingCoverImage, setIsUploadingCoverImage] = useState(false)
+  const [isUploadingFirstLogo, setIsUploadingFirstLogo] = useState(false)
+  const [isUploadingSecondLogo, setIsUploadingSecondLogo] = useState(false)
+  const coverImageInputRef = useRef<HTMLInputElement>(null)
+  const firstLogoInputRef = useRef<HTMLInputElement>(null)
+  const secondLogoInputRef = useRef<HTMLInputElement>(null)
+
+  const formTheme = settings.formTheme || {}
+  useGoogleFont(formTheme.font)
+
+  useEffect(() => {
+    if (!workspaceId) return
+    setIsLoadingThemes(true)
+    portalThemesClient.list(workspaceId)
+      .then(setSavedThemes)
+      .catch(() => {})
+      .finally(() => setIsLoadingThemes(false))
+  }, [workspaceId])
+
+  const appliedTheme = useMemo(
+    () => savedThemes.find(t => t.id === settings.themeId),
+    [savedThemes, settings.themeId]
+  )
+  const hasUnsavedThemeChanges = appliedTheme
+    ? !formThemeEqual(themeToFormTheme(appliedTheme), formTheme)
+    : false
+
+  const handleSaveToTheme = async () => {
+    if (!appliedTheme) return
+    setIsSavingTheme(true)
+    try {
+      const updated = await portalThemesClient.update(appliedTheme.id, {
+        workspace_id: appliedTheme.workspace_id,
+        name: appliedTheme.name,
+        ...formThemeToThemeInputFields(formTheme),
+      })
+      setSavedThemes(prev => prev.map(t => (t.id === updated.id ? updated : t)))
+      toast.success(`Saved changes to "${updated.name}"`)
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save theme')
+    } finally {
+      setIsSavingTheme(false)
+    }
+  }
+
+  const handleSaveAsNewTheme = async (name: string) => {
+    if (!workspaceId) return
+    setIsSavingTheme(true)
+    try {
+      const created = await portalThemesClient.create({
+        workspace_id: workspaceId,
+        name,
+        ...formThemeToThemeInputFields(formTheme),
+      })
+      setSavedThemes(prev => [...prev, created])
+      onUpdate({ themeId: created.id } as any)
+      toast.success(`Saved as "${created.name}"`)
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save theme')
+    } finally {
+      setIsSavingTheme(false)
+    }
+  }
+
+  const handleRenameTheme = async (name: string) => {
+    if (!appliedTheme) return
+    try {
+      const updated = await portalThemesClient.update(appliedTheme.id, {
+        workspace_id: appliedTheme.workspace_id,
+        name,
+        ...formThemeToThemeInputFields(formTheme),
+      })
+      setSavedThemes(prev => prev.map(t => (t.id === updated.id ? updated : t)))
+      toast.success('Theme renamed')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to rename theme')
+    }
+  }
+
+  const handleDuplicateTheme = async () => {
+    if (!appliedTheme) return
+    try {
+      const created = await portalThemesClient.duplicate(appliedTheme.id)
+      setSavedThemes(prev => [...prev, created])
+      toast.success(`Duplicated as "${created.name}"`)
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to duplicate theme')
+    }
+  }
+
+  const handleSetDefaultTheme = async () => {
+    if (!appliedTheme) return
+    try {
+      const updated = await portalThemesClient.setDefault(appliedTheme.id)
+      setSavedThemes(prev => prev.map(t => ({ ...t, is_default: t.id === updated.id })))
+      toast.success(`"${updated.name}" set as default`)
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to set default theme')
+    }
+  }
+
+  const handleDeleteTheme = async () => {
+    if (!appliedTheme) return
+    try {
+      await portalThemesClient.remove(appliedTheme.id)
+      setSavedThemes(prev => prev.filter(t => t.id !== appliedTheme.id))
+      onUpdate({ themeId: undefined } as any)
+      toast.success('Theme deleted')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete theme')
+    }
+  }
+
+  const handleApplyTheme = (theme: PortalTheme) => {
+    onUpdate({ formTheme: themeToFormTheme(theme), themeId: theme.id } as any)
+    setActiveThemeTab('current')
+    toast.success(`Applied "${theme.name}"`)
+  }
+
+  const handleFirstLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image must be less than 2MB')
+      return
+    }
+    setIsUploadingFirstLogo(true)
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `logos/${formId || 'default'}/theme-1-${Date.now()}.${fileExt}`
+      const { data, error } = await storageClient.from('workspace-assets').upload(fileName, file, { upsert: true })
+      if (error) throw error
+      const { data: { publicUrl } } = storageClient.from('workspace-assets').getPublicUrl(fileName)
+      onUpdate({ formTheme: { ...formTheme, logoUrls: [publicUrl, ...(formTheme.logoUrls?.slice(1) || [])] } })
+      toast.success('Logo uploaded')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to upload logo')
+    } finally {
+      setIsUploadingFirstLogo(false)
+      if (firstLogoInputRef.current) firstLogoInputRef.current.value = ''
+    }
+  }
+
+  const handleSecondLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image must be less than 2MB')
+      return
+    }
+    setIsUploadingSecondLogo(true)
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `logos/${formId || 'default'}/theme-2-${Date.now()}.${fileExt}`
+      const { data, error } = await storageClient.from('workspace-assets').upload(fileName, file, { upsert: true })
+      if (error) throw error
+      const { data: { publicUrl } } = storageClient.from('workspace-assets').getPublicUrl(fileName)
+      onUpdate({ formTheme: { ...formTheme, logoUrls: [formTheme.logoUrls?.[0], publicUrl].filter(Boolean) as string[] } })
+      toast.success('Logo uploaded')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to upload logo')
+    } finally {
+      setIsUploadingSecondLogo(false)
+      if (secondLogoInputRef.current) secondLogoInputRef.current.value = ''
+    }
+  }
+
+  const handleRemoveLogoSlot = (index: 0 | 1) => {
+    const urls = [...(formTheme.logoUrls || [])]
+    urls.splice(index, 1)
+    onUpdate({ formTheme: { ...formTheme, logoUrls: urls } })
+  }
+
+  const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file')
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image must be less than 10MB')
+      return
+    }
+    setIsUploadingCoverImage(true)
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `form-theme/${formId || 'default'}/cover-${Date.now()}.${fileExt}`
+      const { data, error } = await storageClient.from('workspace-assets').upload(fileName, file, { upsert: true })
+      if (error) throw error
+      const { data: { publicUrl } } = storageClient.from('workspace-assets').getPublicUrl(fileName)
+      onUpdate({ formTheme: { ...formTheme, coverImageUrl: publicUrl } })
+      toast.success('Cover image uploaded')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to upload cover image')
+    } finally {
+      setIsUploadingCoverImage(false)
+      if (coverImageInputRef.current) coverImageInputRef.current.value = ''
+    }
+  }
 
   // Use activeTab for auth pages, fall back to initialPageType for sections
   const pageType = initialPageType === 'sections' ? 'sections' : activeTab
@@ -178,97 +522,368 @@ export function PageThemeSettings({ pageType: initialPageType, settings, onUpdat
 
   // Show different settings based on page type
   if (pageType === 'sections') {
+    const imagePosition: ImagePosition = formTheme.imagePosition || 'none'
+    const questionSize = formTheme.questionSize || 'normal'
+
+    const primaryContrastOk = meetsWCAGAA('#FFFFFF', formTheme.primaryColor || settings.themeColor || '#0F172A')
+    const questionsContrastOk = meetsWCAGAA(formTheme.questionsColor || '#334155', formTheme.questionsBackgroundColor || '#F8FAFC')
+    const answersContrastOk = meetsWCAGAA(formTheme.answersColor || '#334155', formTheme.questionsBackgroundColor || '#F8FAFC')
+
     return (
-      <div className="p-4 space-y-6">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">Form Theme</h2>
-          <p className="text-xs text-gray-500 mt-1">Customize the appearance of your form sections.</p>
+      <div className="flex flex-col h-full">
+        <div className="px-4 pt-4">
+          <h2 className="text-base font-semibold text-gray-900">Theme</h2>
         </div>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Logo</Label>
-            <input
-              ref={logoInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleLogoUpload}
-              className="hidden"
-            />
-            {currentLogo ? (
-              <div className="relative group">
-                <div className="w-full h-32 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center bg-gray-50 overflow-hidden">
-                  <img src={currentLogo} alt="Logo" className="max-h-full max-w-full object-contain" />
-                </div>
-                <button
-                  onClick={handleRemoveLogo}
-                  className="absolute top-2 right-2 p-1.5 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+        <Tabs
+          value={activeThemeTab}
+          onValueChange={(v) => setActiveThemeTab(v as 'current' | 'all')}
+          className="flex-1 flex flex-col min-h-0"
+        >
+          <div className="px-4 pt-3">
+            <TabsList className="grid w-full grid-cols-2 bg-gray-100 p-1">
+              <TabsTrigger value="current" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                Current
+              </TabsTrigger>
+              <TabsTrigger value="all" className="text-xs data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                All themes
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="current" className="flex-1 overflow-y-auto p-4 space-y-5 mt-0">
+            {/* Theme name + actions */}
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-gray-900 truncate">
+                {appliedTheme ? appliedTheme.name : 'Unsaved theme'}
+              </p>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 flex-shrink-0">
+                    <MoreVertical className="w-4 h-4 text-gray-400" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {appliedTheme ? (
+                    <>
+                      <DropdownMenuItem onClick={() => { setThemeDialogValue(appliedTheme.name); setThemeDialogOpen(true) }}>
+                        <Pencil className="w-3.5 h-3.5 mr-2" /> Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleDuplicateTheme}>
+                        <Copy className="w-3.5 h-3.5 mr-2" /> Duplicate
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleSetDefaultTheme} disabled={appliedTheme.is_default}>
+                        <Star className="w-3.5 h-3.5 mr-2" /> {appliedTheme.is_default ? 'Default theme' : 'Set as default'}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleDeleteTheme} className="text-red-600">
+                        <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    </>
+                  ) : (
+                    <DropdownMenuItem onClick={() => { setThemeDialogValue(''); setThemeDialogOpen(true) }}>
+                      <Save className="w-3.5 h-3.5 mr-2" /> Save as new theme
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {appliedTheme && hasUnsavedThemeChanges && (
+              <div className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-amber-50 border border-amber-200">
+                <span className="text-[11px] text-amber-800 leading-snug">
+                  Unsaved changes to {appliedTheme.name}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-[11px] px-2 flex-shrink-0"
+                  onClick={handleSaveToTheme}
+                  disabled={isSavingTheme}
                 >
-                  <X className="w-4 h-4" />
-                </button>
+                  Save to theme
+                </Button>
               </div>
-            ) : (
+            )}
+            {!appliedTheme && (
               <Button
+                size="sm"
                 variant="outline"
-                onClick={() => logoInputRef.current?.click()}
-                className="w-full h-32 border-2 border-dashed"
-                disabled={isUploadingLogo}
+                className="w-full text-xs"
+                onClick={() => { setThemeDialogValue(''); setThemeDialogOpen(true) }}
+                disabled={!workspaceId}
               >
-                {isUploadingLogo ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <div className="flex flex-col items-center gap-2 text-gray-500">
-                    <Upload className="w-5 h-5" />
-                    <span className="text-sm">Upload Logo</span>
-                    <span className="text-xs text-gray-400">PNG, JPG up to 2MB</span>
-                  </div>
-                )}
+                <Save className="w-3.5 h-3.5 mr-1.5" /> Save as new theme
               </Button>
             )}
-          </div>
 
-          <div className="space-y-2">
-            <Label>Questions background color</Label>
-            <div className="flex items-center gap-3">
-              <div 
-                className="w-10 h-10 rounded-lg border border-gray-200 shadow-sm"
-                style={{ backgroundColor: settings.formTheme?.questionsBackgroundColor || '#ffffff' }}
-              />
-              <Input 
-                value={settings.formTheme?.questionsBackgroundColor || '#ffffff'} 
-                onChange={(e) => onUpdate({ 
-                  formTheme: { 
-                    ...settings.formTheme, 
-                    questionsBackgroundColor: e.target.value 
-                  } 
-                })}
-                className="flex-1 font-mono text-sm"
-                placeholder="#ffffff"
-              />
+            {/* Colors */}
+            <div className="space-y-3">
+              <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Colors</h3>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Questions background</Label>
+                <ColorPicker
+                  value={formTheme.questionsBackgroundColor || '#F8FAFC'}
+                  onChange={(color) => onUpdate({ formTheme: { ...formTheme, questionsBackgroundColor: color } })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Primary</Label>
+                <ColorPicker
+                  value={formTheme.primaryColor || settings.themeColor || '#0F172A'}
+                  onChange={(color) => onUpdate({ formTheme: { ...formTheme, primaryColor: color } })}
+                />
+                {!primaryContrastOk && (
+                  <p className="text-[11px] text-amber-600">Low contrast against white button text</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Questions</Label>
+                <ColorPicker
+                  value={formTheme.questionsColor || '#334155'}
+                  onChange={(color) => onUpdate({ formTheme: { ...formTheme, questionsColor: color } })}
+                />
+                {!questionsContrastOk && (
+                  <p className="text-[11px] text-amber-600">Low contrast against background</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Answers</Label>
+                <ColorPicker
+                  value={formTheme.answersColor || '#334155'}
+                  onChange={(color) => onUpdate({ formTheme: { ...formTheme, answersColor: color } })}
+                />
+                {!answersContrastOk && (
+                  <p className="text-[11px] text-amber-600">Low contrast against background</p>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label>Primary color</Label>
-            <div className="flex items-center gap-3">
-              <div 
-                className="w-10 h-10 rounded-lg border border-gray-200 shadow-sm"
-                style={{ backgroundColor: settings.formTheme?.primaryColor || settings.themeColor || '#3B82F6' }}
-              />
-              <Input 
-                value={settings.formTheme?.primaryColor || settings.themeColor || '#3B82F6'} 
-                onChange={(e) => onUpdate({ 
-                  formTheme: { 
-                    ...settings.formTheme, 
-                    primaryColor: e.target.value 
-                  } 
-                })}
-                className="flex-1 font-mono text-sm"
-                placeholder="#3B82F6"
-              />
+            {/* Font */}
+            <div className="space-y-1.5">
+              <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Font</h3>
+              <Select
+                value={formTheme.font || DEFAULT_FONT_KEY}
+                onValueChange={(value) => onUpdate({ formTheme: { ...formTheme, font: value } })}
+              >
+                <SelectTrigger className="w-full">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm">Aa</span>
+                    <span className="text-sm">{getGoogleFont(formTheme.font).label}</span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {GOOGLE_FONTS.map((f) => (
+                    <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-        </div>
+
+            {/* Logo */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Logo</h3>
+                <Switch
+                  checked={formTheme.showLogo !== false}
+                  onCheckedChange={(checked) => onUpdate({ formTheme: { ...formTheme, showLogo: checked } })}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input ref={firstLogoInputRef} type="file" accept="image/*" onChange={handleFirstLogoUpload} className="hidden" />
+                {formTheme.logoUrls?.[0] ? (
+                  <div className="relative group w-14 h-14 border border-gray-200 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center flex-shrink-0">
+                    <img src={formTheme.logoUrls[0]} alt="Logo 1" className="max-h-full max-w-full object-contain" />
+                    <button
+                      onClick={() => handleRemoveLogoSlot(0)}
+                      className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => firstLogoInputRef.current?.click()}
+                    disabled={isUploadingFirstLogo}
+                    className="w-14 h-14 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-400 hover:border-gray-300 flex-shrink-0"
+                  >
+                    {isUploadingFirstLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  </button>
+                )}
+                {formTheme.logoUrls?.[0] && (
+                  <>
+                    <input ref={secondLogoInputRef} type="file" accept="image/*" onChange={handleSecondLogoUpload} className="hidden" />
+                    {formTheme.logoUrls?.[1] ? (
+                      <div className="relative group w-14 h-14 border border-gray-200 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center flex-shrink-0">
+                        <img src={formTheme.logoUrls[1]} alt="Logo 2" className="max-h-full max-w-full object-contain" />
+                        <button
+                          onClick={() => handleRemoveLogoSlot(1)}
+                          className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => secondLogoInputRef.current?.click()}
+                        disabled={isUploadingSecondLogo}
+                        className="w-14 h-14 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-400 hover:border-gray-300 flex-shrink-0"
+                      >
+                        {isUploadingSecondLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Image position */}
+            <div className="space-y-2">
+              <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Image position</h3>
+              <div className="grid grid-cols-3 gap-1.5">
+                {IMAGE_POSITIONS.map((pos) => (
+                  <button
+                    key={pos.value}
+                    title={pos.label}
+                    onClick={() => onUpdate({ formTheme: { ...formTheme, imagePosition: pos.value } })}
+                    className={cn(
+                      'h-11 rounded-md border p-1 flex gap-0.5',
+                      pos.col ? 'flex-col' : 'flex-row',
+                      pos.center && 'items-center justify-center',
+                      imagePosition === pos.value ? 'border-2 border-blue-500' : 'border-gray-200 hover:border-gray-300'
+                    )}
+                  >
+                    {pos.render()}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Cover image + brightness */}
+            {imagePosition !== 'none' && (
+              <div className="space-y-2">
+                <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Cover image</h3>
+                <input ref={coverImageInputRef} type="file" accept="image/*" onChange={handleCoverImageUpload} className="hidden" />
+                <button
+                  onClick={() => coverImageInputRef.current?.click()}
+                  disabled={isUploadingCoverImage}
+                  className="w-full h-16 rounded-lg overflow-hidden relative flex items-center justify-center bg-gradient-to-br from-blue-200 to-blue-100 bg-cover bg-center"
+                  style={formTheme.coverImageUrl ? { backgroundImage: `url(${formTheme.coverImageUrl})` } : undefined}
+                >
+                  {isUploadingCoverImage ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <span className="text-xs font-semibold text-gray-900 bg-white/90 rounded-md px-2.5 py-1">Change image</span>
+                  )}
+                </button>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Brightness</Label>
+                  <Slider
+                    value={[formTheme.coverImageBrightness ?? 50]}
+                    onValueChange={([v]) => onUpdate({ formTheme: { ...formTheme, coverImageBrightness: v } })}
+                    min={0}
+                    max={100}
+                    step={1}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Question size */}
+            <div className="space-y-2">
+              <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Question size</h3>
+              <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+                {(['small', 'normal', 'large'] as const).map((size, i) => (
+                  <button
+                    key={size}
+                    onClick={() => onUpdate({ formTheme: { ...formTheme, questionSize: size } })}
+                    className={cn(
+                      'flex-1 text-xs py-1.5 capitalize',
+                      i > 0 && 'border-l border-gray-200',
+                      questionSize === size ? 'bg-gray-100 font-semibold text-gray-900' : 'text-gray-500 hover:bg-gray-50'
+                    )}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="all" className="flex-1 overflow-y-auto p-4 space-y-2 mt-0">
+            {isLoadingThemes ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+              </div>
+            ) : savedThemes.length === 0 ? (
+              <p className="text-xs text-gray-500 text-center py-6 leading-relaxed">
+                No saved themes yet. Save your current theme to reuse it on other forms.
+              </p>
+            ) : (
+              savedThemes.map((theme) => (
+                <button
+                  key={theme.id}
+                  onClick={() => handleApplyTheme(theme)}
+                  className={cn(
+                    'w-full text-left p-2.5 rounded-lg border transition-colors',
+                    theme.id === settings.themeId ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                  )}
+                >
+                  <div className="flex items-center justify-between mb-1.5 gap-2">
+                    <span className="text-sm font-medium text-gray-900 truncate">{theme.name}</span>
+                    {theme.is_default && (
+                      <span className="text-[10px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5 flex-shrink-0">Default</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-1">
+                      {[
+                        theme.colors.questions_background_color,
+                        theme.colors.primary_color,
+                        theme.colors.questions_color,
+                        theme.colors.answers_color,
+                      ].map((c, i) => (
+                        <div key={i} className="w-3.5 h-3.5 rounded-full border border-gray-200" style={{ background: c }} />
+                      ))}
+                    </div>
+                    <span className="text-[11px] text-gray-400">{getGoogleFont(theme.font).label}</span>
+                  </div>
+                </button>
+              ))
+            )}
+          </TabsContent>
+        </Tabs>
+
+        <Dialog open={themeDialogOpen} onOpenChange={setThemeDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{appliedTheme ? 'Rename theme' : 'Save as new theme'}</DialogTitle>
+            </DialogHeader>
+            <Input
+              value={themeDialogValue}
+              onChange={(e) => setThemeDialogValue(e.target.value)}
+              placeholder="Theme name"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setThemeDialogOpen(false)}>Cancel</Button>
+              <Button
+                disabled={!themeDialogValue.trim() || isSavingTheme}
+                onClick={async () => {
+                  const name = themeDialogValue.trim()
+                  if (!name) return
+                  if (appliedTheme) {
+                    await handleRenameTheme(name)
+                  } else {
+                    await handleSaveAsNewTheme(name)
+                  }
+                  setThemeDialogOpen(false)
+                }}
+              >
+                {appliedTheme ? 'Rename' : 'Save'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     )
   }

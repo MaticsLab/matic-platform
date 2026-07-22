@@ -122,6 +122,7 @@ function portalFieldToDefinition(portalField: PortalField): Field {
     is_visible: true,
     is_primary: false,
     is_searchable: false,
+    validation: portalField.validation,
     config: {
       // Preserve portal-specific config
       ...portalField.config,

@@ -1388,6 +1388,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                       setHasUnsavedChanges(true)
                     }}
                     formId={formId || undefined}
+                    workspaceId={workspaceId || undefined}
                     onTabChange={(tab) => setThemePageType(tab)}
                   />
                 </div>

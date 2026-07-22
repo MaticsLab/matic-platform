@@ -83,7 +83,15 @@ export type PortalConfig = {
       questionsColor?: string            // Color for question labels
       answersColor?: string              // Color for answer text/inputs
       showLogo?: boolean                 // Whether to show logo in form header
+      logoUrls?: string[]                // Up to 2 logos, shown side by side
+      font?: string                      // Key into the curated Google Fonts list
+      imagePosition?: 'none' | 'left' | 'right' | 'banner_top' | 'full_background' | 'card_on_image'
+      coverImageUrl?: string
+      coverImageBrightness?: number       // 0-100, default 50
+      questionSize?: 'small' | 'normal' | 'large'
     }
+    // References a saved, reusable PortalTheme applied to this form; undefined = ad hoc/unsaved
+    themeId?: string
     termsUrl?: string
     privacyUrl?: string
     loginFields: Field[]
@@ -156,4 +164,32 @@ export type PortalConfig = {
    * Also supports legacy format for backward compatibility: { langCode: { key: value } }
    */
   translations?: Record<string, Record<string, any>>
+}
+
+// A reusable, workspace-level form theme — saved independently of any single
+// form so it can be applied across multiple forms in a workspace.
+export type PortalTheme = {
+  id: string
+  workspace_id: string
+  name: string
+  colors: {
+    questions_background_color: string
+    primary_color: string
+    questions_color: string
+    answers_color: string
+  }
+  font: string
+  logo: {
+    enabled: boolean
+    urls: string[]
+  }
+  image: {
+    position: 'none' | 'left' | 'right' | 'banner_top' | 'full_background' | 'card_on_image'
+    asset_url?: string
+    brightness: number
+  }
+  question_size: 'small' | 'normal' | 'large'
+  is_default: boolean
+  created_at: string
+  updated_at: string
 }

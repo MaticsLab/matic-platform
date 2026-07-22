@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/ui-components/card'
 import { Progress } from '@/ui-components/progress'
 
 import { DynamicApplicationForm } from './DynamicApplicationForm'
+import { StandaloneFormRenderer } from './StandaloneFormRenderer'
 
 
 /**
@@ -1385,6 +1386,14 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   // Sign in page. Portals with none of these are filled out anonymously.
   const requiresSignIn = portalConfig.sections.some(s => s.sectionType === 'signin')
 
+  // Simple single-form portals (no sign-in, exactly one form section — Cover/
+  // Ending optional) get the lightweight standalone renderer instead of the
+  // full dual-sidebar application shell. Review is intentionally not counted
+  // or shown as a step here — submit goes straight through.
+  const standaloneFormSection = portalConfig.sections.find(s => s.sectionType === 'form' || !s.sectionType)
+  const standaloneFormSectionCount = portalConfig.sections.filter(s => s.sectionType === 'form' || !s.sectionType).length
+  const isStandaloneEligible = !requiresSignIn && standaloneFormSectionCount === 1 && !!standaloneFormSection
+
   // Anonymous portals have no "my applications" identity, so the dashboard
   // view (the default state) makes no sense — go straight to the form.
   // initialData otherwise only ever gets populated inside authenticated-flow
@@ -1505,6 +1514,26 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
             </>
           )}
         </div>
+      </TranslationProvider>
+    )
+  }
+
+  // Simple single-form, no-sign-in portals get the lightweight standalone
+  // renderer — no dark nav sidebar, no section pill list, just the form.
+  if (isStandaloneEligible && standaloneFormSection && form) {
+    const coverSection = portalConfig.sections.find(s => s.sectionType === 'cover')
+    return (
+      <TranslationProvider>
+        <StandaloneFormRenderer
+          form={form}
+          portalConfig={portalConfig}
+          formSection={standaloneFormSection}
+          coverSection={coverSection}
+          onSubmit={handleFormSubmit}
+          supportedLanguages={supportedLanguages}
+          activeLanguage={activeLanguage}
+          onLanguageChange={setActiveLanguage}
+        />
       </TranslationProvider>
     )
   }

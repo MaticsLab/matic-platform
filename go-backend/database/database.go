@@ -123,6 +123,9 @@ func AutoMigrate() error {
 		// Ending Pages
 		&models.EndingPage{},
 
+		// Portal Themes (reusable, workspace-level form themes)
+		&models.PortalTheme{},
+
 		// Portal Documents
 		&models.PortalDocument{},
 

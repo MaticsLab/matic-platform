@@ -302,30 +302,62 @@ export function SelectRenderer(props: FieldRendererProps): React.ReactElement | 
         
         {isMulti ? (
           <div className="space-y-2">
-            {options.map((opt) => {
-              const isSelected = normalizedValue.includes(opt.value);
+            {(() => {
+              const maxSelect: number | undefined = field.validation?.maxSelect;
+              const atMax = typeof maxSelect === 'number' && normalizedValue.length >= maxSelect;
               return (
-                <div key={opt.value} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`${field.name}-${opt.value}`}
-                    checked={isSelected}
-                    disabled={disabled}
-                    onCheckedChange={(checked) => {
-                      const newValue = checked
-                        ? [...normalizedValue, opt.value]
-                        : normalizedValue.filter((v) => v !== opt.value);
-                      onChange?.(newValue);
-                    }}
-                  />
-                  <Label
-                    htmlFor={`${field.name}-${opt.value}`}
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    {opt.label || opt.value}
-                  </Label>
-                </div>
+                <>
+                  {typeof maxSelect === 'number' && (
+                    <p className="text-xs text-gray-500">
+                      Choose up to {maxSelect} · <b className="font-semibold text-gray-700">{normalizedValue.length} selected</b>
+                    </p>
+                  )}
+                  <div className="flex flex-col gap-1.5">
+                    {options.map((opt) => {
+                      const isSelected = normalizedValue.includes(opt.value);
+                      const isDisabled = disabled || (!isSelected && atMax);
+                      const toggle = () => {
+                        if (isDisabled) return;
+                        const newValue = isSelected
+                          ? normalizedValue.filter((v) => v !== opt.value)
+                          : [...normalizedValue, opt.value];
+                        onChange?.(newValue);
+                      };
+                      return (
+                        <div
+                          key={opt.value}
+                          role="button"
+                          tabIndex={isDisabled ? -1 : 0}
+                          onClick={toggle}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              toggle();
+                            }
+                          }}
+                          className={cn(
+                            'flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-colors select-none',
+                            isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+                            isSelected
+                              ? 'border-blue-300 bg-blue-50 text-blue-700 font-medium'
+                              : 'border-gray-200 bg-white hover:border-gray-300'
+                          )}
+                        >
+                          <Checkbox
+                            id={`${field.name}-${opt.value}`}
+                            checked={isSelected}
+                            disabled={isDisabled}
+                            onCheckedChange={toggle}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <span className="flex-1">{opt.label || opt.value}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               );
-            })}
+            })()}
           </div>
         ) : (
           <Select
