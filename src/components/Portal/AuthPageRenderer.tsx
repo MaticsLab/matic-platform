@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
 import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
-import { Field, PortalConfig } from '@/types/portal'
+import { PortalConfig } from '@/types/portal'
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
 import { RichTextEditor, RichTextContent } from '@/components/PortalBuilder/RichTextEditor'
 import { toast } from 'sonner'
@@ -63,11 +63,11 @@ export function AuthPageRenderer({
   const title = pageSettings?.title
     || (isSignup ? settings.signupTitle : settings.loginTitle)
     || settings.name
-    || (isSignup ? 'Sign up for your account' : 'Sign in to your account')
+    || (isSignup ? 'Create your account' : 'Sign in to your account')
   const description = pageSettings?.description
     || (isSignup ? settings.signupDescription : settings.loginDescription)
     || (isSignup
-        ? 'Please sign up to continue your application.'
+        ? 'Save your progress and return anytime before the deadline.'
         : 'Please sign in to continue your application.'
       )
   // Dynamic button text based on password input
@@ -368,111 +368,28 @@ export function AuthPageRenderer({
                 </div>
               </>
             ) : (
-              // Signup fields - always use default Better Auth fields (full name, email, password)
-              (() => {
-                // Default Better Auth signup fields - always use these
-                const defaultFields: Field[] = [
-                  {
-                    id: 'full_name',
-                    type: 'text',
-                    label: 'Full name',
-                    required: true,
-                    placeholder: 'Enter your full name'
-                  },
-                  {
-                    id: 'email',
-                    type: 'email',
-                    label: 'Email',
-                    required: true,
-                    placeholder: 'you@example.com'
-                  },
-                  {
-                    id: 'password',
-                    type: 'password',
-                    label: 'Password',
-                    required: false,
-                    placeholder: 'Enter your password'
-                  }
-                ]
-                
-                return defaultFields.map((field) => {
-                    // Special handling for email field to sync with email state
-                    if (field.id === 'email') {
-                      return (
-                        <div
-                          key={field.id}
-                          className={cn(isMobilePreview ? "space-y-1" : "space-y-2")}
-                        >
-                          <Label htmlFor={field.id} className={cn(isMobilePreview && "text-xs")}>
-                            {field.label} {field.required && <span className="text-red-500">*</span>}
-                          </Label>
-                          <Input
-                            id={field.id}
-                            type="email"
-                            placeholder={field.placeholder}
-                            className={cn(isMobilePreview && "h-8 text-xs")}
-                            value={email}
-                            onChange={(e) => {
-                              onEmailChange?.(e.target.value)
-                              handleFieldChange(field.id, e.target.value)
-                            }}
-                            required={field.required}
-                            disabled={isPreview}
-                          />
-                        </div>
-                      )
-                    }
-                    
-                    // Special handling for password field
-                    if (field.id === 'password') {
-                      return (
-                        <div
-                          key={field.id}
-                          className={cn(isMobilePreview ? "space-y-1" : "space-y-2")}
-                        >
-                          <Label htmlFor={field.id} className={cn(isMobilePreview && "text-xs")}>
-                            {field.label}
-                          </Label>
-                          <Input
-                            id={field.id}
-                            type="password"
-                            autoComplete="new-password"
-                            placeholder={field.placeholder}
-                            className={cn(isMobilePreview && "h-8 text-xs")}
-                            value={password}
-                            onChange={(e) => {
-                              onPasswordChange?.(e.target.value)
-                              handleFieldChange(field.id, e.target.value)
-                            }}
-                            disabled={isPreview}
-                          />
-                        </div>
-                      )
-                    }
-                    
-                    // Regular text fields (full_name)
-                    return (
-                      <div
-                        key={field.id}
-                        className={cn(isMobilePreview ? "space-y-1" : "space-y-2")}
-                      >
-                        <Label htmlFor={field.id} className={cn(isMobilePreview && "text-xs")}>
-                          {field.label} {field.required && <span className="text-red-500">*</span>}
-                        </Label>
-                        <Input
-                          id={field.id}
-                          type="text"
-                          placeholder={field.placeholder}
-                          className={cn(isMobilePreview && "h-8 text-xs")}
-                          value={signupData[field.id] || ''}
-                          onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                          required={field.required}
-                          disabled={isPreview}
-                        />
-                      </div>
-                    )
-                  })
-              })()
+              // Signup: email only by default (magic link). Full name is collected on
+              // the Personal Information page; password/SSO are opt-in, not defaults —
+              // a visible password field alongside "Email me a sign-up link" reads as
+              // contradictory, so it's left out of the default view entirely.
+              <div className={cn(isMobilePreview ? "space-y-1" : "space-y-2")}>
+                <Label htmlFor="signup-email" className={cn(isMobilePreview && "text-xs")}>
+                  Email <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="signup-email"
+                  type="email"
+                  placeholder="you@example.com"
+                  className={cn(isMobilePreview && "h-8 text-xs")}
+                  value={email}
+                  onChange={(e) => {
+                    onEmailChange?.(e.target.value)
+                    handleFieldChange('email', e.target.value)
+                  }}
+                  required
+                  disabled={isPreview}
+                />
+              </div>
             )}
 
             {/* Submit Button - Editable text in preview mode */}
@@ -533,13 +450,13 @@ export function AuthPageRenderer({
         {/* Toggle between login/signup */}
         {onToggleMode && (
           <p className="text-center mt-4 sm:mt-6 text-xs sm:text-sm text-gray-500">
-            {type === 'login' ? "Don't have an account? " : "Already have an account? "}
-            <button 
+            {type === 'login' ? "Don't have an account? " : "Already started an application? "}
+            <button
               onClick={onToggleMode}
               className="font-medium text-gray-900 hover:underline underline-offset-4"
               type="button"
             >
-              {type === 'login' ? 'Sign up' : 'Sign in'}
+              {type === 'login' ? 'Sign up' : 'Log in'}
             </button>
           </p>
         )}

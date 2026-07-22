@@ -716,6 +716,19 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         blocks: DEFAULT_ENDING_TEMPLATE
       }
     }
+    if (type === 'signin') {
+      // Marker section only — its mere presence in config.sections is what makes
+      // sign-in required for this portal. The actual auth UI is still rendered via
+      // the existing signup/login special page (config.settings, AuthPageRenderer),
+      // not from this section's own fields.
+      return {
+        id: uuidv4(),
+        title: 'Sign in',
+        sectionType: 'signin',
+        description: 'Let users sign in to save and resume their progress',
+        fields: []
+      }
+    }
     if (type === 'review') {
       return {
         id: uuidv4(),
@@ -739,9 +752,23 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
   }
 
   const handleAddSection = (type: Section['sectionType']) => {
+    // Defense in depth — the Add a page menu already disables these once present.
+    if ((type === 'signin' || type === 'ending') && config.sections.some(s => s.sectionType === type)) {
+      return
+    }
+
     const newSection = createSectionTemplate(type)
-    setConfig(prev => ({ ...prev, sections: [...prev.sections, newSection] }))
-    setActiveSectionId(newSection.id)
+
+    if (type === 'signin') {
+      // Pinned first: sign-in always appears at the top of the page list.
+      setConfig(prev => ({ ...prev, sections: [newSection, ...prev.sections] }))
+      setActiveSpecialPage('signup')
+      setActiveSectionId('')
+    } else {
+      setConfig(prev => ({ ...prev, sections: [...prev.sections, newSection] }))
+      setActiveSectionId(newSection.id)
+    }
+
     setHasUnsavedChanges(true)
     setIsPublished(false)
   }

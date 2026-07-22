@@ -988,6 +988,13 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
         throw new Error('Form ID not found')
       }
 
+      // Anonymous portals (no Sign in page added) have no identity to save
+      // progress against — there's nothing to "save and exit" to.
+      if (!requiresSignIn && options?.saveAndExit) {
+        toast.error('Add a Sign in page to this portal to let applicants save progress and return later.')
+        return
+      }
+
       setIsSaving(true)
       
       // Wait for any pending uploads before saving
@@ -996,7 +1003,42 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       const isDraft = options?.saveAndExit === true
       
       const baseUrl = getApiUrl()
-      
+
+      if (!requiresSignIn) {
+        // No Sign in page on this portal — submit anonymously via the public,
+        // unauthenticated endpoint. Single-shot submission only: without an
+        // identity there's no session to resume against, so this always
+        // finalizes the application (the saveAndExit guard above already
+        // rules that case out).
+        console.log('[PublicPortalV2] Submitting form data anonymously (no sign-in page):', { formId: form.id })
+
+        const emailField = Object.entries(cleanedFormData).find(([, value]) =>
+          typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+        )
+
+        const response = await fetch(`${baseUrl}/forms/${form.id}/submit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            data: cleanedFormData,
+            save_draft: false,
+            ...(emailField && { email: emailField[1] })
+          })
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || errorData.message || `Submission failed (HTTP ${response.status})`)
+        }
+
+        setCurrentFormData(cleanedFormData)
+        currentFormDataRef.current = cleanedFormData
+        setSubmissionData(cleanedFormData)
+        toast.success('Application submitted successfully!')
+        setIsSubmitted(true)
+        return
+      }
+
       // Get Better Auth session token
       const session = await authClient.getSession()
       const sessionToken = session?.data?.session?.token
@@ -1339,6 +1381,23 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     return config
   }, [translatedForm])
 
+  // Sign-in is opt-in per portal: only required when the builder has added a
+  // Sign in page. Portals with none of these are filled out anonymously.
+  const requiresSignIn = portalConfig.sections.some(s => s.sectionType === 'signin')
+
+  // Anonymous portals have no "my applications" identity, so the dashboard
+  // view (the default state) makes no sense — go straight to the form.
+  // initialData otherwise only ever gets populated inside authenticated-flow
+  // branches (login/session-check handlers), which anonymous users never hit,
+  // so ApplicationView (gated on `initialData` being non-null) would never
+  // render at all without this.
+  useEffect(() => {
+    if (!requiresSignIn) {
+      setCurrentView('application')
+      setInitialData((prev: any) => prev ?? {})
+    }
+  }, [requiresSignIn])
+
   // Memoize the form initial data
   const formInitialData = useMemo(() => {
     console.log('[PublicPortalV2] Computing formInitialData:', {
@@ -1410,8 +1469,9 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     )
   }
 
-  // Show login/signup if not authenticated
-  if (!isAuthenticated) {
+  // Show login/signup only if this portal has a Sign in page and the user
+  // isn't authenticated yet — portals without one are fillable anonymously.
+  if (requiresSignIn && !isAuthenticated) {
     return (
       <TranslationProvider>
         <div className="min-h-screen bg-background dark:bg-gray-950">
@@ -1552,7 +1612,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
             currentView={currentView}
             onToggleNavSidebar={() => setNavSidebarOpen(!navSidebarOpen)}
             navSidebarOpen={navSidebarOpen}
-            onSaveAndExit={currentView === 'application' ? handleSaveAndDashboard : undefined}
+            onSaveAndExit={currentView === 'application' && requiresSignIn ? handleSaveAndDashboard : undefined}
             progress={currentView === 'application' ? applicationProgress : undefined}
             isSaving={isSaving}
             isSettingsOpen={isSettingsOpen}

@@ -35,7 +35,7 @@ export type Section = {
   id: string
   title: string
   description?: string
-  sectionType?: 'form' | 'cover' | 'ending' | 'review' | 'dashboard'
+  sectionType?: 'form' | 'cover' | 'ending' | 'review' | 'dashboard' | 'signin' | 'payment' | 'scheduling'
   fields: Field[]
   // Cover section content (Novel editor JSON)
   content?: string
