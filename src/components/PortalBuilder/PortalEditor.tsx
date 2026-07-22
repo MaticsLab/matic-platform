@@ -35,6 +35,7 @@ import { getBlockDefinition } from '@/lib/ending-block-registry'
 import type { EndingBlock } from '@/types/ending-blocks'
 import { DynamicApplicationForm } from '@/components/ApplicationsHub/Applications/ApplicantPortal/DynamicApplicationForm'
 import { PortalConfig, Section, Field } from '@/types/portal'
+import { StandaloneFormShell } from '@/components/ApplicationsHub/Applications/ApplicantPortal/StandaloneFormShell'
 import { supabase } from '@/lib/supabase'
 import { CollaborationProvider, useCollaborationOptional, getCollaborationActions, useYDoc } from './CollaborationProvider'
 import { PortalConfigSyncBridge } from './PortalConfigSyncBridge'
@@ -1083,6 +1084,13 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     : applyTranslationsToConfig(config, activeLanguage)
   const displaySection = displayConfig.sections.find((s: Section) => s.id === activeSectionId)
 
+  // Mirrors PublicPortalV2.tsx's eligibility check: simple single-form portals
+  // (no Sign in page, exactly one form section) render standalone on the real
+  // public page — the canvas uses the same shell here so it doesn't drift.
+  const canvasHasSignin = config.sections.some(s => s.sectionType === 'signin')
+  const canvasFormSectionCount = config.sections.filter(s => s.sectionType === 'form' || !s.sectionType).length
+  const isStandaloneEligible = !canvasHasSignin && canvasFormSectionCount === 1
+
   if (isLoading) {
     return <PortalEditorSkeleton />
   }
@@ -1509,20 +1517,47 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
                         onUpdate={(content) => handleUpdateSection(displaySection.id, { content })}
                       />
                     ) : useBlockEditor ? (
-                      <BlockEditor 
-                        section={displaySection} 
-                        onUpdate={(updates: Partial<Section>) => handleUpdateSection(displaySection.id, updates)} 
-                        selectedBlockId={selectedBlockId}
-                        onSelectBlock={setSelectedBlockId}
-                        onOpenSettings={() => setShowFieldSettings(true)}
-                        themeColor={config.settings.themeColor}
-                        formTheme={config.settings.formTheme}
-                        logoUrl={config.settings.logoUrl}
-                        roomId={formId || displaySection.id}
-                        currentUser={currentUser || { id: workspaceId || 'anonymous', name: 'Anonymous User' }}
-                        allSections={config.sections}
-                        onMoveFieldToSection={handleMoveFieldToSection}
-                      />
+                      isStandaloneEligible && (displaySection.sectionType === 'form' || !displaySection.sectionType) ? (
+                        <StandaloneFormShell
+                          imagePosition={config.settings.formTheme?.imagePosition || 'none'}
+                          coverImageUrl={config.settings.formTheme?.coverImageUrl}
+                          brightness={config.settings.formTheme?.coverImageBrightness ?? 50}
+                          questionsBackgroundColor={config.settings.formTheme?.questionsBackgroundColor || '#ffffff'}
+                          fontFamily="inherit"
+                          fullBleed={false}
+                          formContent={
+                            <BlockEditor
+                              section={displaySection}
+                              onUpdate={(updates: Partial<Section>) => handleUpdateSection(displaySection.id, updates)}
+                              selectedBlockId={selectedBlockId}
+                              onSelectBlock={setSelectedBlockId}
+                              onOpenSettings={() => setShowFieldSettings(true)}
+                              themeColor={config.settings.themeColor}
+                              formTheme={config.settings.formTheme}
+                              logoUrl={config.settings.logoUrl}
+                              roomId={formId || displaySection.id}
+                              currentUser={currentUser || { id: workspaceId || 'anonymous', name: 'Anonymous User' }}
+                              allSections={config.sections}
+                              onMoveFieldToSection={handleMoveFieldToSection}
+                            />
+                          }
+                        />
+                      ) : (
+                        <BlockEditor
+                          section={displaySection}
+                          onUpdate={(updates: Partial<Section>) => handleUpdateSection(displaySection.id, updates)}
+                          selectedBlockId={selectedBlockId}
+                          onSelectBlock={setSelectedBlockId}
+                          onOpenSettings={() => setShowFieldSettings(true)}
+                          themeColor={config.settings.themeColor}
+                          formTheme={config.settings.formTheme}
+                          logoUrl={config.settings.logoUrl}
+                          roomId={formId || displaySection.id}
+                          currentUser={currentUser || { id: workspaceId || 'anonymous', name: 'Anonymous User' }}
+                          allSections={config.sections}
+                          onMoveFieldToSection={handleMoveFieldToSection}
+                        />
+                      )
                     ) : (
                       <FormBuilder 
                         section={displaySection} 

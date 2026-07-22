@@ -48,22 +48,21 @@ import {
   Sparkles, Command, FolderInput, Check, X, Settings, ArrowUpRightFromCircle, UserPlus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Section, Field, FieldType } from '@/types/portal';
+import { Section, Field, FieldType, PortalConfig } from '@/types/portal';
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter';
 import { useCollaborationOptional } from './CollaborationProvider';
 import { BlockCollaboratorRing } from './PresenceIndicators';
+import { getGoogleFont } from '@/lib/fonts';
+import { useGoogleFont } from '@/hooks/useGoogleFont';
+import { QUESTION_SIZE_PRESETS } from '@/lib/form-theme-presets';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-interface FormTheme {
-  questionsBackgroundColor?: string;
-  primaryColor?: string;
-  questionsColor?: string;
-  answersColor?: string;
-  showLogo?: boolean;
-}
+// Matches PortalConfig['settings']['formTheme'] exactly — deriving rather than
+// hand-declaring avoids this drifting out of sync with the real type again.
+type FormTheme = NonNullable<PortalConfig['settings']['formTheme']>;
 
 interface BlockEditorProps {
   section: Section;
@@ -1747,6 +1746,11 @@ export function BlockEditor({
     answersColor: formTheme?.answersColor || '#374151',
     showLogo: formTheme?.showLogo !== false,
   };
+  // Font + question size match the real public form (StandaloneFormRenderer) —
+  // same presets, so the canvas doesn't drift from what applicants actually see.
+  const fontFamily = getGoogleFont(formTheme?.font).fontFamily;
+  const sizePreset = QUESTION_SIZE_PRESETS[formTheme?.questionSize || 'normal'] || QUESTION_SIZE_PRESETS.normal;
+  useGoogleFont(formTheme?.font);
   const [slashMenu, setSlashMenu] = useState<{ position: { top: number; left: number }; insertIndex: number; containerId?: string } | null>(null);
   const [slashQuery, setSlashQuery] = useState('');
   const [isTypingSlash, setIsTypingSlash] = useState(false);
@@ -1935,10 +1939,23 @@ export function BlockEditor({
   return (
     <div
       ref={containerRef}
-      className="flex flex-col min-h-full"
-      style={{ backgroundColor: resolvedTheme.questionsBackgroundColor }}
+      className="builder-canvas-fields flex flex-col min-h-full"
+      style={{
+        backgroundColor: resolvedTheme.questionsBackgroundColor,
+        fontFamily,
+        '--bc-label-size': `${sizePreset.label}px`,
+        '--bc-input-height': `${sizePreset.input}px`,
+      } as React.CSSProperties}
       onClick={() => onSelectBlock(null)}
     >
+      <style>{`
+        .builder-canvas-fields label { font-size: var(--bc-label-size); }
+        .builder-canvas-fields input:not([type="checkbox"]):not([type="radio"]),
+        .builder-canvas-fields textarea,
+        .builder-canvas-fields button[role="combobox"] {
+          min-height: var(--bc-input-height);
+        }
+      `}</style>
       {/* Logo Header - shown if logo exists and showLogo is enabled */}
       {logoUrl && resolvedTheme.showLogo && (
         <div className="px-20 pt-6 pb-4 flex items-center justify-end">

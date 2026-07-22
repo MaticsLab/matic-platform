@@ -7,9 +7,10 @@ import StarterKit from '@tiptap/starter-kit'
 import { toast } from 'sonner'
 import { PortalFieldAdapter } from '@/components/Fields/PortalFieldAdapter'
 import { StandaloneLanguageSelector } from '@/components/Portal/LanguageSelector'
-import { cn } from '@/lib/utils'
+import { StandaloneFormShell } from './StandaloneFormShell'
 import { getGoogleFont } from '@/lib/fonts'
 import { useGoogleFont } from '@/hooks/useGoogleFont'
+import { QUESTION_SIZE_PRESETS } from '@/lib/form-theme-presets'
 import type { Form } from '@/types/forms'
 import type { PortalConfig, Section } from '@/types/portal'
 
@@ -22,12 +23,6 @@ interface StandaloneFormRendererProps {
   supportedLanguages: string[]
   activeLanguage: string
   onLanguageChange: (lang: string) => void
-}
-
-const QUESTION_SIZE_PRESETS: Record<string, { label: number; input: number }> = {
-  small: { label: 13, input: 34 },
-  normal: { label: 14, input: 38 },
-  large: { label: 16, input: 44 },
 }
 
 function coverContentToHtml(content?: string): string | null {
@@ -69,15 +64,6 @@ export function StandaloneFormRenderer({
 
   const coverHtml = useMemo(() => coverContentToHtml(coverSection?.content), [coverSection?.content])
 
-  const overlayBackground = useMemo(() => {
-    if (brightness >= 50) {
-      const alpha = ((brightness - 50) / 50) * 0.7
-      return `rgba(255,255,255,${alpha.toFixed(2)})`
-    }
-    const alpha = ((50 - brightness) / 50) * 0.6
-    return `rgba(0,0,0,${alpha.toFixed(2)})`
-  }, [brightness])
-
   const handleFieldChange = (fieldId: string, value: unknown) => {
     setFormData((prev) => ({ ...prev, [fieldId]: value }))
   }
@@ -99,12 +85,6 @@ export function StandaloneFormRenderer({
       setIsSubmitting(false)
     }
   }
-
-  const showImage = imagePosition !== 'none'
-  const isCardOnImage = imagePosition === 'card_on_image'
-  const isFullBackground = imagePosition === 'full_background'
-  const isBannerTop = imagePosition === 'banner_top'
-  const isImageLeft = imagePosition === 'left'
 
   const themeVars = {
     '--sf-label-size': `${sizePreset.label}px`,
@@ -193,84 +173,15 @@ export function StandaloneFormRenderer({
     </div>
   )
 
-  const imageColumn = (
-    <div className="relative w-full h-full bg-blue-200">
-      {formTheme.coverImageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={formTheme.coverImageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
-      )}
-      <div className="absolute inset-0" style={{ background: overlayBackground }} />
-    </div>
-  )
-
-  // Full background / card-on-image: photo fills the entire viewport, form
-  // floats in a centered white card on top — no boxed/padded outer wrapper.
-  if (isFullBackground || isCardOnImage) {
-    return (
-      <div className="min-h-screen relative flex items-center justify-center" style={{ fontFamily: selectedFont.fontFamily }}>
-        <div className="absolute inset-0">
-          {formTheme.coverImageUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={formTheme.coverImageUrl} alt="" className="w-full h-full object-cover" />
-          )}
-          <div className="absolute inset-0" style={{ background: overlayBackground }} />
-        </div>
-        <div className={cn('relative z-10 w-full max-w-xl', isCardOnImage && 'p-6 sm:p-10')}>
-          <div className="rounded-2xl overflow-hidden shadow-xl" style={{ background: '#fff' }}>
-            {formColumn}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Banner top: full-width image strip above the form, no boxed wrapper.
-  if (isBannerTop) {
-    return (
-      <div className="min-h-screen flex flex-col" style={{ background: questionsBackgroundColor, fontFamily: selectedFont.fontFamily }}>
-        <div className="w-full h-[220px] flex-shrink-0 relative overflow-hidden">{imageColumn}</div>
-        <div className="flex-1 flex items-center justify-center">{formColumn}</div>
-      </div>
-    )
-  }
-
-  // None: single centered column, full height, no image.
-  if (!showImage) {
-    return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: questionsBackgroundColor, fontFamily: selectedFont.fontFamily }}
-      >
-        {formColumn}
-      </div>
-    )
-  }
-
-  // Left / right: full-bleed split, image spans the full window height edge to
-  // edge on desktop and collapses to a top banner on mobile — mirrors the
-  // existing split-screen auth pages (AuthPageRenderer.tsx), not a boxed card.
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row" style={{ fontFamily: selectedFont.fontFamily }}>
-      {isImageLeft && (
-        <>
-          <div className="w-full h-56 relative overflow-hidden lg:hidden">{imageColumn}</div>
-          <div className="hidden lg:block lg:w-[42%] relative overflow-hidden">{imageColumn}</div>
-        </>
-      )}
-
-      <div
-        className="w-full lg:w-[58%] flex items-center justify-center"
-        style={{ background: questionsBackgroundColor }}
-      >
-        {formColumn}
-      </div>
-
-      {!isImageLeft && (
-        <>
-          <div className="w-full h-56 relative overflow-hidden order-first lg:hidden">{imageColumn}</div>
-          <div className="hidden lg:block lg:w-[42%] relative overflow-hidden">{imageColumn}</div>
-        </>
-      )}
-    </div>
+    <StandaloneFormShell
+      imagePosition={imagePosition}
+      coverImageUrl={formTheme.coverImageUrl}
+      brightness={brightness}
+      questionsBackgroundColor={questionsBackgroundColor}
+      fontFamily={selectedFont.fontFamily}
+      formContent={formColumn}
+      fullBleed
+    />
   )
 }
