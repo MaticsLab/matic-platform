@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { clearLastWorkspace } from '@/lib/utils'
-import { useWorkspaceDiscovery } from '@/hooks/useWorkspaceDiscovery'
-import { useOrganizationDiscovery } from '@/hooks/useOrganizationDiscovery'
+import { clearLastWorkspace, saveLastWorkspace } from '@/lib/utils'
+import { useWorkspaceDiscovery, type WorkspaceDiscoverySeed } from '@/hooks/useWorkspaceDiscovery'
+import { useOrganizationDiscovery, type OrganizationDiscoverySeed } from '@/hooks/useOrganizationDiscovery'
 import { useSession, signOut as betterAuthSignOut } from '@/auth/client/main'
 import { AppSidebar } from './AppSidebar'  // Explicit capitalized import
 import { AppSidebarSkeleton } from './AppSidebarSkeleton'
@@ -21,9 +21,16 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/ui-components/s
 interface NavigationLayoutProps {
   children: React.ReactNode
   workspaceSlug?: string
+  /** Server-fetched initial data (see the (dashboard) layout.tsx) — when
+   * provided, the two discovery hooks skip their own initial fetch entirely,
+   * eliminating the client-side waterfall on first load. All later
+   * interactive behavior (switching workspace/org, refetch-after-create)
+   * is unaffected. */
+  workspaceSeed?: WorkspaceDiscoverySeed
+  organizationSeed?: OrganizationDiscoverySeed
 }
 
-export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutProps) {
+export function NavigationLayout({ children, workspaceSlug, workspaceSeed, organizationSeed }: NavigationLayoutProps) {
   const router = useRouter()
   const pathname = usePathname()
   const { data, isPending: authLoading } = useSession()
@@ -43,8 +50,8 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
   const [devMode, setDevMode] = useState(false)
   
   // Workspace and organization hooks
-  const { workspaces, currentWorkspace, loading: workspacesLoading, setCurrentWorkspaceBySlug } = useWorkspaceDiscovery()
-  const { organizations, currentOrganization, switchToOrganization } = useOrganizationDiscovery()
+  const { workspaces, currentWorkspace, loading: workspacesLoading, setCurrentWorkspaceBySlug } = useWorkspaceDiscovery(workspaceSeed)
+  const { organizations, currentOrganization, switchToOrganization } = useOrganizationDiscovery(organizationSeed)
 
   // Set current workspace on slug change
   useEffect(() => {
@@ -52,6 +59,15 @@ export function NavigationLayout({ children, workspaceSlug }: NavigationLayoutPr
       setCurrentWorkspaceBySlug(workspaceSlug)
     }
   }, [workspaceSlug, workspaces, setCurrentWorkspaceBySlug])
+
+  // Remember the last-visited workspace (localStorage, client-only) — centralized
+  // here now that every dashboard page shares this one layout, rather than each
+  // page calling this individually (previously inconsistent: 2 of 5 pages never did).
+  useEffect(() => {
+    if (workspaceSlug) {
+      saveLastWorkspace(workspaceSlug)
+    }
+  }, [workspaceSlug])
 
   // Event handlers
   const handleSignOut = async () => {

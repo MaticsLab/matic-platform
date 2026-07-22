@@ -93,11 +93,16 @@ export async function goFetch<T>(
   }
 
   // Make request with credentials: 'include' to send Better Auth session cookies
-  // Cookies with domain .maticsapp.com are sent to api.maticsapp.com automatically
+  // Cookies with domain .maticsapp.com are sent to api.maticsapp.com automatically.
+  // cache: 'no-store' is required once this client is called from Server Components —
+  // every response here is private/per-user (workspace, org, form data), and Next's
+  // fetch Data Cache keys on the URL alone, not the caller's session. Without this,
+  // one user's cached response could be served to a different user hitting the same URL.
   const response = await fetch(url, {
     ...fetchOptions,
     credentials: 'include',
     headers: requestHeaders,
+    cache: 'no-store',
   })
 
   // Handle errors

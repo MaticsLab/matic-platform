@@ -13,17 +13,35 @@ interface Workspace {
   plan: string
 }
 
-export function useWorkspaceDiscovery() {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null)
-  const [loading, setLoading] = useState(true)
+export interface WorkspaceDiscoverySeed {
+  workspaces: Workspace[]
+  currentWorkspace: Workspace | null
+}
+
+/** Maps the raw API workspace shape to this hook's minimal shape — shared so a
+ * server-fetched seed (see WorkspaceDiscoverySeed) lines up exactly with what
+ * the client-side fetch would have produced. */
+export function toDiscoveryWorkspace(workspace: APIWorkspace): Workspace {
+  return {
+    id: workspace.id,
+    name: workspace.name,
+    slug: workspace.slug,
+    plan: 'free', // TODO: Add plan field to backend
+  }
+}
+
+export function useWorkspaceDiscovery(seed?: WorkspaceDiscoverySeed) {
+  const [workspaces, setWorkspaces] = useState<Workspace[]>(seed?.workspaces ?? [])
+  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(seed?.currentWorkspace ?? null)
+  const [loading, setLoading] = useState(!seed)
   const router = useRouter()
   const { data, isPending: authLoading } = useSession()
   const hybridUser = data?.user || null
   const isAuthenticated = !!hybridUser
-  
-  // Track if we've already fetched to prevent infinite loops
-  const hasFetchedRef = useRef(false)
+
+  // Track if we've already fetched to prevent infinite loops. Seeded data means
+  // a Server Component already did this fetch — skip doing it again on mount.
+  const hasFetchedRef = useRef(!!seed)
 
   const fetchWorkspaces = useCallback(async (userId: string) => {
     try {
@@ -36,12 +54,7 @@ export function useWorkspaceDiscovery() {
       const workspacesArray = Array.isArray(apiWorkspaces) ? apiWorkspaces : []
       
       // Convert API response to hook format
-      const formattedWorkspaces: Workspace[] = workspacesArray.map((workspace: APIWorkspace) => ({
-        id: workspace.id,
-        name: workspace.name,
-        slug: workspace.slug,
-        plan: 'free' // TODO: Add plan field to backend
-      }))
+      const formattedWorkspaces: Workspace[] = workspacesArray.map(toDiscoveryWorkspace)
       
       console.log('✅ Workspaces loaded:', formattedWorkspaces)
       setWorkspaces(formattedWorkspaces)

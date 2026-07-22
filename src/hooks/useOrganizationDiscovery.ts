@@ -14,16 +14,22 @@ interface OrganizationWithWorkspaces extends Organization {
   }>
 }
 
-export function useOrganizationDiscovery() {
-  const [organizations, setOrganizations] = useState<OrganizationWithWorkspaces[]>([])
-  const [currentOrganization, setCurrentOrganization] = useState<OrganizationWithWorkspaces | null>(null)
-  const [loading, setLoading] = useState(true)
+export interface OrganizationDiscoverySeed {
+  organizations: OrganizationWithWorkspaces[]
+  currentOrganization: OrganizationWithWorkspaces | null
+}
+
+export function useOrganizationDiscovery(seed?: OrganizationDiscoverySeed) {
+  const [organizations, setOrganizations] = useState<OrganizationWithWorkspaces[]>(seed?.organizations ?? [])
+  const [currentOrganization, setCurrentOrganization] = useState<OrganizationWithWorkspaces | null>(seed?.currentOrganization ?? null)
+  const [loading, setLoading] = useState(!seed)
   const { data, isPending: authLoading } = useSession()
   const user = data?.user || null
   const isAuthenticated = !!user
-  
-  // Track if we've already fetched to prevent infinite loops
-  const hasFetchedRef = useRef(false)
+
+  // Track if we've already fetched to prevent infinite loops. Seeded data means
+  // a Server Component already did this fetch — skip doing it again on mount.
+  const hasFetchedRef = useRef(!!seed)
 
   const fetchOrganizations = useCallback(async () => {
     try {
