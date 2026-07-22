@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Lock, Eye as EyeIcon, ScrollText, BookOpen, CheckCircle,
+  Lock, Eye as EyeIcon, Rows3, BookOpen,
   ChevronDown, GripVertical, Trash2, Settings, Pin, CreditCard, Calendar,
   Clock, MessageSquare, FileText, CheckCircle2, MoreVertical, Plus, Check
 } from 'lucide-react'
@@ -43,7 +43,7 @@ interface UnifiedSidebarProps {
 const SECTION_VARIANTS = {
   form: {
     label: 'Form',
-    icon: ScrollText,
+    icon: Rows3,
     bg: 'bg-amber-50',
     fg: 'text-amber-600',
     activeBg: 'bg-amber-100',
@@ -59,7 +59,7 @@ const SECTION_VARIANTS = {
   },
   ending: {
     label: 'Ending',
-    icon: CheckCircle,
+    icon: CheckCircle2,
     bg: 'bg-red-50',
     fg: 'text-red-700',
     activeBg: 'bg-red-100',
@@ -81,7 +81,7 @@ const BASICS_ITEMS = [
     type: 'form' as const,
     title: 'Form',
     description: 'Collect answers with questions and fields',
-    icon: ScrollText,
+    icon: Rows3,
     bg: '#FAEEDA',
     fg: '#854F0B',
   },
@@ -97,7 +97,7 @@ const BASICS_ITEMS = [
     type: 'ending' as const,
     title: 'Ending',
     description: 'Thank users or send them to another link',
-    icon: CheckCircle,
+    icon: CheckCircle2,
     bg: '#FCEBEB',
     fg: '#A32D2D',
   },
@@ -403,7 +403,7 @@ export function UnifiedSidebar({
               <span className="text-xs">Add</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[380px] p-3">
+          <DropdownMenuContent align="end" className="w-[420px] p-3">
             <div className="px-1 pb-2">
               <h4 className="text-base font-semibold text-gray-900">Add a page</h4>
             </div>
