@@ -511,6 +511,19 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
     loadForm()
   }, [workspaceSlug, initialFormId])
 
+  // Instantly invalidates the public apply/[slug] page's cached form config
+  // after a publish, instead of waiting on its 60s revalidate window. Never
+  // lets a failure here surface as a publish error — this is a cache-freshness
+  // nicety, not something the user's "did my publish work" feedback should
+  // depend on; the 60s window is already the correctness fallback.
+  const triggerPublicFormRevalidate = (form: { id: string; slug: string; custom_slug?: string | null }) => {
+    fetch('/api/forms/revalidate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: form.id, slug: form.slug, customSlug: form.custom_slug }),
+    }).catch((err) => console.warn('[PortalEditor] Revalidate ping failed (non-fatal):', err))
+  }
+
   const handleSave = async () => {
     setIsSaving(true)
     try {
@@ -530,7 +543,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         if (formId) {
             await formsClient.updateStructure(formId, config)
             // Also set is_published to true so submissions are accepted
-            await formsClient.update(formId, { is_published: true })
+            const updated = await formsClient.update(formId, { is_published: true })
+            triggerPublicFormRevalidate(updated)
         } else {
             const newForm = await formsClient.create({
                 workspace_id: workspace.id,
@@ -541,7 +555,8 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             setFormId(newForm.id)
             await formsClient.updateStructure(newForm.id, config)
             // Also set is_published to true so submissions are accepted
-            await formsClient.update(newForm.id, { is_published: true })
+            const updated = await formsClient.update(newForm.id, { is_published: true })
+            triggerPublicFormRevalidate(updated)
         }
 
         toast.success(`Portal published successfully! (${translationCount} languages)`)
