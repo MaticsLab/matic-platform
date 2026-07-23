@@ -89,12 +89,19 @@ export async function generateMetadata(
 // - Via subdomain (rewritten by middleware)
 // - Via forms.maticsapp.com (rewritten by middleware)
 // - Direct /apply/{slug} access (dev environment)
-export default function ApplicationPage({ 
-  params, 
-  searchParams 
-}: { 
-  params: { slug: string }, 
-  searchParams: { subdomain?: string } 
+export default async function ApplicationPage({
+  params,
+  searchParams
+}: {
+  params: { slug: string },
+  searchParams: { subdomain?: string }
 }) {
-  return <PublicPortalV2 slug={params.slug} subdomain={searchParams?.subdomain} />
+  // Same cached fetch generateMetadata already made above — Next.js memoizes
+  // identical fetch() calls within one request, so this isn't a second round
+  // trip to the backend. Seeding PublicPortalV2 with it means the first
+  // response already contains the real form instead of a loading spinner;
+  // if this fails for any reason, formSeed is null and PublicPortalV2 falls
+  // back to its own existing client-side fetch, unchanged.
+  const formSeed = await getFormMetadata(params.slug, searchParams?.subdomain)
+  return <PublicPortalV2 slug={params.slug} subdomain={searchParams?.subdomain} formSeed={formSeed} />
 }

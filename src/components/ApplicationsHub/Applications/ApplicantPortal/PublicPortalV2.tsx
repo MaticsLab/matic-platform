@@ -161,6 +161,12 @@ function stripBlobUrls(data: any): any {
 interface PublicPortalV2Props {
   slug: string
   subdomain?: string
+  /** Server-fetched form config from apply/[slug]/page.tsx — when present,
+   * seeds initial state so SSR (and first client render) already shows real
+   * content instead of a loading spinner. Optional so behavior is unchanged
+   * when absent (server fetch failed, or a future caller doesn't have one) —
+   * the existing client-side fetch below becomes the fallback path. */
+  formSeed?: Form | null
 }
 
 type PortalView = 'dashboard' | 'application'
@@ -197,7 +203,7 @@ function isApplicantSessionUser(user: any): boolean {
   return (user?.userType || user?.user_type) === 'applicant'
 }
 
-export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
+export function PublicPortalV2({ slug, subdomain, formSeed }: PublicPortalV2Props) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isCheckingAuth, setIsCheckingAuth] = useState(true) // Add loading state for auth check
     // Saving state for UI
@@ -208,8 +214,8 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
   const [isLogin, setIsLogin] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [isMagicLinkLoading, setIsMagicLinkLoading] = useState(false)
-  const [isFormLoading, setIsFormLoading] = useState(true)
-  const [form, setForm] = useState<Form | null>(null)
+  const [isFormLoading, setIsFormLoading] = useState(!formSeed)
+  const [form, setForm] = useState<Form | null>(formSeed ?? null)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [hasExistingSubmission, setHasExistingSubmission] = useState(false)
   const [initialData, setInitialData] = useState<any>(null)
@@ -408,46 +414,55 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       formLoadRef.current = loadKey
       
       try {
-        setIsFormLoading(true)
-        const baseUrl = getApiUrl()
-        console.log('[PublicPortalV2] Using API URL:', baseUrl, 'from hostname:', typeof window !== 'undefined' ? window.location.hostname : 'server')
-        
-        // If subdomain is provided, use subdomain+slug lookup
-        // Otherwise, try by slug (which handles both UUID and custom_slug)
-        const endpoint = subdomain 
-          ? `${baseUrl}/forms/by-subdomain/${subdomain}/${slug}`
-          : `${baseUrl}/forms/by-slug/${slug}`
-        
-        console.log('[PublicPortalV2] Fetching form from:', endpoint)
-        // Allow browser caching for faster subsequent loads
-        const formResponse = await fetch(endpoint, { 
-          cache: 'default', // Use browser's default caching
-          signal: abortController.signal
-        })
-        
-        if (!formResponse.ok) {
-          throw new Error('Form not found')
+        let formData: Form
+
+        if (formSeed) {
+          // Already server-fetched and seeded into initial state (see the
+          // useState calls above) — nothing to fetch or set here.
+          formData = formSeed
+        } else {
+          setIsFormLoading(true)
+          const baseUrl = getApiUrl()
+          console.log('[PublicPortalV2] Using API URL:', baseUrl, 'from hostname:', typeof window !== 'undefined' ? window.location.hostname : 'server')
+
+          // If subdomain is provided, use subdomain+slug lookup
+          // Otherwise, try by slug (which handles both UUID and custom_slug)
+          const endpoint = subdomain
+            ? `${baseUrl}/forms/by-subdomain/${subdomain}/${slug}`
+            : `${baseUrl}/forms/by-slug/${slug}`
+
+          console.log('[PublicPortalV2] Fetching form from:', endpoint)
+          // Allow browser caching for faster subsequent loads
+          const formResponse = await fetch(endpoint, {
+            cache: 'default', // Use browser's default caching
+            signal: abortController.signal
+          })
+
+          if (!formResponse.ok) {
+            throw new Error('Form not found')
+          }
+
+          formData = await formResponse.json()
+
+          // Check if request was aborted
+          if (abortController.signal.aborted) {
+            return
+          }
+
+          setForm(formData)
+          // Show form immediately - don't wait for session restoration
+          setIsFormLoading(false)
         }
-        
-        const formData = await formResponse.json()
-        console.log('[PublicPortalV2] Raw form data from API:', {
+
+        console.log('[PublicPortalV2] Raw form data:', {
           formData,
           hasSettings: !!formData.settings,
           settingsKeys: formData.settings ? Object.keys(formData.settings) : null,
-          settingsSections: formData.settings?.sections,
-          sectionsType: typeof formData.settings?.sections,
-          sectionsLength: Array.isArray(formData.settings?.sections) ? formData.settings.sections.length : 'not an array'
+          settingsSections: (formData.settings as any)?.sections,
+          sectionsType: typeof (formData.settings as any)?.sections,
+          sectionsLength: Array.isArray((formData.settings as any)?.sections) ? (formData.settings as any).sections.length : 'not an array'
         })
-        
-        // Check if request was aborted
-        if (abortController.signal.aborted) {
-          return
-        }
-        
-        setForm(formData)
-        // Show form immediately - don't wait for session restoration
-        setIsFormLoading(false)
-        
+
         // Restore session in background (non-blocking)
         // This allows the form to show immediately while session restoration happens
         const restoreSession = async () => {
@@ -622,8 +637,21 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
           }
         }
         
-        // Check Better Auth session after form loads
-        checkBetterAuthSession()
+        // Anonymous portals (no Sign-in page) never read `isAuthenticated` —
+        // skip the session-check round trip entirely for them instead of
+        // blocking first paint on a network call whose result nothing uses.
+        // Mirrors the authoritative `requiresSignIn` check the portalConfig
+        // useMemo computes further down (from this same settings.sections
+        // shape) — duplicated here since portalConfig isn't built yet at
+        // this point in the effect.
+        const rawSections = (formData.settings as any)?.sections
+        const needsAuthCheck = Array.isArray(rawSections) && rawSections.some((s: any) => s?.sectionType === 'signin')
+        if (needsAuthCheck) {
+          // Check Better Auth session after form loads
+          checkBetterAuthSession()
+        } else {
+          setIsCheckingAuth(false)
+        }
       } catch (error: any) {
         // Ignore abort errors
         if (error.name === 'AbortError') {
@@ -644,7 +672,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
     if (slug) {
       loadForm()
     }
-    
+
     // Cleanup: abort request if component unmounts or dependencies change
     return () => {
       if (formLoadAbortControllerRef.current) {
@@ -653,7 +681,7 @@ export function PublicPortalV2({ slug, subdomain }: PublicPortalV2Props) {
       }
       formLoadRef.current = null
     }
-  }, [slug, subdomain])
+  }, [slug, subdomain, formSeed])
 
   // Handle magic link authentication (works for both login and signup)
   const handleMagicLink = async (emailAddress: string) => {
