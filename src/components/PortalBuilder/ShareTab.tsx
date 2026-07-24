@@ -7,10 +7,13 @@ import { Input } from '@/ui-components/input'
 import { Label } from '@/ui-components/label'
 import { Textarea } from '@/ui-components/textarea'
 import { cn } from '@/lib/utils'
-import { formsClient, Form } from '@/lib/api/forms-client'
-import { workspacesClient, Workspace } from '@/lib/api/workspaces-client'
+import { useQueryClient } from '@tanstack/react-query'
+import { formsClient } from '@/lib/api/forms-client'
+import { workspacesClient } from '@/lib/api/workspaces-client'
 import { toast } from 'sonner'
 import { storageClient } from '@/lib/api/storage-client'
+import { useFormQuery, formQueryKey } from '@/hooks/queries/useFormQuery'
+import { useWorkspaceQuery, workspaceQueryKey } from '@/hooks/queries/useWorkspaceQuery'
 
 interface ShareTabProps {
   formId: string | null
@@ -25,11 +28,17 @@ const APP_DOMAIN = 'maticsapp.com'
 type ModalStep = 'options' | 'subdomain' | 'slug' | null
 
 export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
-  const [form, setForm] = useState<Form | null>(null)
-  const [workspace, setWorkspace] = useState<Workspace | null>(null)
+  const queryClient = useQueryClient()
+  // Shared with PortalEditor via the same query key — this tab used to
+  // remount (see the `key={share-...}` prop at its call site) and refetch
+  // both records from scratch every time the user switched to it.
+  const formQuery = useFormQuery(formId)
+  const workspaceQuery = useWorkspaceQuery(workspaceId)
+  const form = formQuery.data ?? null
+  const workspace = workspaceQuery.data ?? null
+  const isLoading = formQuery.isLoading || (!!workspaceId && workspaceQuery.isLoading)
   const [customSlug, setCustomSlug] = useState('')
   const [subdomain, setSubdomain] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -51,68 +60,21 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
   )
   const devBaseUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
-  // Load data on mount and when formId/workspaceId changes
+  // Seed the locally-editable fields whenever the (possibly shared, possibly
+  // cached) query data changes — on first load, on cache hit from another
+  // consumer, and after a mutation updates the cache below.
   useEffect(() => {
-    const load = async () => {
-      setIsLoading(true)
-      try {
-        const promises: Promise<any>[] = []
-        if (formId) {
-          promises.push(
-            formsClient.get(formId).then((formData) => {
-              setForm(formData)
-              setCustomSlug((formData as any).custom_slug || formData.slug || '')
-              setPreviewTitle((formData as any).preview_title || formData.name)
-              setPreviewDescription((formData as any).preview_description || formData.description || '')
-              setPreviewImageUrl((formData as any).preview_image_url || '')
-            })
-          )
-        }
-        if (workspaceId) {
-          promises.push(
-            workspacesClient.get(workspaceId).then((wsData) => {
-              setWorkspace(wsData)
-              setSubdomain(wsData.custom_subdomain || '')
-            })
-          )
-        }
-        await Promise.all(promises)
-      } catch (err) {
-        console.error('Failed to load share data:', err)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    load()
-  }, [formId, workspaceId])
+    if (!form) return
+    setCustomSlug((form as any).custom_slug || form.slug || '')
+    setPreviewTitle((form as any).preview_title || form.name)
+    setPreviewDescription((form as any).preview_description || form.description || '')
+    setPreviewImageUrl((form as any).preview_image_url || '')
+  }, [form])
 
-  const loadForm = async () => {
-    if (!formId) return
-    setIsLoading(true)
-    try {
-      const formData = await formsClient.get(formId)
-      setForm(formData)
-      setCustomSlug((formData as any).custom_slug || formData.slug || '')
-      setPreviewTitle((formData as any).preview_title || formData.name)
-      setPreviewDescription((formData as any).preview_description || formData.description || '')
-      setPreviewImageUrl((formData as any).preview_image_url || '')
-    } catch (err) {
-      console.error('Failed to load form:', err)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const loadWorkspace = async () => {
-    if (!workspaceId) return
-    try {
-      const wsData = await workspacesClient.get(workspaceId)
-      setWorkspace(wsData)
-      setSubdomain(wsData.custom_subdomain || '')
-    } catch (err) {
-      console.error('Failed to load workspace:', err)
-    }
-  }
+  useEffect(() => {
+    if (!workspace) return
+    setSubdomain(workspace.custom_subdomain || '')
+  }, [workspace])
 
   // Generate a suggested slug from form name
   const getSuggestedSlug = (): string => {
@@ -134,7 +96,7 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     try {
       const subdomainValue = subdomain.trim().toLowerCase() || null
       const updatedWorkspace = await workspacesClient.updateCustomSubdomain(workspaceId, subdomainValue)
-      setWorkspace(updatedWorkspace)
+      queryClient.setQueryData(workspaceQueryKey(workspaceId), updatedWorkspace)
       setSubdomain(updatedWorkspace.custom_subdomain || '')
       toast.success(subdomainValue ? 'Subdomain saved!' : 'Subdomain removed')
       // Move to slug step after saving subdomain, pre-populate slug if empty
@@ -161,7 +123,7 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
     try {
       const slugValue = customSlug.trim().toLowerCase() || null
       const updatedForm = await formsClient.updateCustomSlug(formId, slugValue)
-      setForm(updatedForm)
+      queryClient.setQueryData(formQueryKey(formId), updatedForm)
       setCustomSlug((updatedForm as any).custom_slug || updatedForm.slug || '')
       toast.success(slugValue ? 'Custom URL saved!' : 'Custom URL removed')
       setModalStep(null) // Close modal on success
@@ -266,7 +228,7 @@ export function ShareTab({ formId, isPublished, workspaceId }: ShareTabProps) {
         preview_description: previewDescription || null,
         preview_image_url: previewImageUrl || null
       })
-      setForm(updatedForm)
+      queryClient.setQueryData(formQueryKey(formId), updatedForm)
       setIsEditingPreview(false)
       toast.success('Preview updated successfully')
     } catch (err: any) {

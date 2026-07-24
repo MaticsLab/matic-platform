@@ -6,9 +6,8 @@ import { Settings, BarChart2, PencilLine } from 'lucide-react'
 import { ReviewWorkspaceV2 } from './Review/v2'
 import { ApplicationSettingsModal } from './Configuration/ApplicationSettingsModal'
 import { Button } from '@/ui-components/button'
-import { goClient } from '@/lib/api/go-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
-import { Form } from '@/types/forms'
+import { useFormQuery } from '@/hooks/queries/useFormQuery'
 
 interface ApplicationManagerProps {
   workspaceId: string
@@ -27,7 +26,10 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
   const params = useParams()
   const slugFromUrl = params?.slug as string
 
-  const [form, setForm] = useState<Form | null>(null)
+  // Shares its cache with PortalEditor/ShareTab/etc. (same query key) — a
+  // user who was just editing this exact form in the builder gets it here
+  // for free instead of firing another request for data already in hand.
+  const { data: form } = useFormQuery(formId)
   const [workspaceSlug, setWorkspaceSlug] = useState<string>('')
   const [isAppSettingsModalOpen, setIsAppSettingsModalOpen] = useState(false)
   const [stats, setStats] = useState<Stats>({
@@ -54,20 +56,6 @@ export function ApplicationManager({ workspaceId, formId }: ApplicationManagerPr
     }
     fetchWorkspace()
   }, [workspaceId, slugFromUrl])
-
-  // Fetch form details
-  useEffect(() => {
-    const fetchFormBasic = async () => {
-      if (!formId) return
-      try {
-        const data = await goClient.get<Form>(`/forms/${formId}`)
-        setForm(data)
-      } catch (error) {
-        console.error('Failed to fetch form:', error)
-      }
-    }
-    fetchFormBasic()
-  }, [formId])
 
   if (!formId) {
     return (

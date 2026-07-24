@@ -34,8 +34,11 @@ import { StandaloneFormShell } from '@/components/ApplicationsHub/Applications/A
 import { CollaborationProvider, useCollaborationOptional, getCollaborationActions, useYDoc } from './CollaborationProvider'
 import { PortalConfigSyncBridge } from './PortalConfigSyncBridge'
 import { PresenceHeader, SectionCollaboratorIndicator, CursorOverlay, type Collaborator } from './PresenceIndicators'
+import { useQueryClient } from '@tanstack/react-query'
 import { formsClient } from '@/lib/api/forms-client'
 import { workspacesClient } from '@/lib/api/workspaces-client'
+import { formQueryKey } from '@/hooks/queries/useFormQuery'
+import { workspaceQueryKey } from '@/hooks/queries/useWorkspaceQuery'
 import { v4 as uuidv4 } from 'uuid'
 import { toast } from 'sonner'
 import { PortalEditorSkeleton } from './PortalEditorSkeleton'
@@ -161,6 +164,7 @@ function AuthPagePreviewWithState({
 }
 
 export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: string, initialFormId?: string | null }) {
+  const queryClient = useQueryClient()
   const [config, setConfig] = useState<PortalConfig>(INITIAL_CONFIG)
   const [activeSectionId, setActiveSectionId] = useState<string>(INITIAL_CONFIG.sections[0].id)
   const [activeSpecialPage, setActiveSpecialPage] = useState<'signup' | 'review' | null>(null)
@@ -339,6 +343,13 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
           return
         }
         setWorkspaceId(workspace.id)
+        // Prime the shared query cache with data already fetched here, so the
+        // Share tab (useFormQuery/useWorkspaceQuery) reads it instantly on
+        // first open instead of firing its own redundant request. PortalEditor
+        // itself keeps its own config-reconstruction logic below untouched —
+        // its `config` state is an actively-edited working copy, not a plain
+        // cache mirror, so it isn't a good fit for useQuery itself.
+        queryClient.setQueryData(workspaceQueryKey(workspace.id), workspace)
 
         let fullForm: any = null;
 
@@ -347,6 +358,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             try {
                 fullForm = await formsClient.get(initialFormId)
                 setFormId(initialFormId)
+                queryClient.setQueryData(formQueryKey(initialFormId), fullForm)
             } catch (e) {
                 console.error("Failed to load specific form", e)
             }
@@ -355,10 +367,11 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
         // Otherwise, use the forms list we already fetched in parallel
         if (!fullForm && forms && forms.length > 0) {
             const portalForm = forms.find((f: any) => f.name === 'Application Portal') || forms[0]
-            
+
             if (portalForm) {
                 setFormId(portalForm.id)
                 fullForm = await formsClient.get(portalForm.id)
+                queryClient.setQueryData(formQueryKey(portalForm.id), fullForm)
             }
         }
 
@@ -544,6 +557,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             await formsClient.updateStructure(formId, config)
             // Also set is_published to true so submissions are accepted
             const updated = await formsClient.update(formId, { is_published: true })
+            queryClient.setQueryData(formQueryKey(formId), updated)
             triggerPublicFormRevalidate(updated)
         } else {
             const newForm = await formsClient.create({
@@ -556,6 +570,7 @@ export function PortalEditor({ workspaceSlug, initialFormId }: { workspaceSlug: 
             await formsClient.updateStructure(newForm.id, config)
             // Also set is_published to true so submissions are accepted
             const updated = await formsClient.update(newForm.id, { is_published: true })
+            queryClient.setQueryData(formQueryKey(newForm.id), updated)
             triggerPublicFormRevalidate(updated)
         }
 
