@@ -3,6 +3,16 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
   enabled: process.env.ANALYZE === 'true',
 })
 
+// Same fallback go-client.ts itself uses when this env var is unset. Derived
+// at build time rather than hardcoded: NEXT_PUBLIC_GO_API_URL is currently
+// pinned to Railway's own generated backend domain in production (not the
+// custom api.maticsapp.com domain the code falls back to), which is exactly
+// the kind of drift that silently 400s next/image's optimizer if the allowed
+// host is hardcoded to the "intended" domain instead of the real one.
+const GO_API_HOSTNAME = new URL(
+  process.env.NEXT_PUBLIC_GO_API_URL || 'https://api.maticsapp.com/api/v1'
+).hostname
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -21,10 +31,17 @@ const nextConfig = {
 
   // Uploaded assets (workspace logos, cover images) are served from the Go
   // backend's own storage proxy (see storageObjectUrl in storage-client.ts) —
-  // never a third-party or user-supplied host, so this is a narrow,
-  // specific pattern rather than a wildcard.
+  // never a third-party or user-supplied host, so these are narrow, specific
+  // patterns rather than a wildcard. Both the actual current backend host
+  // (GO_API_HOSTNAME) and the intended custom domain are listed, so this
+  // keeps working if NEXT_PUBLIC_GO_API_URL is ever repointed to the latter.
   images: {
     remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: GO_API_HOSTNAME,
+        pathname: '/api/v1/storage/object/**',
+      },
       {
         protocol: 'https',
         hostname: 'api.maticsapp.com',
