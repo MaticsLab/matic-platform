@@ -18,6 +18,20 @@ const nextConfig = {
   
   // Transpile packages that must be compiled for Next.js
   transpilePackages: ['better-auth'],
+
+  // Uploaded assets (workspace logos, cover images) are served from the Go
+  // backend's own storage proxy (see storageObjectUrl in storage-client.ts) —
+  // never a third-party or user-supplied host, so this is a narrow,
+  // specific pattern rather than a wildcard.
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'api.maticsapp.com',
+        pathname: '/api/v1/storage/object/**',
+      },
+    ],
+  },
   
   // API proxy to backend (excludes /api/auth which is handled by Better Auth)
   async rewrites() {

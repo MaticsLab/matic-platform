@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import Image from 'next/image'
 import { ArrowRight, Mail, Lock, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/ui-components/button'
@@ -167,10 +168,12 @@ export function AuthPageRenderer({
               playsInline
             />
           ) : (
-            <img 
-              src={backgroundImage} 
-              alt="Background" 
-              className="absolute inset-0 w-full h-full object-cover"
+            <Image
+              src={backgroundImage}
+              alt="Background"
+              fill
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              className="object-cover"
               style={{
                 objectPosition: imageFocalPoint || 'center center'
               }}
@@ -195,10 +198,12 @@ export function AuthPageRenderer({
               playsInline
             />
           ) : (
-            <img 
-              src={backgroundImage} 
-              alt="Background" 
-              className="absolute inset-0 w-full h-full object-cover"
+            <Image
+              src={backgroundImage}
+              alt="Background"
+              fill
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              className="object-cover"
               style={{
                 objectPosition: imageFocalPoint || 'center center'
               }}
@@ -217,7 +222,11 @@ export function AuthPageRenderer({
           {/* Logo */}
           {logo && (
             <div className="flex items-center gap-3">
-              <img src={logo} alt="Logo" className={cn(
+              {/* Uploaded logos have no known aspect ratio — width/height below
+                  are only for next/image's intrinsic-size requirement; the
+                  className/style pair makes the actual rendered size auto-width,
+                  fixed-height exactly as the raw <img> was. */}
+              <Image src={logo} alt="Logo" width={160} height={40} style={{ width: 'auto', height: '100%' }} className={cn(
                 "object-contain",
                 isMobilePreview ? "h-6" : "h-8 sm:h-10"
               )} />
@@ -481,10 +490,12 @@ export function AuthPageRenderer({
               playsInline
             />
           ) : (
-            <img 
-              src={backgroundImage} 
-              alt="Background" 
-              className="absolute inset-0 w-full h-full object-cover"
+            <Image
+              src={backgroundImage}
+              alt="Background"
+              fill
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              className="object-cover"
               style={{
                 objectPosition: imageFocalPoint || 'center center'
               }}
@@ -509,10 +520,12 @@ export function AuthPageRenderer({
               playsInline
             />
           ) : (
-            <img 
-              src={backgroundImage} 
-              alt="Background" 
-              className="absolute inset-0 w-full h-full object-cover"
+            <Image
+              src={backgroundImage}
+              alt="Background"
+              fill
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              className="object-cover"
               style={{
                 objectPosition: imageFocalPoint || 'center center'
               }}

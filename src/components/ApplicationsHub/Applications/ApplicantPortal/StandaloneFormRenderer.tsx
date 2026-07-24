@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Image from 'next/image'
 import { Loader2 } from 'lucide-react'
 import { generateHTML } from '@tiptap/html'
 import StarterKit from '@tiptap/starter-kit'
@@ -96,8 +97,7 @@ export function StandaloneFormRenderer({
       <div className="flex items-center justify-between mb-8 gap-3">
         <div className="flex items-center gap-2 min-w-0">
           {showLogo && logoUrls.map((url, i) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={i} src={url} alt="" className="h-9 w-auto max-w-[90px] rounded-md object-contain bg-white" />
+            <Image key={i} src={url} alt="" width={90} height={36} style={{ width: 'auto', height: '100%' }} className="max-w-[90px] rounded-md object-contain bg-white" />
           ))}
         </div>
         {supportedLanguages.length > 1 && (

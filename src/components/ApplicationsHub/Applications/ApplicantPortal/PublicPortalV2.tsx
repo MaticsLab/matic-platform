@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowRight, Mail, Lock, LayoutDashboard, FileText, MessageSquare, CheckSquare, Home, LogOut, Settings, Bell, CheckCircle2, Menu, X, PanelLeftOpen, PanelLeftClose, Save } from 'lucide-react'
 import { AccountSettingsModal } from '@/components/Dashboard/DashboardV2/AccountSettingsModal'
@@ -1954,7 +1955,7 @@ function PortalHeader({
               )}
               
               {portalConfig.settings.logoUrl ? (
-                <img src={portalConfig.settings.logoUrl} alt="Logo" className="h-8 w-auto" />
+                <Image src={portalConfig.settings.logoUrl} alt="Logo" width={160} height={32} style={{ width: 'auto', height: '100%' }} className="h-8" />
               ) : (
                 <div 
                   className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold"

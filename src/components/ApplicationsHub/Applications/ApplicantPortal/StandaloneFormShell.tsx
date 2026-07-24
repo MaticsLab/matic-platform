@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import Image from 'next/image'
 import { cn } from '@/lib/utils'
 
 export type StandaloneImagePosition =
@@ -51,8 +52,10 @@ export function StandaloneFormShell({
   const imageColumn = (
     <div className="relative w-full h-full bg-blue-200">
       {coverImageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={coverImageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        // Shared across layouts with different actual rendered widths (a 42%
+        // split-screen column here, full-width in the banner_top layout below)
+        // — 100vw is the safe upper bound rather than assuming one caller's shape.
+        <Image src={coverImageUrl} alt="" fill sizes="100vw" className="object-cover" />
       )}
       <div className="absolute inset-0" style={{ background: overlayBackground }} />
     </div>
@@ -68,8 +71,7 @@ export function StandaloneFormShell({
       <div className={cn(outerSizing, 'relative flex items-center justify-center overflow-hidden')} style={{ fontFamily }}>
         <div className="absolute inset-0">
           {coverImageUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={coverImageUrl} alt="" className="w-full h-full object-cover" />
+            <Image src={coverImageUrl} alt="" fill sizes="100vw" className="object-cover" />
           )}
           <div className="absolute inset-0" style={{ background: overlayBackground }} />
         </div>

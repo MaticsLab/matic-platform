@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, ArrowRight, Check, LayoutDashboard, Save, Printer, Send, CheckCircle, AlertTriangle, Cloud, CloudOff, AlertCircle, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -588,7 +589,7 @@ export function DynamicApplicationForm({
               
               <div className="flex items-center gap-3">
                 {config.settings.logoUrl ? (
-                  <img src={config.settings.logoUrl} alt="Logo" className="h-8 w-auto" />
+                  <Image src={config.settings.logoUrl} alt="Logo" width={160} height={32} style={{ width: 'auto', height: '100%' }} className="h-8" />
                 ) : (
                   <div 
                     className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold"
